@@ -4400,6 +4400,160 @@ fn fri06_c08_mixed_inline_ltr_content_box_preserves_logical_placement() {
     assert_fri06_c08_mixed_inline_atomic_x::<f64>(Direction::Ltr, BoxSizing::ContentBox, 99.0);
 }
 
+fn assert_fri06_c08_float_line_final_height<S: LayoutScalar>(
+    direction: Direction,
+    box_sizing: BoxSizing,
+) {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, direction);
+    let float = |side, inline, block| {
+        let mut style = fri06_c04_line_box(
+            flow_axes,
+            LogicalSizeOf::new(S::from_f64(inline), S::from_f64(block)),
+            side,
+            None,
+        );
+        style.box_sizing = box_sizing;
+        style
+    };
+    let atomic = |inline, following_break| {
+        let mut style = fri06_c04_line_box(
+            flow_axes,
+            LogicalSizeOf::new(S::from_f64(inline), S::from_f64(16.0)),
+            Float::None,
+            Some(fri06_c03_atomic_participation(
+                u8::from(direction == Direction::Rtl),
+                following_break,
+            )),
+        );
+        style.box_sizing = box_sizing;
+        style
+    };
+    let left_float = float(Float::Left, 42.0, 42.0);
+    let right_float = float(Float::Right, 50.0, 62.0);
+    let first_atomic = atomic(28.0, InlineBreakOpportunityOf::allowed());
+    let second_atomic = atomic(32.0, InlineBreakOpportunityOf::allowed());
+    let third_atomic = atomic(36.0, InlineBreakOpportunityOf::allowed());
+    let fourth_atomic = atomic(40.0, InlineBreakOpportunityOf::prohibited());
+    let root = NodeInputOf {
+        display: Display::Block,
+        writing_mode: WritingMode::HorizontalTb,
+        direction,
+        box_sizing,
+        size: Size::new(
+            PreferredSizeOf::px(S::from_f64(180.0)),
+            PreferredSizeOf::AUTO,
+        ),
+        ..NodeInputOf::default()
+    };
+    let batch = fri06_c03_mixed_batch_with_root(
+        vec![
+            (1, LayoutInputOf::box_input(left_float.clone()), left_float),
+            (
+                2,
+                LayoutInputOf::box_input(right_float.clone()),
+                right_float,
+            ),
+            (
+                3,
+                fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(4, 40.0, 14.8, 5.2)]),
+                NodeInputOf::non_box(),
+            ),
+            (
+                4,
+                LayoutInputOf::box_input(first_atomic.clone()),
+                first_atomic,
+            ),
+            (
+                5,
+                LayoutInputOf::box_input(second_atomic.clone()),
+                second_atomic,
+            ),
+            (
+                6,
+                LayoutInputOf::box_input(third_atomic.clone()),
+                third_atomic,
+            ),
+            (
+                7,
+                LayoutInputOf::box_input(fourth_atomic.clone()),
+                fourth_atomic,
+            ),
+        ],
+        AvailableOf::definite(S::from_f64(180.0)),
+        root,
+    );
+
+    let (expected_left_float_x, expected_right_float_x) = match direction {
+        Direction::Ltr => (0.0, 130.0),
+        Direction::Rtl => (138.0, 0.0),
+    };
+    for entries in [batch.unrounded_entries(), batch.final_entries()] {
+        assert_eq!(
+            public_flow_output(entries, 1).location,
+            Point::new(S::from_f64(expected_left_float_x), S::ZERO),
+            "{direction:?} {box_sizing:?} line-left float"
+        );
+        assert_eq!(
+            public_flow_output(entries, 2).location,
+            Point::new(S::from_f64(expected_right_float_x), S::ZERO),
+            "{direction:?} {box_sizing:?} line-right float"
+        );
+    }
+    assert_eq!(
+        batch
+            .final_inline_fragments()
+            .iter()
+            .map(|entry| entry.fragment().line_index())
+            .collect::<Vec<_>>(),
+        [0],
+        "{direction:?} {box_sizing:?} shaped-text line"
+    );
+    assert_eq!(
+        [4, 5, 6, 7].map(|node| public_flow_output(batch.final_entries(), node).size),
+        [
+            Size::new(S::from_f64(28.0), S::from_f64(16.0)),
+            Size::new(S::from_f64(32.0), S::from_f64(16.0)),
+            Size::new(S::from_f64(36.0), S::from_f64(16.0)),
+            Size::new(S::from_f64(40.0), S::from_f64(16.0)),
+        ],
+        "{direction:?} {box_sizing:?} atomic sizes"
+    );
+    assert_eq!(
+        [4, 5, 6, 7].map(|node| public_flow_output(batch.final_entries(), node).location.y),
+        [0.0, 21.0, 21.0, 37.0].map(S::from_f64),
+        "{direction:?} {box_sizing:?} float-band line placement"
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 0).size,
+        Size::new(S::from_f64(180.0), S::from_f64(63.0)),
+        "{direction:?} {box_sizing:?} final block geometry"
+    );
+}
+
+#[test]
+fn fri06_c08_float_line_border_box_ltr_rounds_final_height_to_63() {
+    assert_fri06_c08_float_line_final_height::<f32>(Direction::Ltr, BoxSizing::BorderBox);
+    assert_fri06_c08_float_line_final_height::<f64>(Direction::Ltr, BoxSizing::BorderBox);
+}
+
+#[test]
+fn fri06_c08_float_line_border_box_rtl_rounds_final_height_to_63() {
+    assert_fri06_c08_float_line_final_height::<f32>(Direction::Rtl, BoxSizing::BorderBox);
+    assert_fri06_c08_float_line_final_height::<f64>(Direction::Rtl, BoxSizing::BorderBox);
+}
+
+#[test]
+fn fri06_c08_float_line_content_box_ltr_rounds_final_height_to_63() {
+    assert_fri06_c08_float_line_final_height::<f32>(Direction::Ltr, BoxSizing::ContentBox);
+    assert_fri06_c08_float_line_final_height::<f64>(Direction::Ltr, BoxSizing::ContentBox);
+}
+
+#[test]
+fn fri06_c08_float_line_content_box_rtl_rounds_final_height_to_63() {
+    assert_fri06_c08_float_line_final_height::<f32>(Direction::Rtl, BoxSizing::ContentBox);
+    assert_fri06_c08_float_line_final_height::<f64>(Direction::Rtl, BoxSizing::ContentBox);
+}
+
 #[test]
 fn fri06_c07_sideways_lr_rtl_all_atomic_odd_bidi_keeps_visual_placement_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {

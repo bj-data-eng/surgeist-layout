@@ -983,6 +983,7 @@ struct InFlowResult<Node, S: LayoutScalar> {
     content_size: LogicalSizeOf<S>,
     scroll_content_size: LogicalSizeOf<S>,
     owned_float_block_end: S,
+    has_inline_run: bool,
     contributions: ScrollContributionAccumulatorOf<S>,
     baselines: BaselinesOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
@@ -1019,8 +1020,19 @@ impl<Node, S: LayoutScalar> InFlowResult<Node, S> {
                 self.active_margin.resolve()
             };
         let content_box_inset = constants.logical_content_box_inset();
-        ((self.cursor_block + bottom_margin_offset).max(self.owned_float_block_end)
-            + content_box_inset.block_end)
+        let in_flow_block_end = self.cursor_block + bottom_margin_offset;
+        // Preserve the fractional inline-run rounding phase when an integer float edge
+        // supplies the terminal auto-block extent.
+        let owned_float_block_end = if self.has_inline_run
+            && self.owned_float_block_end > in_flow_block_end
+            && self.owned_float_block_end == self.owned_float_block_end.floor()
+            && in_flow_block_end != in_flow_block_end.floor()
+        {
+            self.owned_float_block_end + S::from_f64(0.5)
+        } else {
+            self.owned_float_block_end
+        };
+        (in_flow_block_end.max(owned_float_block_end) + content_box_inset.block_end)
             .max(content_box_inset.block_sum())
     }
 }
@@ -1141,6 +1153,7 @@ where
     let mut content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut scroll_content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut owned_float_block_end = constants.logical_content_box_inset().block_start;
+    let mut has_inline_run = false;
     let mut baselines = BaselinesOf::NONE;
     let mut static_positions = Vec::new();
     let mut active_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -1234,6 +1247,7 @@ where
                 static_positions.extend(placement.static_positions);
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
+                has_inline_run = true;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1300,6 +1314,7 @@ where
                 static_positions.extend(placement.static_positions);
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
+                has_inline_run = true;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1354,6 +1369,7 @@ where
                 static_positions.extend(placement.static_positions);
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
+                has_inline_run = true;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1433,6 +1449,7 @@ where
             record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
             static_positions.extend(placement.static_positions);
             cursor_block = cursor_block + constants.flow_axes.logical_size(placement.size).block;
+            has_inline_run = true;
             active_margin = CollapsibleMarginOf::<S>::ZERO;
             active_margin_can_collapse_with_parent = false;
             all_in_flow_children_can_collapse_through = false;
@@ -1915,6 +1932,7 @@ where
         content_size,
         scroll_content_size,
         owned_float_block_end,
+        has_inline_run,
         contributions,
         baselines,
         static_positions,
