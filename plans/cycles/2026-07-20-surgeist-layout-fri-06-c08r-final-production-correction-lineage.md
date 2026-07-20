@@ -100,8 +100,10 @@ full run.
 
 ### `C08R-T1` Correct Direct RTL Visual Traversal
 
-**Files/area:** `src/inline.rs`; focused tests in `src/root_tests.rs` and
-`tests/layout/browser_parity.rs`. No fixture, parser, helper, generator, or
+**Files/area:** `src/inline.rs`; focused tests in `src/root_tests.rs`,
+`src/grid_tests.rs`, and `tests/layout/browser_parity.rs`. The grid test change
+may only correct the existing C07 RTL physical-origin expectation that encoded
+the same redundant second mirror. No fixture, parser, helper, generator, or
 generated output.
 
 **Outcome:** Consume the visual order returned by bidi reordering exactly once.
@@ -119,7 +121,8 @@ uses a panic wrapper; do not fabricate RED from the implementation diff.
 f64. First Range start is 73.296875, the atomic occupies the browser x/width,
 and trailing Range start is 180 with all y, line, baseline, and root geometry
 unchanged. Existing ten-flow mapping, mixed-level, source-index, and visual-index
-controls pass. The direction-wide second reversal is absent.
+controls pass. The C07 subgrid RTL physical origins follow the same single
+visual-order projection. The direction-wide second reversal is absent.
 
 **Commands:**
 
@@ -127,6 +130,7 @@ controls pass. The direction-wide second reversal is absent.
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c08_recovery_characterization_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08_recovery_characterization_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c08_r1_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c07_subgrid_rtl_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just fmt-check
 ```
