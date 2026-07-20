@@ -316,13 +316,12 @@ unrelated focused regression suites are clean without fixture or artifact deltas
 stable before helper, source, manifest, and final-lineage work resumes.
 
 ### `FRI-06-C08` Bounded Fixture Activation And Final Lineage
-
-**Specification sources:** `FRI-06.4 D-16`; browser/comparator portions of
-`FRI-06.9` and `FRI-06.10`; `FRI-06.11`; artifact portions of `FRI-06.14`.
-
-**Prerequisites:** `FRI-06-C07` complete and remotely verified; all production
-and finite adapter decisions stable.
-
+**Specification sources:** `FRI-06.4 D-09`, `D-11`, and `D-16`; atomic-baseline
+and physical-placement portions of `FRI-06.7`, `FRI-06.9`, and `FRI-06.14`;
+browser/comparator portions of `FRI-06.9` and `FRI-06.10`; `FRI-06.11`; and
+artifact portions of `FRI-06.14`.
+**Prerequisites:** `FRI-06-C07` complete and remotely verified; its production
+and finite adapter decisions are the C08 entry handoff.
 **Entry state:** Adapter and product behavior are complete. Bounded diagnostics
 proved fixture-owned failures: invalid zero-line-height break metrics, collapsed-
 space advance loss, mismatched bidi/float fixture semantics, atomics-plus-break
@@ -331,20 +330,21 @@ inline content for the fixed baseline-helper subset. The exact 340 existing
 unsupported variants, including those 16 rows, twelve new sources including
 `fri06_forced_break_strut`, manifest records, and valid final derived artifacts
 are absent.
-
 **Bounded outcome:** Correct only those finite input defects; settle the reviewed
 helper/parser/serializer facts; activate all 85 existing FRI-06 sources; add
 exactly twelve named sources and 48 variants; preserve semantic input for every
-other source; then derive the complete corpus once from settled inputs through
-the existing-pinned no-fetch lineage. Generator architecture remains unchanged.
-
+other source; and route the confirmed atomic-baseline defect exposed after the
+reviewed input checkpoint through the sole C08-R1 production-recovery gate before
+retaining the final corpus. R1 may use a scoped existing-pinned diagnostic only
+when focused evidence cannot localize the defect; it retains no report or
+artifact and is never acceptance evidence. It never runs a full generation.
+Generator architecture remains unchanged.
 **Observable exit evidence:** The final full report has 5,712 generated, exactly
 16 immutable missing-root unsupported variants, `filter: null`, reviewed browser
 and helper/manifest provenance, and zero failure classes or scoped reports. All
 388 activated/new variants compare through an explicit frozen matrix; the other
 5,324 outputs change only generator provenance; artifacts are derived rather
 than hand-edited. The FRI-13 aggregate gate remains unclaimed.
-
 **Handoff:** Generator inputs and outputs are frozen for read-only initiative
 closure.
 
