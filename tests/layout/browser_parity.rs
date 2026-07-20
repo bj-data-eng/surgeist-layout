@@ -3500,3 +3500,93 @@ fn fri06_c08_recovery_characterization_browser_geometry_remains_unaccepted_produ
         );
     }
 }
+
+fn fri06_c08_recovery_inputs_shape_xml() -> String {
+    r#"<test name="fri06_float_shape_exclusion__border_box_ltr" use-rounding="false">
+  <viewport width="180px" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="block" direction="ltr" font-family="monospace" font-size="16px" line-height="20px" width="180px">
+      <div source-tag="span" display="block" float="left" float-exclusion="shape" width="44px" height="60px">
+        <shape-bands>
+          <shape-band band-minimum="0" band-maximum="21.2" interval-minimum="0" interval-maximum="44"/>
+          <shape-band band-minimum="21.2" band-maximum="37.2" interval-minimum="0" interval-maximum="44"/>
+        </shape-bands>
+      </div>
+      <text layout-input="inline-text">
+        <segment id="2" inline-extent="48.1640625" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+      <div source-tag="span" display="inline-block" width="34px" height="16px"/>
+      <div source-tag="span" display="inline-block" width="38px" height="16px"/>
+      <div source-tag="span" display="inline-block" width="42px" height="16px"/>
+      <div source-tag="span" display="inline-block" width="46px" height="16px"/>
+      <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>
+      <atomic-placeholder child-index="4" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="5" bidi-level="0" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="60.5">
+      <node x="0" y="0" width="44" height="60"/>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="2" line_index="0" physical_start_edge="left" start="44" advance="48.1640625"/>
+        </range-inks>
+      </node>
+      <node x="92.16406" y="0" width="34" height="16"/>
+      <node x="126.16406" y="0" width="38" height="16"/>
+      <node x="44" y="21.2" width="42" height="16"/>
+      <node x="86" y="21.2" width="46" height="16"/>
+    </node>
+  </expectations>
+</test>"#
+        .to_string()
+}
+
+#[test]
+fn fri06_c08_recovery_inputs_shape_break_places_34_38_then_42_46_on_two_lines() {
+    let xml = fri06_c08_recovery_inputs_shape_xml();
+    let golden = support::Golden::parse(&xml).expect("exact shape-break fixture should parse");
+    assert_eq!(
+        golden.root.style.get("layout-ready-inline-root"),
+        Some("true")
+    );
+    support::assert_surgeist_matches(&golden)
+        .unwrap_or_else(|error| panic!("reviewed shape break placement changed: {error}\n{xml}"));
+
+    let wrong_target = xml
+        .replacen(
+            r#"child-index="3" bidi-level="0" following-break="allowed""#,
+            r#"child-index="3" bidi-level="0" following-break="prohibited""#,
+            1,
+        )
+        .replacen(
+            r#"child-index="4" bidi-level="0" following-break="prohibited""#,
+            r#"child-index="4" bidi-level="0" following-break="allowed""#,
+            1,
+        );
+    let golden = support::Golden::parse(&wrong_target).expect("wrong target remains schema-valid");
+    support::assert_surgeist_matches(&golden)
+        .expect_err("moving the allowed break from 38px to 42px must reject browser placement");
+
+    for (label, malformed) in [
+        (
+            "duplicate",
+            xml.replacen(
+                r#"<atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>"#,
+                r#"<atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>
+      <atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>"#,
+                1,
+            ),
+        ),
+        (
+            "out of range",
+            xml.replacen(r#"child-index="3""#, r#"child-index="99""#, 1),
+        ),
+    ] {
+        assert!(
+            support::Golden::parse(&malformed).is_err(),
+            "shape atomic break parser accepted {label} target"
+        );
+    }
+}

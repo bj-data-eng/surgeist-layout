@@ -4519,8 +4519,23 @@ fn input_attrs_with_parent_writing_mode(
     let is_br = source_tag.as_deref() == Some("br");
     let br_serializes_as_control =
         is_br && matches!(style["display"].as_str(), Some("inline" | "none"));
-    if !is_br || br_serializes_as_control {
+    let br_serializes_as_box = is_br && style["display"].as_str() == Some("block");
+    if !is_br || br_serializes_as_control || br_serializes_as_box {
         maybe(&mut attrs, "source-tag", source_tag, None);
+    }
+    if let Some(marker) = node.get("layoutReadyInlineRoot") {
+        assert_eq!(
+            marker.as_bool(),
+            Some(true),
+            "layout-ready fixture field `layoutReadyInlineRoot` must be true when present"
+        );
+        attrs.push(("layout-ready-inline-root", "true".to_string()));
+    }
+    if br_serializes_as_box {
+        assert!(
+            node["atomicInlineParticipation"].is_null(),
+            "computed block BR must not carry atomic inline participation"
+        );
     }
     if let Some(kind) = line_control_kind(node) {
         attrs.push(("line-control", kind.to_string()));
@@ -4698,18 +4713,35 @@ fn input_attrs_with_parent_writing_mode(
         dimension(&style["flexBasis"]),
         Some("auto"),
     );
-    maybe(
-        &mut attrs,
-        "width",
-        dimension(&style["size"]["width"]),
-        Some("auto"),
-    );
-    maybe(
-        &mut attrs,
-        "height",
-        dimension(&style["size"]["height"]),
-        Some("auto"),
-    );
+    if br_serializes_as_box {
+        attrs.push((
+            "width",
+            format!(
+                "{}px",
+                required_nonnegative_number_attr(&node["unroundedLayout"], "width")
+            ),
+        ));
+        attrs.push((
+            "height",
+            format!(
+                "{}px",
+                required_nonnegative_number_attr(&node["unroundedLayout"], "height")
+            ),
+        ));
+    } else {
+        maybe(
+            &mut attrs,
+            "width",
+            dimension(&style["size"]["width"]),
+            Some("auto"),
+        );
+        maybe(
+            &mut attrs,
+            "height",
+            dimension(&style["size"]["height"]),
+            Some("auto"),
+        );
+    }
     maybe(
         &mut attrs,
         "min-width",
@@ -6944,6 +6976,7 @@ if (expectedReason === undefined) {{
             (
                 "float/fri06_float_shape_exclusion.html",
                 &[
+                    "data-surgeist-inline-breaks='[{\"sourceIndex\":4,\"followingBreak\":\"allowed\"}]'",
                     "data-surgeist-shape-bands=",
                     "&quot;bandMinimum&quot;:0",
                     "&quot;bandMaximum&quot;:21.2",
@@ -6996,6 +7029,7 @@ if (expectedReason === undefined) {{
             [
                 "block/fri06_inline_mixed_text_atomic_wrap.html",
                 "float/fri06_float_line_exclusion.html",
+                "float/fri06_float_shape_exclusion.html",
             ]
         );
     }
@@ -7145,7 +7179,9 @@ if (expectedReason === undefined) {{
                 ],
                 2,
                 "bands",
-                None,
+                Some(json!([
+                    {"sourceIndex": 4, "followingBreak": "allowed"}
+                ])),
             ),
         ];
 
@@ -7204,11 +7240,11 @@ if (expectedReason === undefined) {{
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "8fc22a25a4d58a22398aca7a468731ce845ee98b3ea6a7d63945fd6650a86fd1"
+            "49322f454e31a462852a1a6f170be757b8b1a0245f33fa43c1692bde737adb7a"
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            "fd668b064fcccb00ebb1632183e4f2522ce29f1b390f2f0c012bdade906ed18c"
+            "d4bc9ec937f5de860f737ff7d886384a861a52d7004b39551e13852a1378acdc"
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
@@ -7818,8 +7854,12 @@ const range = {
   detach() {},
 };
 const document = { styleSheets: [], createRange() { return range; } };
-const parent = { getBoundingClientRect() { return parentRect; } };
-const text = { nodeType: Node.TEXT_NODE, textContent: "X" };
+const parent = {
+  parentElement: null,
+  getAttribute(name) { return name === "data-surgeist-layout-ready-inline" ? "true" : null; },
+  getBoundingClientRect() { return parentRect; },
+};
+const text = { nodeType: Node.TEXT_NODE, textContent: "X", parentElement: parent };
 function getComputedStyle(element) {
   return {
     direction: "rtl",
@@ -7969,9 +8009,11 @@ const range = {
 };
 const document = { styleSheets: [], createRange() { return range; } };
 const parent = {
+  parentElement: null,
+  getAttribute(name) { return name === "data-surgeist-layout-ready-inline" ? "true" : null; },
   getBoundingClientRect() { return rootRect; },
 };
-const text = { nodeType: Node.TEXT_NODE, textContent: " " };
+const text = { nodeType: Node.TEXT_NODE, textContent: " ", parentElement: parent };
 function getComputedStyle() {
   return {
     direction: "ltr",
@@ -8182,12 +8224,13 @@ for (const [name, element, style] of [
 
         let blockified = generate_xml("fri06_c08_t1_blockified_br", &root(br(None, "block")));
         assert!(
-            blockified.contains(r#"<div display="block""#),
+            blockified
+                .contains(r#"<div source-tag="br" display="block" width="0px" height="10px"/>"#),
             "blockified BR lost its ordinary box\n{blockified}"
         );
         assert!(
-            !blockified.contains(r#"source-tag="br""#),
-            "blockified BR retained line-break lowering data\n{blockified}"
+            !blockified.contains("line-control="),
+            "blockified BR gained line-break lowering data\n{blockified}"
         );
         assert!(
             !blockified.contains("inline-baseline="),
@@ -8270,6 +8313,606 @@ for (const [name, element, style] of [
             assert!(
                 result.is_err(),
                 "serializer accepted malformed control state {label}"
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_c08_recovery_inputs_block_br_used_size_round_trips_as_an_ordinary_box() {
+        let cases = [
+            ("horizontal", "horizontal-tb", 0.0, 10.0),
+            ("vertical", "vertical-rl", 10.0, 0.0),
+            ("unequal-flex", "horizontal-tb", 0.0, 19.0),
+        ];
+
+        for (label, writing_mode, width, height) in cases {
+            let root_display = if label == "unequal-flex" {
+                "flex"
+            } else {
+                "block"
+            };
+            let node = json!({
+                "tagName": "div",
+                "useRounding": false,
+                "viewport": {
+                    "width": {"unit": "px", "value": 100},
+                    "height": {"unit": "px", "value": 100},
+                },
+                "style": {
+                    "display": root_display,
+                    "direction": "ltr",
+                    "writingMode": writing_mode,
+                    "size": {
+                        "width": {"unit": "px", "value": 100},
+                        "height": {"unit": "px", "value": 100},
+                    },
+                },
+                "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 100},
+                "children": [{
+                    "tagName": "br",
+                    "style": {
+                        "display": "block",
+                        "direction": "ltr",
+                        "writingMode": writing_mode,
+                        "inlineBaseline": "8px",
+                        "inlineLineHeight": "10px",
+                    },
+                    "unroundedLayout": {
+                        "x": 0,
+                        "y": 0,
+                        "width": width,
+                        "height": height,
+                    },
+                    "children": [],
+                }],
+            });
+
+            let xml = generate_xml(&format!("fri06_c08_recovery_inputs_br_{label}"), &node);
+            let golden = browser_parity_support::Golden::parse(&xml).unwrap_or_else(|error| {
+                panic!("{label} serialized fixture must parse: {error}\n{xml}")
+            });
+            keep_imported_browser_parity_support_reachable(&golden);
+            let child = &golden.root.children[0];
+            assert_eq!(child.style.get("source-tag"), Some("br"), "{label}");
+            assert_eq!(
+                child.style.get("display"),
+                Some("block"),
+                "{label} computed role"
+            );
+            assert_eq!(
+                child.style.get("width"),
+                Some(format!("{width}px").as_str()),
+                "{label} used width"
+            );
+            assert_eq!(
+                child.style.get("height"),
+                Some(format!("{height}px").as_str()),
+                "{label} used height"
+            );
+
+            let input = xml
+                .split_once("<input>")
+                .and_then(|(_, rest)| rest.split_once("</input>"))
+                .map(|(input, _)| input)
+                .expect("serialized input section");
+            for prohibited in [
+                "line-control=",
+                "inline-baseline=",
+                "inline-line-height=",
+                "<browser-control",
+                "<atomic-placeholder",
+            ] {
+                assert!(
+                    !input.contains(prohibited),
+                    "{label} block BR emitted prohibited {prohibited:?}\n{xml}"
+                );
+            }
+        }
+
+        let node = json!({
+            "tagName": "div",
+            "useRounding": false,
+            "viewport": {
+                "width": {"unit": "px", "value": 20},
+                "height": {"unit": "px", "value": 10},
+            },
+            "style": {
+                "display": "block",
+                "size": {
+                    "width": {"unit": "px", "value": 20},
+                    "height": {"unit": "px", "value": 10},
+                },
+            },
+            "unroundedLayout": {"x": 0, "y": 0, "width": 20, "height": 10},
+            "children": [{
+                "tagName": "br",
+                "style": {"display": "block"},
+                "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 10},
+                "children": [],
+            }],
+        });
+        let xml = generate_xml("fri06_c08_recovery_inputs_zero_width_br", &node);
+        let golden = browser_parity_support::Golden::parse(&xml).expect("serialized block BR");
+        browser_parity_support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("used 0x10 block BR must survive the real parser/layout path: {error}\n{xml}")
+        });
+    }
+
+    #[test]
+    fn fri06_c08_recovery_inputs_block_br_validation_and_non_br_controls_stay_narrow() {
+        let root = |child: Value| {
+            json!({
+                "tagName": "div",
+                "useRounding": false,
+                "viewport": {
+                    "width": {"unit": "px", "value": 100},
+                    "height": {"unit": "max-content"},
+                },
+                "style": {"display": "block"},
+                "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+                "children": [child],
+            })
+        };
+        let block_br = |layout: Value| {
+            json!({
+                "tagName": "br",
+                "style": {
+                    "display": "block",
+                    "inlineBaseline": "8px",
+                    "inlineLineHeight": "10px",
+                },
+                "unroundedLayout": layout,
+                "children": [],
+            })
+        };
+
+        for (label, layout) in [
+            ("missing width", json!({"x": 0, "y": 0, "height": 10})),
+            (
+                "negative height",
+                json!({"x": 0, "y": 0, "width": 0, "height": -1}),
+            ),
+        ] {
+            let result = std::panic::catch_unwind(|| {
+                generate_xml(
+                    "fri06_c08_recovery_inputs_invalid_block_br",
+                    &root(block_br(layout)),
+                )
+            });
+            assert!(result.is_err(), "block BR accepted {label}");
+        }
+
+        let ordinary = json!({
+            "tagName": "span",
+            "style": {"display": "block"},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 19},
+            "children": [],
+        });
+        let xml = generate_xml(
+            "fri06_c08_recovery_inputs_ordinary_block_control",
+            &root(ordinary),
+        );
+        let golden = browser_parity_support::Golden::parse(&xml).expect("ordinary block fixture");
+        assert_eq!(golden.root.children[0].style.get("width"), None);
+        assert_eq!(golden.root.children[0].style.get("height"), None);
+
+        let inline_br = json!({
+            "tagName": "br",
+            "lineControlParticipation": {"kind": "forced-break"},
+            "style": {
+                "display": "inline",
+                "inlineBaseline": "8px",
+                "inlineLineHeight": "10px",
+            },
+            "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 10},
+            "children": [],
+        });
+        let xml = generate_xml(
+            "fri06_c08_recovery_inputs_inline_br_control",
+            &root(inline_br),
+        );
+        assert!(xml.contains(r#"source-tag="br" line-control="forced-break" display="inline""#));
+        assert!(xml.contains(r#"inline-baseline="8px" inline-line-height="10px""#));
+    }
+
+    #[test]
+    fn fri06_c08_recovery_inputs_range_lines_round_trip_in_root_local_source_order() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+let selected;
+const range = {
+  selectNodeContents(node) { selected = node; },
+  getBoundingClientRect() { return selected.rect; },
+  getClientRects() { return [selected.rect]; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const ignored = { nodeType: 8 };
+const texts = [
+  { nodeType: Node.TEXT_NODE, textContent: "X", rect: { x: 0, y: 0, left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 } },
+  { nodeType: Node.TEXT_NODE, textContent: "XXXX", rect: { x: 0, y: 20, left: 0, top: 20, right: 40, bottom: 30, width: 40, height: 10 } },
+  { nodeType: Node.TEXT_NODE, textContent: "XX", rect: { x: 0, y: 40, left: 0, top: 40, right: 20, bottom: 50, width: 20, height: 10 } },
+  { nodeType: Node.TEXT_NODE, textContent: "XXX", rect: { x: 0, y: 60, left: 0, top: 60, right: 30, bottom: 70, width: 30, height: 10 } },
+];
+const rootRect = { x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 };
+const root = {
+  parentElement: null,
+  childNodes: [texts[0], ignored, ignored, ignored, texts[1], ignored, ignored, ignored, texts[2], ignored, ignored, ignored, texts[3]],
+  getAttribute(name) { return name === "data-surgeist-layout-ready-inline" ? "true" : null; },
+  getBoundingClientRect() { return rootRect; },
+};
+for (const text of texts) text.parentElement = root;
+function getComputedStyle() {
+  return { direction: "ltr", writingMode: "horizontal-tb", fontSize: "10px", lineHeight: "10px", display: "block" };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const children = describeChildNodes(root);
+console.log(JSON.stringify({
+  tagName: "div",
+  layoutReadyInlineRoot: true,
+  useRounding: false,
+  viewport: { width: { unit: "px", value: 100 }, height: { unit: "px", value: 100 } },
+  style: {
+    display: "block",
+    size: { width: { unit: "px", value: 100 }, height: { unit: "px", value: 100 } },
+  },
+  unroundedLayout: { x: 0, y: 0, width: 100, height: 100 },
+  children,
+}));
+"#,
+        ]
+        .concat();
+
+        let node = run_bundled_helper_json("fri06-c08-recovery-root-lines", script);
+        let xml = generate_xml("fri06_c08_recovery_inputs_root_lines", &node);
+        let golden = browser_parity_support::Golden::parse(&xml).expect("serialized Range lines");
+        keep_imported_browser_parity_support_reachable(&golden);
+        assert_eq!(
+            golden.root.style.get("layout-ready-inline-root"),
+            Some("true"),
+            "the exact explicit-root marker must survive serialization and parsing\n{xml}"
+        );
+        let lines = golden
+            .expectations
+            .children
+            .iter()
+            .map(|child| {
+                child
+                    .range_inks
+                    .as_ref()
+                    .and_then(|ranges| ranges.first())
+                    .expect("one Range observation")
+                    .line_index
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            lines,
+            [0, 1, 2, 3],
+            "four source runs must retain distinct browser lines\n{xml}"
+        );
+        for (source_id, child) in [0, 4, 8, 12].into_iter().zip(&golden.expectations.children) {
+            assert_eq!(
+                child.range_inks.as_ref().unwrap()[0].source_segment_id,
+                source_id
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_c08_recovery_inputs_range_registry_reuses_resets_and_rejects_invalid_identity() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const document = { styleSheets: [] };
+function root(writingMode = "horizontal-tb") {
+  const value = {
+    parentElement: null,
+    writingMode,
+    getAttribute(name) { return name === "data-surgeist-layout-ready-inline" ? "true" : null; },
+    getBoundingClientRect() { return { left: 0, top: 0, right: 100 }; },
+  };
+  return value;
+}
+function fragment(left, top, right) { return { left, top, right, width: right - left, height: 10 }; }
+function getComputedStyle(element) { return { writingMode: element.writingMode }; }
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const same = root();
+resetLayoutReadyRangeLineRegistry(same);
+if (layoutReadyRangeLineIndex(same, fragment(0, 10, 10)) !== 0 ||
+    layoutReadyRangeLineIndex(same, fragment(10, 10.05, 20)) !== 0) {
+  throw new Error("same-line anchors within 0.1px must reuse one line index");
+}
+
+const outer = root();
+const nested = root();
+resetLayoutReadyRangeLineRegistry(outer);
+resetLayoutReadyRangeLineRegistry(nested);
+if (layoutReadyRangeLineIndex(outer, fragment(0, 10, 10)) !== 0 ||
+    layoutReadyRangeLineIndex(outer, fragment(0, 20, 10)) !== 1 ||
+    layoutReadyRangeLineIndex(nested, fragment(0, 20, 10)) !== 0) {
+  throw new Error("nested explicit roots must reset Range line identity");
+}
+
+for (const [writingMode, fragmentRect] of [
+  ["horizontal-tb", fragment(0, 10, 10)],
+  ["vertical-rl", fragment(0, 0, 90)],
+  ["sideways-rl", fragment(0, 0, 90)],
+  ["vertical-lr", fragment(10, 0, 20)],
+  ["sideways-lr", fragment(10, 0, 20)],
+]) {
+  const flowRoot = root(writingMode);
+  resetLayoutReadyRangeLineRegistry(flowRoot);
+  if (layoutReadyRangeLineIndex(flowRoot, fragmentRect) !== 0) {
+    throw new Error(`${writingMode} failed to allocate its first physical block anchor`);
+  }
+}
+
+function mustReject(label, action, expected) {
+  let error;
+  try { action(); } catch (caught) { error = String(caught); }
+  if (!error || !error.includes(expected)) {
+    throw new Error(`${label} did not reject with ${expected}: ${error}`);
+  }
+}
+mustReject("unknown writing mode", () => {
+  const bad = root("diagonal");
+  resetLayoutReadyRangeLineRegistry(bad);
+  layoutReadyRangeLineIndex(bad, fragment(0, 0, 10));
+}, "unknown writing mode");
+mustReject("nonfinite coordinate", () => {
+  const bad = root();
+  resetLayoutReadyRangeLineRegistry(bad);
+  layoutReadyRangeLineIndex(bad, fragment(0, Number.NaN, 10));
+}, "finite block-progress coordinate");
+mustReject("ambiguous identity", () => {
+  const bad = root();
+  resetLayoutReadyRangeLineRegistry(bad);
+  layoutReadyRangeLineIndex(bad, fragment(0, 0, 10));
+  layoutReadyRangeLineIndex(bad, fragment(0, 0.15, 10));
+  layoutReadyRangeLineIndex(bad, fragment(0, 0.075, 10));
+}, "ambiguous Range line identity");
+
+let selectedFragments = [];
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return { x: 0, y: 0, left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }; },
+  getClientRects() { return selectedFragments; },
+  detach() {},
+};
+document.createRange = () => range;
+const marked = root();
+const parent = { parentElement: marked };
+const text = { nodeType: Node.TEXT_NODE, textContent: "x", parentElement: parent };
+marked.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 });
+parent.getBoundingClientRect = marked.getBoundingClientRect;
+getComputedStyle = () => ({ direction: "ltr", writingMode: "horizontal-tb", fontSize: "10px", lineHeight: "10px" });
+mustReject("zero fragments", () => layoutReadyTextNodeData(text, parent, 0), "exactly one fragment");
+selectedFragments = [
+  { x: 0, y: 0, left: 0, top: 0, right: 5, bottom: 10, width: 5, height: 10 },
+  { x: 5, y: 0, left: 5, top: 0, right: 10, bottom: 10, width: 5, height: 10 },
+];
+mustReject("multiple fragments", () => layoutReadyTextNodeData(text, parent, 0), "exactly one fragment");
+selectedFragments = [{ x: 0, y: 0, left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }];
+const unmarked = { parentElement: null, getBoundingClientRect: marked.getBoundingClientRect };
+mustReject(
+  "missing explicit root",
+  () => layoutReadyTextNodeData({ ...text, parentElement: unmarked }, unmarked, 0),
+  "explicit layout-ready inline root",
+);
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c08-recovery-range-controls", script);
+    }
+
+    #[test]
+    fn fri06_c08_recovery_inputs_shape_break_round_trips_before_42px_atomic() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let relative = "html/float/fri06_float_shape_exclusion.html";
+        let raw = fs::read_to_string(root.join(relative)).expect(relative);
+        let (_, authored_breaks) = fri06_c08_direct_test_root(&raw, relative);
+        let authored_breaks = serde_json::to_string(&authored_breaks.unwrap_or(Value::Null))
+            .expect("authored shape breaks JSON");
+
+        let mut script = String::from(
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+let selected;
+const range = {
+  selectNodeContents(node) { selected = node; },
+  getBoundingClientRect() { return selected.rect; },
+  getClientRects() { return [selected.rect]; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const whitespace = { nodeType: Node.TEXT_NODE, textContent: "\n" };
+const floating = { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", display: "block", cssFloat: "left", width: 44, height: 60, x: 0, y: 0 };
+const text = { nodeType: Node.TEXT_NODE, textContent: "bands", rect: { x: 44, y: 1.2, left: 44, top: 1.2, right: 92.1640625, bottom: 21.2, width: 48.1640625, height: 20 } };
+const atomics = [
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", display: "inline-block", width: 34, height: 16, x: 92.1640625, y: 0 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", display: "inline-block", width: 38, height: 16, x: 126.1640625, y: 0 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", display: "inline-block", width: 42, height: 16, x: 44, y: 21.2 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", display: "inline-block", width: 46, height: 16, x: 86, y: 21.2 },
+];
+"#,
+        );
+        script.push_str(&format!("const authoredBreaks = {authored_breaks};\n"));
+        script.push_str(
+            r#"
+const parentRect = { x: 0, y: 0, left: 0, top: 0, right: 180, bottom: 60, width: 180, height: 60 };
+const parent = {
+  parentElement: null,
+  childNodes: [whitespace, floating, text, ...atomics, whitespace],
+  getAttribute(name) {
+    if (name === "data-surgeist-layout-ready-inline") return "true";
+    if (name === "data-surgeist-inline-breaks") return authoredBreaks === null ? null : JSON.stringify(authoredBreaks);
+    return null;
+  },
+  getBoundingClientRect() { return parentRect; },
+};
+for (const child of parent.childNodes) child.parentElement = parent;
+function getComputedStyle(element) {
+  if (element === parent) {
+    return { direction: "ltr", writingMode: "horizontal-tb", fontSize: "16px", lineHeight: "20px", display: "block" };
+  }
+  return { direction: "ltr", writingMode: "horizontal-tb", display: element.display };
+}
+"#,
+        );
+        script.push_str(TEST_HELPER_SOURCE);
+        script.push_str(
+            r#"
+describeElement = function(element) {
+  const described = {
+    tagName: "span",
+    style: {
+      display: element.display,
+      cssFloat: element.cssFloat || "none",
+      size: {
+        width: { unit: "px", value: element.width },
+        height: { unit: "px", value: element.height },
+      },
+    },
+    unroundedLayout: { x: element.x, y: element.y, width: element.width, height: element.height },
+    children: [],
+  };
+  if (element === floating) {
+    described.shapeBands = [
+      { bandMinimum: 0, bandMaximum: 21.2, intervalMinimum: 0, intervalMaximum: 44 },
+      { bandMinimum: 21.2, bandMaximum: 37.2, intervalMinimum: 0, intervalMaximum: 44 },
+    ];
+  }
+  return described;
+};
+const children = describeChildNodes(parent);
+console.log(JSON.stringify({
+  tagName: "div",
+  layoutReadyInlineRoot: true,
+  useRounding: false,
+  viewport: { width: { unit: "px", value: 180 }, height: { unit: "max-content" } },
+  style: {
+    display: "block",
+    direction: "ltr",
+    writingMode: "horizontal-tb",
+    fontFamily: "monospace",
+    fontSize: { unit: "px", value: 16 },
+    lineHeight: { unit: "px", value: 20 },
+    size: { width: { unit: "px", value: 180 }, height: { unit: "auto" } },
+  },
+  unroundedLayout: { x: 0, y: 0, width: 180, height: 60.5 },
+  children,
+}));
+"#,
+        );
+
+        let node = run_bundled_helper_json("fri06-c08-recovery-shape-break", script);
+        let xml = generate_xml("fri06_float_shape_exclusion__border_box_ltr", &node);
+        let golden = browser_parity_support::Golden::parse(&xml).expect("serialized shape fixture");
+        let layout = browser_parity_support::assert_surgeist_matches(&golden);
+        assert!(
+            layout.is_ok(),
+            "the 38px atomic must carry the allowed break before 42px through helper, serializer, parser, and public layout; result={layout:?}\n{xml}"
+        );
+        for expected in [
+            r#"<atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>"#,
+            r#"<atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>"#,
+            r#"<atomic-placeholder child-index="4" bidi-level="0" following-break="prohibited"/>"#,
+            r#"<atomic-placeholder child-index="5" bidi-level="0" following-break="prohibited"/>"#,
+        ] {
+            assert!(xml.contains(expected), "missing {expected:?}\n{xml}");
+        }
+        assert_eq!(
+            serde_json::from_str::<Value>(&authored_breaks).expect("authored break value"),
+            json!([{"sourceIndex": 4, "followingBreak": "allowed"}])
+        );
+    }
+
+    #[test]
+    fn fri06_c08_recovery_inputs_shape_source_rejects_wrong_duplicate_range_br_and_float_targets() {
+        fn validate(raw: &str) -> Result<(), String> {
+            let root_start = raw
+                .find(r#"<div id="test-root""#)
+                .ok_or_else(|| "missing test root".to_string())?;
+            let root_end = raw[root_start..]
+                .rfind("</div>")
+                .map(|offset| root_start + offset + "</div>".len())
+                .ok_or_else(|| "unclosed test root".to_string())?;
+            let document = roxmltree::Document::parse(&raw[root_start..root_end])
+                .map_err(|error| error.to_string())?;
+            let root = document.root_element();
+            let breaks = root
+                .attribute("data-surgeist-inline-breaks")
+                .ok_or_else(|| "missing shape break table".to_string())?;
+            let breaks: Value = serde_json::from_str(breaks).map_err(|error| error.to_string())?;
+            if breaks != json!([{"sourceIndex": 4, "followingBreak": "allowed"}]) {
+                return Err("shape break must target only sourceIndex 4".to_string());
+            }
+            let target = root
+                .children()
+                .nth(4)
+                .ok_or_else(|| "shape break target is out of range".to_string())?;
+            if !target.has_tag_name("span") {
+                return Err("shape break target must be the 38px atomic".to_string());
+            }
+            let style = target.attribute("style").unwrap_or_default();
+            if !style.contains("display: inline-block")
+                || !style.contains("width: 38px")
+                || style.contains("float:")
+            {
+                return Err("shape break target must be the non-floating 38px atomic".to_string());
+            }
+            Ok(())
+        }
+
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/layout/browser_parity/html/float/fri06_float_shape_exclusion.html");
+        let raw = fs::read_to_string(&path).expect("shape source");
+        validate(&raw).expect("reviewed shape source contract");
+
+        let exact =
+            r#"data-surgeist-inline-breaks='[{"sourceIndex":4,"followingBreak":"allowed"}]'"#;
+        for (label, mutated) in [
+            ("wrong index 5", raw.replace(exact, &exact.replace(":4", ":5"))),
+            (
+                "duplicate",
+                raw.replace(
+                    exact,
+                    r#"data-surgeist-inline-breaks='[{"sourceIndex":4,"followingBreak":"allowed"},{"sourceIndex":4,"followingBreak":"allowed"}]'"#,
+                ),
+            ),
+            ("out of range", raw.replace(exact, &exact.replace(":4", ":99"))),
+            (
+                "BR target",
+                raw.replacen(
+                    r#"<span style="display: inline-block; width: 38px; height: 16px;"></span>"#,
+                    r#"<br style="display: inline; width: 38px; height: 16px;"/>"#,
+                    1,
+                ),
+            ),
+            (
+                "float target",
+                raw.replacen(
+                    r#"display: inline-block; width: 38px; height: 16px;"#,
+                    r#"display: inline-block; float: left; width: 38px; height: 16px;"#,
+                    1,
+                ),
+            ),
+        ] {
+            assert!(
+                validate(&mutated).is_err(),
+                "shape source contract accepted {label}"
             );
         }
     }
@@ -8476,8 +9119,12 @@ const range = {
   detach() {},
 };
 const document = { styleSheets: [], createRange() { return range; } };
-const parent = { getBoundingClientRect() { return parentRect; } };
-const text = { nodeType: Node.TEXT_NODE, textContent: "ink" };
+const parent = {
+  parentElement: null,
+  getAttribute(name) { return name === "data-surgeist-layout-ready-inline" ? "true" : null; },
+  getBoundingClientRect() { return parentRect; },
+};
+const text = { nodeType: Node.TEXT_NODE, textContent: "ink", parentElement: parent };
 let flow = { direction: "ltr", writingMode: "horizontal-tb" };
 function getComputedStyle() {
   return {
@@ -8497,6 +9144,7 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
   ["rtl", "vertical-rl", "bottom", 20, 7],
 ]) {
   flow = { direction, writingMode };
+  resetLayoutReadyRangeLineRegistry(parent);
   const shaped = layoutReadyTextNodeData(text, parent, 7);
   if (Object.prototype.hasOwnProperty.call(shaped, "fragments")) {
     throw new Error("Range y/height/baseline must not be emitted as model fragment geometry");
@@ -8924,7 +9572,7 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
     }
 
     #[test]
-    fn fri06_c08_existing_helper_emits_parent_local_range_inline_coordinates_only() {
+    fn fri06_c08_existing_helper_emits_explicit_root_local_range_inline_coordinates_only() {
         let script = [
             r#"
 const window = {};
@@ -8939,14 +9587,18 @@ const range = {
   getClientRects() { return [textRect]; },
   detach() {},
 };
-const root = { getBoundingClientRect() { return rootRect; } };
+const root = {
+  parentElement: null,
+  getAttribute(name) { return name === "data-surgeist-layout-ready-inline" ? "true" : null; },
+  getBoundingClientRect() { return rootRect; },
+};
 const document = {
   styleSheets: [],
   createRange() { return range; },
   getElementById(id) { return id === "test-root" ? root : null; },
 };
-const parent = { getBoundingClientRect() { return parentRect; } };
-const text = { nodeType: Node.TEXT_NODE, textContent: "x" };
+const parent = { parentElement: root, getBoundingClientRect() { return parentRect; } };
+const text = { nodeType: Node.TEXT_NODE, textContent: "x", parentElement: parent };
 function getComputedStyle() {
   return {
     direction: "ltr",
@@ -8960,8 +9612,8 @@ function getComputedStyle() {
             r#"
 const shaped = layoutReadyTextNodeData(text, parent, 7);
 const rangeInk = shaped.rangeInks[0];
-if (rangeInk.physicalStartEdge !== "left" || rangeInk.start !== 15 || rangeInk.advance !== 4) {
-  throw new Error(`Range ink must retain direct-parent-local flow-inline geometry, got ${JSON.stringify(rangeInk)}`);
+if (rangeInk.physicalStartEdge !== "left" || rangeInk.start !== 30 || rangeInk.advance !== 4) {
+  throw new Error(`Range ink must retain explicit-root-local flow-inline geometry, got ${JSON.stringify(rangeInk)}`);
 }
 if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0 ||
     Object.prototype.hasOwnProperty.call(rangeInk, "visualIndex")) {
@@ -12812,7 +13464,7 @@ status = "active"
     }
 
     #[test]
-    fn fri06_c08_recovery_characterization_immutable_inputs_match_reviewed_freeze() {
+    fn fri06_c08_recovery_inputs_owned_sources_match_reviewed_freeze() {
         const GENERATOR_TEST_MODULE_MARKER: &str = "#[cfg(test)]\nmod tests {";
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
         let corpus = repository.join("tests/layout/browser_parity");
@@ -12824,8 +13476,8 @@ status = "active"
 
         assert_eq!(
             sha256_bytes(production.as_bytes()),
-            "7a75c6b02bf0986ccbdb60f945580e6faa27537413c0ab4622448bb2be2ae89e",
-            "characterization must not change generator behavior"
+            "b8756b89abd04d55dc0d35da5acf3d5129c54be68fa2001f7122265f94b479c9",
+            "only the reviewed C08 input serializer may change generator behavior"
         );
         for (path, expected) in [
             (
@@ -12842,7 +13494,7 @@ status = "active"
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "fd668b064fcccb00ebb1632183e4f2522ce29f1b390f2f0c012bdade906ed18c",
+                "d4bc9ec937f5de860f737ff7d886384a861a52d7004b39551e13852a1378acdc",
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_base_style.css",
@@ -12867,7 +13519,7 @@ status = "active"
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "8fc22a25a4d58a22398aca7a468731ce845ee98b3ea6a7d63945fd6650a86fd1"
+            "49322f454e31a462852a1a6f170be757b8b1a0245f33fa43c1692bde737adb7a"
         );
     }
 

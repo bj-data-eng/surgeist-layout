@@ -816,6 +816,8 @@ function describeElement(e, expectedElement = null) {
     if (typed?.unit === "calc") return typed;
     return inlineCalc;
   };
+  const layoutReadyInlineRoot = e.getAttribute?.('data-surgeist-layout-ready-inline') === 'true';
+  if (layoutReadyInlineRoot) resetLayoutReadyRangeLineRegistry(e);
   const children = describeChildNodes(e, expectedElement);
   const brInlineMetrics = brInlineMetricsForElement(e, computedStyle);
   const lineControlParticipation = layoutReadyLineControlParticipation(e, computedStyle);
@@ -823,6 +825,7 @@ function describeElement(e, expectedElement = null) {
 
   return {
     tagName: e.tagName.toLowerCase(),
+    layoutReadyInlineRoot: layoutReadyInlineRoot || undefined,
     lineControlParticipation,
     unsupportedReason: unsupportedElementReason(e, computedStyle) || unsupportedChildNodesReason(e),
     style: {
@@ -1351,14 +1354,14 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
   const rect = range.getBoundingClientRect();
   const fragmentRects = Array.from(range.getClientRects());
   range.detach();
-  if (fragmentRects.length === 0 && rect.width === 0 && rect.height === 0) {
-    return undefined;
-  }
   if (fragmentRects.length !== 1) {
     throw new Error(`layout-ready text segment ${segmentId} must have exactly one fragment`);
   }
 
-  const containingRoot = layoutReadyInlineContainingRoot(parent) || parent;
+  const containingRoot = layoutReadyInlineContainingRoot(parent);
+  if (!containingRoot) {
+    throw new Error(`layout-ready text segment ${segmentId} requires an explicit layout-ready inline root`);
+  }
   const containingRootRect = containingRoot.getBoundingClientRect();
   const computedStyle = getComputedStyle(parent);
   const containingStyle = getComputedStyle(containingRoot);
@@ -1389,7 +1392,7 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
     }
     return {
       sourceSegmentId: segmentId,
-      lineIndex: 0,
+      lineIndex: layoutReadyRangeLineIndex(containingRoot, fragment),
       physicalStartEdge,
       start,
       advance,
@@ -1410,6 +1413,58 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
     rangeInks,
     children: [],
   };
+}
+
+const layoutReadyRangeLineRegistries = new WeakMap();
+const layoutReadyRangeLineTolerance = 0.1;
+
+function resetLayoutReadyRangeLineRegistry(root) {
+  layoutReadyRangeLineRegistries.set(root, { anchors: [], nextLineIndex: 0 });
+}
+
+function layoutReadyRangeLineIndex(root, fragment) {
+  if (root?.getAttribute?.('data-surgeist-layout-ready-inline') !== 'true') {
+    throw new Error('Range line identity requires an explicit layout-ready inline root');
+  }
+  let registry = layoutReadyRangeLineRegistries.get(root);
+  if (!registry) {
+    resetLayoutReadyRangeLineRegistry(root);
+    registry = layoutReadyRangeLineRegistries.get(root);
+  }
+
+  const rootRect = root.getBoundingClientRect();
+  const writingMode = getComputedStyle(root).writingMode;
+  let coordinate;
+  switch (writingMode) {
+    case 'horizontal-tb':
+      coordinate = fragment.top - rootRect.top;
+      break;
+    case 'vertical-rl':
+    case 'sideways-rl':
+      coordinate = rootRect.right - fragment.right;
+      break;
+    case 'vertical-lr':
+    case 'sideways-lr':
+      coordinate = fragment.left - rootRect.left;
+      break;
+    default:
+      throw new Error(`Range line identity has unknown writing mode ${writingMode}`);
+  }
+  if (!Number.isFinite(coordinate)) {
+    throw new Error('Range line identity requires a finite block-progress coordinate');
+  }
+
+  const matches = registry.anchors.filter((anchor) => {
+    return Math.abs(anchor.coordinate - coordinate) <= layoutReadyRangeLineTolerance;
+  });
+  if (matches.length > 1) {
+    throw new Error(`ambiguous Range line identity at block-progress ${coordinate}`);
+  }
+  if (matches.length === 1) return matches[0].lineIndex;
+
+  const lineIndex = registry.nextLineIndex++;
+  registry.anchors.push({ coordinate, lineIndex });
+  return lineIndex;
 }
 
 function unsupportedElementReason(e, computedStyle) {
