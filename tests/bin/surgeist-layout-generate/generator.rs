@@ -4151,6 +4151,41 @@ fn write_expectation(lines: &mut Vec<String>, node: &Value, context: Expectation
             node["children"].as_array().is_none_or(Vec::is_empty),
             "layout-ready Range ink text must not contain child expectations"
         );
+        for field in [
+            "unroundedLayout",
+            "smartRoundedLayout",
+            "naivelyRoundedLayout",
+        ] {
+            assert!(
+                node.get(field).is_none(),
+                "layout-ready Range ink text must not contain ordinary node metric or scroll state `{field}`"
+            );
+        }
+        if let Some(style) = node["style"].as_object() {
+            for field in [
+                "overflowX",
+                "overflowY",
+                "overflowClipMargin",
+                "scrollbarWidth",
+                "scrollbarGutter",
+                "scrollPaddingTop",
+                "scrollPaddingRight",
+                "scrollPaddingBottom",
+                "scrollPaddingLeft",
+                "scrollMarginTop",
+                "scrollMarginRight",
+                "scrollMarginBottom",
+                "scrollMarginLeft",
+                "scrollSnapType",
+                "scrollSnapAlign",
+                "scrollSnapStop",
+            ] {
+                assert!(
+                    !style.contains_key(field),
+                    "layout-ready Range ink text must not contain ordinary overflow or scroll input `style.{field}`"
+                );
+            }
+        }
         let pad = " ".repeat(context.indent);
         lines.push(format!("{pad}<node>"));
         write_range_ink_expectations(lines, range_inks, context.indent + 2);
@@ -7385,6 +7420,165 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
             xml.contains("<node><range-inks>") || xml.contains("<node>\n        <range-inks>"),
             "Range-backed text-node expectation must not serialize metric union attributes\n{xml}"
         );
+    }
+
+    #[test]
+    fn fri06_c08_range_ink_serializer_rejects_every_ordinary_metric_and_scroll_state() {
+        let incompatible_states = [
+            (
+                "unroundedLayout",
+                json!({
+                    "unroundedLayout": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 9,
+                        "height": 20,
+                        "scrollWidth": 9,
+                        "scrollHeight": 20,
+                    },
+                }),
+            ),
+            (
+                "smartRoundedLayout",
+                json!({
+                    "smartRoundedLayout": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 9,
+                        "height": 20,
+                        "scrollWidth": 9,
+                        "scrollHeight": 20,
+                    },
+                }),
+            ),
+            (
+                "naivelyRoundedLayout",
+                json!({
+                    "naivelyRoundedLayout": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 9,
+                        "height": 20,
+                        "scrollWidth": 9,
+                        "scrollHeight": 20,
+                        "clientWidth": 9,
+                        "clientHeight": 20,
+                    },
+                }),
+            ),
+            (
+                "style.overflowX",
+                json!({"style": {"overflowX": "visible"}}),
+            ),
+            ("style.overflowY", json!({"style": {"overflowY": "clip"}})),
+            (
+                "style.overflowClipMargin",
+                json!({"style": {"overflowClipMargin": "0px"}}),
+            ),
+            (
+                "style.scrollbarWidth",
+                json!({"style": {"scrollbarWidth": 0}}),
+            ),
+            (
+                "style.scrollbarGutter",
+                json!({"style": {"scrollbarGutter": "auto"}}),
+            ),
+            (
+                "style.scrollPaddingTop",
+                json!({"style": {"scrollPaddingTop": "auto"}}),
+            ),
+            (
+                "style.scrollPaddingRight",
+                json!({"style": {"scrollPaddingRight": "auto"}}),
+            ),
+            (
+                "style.scrollPaddingBottom",
+                json!({"style": {"scrollPaddingBottom": "auto"}}),
+            ),
+            (
+                "style.scrollPaddingLeft",
+                json!({"style": {"scrollPaddingLeft": "auto"}}),
+            ),
+            (
+                "style.scrollMarginTop",
+                json!({"style": {"scrollMarginTop": "0px"}}),
+            ),
+            (
+                "style.scrollMarginRight",
+                json!({"style": {"scrollMarginRight": "0px"}}),
+            ),
+            (
+                "style.scrollMarginBottom",
+                json!({"style": {"scrollMarginBottom": "0px"}}),
+            ),
+            (
+                "style.scrollMarginLeft",
+                json!({"style": {"scrollMarginLeft": "0px"}}),
+            ),
+            (
+                "style.scrollSnapType",
+                json!({"style": {"scrollSnapType": "none"}}),
+            ),
+            (
+                "style.scrollSnapAlign",
+                json!({"style": {"scrollSnapAlign": "none"}}),
+            ),
+            (
+                "style.scrollSnapStop",
+                json!({"style": {"scrollSnapStop": "normal"}}),
+            ),
+        ];
+
+        for (label, incompatible_state) in incompatible_states {
+            let mut node = json!({
+                "tagName": "div",
+                "useRounding": false,
+                "viewport": {
+                    "width": {"unit": "px", "value": 100},
+                    "height": {"unit": "max-content"},
+                },
+                "style": {"display": "block"},
+                "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+                "children": [{
+                    "layoutInput": "inline-text",
+                    "inlineSegments": [{
+                        "id": 7,
+                        "inlineExtent": 9,
+                        "inlineBaseline": 14.8,
+                        "inlineLineHeight": 20,
+                        "bidiLevel": 0,
+                        "whitespaceEdge": "preserve",
+                        "followingBreak": "prohibited",
+                    }],
+                    "rangeInks": [{
+                        "sourceSegmentId": 7,
+                        "lineIndex": 0,
+                        "visualIndex": 2,
+                        "physicalStartEdge": "left",
+                        "start": 15,
+                        "advance": 9,
+                    }],
+                    "children": [],
+                }],
+            });
+            node["children"][0]
+                .as_object_mut()
+                .expect("Range-backed text node should be an object")
+                .extend(
+                    incompatible_state
+                        .as_object()
+                        .expect("incompatible state should be an object")
+                        .clone(),
+                );
+
+            let result = std::panic::catch_unwind(|| {
+                generate_xml("fri06_c08_range_ink_serializer_rejection", &node)
+            });
+            assert!(
+                result.is_err(),
+                "Range ink serializer accepted incompatible state {label}"
+            );
+        }
     }
 
     #[test]
