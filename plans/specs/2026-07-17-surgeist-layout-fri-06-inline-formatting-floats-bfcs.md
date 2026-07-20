@@ -147,7 +147,7 @@ than defining substitutes.
 | `D-13` | Float left/right and clear left/right are line-relative values mapped by the containing `FlowAxes`; the public enum spellings remain source-compatible while algorithms do not treat them as physical x sides. |
 | `D-14` | Margin-box float exclusion is internal and always available. Non-rectangular exclusion uses an explicit `FloatExclusion::Shape` input and a bounded `LayoutTree` provider query. Each returned interval retains its originating query privately; a mismatched query, missing provider, or provider failure is a typed layout error. |
 | `D-15` | Float interaction is closed over the current model. An in-flow, non-floating, block-level child avoids active floats exactly when it is `Flex`, `Grid`, or `GridLanes`, or when it is non-replaced and its normalized computed overflow pair establishes an independent formatting context. Floats use the float path, atomic inline boxes use the line path while trapping their own internal formatting context, absolute boxes are excluded, and `None` produces no box. Future display roles do not enter this cycle. |
-| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, and exclusion facts. Inputs settle first, then one full regeneration owns all XML/report deltas. |
+| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 
 Rejected alternatives:
 
@@ -977,8 +977,10 @@ The fixture adapter may add only these layout-ready concepts:
   bidi level, whitespace edge, and following break opportunity;
 - atomic placeholder bidi/break facts mapped to one child source index;
 - explicit expected model-line fragment rect/baseline/line/visual data;
-- browser `Range` observations categorized separately for source association and
-  flow-inline start/advance only;
+- browser `Range` observations categorized separately for source/line
+  association and flow-inline start/advance only;
+- browser control observations categorized separately for source, terminal
+  visual slot, and neighboring line effects rather than `<br>` ink geometry;
 - `vertical-align: bottom` lowering; and
 - a finite shape-exclusion band table for provider tests.
 
@@ -990,10 +992,17 @@ The JavaScript helper may read browser-computed geometry and DOM ranges needed
 for the named text/control fragments. A `Range` ink rect never supplies or
 overrides a model fragment's block-axis start, block extent, baseline, or the
 text node's metric-box union. The comparator uses Range data only for its named
-source/flow-inline observations and remains strict for every explicit model-line
-expectation. It must not become a general text shaper, CSS parser, bidi
-implementation, or alternate line algorithm. Rust parser and serializer changes
-remain exact to the finite category and attributes.
+source/line/flow-inline observations; browser Range order never supplies a model
+fragment visual index. A browser `<br>` rect never supplies model control
+geometry. Explicit model-line and model-control expectations remain strict. The
+helper emits atomic participation only when the computed/lowered child role is
+atomic, never from authored inline display after blockification. Fixture sources
+exercise the current overflow-based BFC predicate and never require later-owned
+`flow-root` normalization. The adapter may synthesize only the finite anonymous
+grid text wrapper, secondary inline boundaries, and containing strut required by
+the fixed matrix. It must not become a general text shaper, CSS parser, bidi
+implementation, display normalizer, or alternate line algorithm. Rust parser
+and serializer changes remain exact to these finite categories and attributes.
 
 Final generated artifacts have one full, unfiltered lineage after all owned
 HTML/parser/helper/fixture inputs are settled. Their report has `filter: null`,
@@ -1119,9 +1128,10 @@ FRI-06 is complete only when:
     caller dirty state; valid cold/warm and normal/rounded output agrees for
     lines, restored fragments, controls, floats, baselines, content size, and
     scroll contribution;
-12. comparator negative controls detect wrong/missing control and explicit
+12. comparator negative controls detect wrong/missing explicit model-control and
     model-fragment geometry, source/line/visual identity, and baseline, while
-    Range-ink observations cannot masquerade as metric block geometry;
+    Range-ink and browser-control observations cannot masquerade as model block
+    geometry or invent a model visual index;
 13. the bounded HTML/parser/helper/fixture inputs settle before exactly one final
     full regeneration; subsequent checks are read-only and provenance-clean;
 14. FRI-06-owned mixed-text, vertical/outside-block BR, and active float/BFC
