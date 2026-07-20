@@ -318,8 +318,8 @@ unrelated focused regression suites are clean without fixture or artifact deltas
 **Handoff:** Production behavior required by the 388 owned fixture variants is
 stable before helper, source, manifest, and final-lineage work resumes.
 
-### `FRI-06-C08` Bounded Fixture Activation And Final Lineage
-**Specification sources:** `FRI-06.4 D-01`, `D-04`, `D-09`, `D-11`, and
+### `FRI-06-C08` Fixture Input Recovery And Characterization
+**Specification sources:** `FRI-06.4 D-01`, `D-04`, `D-09` through `D-11`, and
 `D-16`; metric-fragment, atomic-baseline, physical-placement, and browser-
 comparator portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`, `FRI-06.10`, and
 `FRI-06.14`; `FRI-06.11`.
@@ -327,32 +327,41 @@ comparator portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`, `FRI-06.10`, and
 and finite adapter decisions are the C08 entry handoff.
 **Entry state:** Two full runs supplied diagnostic evidence only. The latest
 census at `plans/2026-07-20-surgeist-layout-fri-06-c08-second-lineage-census.md`,
-SHA-256 `8905081ea15e0bef80bffdcc81d624a581d8aab601629ca9d6268e81866318fe`,
+SHA-256 `a56b09ed4d68ee901dbc385db3d78b66bf5faeb82f844f1d531c94aef10a23b9`,
 records valid 5,712/16 accounting, exact base-output preservation, and an
 executed 104 pass / 284 fail partition. It corrects the prior prose census's
 inferred 94/294 statement and partitions the remaining rows into 244 blockified
-BR input, 20 Range-coordinate, four Range-line, four shape-break, four strut,
-four vertical-placement, and four float-height failures. No row is later-owned.
-**Bounded outcome:** Restore the diagnostic artifacts; correct those seven exact
-helper, serializer, fixture, comparator, finite-adapter, and production
-boundaries; and derive one replacement full corpus only after every changed
-input is task-clean and frozen. Scoped generation remains diagnostic-only and
-non-lineage; no unchanged-input retry occurs and generator architecture remains
-unchanged.
-**Observable exit evidence:** The final full report has 5,712 generated, exactly
-16 immutable missing-root unsupported variants, `filter: null`, reviewed browser
-and helper/manifest provenance, and zero failure classes or scoped reports. All
-388 activated/new variants compare through an explicit frozen matrix; the other
-5,324 outputs change only generator provenance; artifacts are derived rather
-than hand-edited. The FRI-13 aggregate gate remains unclaimed.
-**Handoff:** Generator inputs and outputs are frozen for read-only initiative
-closure.
+BR input, 18 Range-coordinate, two direct RTL placement, four Range-line, four
+shape-break, four strut, four vertical-placement, and four float-height failures.
+**Bounded outcome:** Restore diagnostic artifacts; settle the BR, Range, shape,
+strut, and test-lifecycle inputs; and characterize the exact ten remaining
+production rows through public-fixture-shaped RED evidence. Do not generate.
+**Observable exit evidence:** Every nonproduction boundary has real comparator
+proof, the ten production rows have complete exact-input characterization, full
+non-generation gates pass, and artifacts retain committed entry hashes.
+**Handoff:** Publish the task-clean input/characterization freeze for C08R.
+
+### `FRI-06-C08R` Final Production Correction And Lineage
+**Specification sources:** `FRI-06.4 D-01`, `D-04`, `D-06`, `D-07`, `D-09`,
+`D-11`, `D-12`, `D-13`, and `D-16`; line, metric-fragment, atomic-baseline,
+physical-placement, comparator, fixture, and acceptance portions of `FRI-06.5`,
+`FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and `FRI-06.14`.
+**Prerequisites:** `FRI-06-C08` complete and remotely verified.
+**Entry state:** All fixture-side inputs are frozen; exactly ten characterized
+public rows remain at direct RTL, vertical-placement, and float-height boundaries.
+**Bounded outcome:** Correct only those production boundaries, freeze reviewed
+inputs, then run one full unfiltered existing-pinned generation. No unchanged-
+input retry, generator architecture change, or later-owned behavior is permitted.
+**Observable exit evidence:** The report is 5,712/16 with `filter: null`, exact
+provenance and zero failure buckets; all 388 rows pass; the other 5,324 bodies
+preserve semantics; no scoped report remains. The FRI-13 gate stays unclaimed.
+**Handoff:** Generator inputs and outputs are frozen for read-only C09 closure.
 
 ### `FRI-06-C09` Public Evidence And Leaf Candidate Closure
 
 **Specification sources:** `FRI-06.10`; `FRI-06.12` through `FRI-06.14`.
 
-**Prerequisites:** `FRI-06-C08` complete and remotely verified with its valid
+**Prerequisites:** `FRI-06-C08R` complete and remotely verified with its valid
 final artifact lineage.
 
 **Entry state:** Behavior and browser artifacts are complete, while aggregate
@@ -377,7 +386,7 @@ integration contract.
 
 ## Sequence Completion
 
-The sequence is complete when `FRI-06-C01` through `FRI-06-C09` satisfy their
+The sequence is complete when every listed cycle through `FRI-06-C09` satisfies
 observable exits in order and every `FRI-06.14` criterion is traceable. A later
 cycle cannot begin before its predecessor is published and remotely verified.
 A material specification change returns to specification review before this

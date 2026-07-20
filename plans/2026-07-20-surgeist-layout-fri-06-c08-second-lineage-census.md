@@ -92,7 +92,8 @@ The 14 are all variants of `fri06_bidi_mixed_inline`, both RTL variants of
 | Earliest boundary | Rows | Matrix SHA-256 |
 | --- | ---: | --- |
 | Blockified BR ordinary-box helper/serializer input | 244 | `eb9c8d005c76b0a52d9333fb39710f4b8f263189b88d74cf6f2ba7922b768460` |
-| Range explicit-root coordinate translation | 20 | `2463184c170479d02d28de8ebbc5c3886154001a0769dc0734a3686738f3f1c0` |
+| Range explicit-root coordinate translation | 18 | `ae9121d16226cabbb602c2f326fb5cfa1034c23f612104600cba560d7fa80b23` |
+| Direct-root RTL physical placement | 2 | `a0620971c825fe0be6909c2331add26e26478c9970e1bd9eb4ff5b8d28321b40` |
 | Range root-wide line identity | 4 | `9c3930435c2a2c65d8bf87bdf22f082de00857e7727928140aec3a744d52238e` |
 | Shape-fixture explicit atomic break | 4 | `0b96e7d9a39716b0121017cdbe67345381d72044918c9cef5b31ec216364de18` |
 | Mixed-wrap continuation strut | 4 | `8a59f6f6231bcf5478f51ab9fe200169ba81198c817f923116534e09d268facc` |
@@ -105,8 +106,10 @@ Range starts are explicit-root-relative while the comparator consumes node-local
 fragment rectangles; and each independent text node is serialized with line
 index zero. The shape source lacks the exact break required before its 42px
 atomic. The mixed-wrap adapter's fixed strut produces 44px rather than 46px.
-The final eight rows reach complete lowered input and expose two narrow C08
-production defects in vertical inline placement and float-line report height.
+The two direct-root percentage RTL rows receive no ancestor translation and
+remain a separate physical-placement defect. The final eight rows reach complete
+lowered input and expose two more narrow C08 production defects in vertical
+inline placement and float-line report height.
 
 No failed row requires subgrid expansion, a general CSS parser, a text shaper,
 shape architecture, generator architecture, or behavior owned by a later
