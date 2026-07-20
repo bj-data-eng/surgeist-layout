@@ -11,7 +11,7 @@ Cycle base: `bcdba3c49be09ad119c03ecdc4c77da803159132`
 Reviewed specification:
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`af45a7cdfd16fa5b89cb41719b5ed2ccfbc67b138d575d35174d684d6e6bb3b2`,
+`5e89a8a81e5a5a62b38374d56d8dd89b7025e02efc65dfd73e33a887bcb3b87e`,
 commit `213ac89f140465691e72d1569171a94346f5e42c`: `FRI-06.4 D-01`,
 `D-04`, `D-09`, `D-11`, `D-13`, and `D-16`; the applicable metric,
 control, bidi, float, fixture, compatibility, and acceptance portions of
@@ -21,8 +21,8 @@ control, bidi, float, fixture, compatibility, and acceptance portions of
 Reviewed implementation sequence:
 `plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at SHA-256
-`d8a41dc264976b660f8bdba0a11818f9abcdef95550b561635d4d057474654d0`,
-commit `576c6877275637c82816da4f63ab217bc92c5a4a`, entry `FRI-06-C08`
+`0969f44afbd2d05c0cd68f4afa9e6a791f484b567c10e6deb999720c78753374`,
+commit `8e23f3ca397e2c2d061f5befb4878c522874c3e9`, entry `FRI-06-C08`
 and its Activation Recovery Evidence.
 
 ## Outcome
@@ -97,8 +97,9 @@ retried unchanged.
 ### `C08-T1` Correct Helper And Serializer Semantics
 
 **Files/area:** `tests/layout/browser_parity/scripts/gentest/test_helper.js`,
-narrow serialization in `tests/bin/surgeist-layout-generate/generator.rs`, and
-focused tests.
+narrow serialization in `tests/bin/surgeist-layout-generate/generator.rs`,
+focused tests, and only the static HTML/manifest-target inventory assertions in
+`tests/layout/browser_parity.rs`.
 
 **Precondition:** Preserve the committed census, discard only the two exact draft
 paths and invalid generated lineage named above, and prove the remaining worktree
@@ -109,15 +110,21 @@ root; emit model control participation only for an explicitly computed/lowered
 inline BR role; retain blockified BR as an ordinary box; and suppress legacy raw
 text fallback when typed inline children exist. Serializer state rejects malformed
 or non-BR control facts and preserves the 64 spill variants' prior semantics.
+Reconcile the already-committed twelve-source inventory to 1,432 total HTML
+sources, 1,186 outside subgrid/grid-lanes, and the manifest's 5,712 target.
+Checked-in XML/report assertions remain at stale-entry 5,324/356 until T3.
 
 **RED:** Focused helper/serializer tests reproduce the direct-parent Range
 offset, source-tag BR promotion, malformed control acceptance, and duplicate text
 fallback. Negative controls prove authored tags and activation ancestors are
-insufficient.
+insufficient. The full generator gate separately reproduces the stale 1,420 and
+1,174 static HTML inventory assertions.
 
 **Acceptance:** Exact root-local Range, explicit-control, blockification,
 replacement, and 64-variant preservation matrices pass without XML/report
-changes or generation. A fresh reviewer covers the complete reopened T1 range.
+changes or generation. Static inventory agrees with the committed HTML and
+manifest target while retaining stale-entry XML/report expectations. A fresh
+reviewer covers the complete reopened T1 range.
 
 **Commands:**
 
