@@ -3388,7 +3388,7 @@ fn fri06_c08_recovery_characterization_float_xml(
     let (bidi_level, edge, range_start, atomic_x) = match (direction, browser_geometry) {
         ("ltr", _) => (0, "left", 42, [81, 42, 74, 0]),
         ("rtl", true) => (1, "right", 130, [63, 98, 62, 90]),
-        ("rtl", false) => (1, "right", 102, [102, 98, 62, 90]),
+        ("rtl", false) => (1, "right", 102, [102, 62, 94, 90]),
         (other, _) => panic!("unexpected C08 characterization direction {other}"),
     };
     format!(

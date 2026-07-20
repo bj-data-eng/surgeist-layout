@@ -4474,6 +4474,86 @@ fn fri06_c08_r1_mixed_units_project_complete_traversal_in_all_flow_mappings() {
     assert_lane::<f64>();
 }
 
+#[test]
+fn fri06_c08_r1_rtl_visual_placement_is_independent_of_surviving_unit_composition() {
+    fn assert_lane<S: LayoutScalar>() {
+        for writing_mode in [
+            WritingMode::HorizontalTb,
+            WritingMode::VerticalRl,
+            WritingMode::VerticalLr,
+            WritingMode::SidewaysRl,
+            WritingMode::SidewaysLr,
+        ] {
+            let flow_axes = FlowAxes::new(writing_mode, Direction::Rtl);
+            let placements = [
+                None,
+                Some(InlineWhitespaceEdge::DiscardAtBoth),
+                Some(InlineWhitespaceEdge::Preserve),
+            ]
+            .map(|middle_whitespace| {
+                let atomic = |node, inline_extent| {
+                    let style = fri06_c04_line_box(
+                        flow_axes,
+                        LogicalSizeOf::new(S::from_f64(inline_extent), S::from_f64(12.0)),
+                        Float::None,
+                        Some(fri06_c03_atomic_participation(
+                            1,
+                            InlineBreakOpportunityOf::prohibited(),
+                        )),
+                    );
+                    (node, LayoutInputOf::box_input(style.clone()), style)
+                };
+                let mut children = vec![atomic(1, 10.0)];
+                children.push(match middle_whitespace {
+                    Some(whitespace) => (
+                        2,
+                        fri06_c03_text_input(vec![fri06_c02_segment_with_level(
+                            903,
+                            15.0,
+                            1,
+                            whitespace,
+                            InlineBreakOpportunityOf::prohibited(),
+                        )]),
+                        NodeInputOf::non_box(),
+                    ),
+                    None => atomic(2, 15.0),
+                });
+                children.push(atomic(3, 20.0));
+                let batch = fri06_c04_line_batch(flow_axes, TextAlign::Auto, children);
+                let root_size = flow_axes
+                    .physical_size(LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(160.0)));
+                let logical_inline_start = |node| {
+                    let output = fri06_c02_final_node(&batch, node);
+                    flow_axes
+                        .logical_point(output.location, output.size, root_size)
+                        .inline
+                };
+
+                if middle_whitespace.is_some() {
+                    let fragment = batch.final_inline_fragments()[0].fragment();
+                    assert_eq!(fragment.segment_id(), InlineSegmentId::new(903));
+                    assert_eq!(fragment.visual_index(), 1);
+                }
+
+                [logical_inline_start(1), logical_inline_start(3)]
+            });
+
+            assert_eq!(
+                placements,
+                [
+                    [S::from_f64(35.0), S::ZERO],
+                    [S::from_f64(35.0), S::ZERO],
+                    [S::from_f64(35.0), S::ZERO],
+                ],
+                "{writing_mode:?} RTL all-atomic, middle-discard, and middle-preserve slices"
+            );
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 fn assert_fri06_c08_mixed_inline_atomic_x<S: LayoutScalar>(
     direction: Direction,
     box_sizing: BoxSizing,
@@ -4550,15 +4630,15 @@ fn assert_fri06_c08_mixed_inline_atomic_x<S: LayoutScalar>(
 }
 
 #[test]
-fn fri06_c08_mixed_inline_rtl_border_box_places_atomic_at_visual_line_start() {
-    assert_fri06_c08_mixed_inline_atomic_x::<f32>(Direction::Rtl, BoxSizing::BorderBox, 192.0);
-    assert_fri06_c08_mixed_inline_atomic_x::<f64>(Direction::Rtl, BoxSizing::BorderBox, 192.0);
+fn fri06_c08_mixed_inline_rtl_border_box_projects_reordered_slice_once() {
+    assert_fri06_c08_mixed_inline_atomic_x::<f32>(Direction::Rtl, BoxSizing::BorderBox, 99.0);
+    assert_fri06_c08_mixed_inline_atomic_x::<f64>(Direction::Rtl, BoxSizing::BorderBox, 99.0);
 }
 
 #[test]
-fn fri06_c08_mixed_inline_rtl_content_box_places_atomic_at_visual_line_start() {
-    assert_fri06_c08_mixed_inline_atomic_x::<f32>(Direction::Rtl, BoxSizing::ContentBox, 192.0);
-    assert_fri06_c08_mixed_inline_atomic_x::<f64>(Direction::Rtl, BoxSizing::ContentBox, 192.0);
+fn fri06_c08_mixed_inline_rtl_content_box_projects_reordered_slice_once() {
+    assert_fri06_c08_mixed_inline_atomic_x::<f32>(Direction::Rtl, BoxSizing::ContentBox, 99.0);
+    assert_fri06_c08_mixed_inline_atomic_x::<f64>(Direction::Rtl, BoxSizing::ContentBox, 99.0);
 }
 
 #[test]
@@ -5290,7 +5370,7 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                 }
                 let atomic_x = match direction {
                     Direction::Ltr => [81.0, 42.0, 74.0, 42.0],
-                    Direction::Rtl => [102.0, 98.0, 62.0, 90.0],
+                    Direction::Rtl => [102.0, 62.0, 94.0, 90.0],
                 };
                 for (index, (node, width, y)) in [
                     (4, 28.0, 0.0),

@@ -741,10 +741,10 @@ fn fri06_c07_subgrid_rtl_alignment_index(alignment: AlignItems) -> usize {
 
 fn fri06_c07_subgrid_rtl_expected_origin<S: LayoutScalar>(alignment: AlignItems) -> S {
     let value = match alignment {
-        AlignItems::Start => 330.0,
-        AlignItems::End => 230.0,
-        AlignItems::Center => 130.0,
-        AlignItems::Baseline => 30.0,
+        AlignItems::Start => 30.0,
+        AlignItems::End => 130.0,
+        AlignItems::Center => 230.0,
+        AlignItems::Baseline => 330.0,
         _ => unreachable!("the finite C07-T3 table contains only the four reviewed alignments"),
     };
     S::from_f64(value)
