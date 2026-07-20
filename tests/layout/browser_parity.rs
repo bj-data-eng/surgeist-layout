@@ -3552,6 +3552,257 @@ fn fri06_c08_recovery_inputs_shape_xml() -> String {
         .to_string()
 }
 
+fn fri06_c08r_fixture_input_explicit_boundary_xml(name: &str, expectations: &str) -> String {
+    format!(
+        r#"<test name="{name}" use-rounding="false">
+  <viewport width="100px" height="max-content" />
+  <input>
+    <div layout-ready-inline-root="true" display="block" width="100px">
+      <inline-boundary kind="start" />
+      <text layout-input="inline-text">
+        <segment id="7" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="preserve" following-break="prohibited" />
+      </text>
+      <inline-boundary kind="end" />
+      <inline-boundary kind="start" inline-baseline="8" inline-line-height="10" />
+      <div display="inline-block" width="10px" height="10px" />
+      <atomic-placeholder child-index="4" bidi-level="0" following-break="prohibited" />
+    </div>
+  </input>
+  <expectations>{expectations}</expectations>
+</test>"#
+    )
+}
+
+#[test]
+fn fri06_c08r_fixture_input_closed_boundary_forms_parse_without_name_dispatch() {
+    let xml = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "renamed_fixture_without_c08_identity",
+        r#"<node x="0" y="0" width="100" height="10"><node /><node /></node>"#,
+    );
+    let golden = support::Golden::parse(&xml).expect("closed explicit boundary forms must parse");
+    assert_eq!(golden.root.children.len(), 5);
+}
+
+#[test]
+fn fri06_c08r_fixture_input_rename_and_expectation_only_mutation_preserve_input() {
+    let first = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "fri06_bidi_mixed_inline__border_box_ltr",
+        r#"<node x="0" y="0" width="100" height="10"><node /><node /></node>"#,
+    );
+    let second = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "arbitrary_renamed_fixture",
+        r#"<node x="0" y="0" width="999" height="777"><node x="40" /><node y="80"><node /></node></node>"#,
+    );
+    let first = support::Golden::parse(&first).expect("first explicit fixture must parse");
+    let second = support::Golden::parse(&second).expect("mutated explicit fixture must parse");
+    assert_eq!(first.root, second.root);
+}
+
+#[test]
+fn fri06_c08r_fixture_input_expectation_structure_cannot_control_input_lowering() {
+    let ordinary = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "fri06_bidi_mixed_inline__border_box_ltr",
+        "<node><node /><node /></node>",
+    );
+    let mutated = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "fri06_bidi_mixed_inline__border_box_ltr",
+        "<node width=\"999\"><node><node /></node><node x=\"40\" /></node>",
+    );
+    let ordinary = support::Golden::parse(&ordinary).expect("ordinary expectations must parse");
+    let mutated = support::Golden::parse(&mutated)
+        .expect("valid expectation-only structure must not block input lowering");
+    assert_eq!(ordinary.root, mutated.root);
+}
+
+#[test]
+fn fri06_c08r_fixture_input_fixture_name_cannot_select_input_lowering() {
+    let named = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "fri06_bidi_mixed_inline__border_box_ltr",
+        "<node><node /><node /></node>",
+    );
+    let renamed = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "arbitrary_renamed_fixture",
+        "<node><node /><node /></node>",
+    );
+    let named = support::Golden::parse(&named).expect("named fixture must parse");
+    let renamed = support::Golden::parse(&renamed).expect("renamed fixture must parse");
+    assert_eq!(named.root, renamed.root);
+}
+
+fn fri06_c08r_fixture_input_anonymous_wrapper_xml(
+    marker: &str,
+    display: &str,
+    payload: &str,
+) -> String {
+    format!(
+        r#"<test name="arbitrary_anonymous_wrapper" use-rounding="false">
+  <viewport width="100px" height="max-content" />
+  <input>
+    <div display="grid">
+      <div display="{display}" {marker}>{payload}</div>
+    </div>
+  </input>
+  <expectations><node><node><node /></node></node></expectations>
+</test>"#
+    )
+}
+
+#[test]
+fn fri06_c08r_fixture_input_parser_rejects_unknown_partial_malformed_and_payload_forms() {
+    let valid = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "arbitrary_explicit_fixture",
+        "<node><node /><node /></node>",
+    );
+    for (label, malformed, expected) in [
+        (
+            "unknown attribute",
+            valid.replacen(
+                "<inline-boundary kind=\"start\" />",
+                "<inline-boundary kind=\"start\" extra=\"1\" />",
+                1,
+            ),
+            "unsupported inline boundary attribute",
+        ),
+        (
+            "invalid kind",
+            valid.replacen("kind=\"start\"", "kind=\"middle\"", 1),
+            "invalid inline boundary kind",
+        ),
+        (
+            "partial metrics",
+            valid.replacen(
+                "<inline-boundary kind=\"start\" inline-baseline=\"8\" inline-line-height=\"10\" />",
+                "<inline-boundary kind=\"start\" inline-baseline=\"8\" />",
+                1,
+            ),
+            "metrics require both",
+        ),
+        (
+            "end metrics",
+            valid.replacen(
+                "<inline-boundary kind=\"end\" />",
+                "<inline-boundary kind=\"end\" inline-baseline=\"8\" inline-line-height=\"10\" />",
+                1,
+            ),
+            "only a start inline boundary may carry metrics",
+        ),
+        (
+            "invalid metrics",
+            valid.replacen(
+                "<inline-boundary kind=\"start\" inline-baseline=\"8\" inline-line-height=\"10\" />",
+                "<inline-boundary kind=\"start\" inline-baseline=\"11\" inline-line-height=\"10\" />",
+                1,
+            ),
+            "0 <= baseline",
+        ),
+        (
+            "text payload",
+            valid.replacen(
+                "<inline-boundary kind=\"end\" />",
+                "<inline-boundary kind=\"end\">payload</inline-boundary>",
+                1,
+            ),
+            "unsupported non-whitespace text",
+        ),
+        (
+            "element payload",
+            valid.replacen(
+                "<inline-boundary kind=\"end\" />",
+                "<inline-boundary kind=\"end\"><div /></inline-boundary>",
+                1,
+            ),
+            "unsupported `<inline-boundary>` child",
+        ),
+        (
+            "metric boundary before text",
+            valid.replacen(
+                "<inline-boundary kind=\"start\" />",
+                "<inline-boundary kind=\"start\" inline-baseline=\"8\" inline-line-height=\"10\" />",
+                1,
+            ),
+            "must immediately precede one typed atomic child",
+        ),
+        (
+            "misplaced end",
+            valid.replacen(
+                "<inline-boundary kind=\"start\" />",
+                "<inline-boundary kind=\"end\" />",
+                1,
+            ),
+            "misplaced end inline boundary",
+        ),
+        (
+            "unknown layout-ready attribute",
+            valid.replacen(
+                "layout-ready-inline-root=\"true\"",
+                "layout-ready-inline-root=\"true\" layout-ready-unknown=\"true\"",
+                1,
+            ),
+            "unsupported layout-ready input attribute",
+        ),
+    ] {
+        let error = match support::Golden::parse(&malformed) {
+            Ok(_) => panic!("parser accepted {label}"),
+            Err(error) => error,
+        };
+        assert!(
+            error.to_string().contains(expected),
+            "{label}: expected {expected:?}, got {error}"
+        );
+    }
+}
+
+#[test]
+fn fri06_c08r_fixture_input_anonymous_wrapper_parser_is_closed_and_topology_checked() {
+    let text = r#"<text layout-input="inline-text"><segment id="0" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="preserve" following-break="prohibited" /></text>"#;
+    let valid = fri06_c08r_fixture_input_anonymous_wrapper_xml(
+        "layout-ready-anonymous-grid-text-wrapper=\"true\"",
+        "grid",
+        text,
+    );
+    support::Golden::parse(&valid).expect("closed anonymous wrapper form must parse");
+
+    for (label, xml, expected) in [
+        (
+            "invalid marker value",
+            valid.replacen(
+                "layout-ready-anonymous-grid-text-wrapper=\"true\"",
+                "layout-ready-anonymous-grid-text-wrapper=\"false\"",
+                1,
+            ),
+            "must be exactly `true`",
+        ),
+        (
+            "invalid role",
+            valid.replacen("display=\"grid\"", "display=\"block\"", 2),
+            "requires only direct shaped-text children in a grid role",
+        ),
+        (
+            "mixed raw fallback",
+            valid.replacen("</div>", "raw fallback</div>", 1),
+            "rejects raw text fallback",
+        ),
+        (
+            "box child",
+            fri06_c08r_fixture_input_anonymous_wrapper_xml(
+                "layout-ready-anonymous-grid-text-wrapper=\"true\"",
+                "grid",
+                "<div display=\"block\" />",
+            ),
+            "requires only direct shaped-text children in a grid role",
+        ),
+    ] {
+        let error = match support::Golden::parse(&xml) {
+            Ok(_) => panic!("parser accepted {label}"),
+            Err(error) => error,
+        };
+        assert!(
+            error.to_string().contains(expected),
+            "{label}: expected {expected:?}, got {error}"
+        );
+    }
+}
+
 #[test]
 fn fri06_c08_recovery_inputs_shape_break_places_34_38_then_42_46_on_two_lines() {
     let xml = fri06_c08_recovery_inputs_shape_xml();

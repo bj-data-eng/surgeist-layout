@@ -872,6 +872,7 @@ fn generation_lease_owner(config: &GenerationConfig) -> Result<String, String> {
 }
 
 async fn generate(config: GenerationConfig) -> Result<(), String> {
+    preflight_fri06_c08r_fixture_inputs(&config.corpus.html_root)?;
     let browser = resolve_pinned_browser(&config).await?;
     let mut report = GenerationReport {
         filter: config.filter.clone(),
@@ -2310,6 +2311,448 @@ fn collect_html(root: &Path, filter: Option<&str>) -> Result<Vec<PathBuf>, Strin
     }
     files.sort();
     Ok(files)
+}
+
+const FRI06_C08R_ANONYMOUS_MARKER: &str = "data-surgeist-anonymous-grid-text-wrapper";
+const FRI06_C08R_TRANSPARENT_MARKER: &str = "data-surgeist-transparent-inline-container";
+const FRI06_C08R_STRUT_MARKER: &str = "data-surgeist-inline-struts";
+const FRI06_C08R_MARKERS: [&str; 3] = [
+    FRI06_C08R_ANONYMOUS_MARKER,
+    FRI06_C08R_TRANSPARENT_MARKER,
+    FRI06_C08R_STRUT_MARKER,
+];
+
+const FRI06_C08R_BASELINE_SOURCES: [&str; 4] = [
+    "subgrid/subgrid_baseline_auto_columns_first_item.html",
+    "subgrid/subgrid_baseline_auto_columns_second_item.html",
+    "subgrid/subgrid_baseline_standalone_axis_first_item.html",
+    "subgrid/subgrid_baseline_standalone_axis_second_item.html",
+];
+
+const FRI06_C08R_EXPLICIT_SOURCES: [&str; 8] = [
+    "subgrid/subgrid_baseline_auto_columns_first_item.html",
+    "subgrid/subgrid_baseline_auto_columns_second_item.html",
+    "subgrid/subgrid_baseline_standalone_axis_first_item.html",
+    "subgrid/subgrid_baseline_standalone_axis_second_item.html",
+    "subgrid/subgrid_auto_track_sizing_min_content_text_runs.html",
+    "block/fri06_bidi_mixed_inline.html",
+    "block/fri06_inline_mixed_text_atomic_wrap.html",
+    "float/fri06_float_line_exclusion.html",
+];
+
+#[derive(Debug)]
+struct Fri06C08rHtmlTag {
+    name: String,
+    attrs: BTreeMap<String, String>,
+    parent: Option<usize>,
+}
+
+fn preflight_fri06_c08r_fixture_inputs(html_root: &Path) -> Result<(), String> {
+    let owned = FRI06_C08R_EXPLICIT_SOURCES
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    for path in collect_html(html_root, None)? {
+        let relative = path
+            .strip_prefix(html_root)
+            .map_err(|error| format!("failed to normalize {}: {error}", path.display()))?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let raw = fs::read_to_string(&path)
+            .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+        if owned.contains(relative.as_str()) {
+            validate_fri06_c08r_fixture_source(&relative, &raw)?;
+        } else if let Some(marker) = FRI06_C08R_MARKERS
+            .into_iter()
+            .find(|marker| raw.contains(marker))
+        {
+            return Err(format!(
+                "FRI-06 C08R marker `{marker}` is not permitted in {relative}"
+            ));
+        }
+    }
+    for source in FRI06_C08R_EXPLICIT_SOURCES {
+        if !html_root.join(source).is_file() {
+            return Err(format!("missing FRI-06 C08R marker source {source}"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_fri06_c08r_fixture_source(relative: &str, raw: &str) -> Result<(), String> {
+    let tags = parse_fri06_c08r_html_tags(relative, raw)?;
+    let root = fri06_c08r_exact_tag(
+        &tags,
+        relative,
+        |tag| tag.attrs.get("id").map(String::as_str) == Some("test-root"),
+        "#test-root",
+    )?;
+    let marker_tags = |marker: &str| {
+        tags.iter()
+            .enumerate()
+            .filter_map(|(index, tag)| tag.attrs.contains_key(marker).then_some(index))
+            .collect::<Vec<_>>()
+    };
+    let anonymous = marker_tags(FRI06_C08R_ANONYMOUS_MARKER);
+    let transparent = marker_tags(FRI06_C08R_TRANSPARENT_MARKER);
+    let struts = marker_tags(FRI06_C08R_STRUT_MARKER);
+
+    if FRI06_C08R_BASELINE_SOURCES.contains(&relative) {
+        fri06_c08r_require_marker_set(relative, &tags, &anonymous, FRI06_C08R_ANONYMOUS_MARKER, 2)?;
+        fri06_c08r_require_absent_markers(relative, &transparent, &struts)?;
+        let subgrid = fri06_c08r_exact_direct_child(
+            &tags,
+            relative,
+            root,
+            |tag| {
+                tag.name == "div"
+                    && fri06_c08r_style_has(tag, "display", "inline-grid")
+                    && (fri06_c08r_style_has(tag, "grid-template-columns", "subgrid")
+                        || fri06_c08r_style_has(tag, "grid-template-rows", "subgrid"))
+            },
+            "sole direct inline-grid subgrid",
+        )?;
+        let items = tags
+            .iter()
+            .enumerate()
+            .filter_map(|(index, tag)| {
+                (tag.parent == Some(subgrid)
+                    && tag.name == "div"
+                    && fri06_c08r_style_has(tag, "display", "inline-grid"))
+                .then_some(index)
+            })
+            .collect::<Vec<_>>();
+        if items != anonymous {
+            return Err(format!(
+                "{relative} anonymous wrapper markers must name the two direct inline-grid items"
+            ));
+        }
+        return Ok(());
+    }
+
+    match relative {
+        "subgrid/subgrid_auto_track_sizing_min_content_text_runs.html" => {
+            fri06_c08r_require_marker_set(
+                relative,
+                &tags,
+                &anonymous,
+                FRI06_C08R_ANONYMOUS_MARKER,
+                1,
+            )?;
+            fri06_c08r_require_absent_markers(relative, &transparent, &struts)?;
+            let marked = anonymous[0];
+            let tag = &tags[marked];
+            if tag.name != "div"
+                || !fri06_c08r_style_has(tag, "display", "grid")
+                || !fri06_c08r_style_has(tag, "grid-template-rows", "subgrid")
+                || !fri06_c08r_style_has(tag, "grid-template-columns", "subgrid")
+                || !tag.attrs.contains_key("data-surgeist-inline-breaks")
+                || tags.iter().any(|child| child.parent == Some(marked))
+                || tag.parent.and_then(|parent| tags[parent].parent) != Some(root)
+            {
+                return Err(format!(
+                    "{relative} anonymous wrapper marker must name the innermost four-run subgrid"
+                ));
+            }
+        }
+        "block/fri06_bidi_mixed_inline.html" => {
+            fri06_c08r_require_marker_set(
+                relative,
+                &tags,
+                &transparent,
+                FRI06_C08R_TRANSPARENT_MARKER,
+                2,
+            )?;
+            fri06_c08r_require_absent_markers(relative, &anonymous, &struts)?;
+            let bdos = tags
+                .iter()
+                .enumerate()
+                .filter_map(|(index, tag)| {
+                    (tag.parent == Some(root) && tag.name == "bdo").then_some(index)
+                })
+                .collect::<Vec<_>>();
+            if bdos != transparent
+                || transparent
+                    .iter()
+                    .any(|index| tags.iter().any(|tag| tag.parent == Some(*index)))
+            {
+                return Err(format!(
+                    "{relative} transparent markers must name exactly the two direct text-only bdo children"
+                ));
+            }
+        }
+        "block/fri06_inline_mixed_text_atomic_wrap.html" => {
+            fri06_c08r_require_absent_markers(relative, &anonymous, &transparent)?;
+            fri06_c08r_require_strut(relative, &tags, &struts, root, 2, 14.8, 20.0)?;
+        }
+        "float/fri06_float_line_exclusion.html" => {
+            fri06_c08r_require_absent_markers(relative, &anonymous, &transparent)?;
+            fri06_c08r_require_strut(relative, &tags, &struts, root, 5, 12.0, 20.0)?;
+        }
+        _ => return Err(format!("unexpected FRI-06 C08R marker source {relative}")),
+    }
+    Ok(())
+}
+
+fn fri06_c08r_require_marker_set(
+    relative: &str,
+    tags: &[Fri06C08rHtmlTag],
+    marked: &[usize],
+    marker: &str,
+    expected: usize,
+) -> Result<(), String> {
+    if marked.len() != expected {
+        return Err(format!(
+            "{relative} requires exactly {expected} `{marker}` markers, found {}",
+            marked.len()
+        ));
+    }
+    if marked
+        .iter()
+        .any(|index| tags[*index].attrs.get(marker).map(String::as_str) != Some("true"))
+    {
+        return Err(format!("{relative} requires `{marker}=\"true\"`"));
+    }
+    Ok(())
+}
+
+fn fri06_c08r_require_absent_markers(
+    relative: &str,
+    first: &[usize],
+    second: &[usize],
+) -> Result<(), String> {
+    if first.is_empty() && second.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("{relative} contains an extra FRI-06 C08R marker"))
+    }
+}
+
+fn fri06_c08r_require_strut(
+    relative: &str,
+    tags: &[Fri06C08rHtmlTag],
+    marked: &[usize],
+    root: usize,
+    before_source_index: u64,
+    baseline: f64,
+    line_height: f64,
+) -> Result<(), String> {
+    if marked != [root] {
+        return Err(format!(
+            "{relative} requires exactly one inline-strut marker on #test-root"
+        ));
+    }
+    let parsed: Value = serde_json::from_str(
+        tags[root]
+            .attrs
+            .get(FRI06_C08R_STRUT_MARKER)
+            .expect("marked root has the strut attribute"),
+    )
+    .map_err(|error| format!("{relative} has malformed inline-strut JSON: {error}"))?;
+    let valid = parsed.as_array().is_some_and(|records| {
+        let [record] = records.as_slice() else {
+            return false;
+        };
+        let Some(record) = record.as_object() else {
+            return false;
+        };
+        record.len() == 3
+            && record["beforeSourceIndex"].as_u64() == Some(before_source_index)
+            && record["baseline"].as_f64() == Some(baseline)
+            && record["lineHeight"].as_f64() == Some(line_height)
+    });
+    if !valid {
+        return Err(format!(
+            "{relative} inline-strut record must contain exactly beforeSourceIndex={before_source_index}, baseline={baseline}, and lineHeight={line_height}"
+        ));
+    }
+    Ok(())
+}
+
+fn fri06_c08r_exact_tag<F>(
+    tags: &[Fri06C08rHtmlTag],
+    relative: &str,
+    predicate: F,
+    label: &str,
+) -> Result<usize, String>
+where
+    F: Fn(&Fri06C08rHtmlTag) -> bool,
+{
+    let matches = tags
+        .iter()
+        .enumerate()
+        .filter_map(|(index, tag)| predicate(tag).then_some(index))
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [index] => Ok(*index),
+        _ => Err(format!(
+            "{relative} requires exactly one {label}, found {}",
+            matches.len()
+        )),
+    }
+}
+
+fn fri06_c08r_exact_direct_child<F>(
+    tags: &[Fri06C08rHtmlTag],
+    relative: &str,
+    parent: usize,
+    predicate: F,
+    label: &str,
+) -> Result<usize, String>
+where
+    F: Fn(&Fri06C08rHtmlTag) -> bool,
+{
+    fri06_c08r_exact_tag(
+        tags,
+        relative,
+        |tag| tag.parent == Some(parent) && predicate(tag),
+        label,
+    )
+}
+
+fn fri06_c08r_style_has(tag: &Fri06C08rHtmlTag, property: &str, value: &str) -> bool {
+    tag.attrs.get("style").is_some_and(|style| {
+        style.split(';').any(|declaration| {
+            declaration
+                .split_once(':')
+                .is_some_and(|(name, authored)| name.trim() == property && authored.trim() == value)
+        })
+    })
+}
+
+fn parse_fri06_c08r_html_tags(relative: &str, raw: &str) -> Result<Vec<Fri06C08rHtmlTag>, String> {
+    let mut tags = Vec::<Fri06C08rHtmlTag>::new();
+    let mut stack = Vec::<usize>::new();
+    let mut offset = 0;
+    while let Some(open) = raw[offset..].find('<').map(|index| offset + index) {
+        if raw[open..].starts_with("<!--") {
+            let end = raw[open + 4..]
+                .find("-->")
+                .map(|index| open + 4 + index + 3)
+                .ok_or_else(|| format!("{relative} has an unterminated comment"))?;
+            offset = end;
+            continue;
+        }
+        let end = fri06_c08r_tag_end(relative, raw, open)?;
+        let body = raw[open + 1..end].trim();
+        offset = end + 1;
+        if body.is_empty() || body.starts_with('!') || body.starts_with('?') {
+            continue;
+        }
+        if let Some(closing) = body.strip_prefix('/') {
+            let name = closing
+                .split_ascii_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let Some(index) = stack.pop() else {
+                return Err(format!("{relative} closes `<{name}>` without an opener"));
+            };
+            if tags[index].name != name {
+                return Err(format!(
+                    "{relative} closes `<{name}>` while `<{}>` is open",
+                    tags[index].name
+                ));
+            }
+            continue;
+        }
+
+        let self_closing = body.ends_with('/');
+        let body = body.strip_suffix('/').unwrap_or(body).trim_end();
+        let name_end = body.find(char::is_whitespace).unwrap_or(body.len());
+        let name = body[..name_end].to_ascii_lowercase();
+        let attrs = fri06_c08r_parse_html_attrs(relative, &body[name_end..])?;
+        let index = tags.len();
+        tags.push(Fri06C08rHtmlTag {
+            name: name.clone(),
+            attrs,
+            parent: stack.last().copied(),
+        });
+        let void = matches!(
+            name.as_str(),
+            "area"
+                | "base"
+                | "br"
+                | "col"
+                | "embed"
+                | "hr"
+                | "img"
+                | "input"
+                | "link"
+                | "meta"
+                | "param"
+                | "source"
+                | "track"
+                | "wbr"
+        );
+        if !self_closing && !void {
+            stack.push(index);
+        }
+    }
+    if let Some(index) = stack.last() {
+        return Err(format!(
+            "{relative} has an unclosed `<{}>` tag",
+            tags[*index].name
+        ));
+    }
+    Ok(tags)
+}
+
+fn fri06_c08r_tag_end(relative: &str, raw: &str, open: usize) -> Result<usize, String> {
+    let mut quote = None;
+    for (index, character) in raw[open + 1..].char_indices() {
+        match (quote, character) {
+            (Some(expected), actual) if expected == actual => quote = None,
+            (None, '\'' | '"') => quote = Some(character),
+            (None, '>') => return Ok(open + 1 + index),
+            _ => {}
+        }
+    }
+    Err(format!("{relative} has an unterminated start tag"))
+}
+
+fn fri06_c08r_parse_html_attrs(
+    relative: &str,
+    mut raw: &str,
+) -> Result<BTreeMap<String, String>, String> {
+    let mut attrs = BTreeMap::new();
+    while !raw.trim_start().is_empty() {
+        raw = raw.trim_start();
+        let name_end = raw
+            .find(|character: char| character.is_whitespace() || character == '=')
+            .unwrap_or(raw.len());
+        if name_end == 0 {
+            return Err(format!("{relative} has a malformed attribute"));
+        }
+        let name = raw[..name_end].to_ascii_lowercase();
+        raw = &raw[name_end..];
+        raw = raw.trim_start();
+        let value = if let Some(rest) = raw.strip_prefix('=') {
+            raw = rest.trim_start();
+            let Some(first) = raw.chars().next() else {
+                return Err(format!("{relative} attribute `{name}` has no value"));
+            };
+            if matches!(first, '\'' | '"') {
+                let rest = &raw[first.len_utf8()..];
+                let end = rest.find(first).ok_or_else(|| {
+                    format!("{relative} attribute `{name}` has an unterminated value")
+                })?;
+                let value = rest[..end].to_string();
+                raw = &rest[end + first.len_utf8()..];
+                value
+            } else {
+                let end = raw.find(char::is_whitespace).unwrap_or(raw.len());
+                let value = raw[..end].to_string();
+                raw = &raw[end..];
+                value
+            }
+        } else {
+            String::new()
+        };
+        if attrs.insert(name.clone(), value).is_some() {
+            return Err(format!("{relative} duplicates attribute `{name}`"));
+        }
+    }
+    Ok(attrs)
 }
 
 fn collect_constrained_fixtures_for_generation(
@@ -3904,6 +4347,10 @@ fn generate_xml_with_provenance(
 
 fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writing_mode: &str) {
     line_control_kind(node);
+    if node["layoutInput"].as_str() == Some("inline-boundary") {
+        write_inline_boundary_input(lines, node, indent);
+        return;
+    }
     if node["layoutInput"].as_str() == Some("inline-text") {
         write_inline_text_input(lines, node, indent);
         return;
@@ -3957,6 +4404,64 @@ fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writ
         ));
     }
     lines.push(format!("{pad}</{tag}>"));
+}
+
+fn write_inline_boundary_input(lines: &mut Vec<String>, node: &Value, indent: usize) {
+    let object = node
+        .as_object()
+        .expect("layout-ready inline boundary must be an object");
+    assert!(
+        object
+            .keys()
+            .all(|key| matches!(key.as_str(), "layoutInput" | "inlineBoundary" | "children")),
+        "layout-ready inline boundary contains an unsupported field"
+    );
+    assert!(
+        node["children"].as_array().is_none_or(Vec::is_empty),
+        "layout-ready inline boundary must not contain payload"
+    );
+    let boundary = node["inlineBoundary"]
+        .as_object()
+        .expect("layout-ready inline boundary requires a closed descriptor");
+    let kind = boundary
+        .get("kind")
+        .and_then(Value::as_str)
+        .filter(|kind| matches!(*kind, "start" | "end"))
+        .expect("layout-ready inline boundary kind must be start or end");
+    assert!(
+        boundary
+            .keys()
+            .all(|key| { matches!(key.as_str(), "kind" | "baseline" | "lineHeight") }),
+        "layout-ready inline boundary descriptor contains an unsupported field"
+    );
+    let baseline = boundary.get("baseline");
+    let line_height = boundary.get("lineHeight");
+    let mut attrs = vec![("kind", kind.to_string())];
+    match (baseline, line_height) {
+        (None, None) => {}
+        (Some(baseline), Some(line_height)) => {
+            assert_eq!(
+                kind, "start",
+                "only a start inline boundary may carry metrics"
+            );
+            let baseline = baseline
+                .as_f64()
+                .filter(|value| value.is_finite() && *value >= 0.0)
+                .expect("inline boundary baseline must be finite and non-negative");
+            let line_height = line_height
+                .as_f64()
+                .filter(|value| value.is_finite() && *value > 0.0 && *value >= baseline)
+                .expect("inline boundary line height must be finite, positive, and cover baseline");
+            attrs.push(("inline-baseline", number_attr_value(baseline)));
+            attrs.push(("inline-line-height", number_attr_value(line_height)));
+        }
+        _ => panic!("layout-ready inline boundary metrics must be complete"),
+    }
+    lines.push(format!(
+        "{}<inline-boundary{}/>",
+        " ".repeat(indent),
+        attr_text(&attrs)
+    ));
 }
 
 fn write_inline_text_input(lines: &mut Vec<String>, node: &Value, indent: usize) {
@@ -4259,8 +4764,13 @@ fn write_expectation(lines: &mut Vec<String>, node: &Value, context: Expectation
         .as_array()
         .map(Vec::as_slice)
         .unwrap_or(&[]);
+    let expectation_children = children
+        .iter()
+        .filter(|child| child["layoutInput"].as_str() != Some("inline-boundary"))
+        .cloned()
+        .collect::<Vec<_>>();
     let fragments = node["fragments"].as_array();
-    if children.is_empty() && fragments.is_none() {
+    if expectation_children.is_empty() && fragments.is_none() {
         lines.push(format!("{pad}<node{}/>", attr_text(&attrs)));
         return;
     }
@@ -4269,12 +4779,12 @@ fn write_expectation(lines: &mut Vec<String>, node: &Value, context: Expectation
     if let Some(fragments) = fragments {
         write_fragment_expectations(lines, fragments, context.indent + 2);
     }
-    for (source_index, child) in children.iter().enumerate() {
+    for (source_index, child) in expectation_children.iter().enumerate() {
         if line_control_kind(child).is_some() {
             write_browser_control_expectation(
                 lines,
                 node,
-                children,
+                &expectation_children,
                 source_index,
                 context.indent + 2,
             );
@@ -4530,6 +5040,35 @@ fn input_attrs_with_parent_writing_mode(
             "layout-ready fixture field `layoutReadyInlineRoot` must be true when present"
         );
         attrs.push(("layout-ready-inline-root", "true".to_string()));
+    }
+    if let Some(marker) = node.get("layoutReadyAnonymousGridTextWrapper") {
+        assert_eq!(
+            marker.as_bool(),
+            Some(true),
+            "layout-ready fixture field `layoutReadyAnonymousGridTextWrapper` must be true when present"
+        );
+        assert!(
+            matches!(
+                style["display"].as_str(),
+                Some("grid" | "inline-grid" | "grid-lanes" | "inline-grid-lanes")
+            ),
+            "anonymous grid text wrapper marker requires a grid formatting role"
+        );
+        let children = node["children"]
+            .as_array()
+            .filter(|children| !children.is_empty())
+            .expect("anonymous grid text wrapper marker requires direct typed text");
+        assert!(
+            children.iter().all(|child| {
+                child["layoutInput"].as_str() == Some("inline-text")
+                    && child["children"].as_array().is_none_or(Vec::is_empty)
+            }) && node.get("textContent").is_none_or(Value::is_null),
+            "anonymous grid text wrapper marker rejects mixed fallback content"
+        );
+        attrs.push((
+            "layout-ready-anonymous-grid-text-wrapper",
+            "true".to_string(),
+        ));
     }
     if br_serializes_as_box {
         assert!(
@@ -6931,8 +7470,8 @@ if (expectedReason === undefined) {{
                 "block/fri06_bidi_mixed_inline.html",
                 &[
                     "data-surgeist-layout-ready-inline=\"true\"",
-                    "<bdo dir=\"ltr\">alpha</bdo>",
-                    "<bdo dir=\"rtl\">אבג</bdo>",
+                    "<bdo dir=\"ltr\" data-surgeist-transparent-inline-container=\"true\">alpha</bdo>",
+                    "<bdo dir=\"rtl\" data-surgeist-transparent-inline-container=\"true\">אבג</bdo>",
                     "delta",
                 ],
             ),
@@ -7240,11 +7779,11 @@ if (expectedReason === undefined) {{
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "49322f454e31a462852a1a6f170be757b8b1a0245f33fa43c1692bde737adb7a"
+            "2a244da5dbc74b5b9936bf953cf04fa20af29e1ee35bb5678aca40e179a9d51f"
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            "d4bc9ec937f5de860f737ff7d886384a861a52d7004b39551e13852a1378acdc"
+            "23779c478c392bb7219f39ca73500b3574e497713c27e055049ff27fd38e5178"
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
@@ -7566,7 +8105,7 @@ console.log(JSON.stringify({
                     .map(|source| (*source).to_string())
                     .collect()
             ),
-            "3575517b1006a7dad9e3e661467e0f8323ee75c9dfa3c763d981ad129a35719d"
+            "529b6ca00751afa1e9090b03f1381dd497a3033bc75dbda9a1ba8a24a6e500a3"
         );
         for (reason, expected_rows) in [
             (FRI06_C08_EXISTING_REASONS[0], 100),
@@ -7901,7 +8440,8 @@ if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0 ||
             "{relative} must retain shaped text identity rather than replacement boxes"
         );
 
-        let inline_marker = r#"<div data-surgeist-inline-breaks="#;
+        let inline_marker =
+            r#"<div data-surgeist-anonymous-grid-text-wrapper="true" data-surgeist-inline-breaks="#;
         let inline_start = raw.find(inline_marker).expect("typed text parent marker");
         let inline_end = raw[inline_start..]
             .find("</div>")
@@ -13466,6 +14006,442 @@ status = "active"
     }
 
     #[test]
+    fn fri06_c08r_fixture_input_exact_source_marker_inventory_is_authored() {
+        let html = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        for (relative, marker, count) in [
+            (
+                "subgrid/subgrid_baseline_auto_columns_first_item.html",
+                "data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                2,
+            ),
+            (
+                "subgrid/subgrid_baseline_auto_columns_second_item.html",
+                "data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                2,
+            ),
+            (
+                "subgrid/subgrid_baseline_standalone_axis_first_item.html",
+                "data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                2,
+            ),
+            (
+                "subgrid/subgrid_baseline_standalone_axis_second_item.html",
+                "data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                2,
+            ),
+            (
+                "subgrid/subgrid_auto_track_sizing_min_content_text_runs.html",
+                "data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                1,
+            ),
+            (
+                "block/fri06_bidi_mixed_inline.html",
+                "data-surgeist-transparent-inline-container=\"true\"",
+                2,
+            ),
+            (
+                "block/fri06_inline_mixed_text_atomic_wrap.html",
+                "data-surgeist-inline-struts=",
+                1,
+            ),
+            (
+                "float/fri06_float_line_exclusion.html",
+                "data-surgeist-inline-struts=",
+                1,
+            ),
+        ] {
+            let raw = fs::read_to_string(html.join(relative)).expect(relative);
+            assert_eq!(
+                raw.matches(marker).count(),
+                count,
+                "{relative} marker count"
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_c08r_fixture_input_serializer_emits_closed_explicit_forms() {
+        let node = json!({
+            "tagName": "div",
+            "layoutReadyInlineRoot": true,
+            "useRounding": false,
+            "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+            "style": {"display": "block", "size": {"width": {"unit": "px", "value": 100}}},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 10},
+            "children": [
+                {"layoutInput": "inline-boundary", "inlineBoundary": {"kind": "start"}, "children": []},
+                {
+                    "layoutInput": "inline-text",
+                    "inlineSegments": [{
+                        "id": 7, "inlineExtent": 10, "inlineBaseline": 8, "inlineLineHeight": 10,
+                        "bidiLevel": 0, "whitespaceEdge": "preserve", "followingBreak": "prohibited"
+                    }],
+                    "rangeInks": [{"sourceSegmentId": 7, "lineIndex": 0, "physicalStartEdge": "left", "start": 0, "advance": 10}],
+                    "children": []
+                },
+                {"layoutInput": "inline-boundary", "inlineBoundary": {"kind": "end"}, "children": []}
+            ]
+        });
+        let xml = generate_xml("renamed_explicit_fixture", &node);
+        assert!(xml.contains(r#"<inline-boundary kind="start"/>"#), "{xml}");
+        assert!(xml.contains(r#"<inline-boundary kind="end"/>"#), "{xml}");
+        let (_, expectations) = xml
+            .split_once("  <expectations>\n")
+            .expect("independent expectation section");
+        assert!(
+            !expectations.contains("inline-boundary"),
+            "transparent input boundaries must have no expectation nodes\n{xml}"
+        );
+        browser_parity_support::Golden::parse(&xml)
+            .expect("serialized explicit fixture must parse");
+    }
+
+    fn fri06_c08r_fixture_input_text(id: u64) -> Value {
+        json!({
+            "layoutInput": "inline-text",
+            "inlineSegments": [{
+                "id": id, "inlineExtent": 10, "inlineBaseline": 8, "inlineLineHeight": 10,
+                "bidiLevel": 0, "whitespaceEdge": "preserve", "followingBreak": "prohibited"
+            }],
+            "rangeInks": [{
+                "sourceSegmentId": id, "lineIndex": 0, "physicalStartEdge": "left",
+                "start": id * 10, "advance": 10
+            }],
+            "children": []
+        })
+    }
+
+    fn fri06_c08r_fixture_input_box(display: &str, children: Vec<Value>) -> Value {
+        json!({
+            "tagName": "div",
+            "style": {"display": display},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+            "children": children
+        })
+    }
+
+    fn fri06_c08r_fixture_input_atomic(width: u64) -> Value {
+        json!({
+            "tagName": "span",
+            "style": {
+                "display": "inline-block",
+                "size": {"width": {"unit": "px", "value": width}, "height": {"unit": "px", "value": 10}}
+            },
+            "atomicInlineParticipation": {"bidiLevel": 0, "followingBreak": "prohibited"},
+            "unroundedLayout": {"x": 0, "y": 0, "width": width, "height": 10},
+            "children": []
+        })
+    }
+
+    fn fri06_c08r_fixture_input_root(display: &str, children: Vec<Value>) -> Value {
+        json!({
+            "tagName": "div",
+            "layoutReadyInlineRoot": true,
+            "useRounding": false,
+            "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+            "style": {"display": display, "size": {"width": {"unit": "px", "value": 100}}},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+            "children": children
+        })
+    }
+
+    fn fri06_c08r_fixture_input_boundary(kind: &str, metrics: Option<(f64, f64)>) -> Value {
+        let inline_boundary = metrics.map_or_else(
+            || json!({"kind": kind}),
+            |(baseline, line_height)| {
+                json!({"kind": kind, "baseline": baseline, "lineHeight": line_height})
+            },
+        );
+        json!({
+            "layoutInput": "inline-boundary",
+            "inlineBoundary": inline_boundary,
+            "children": []
+        })
+    }
+
+    #[test]
+    fn fri06_c08r_fixture_input_all_five_adapter_families_serialize_then_parse() {
+        let mut baseline_item =
+            fri06_c08r_fixture_input_box("inline-grid", vec![fri06_c08r_fixture_input_text(0)]);
+        baseline_item["layoutReadyAnonymousGridTextWrapper"] = Value::Bool(true);
+        let baseline = fri06_c08r_fixture_input_root(
+            "grid",
+            vec![fri06_c08r_fixture_input_box(
+                "grid",
+                vec![baseline_item.clone(), baseline_item],
+            )],
+        );
+
+        let mut four_run = fri06_c08r_fixture_input_box(
+            "grid",
+            (0..4).map(fri06_c08r_fixture_input_text).collect(),
+        );
+        four_run["layoutReadyAnonymousGridTextWrapper"] = Value::Bool(true);
+        let four_run = fri06_c08r_fixture_input_root(
+            "block",
+            vec![fri06_c08r_fixture_input_box("grid", vec![four_run])],
+        );
+
+        let bidi = fri06_c08r_fixture_input_root(
+            "block",
+            vec![
+                fri06_c08r_fixture_input_boundary("start", None),
+                fri06_c08r_fixture_input_text(0),
+                fri06_c08r_fixture_input_boundary("end", None),
+                fri06_c08r_fixture_input_text(1),
+                fri06_c08r_fixture_input_boundary("start", None),
+                fri06_c08r_fixture_input_text(2),
+                fri06_c08r_fixture_input_boundary("end", None),
+                fri06_c08r_fixture_input_text(3),
+            ],
+        );
+        let mixed = fri06_c08r_fixture_input_root(
+            "block",
+            vec![
+                fri06_c08r_fixture_input_text(0),
+                fri06_c08r_fixture_input_atomic(18),
+                fri06_c08r_fixture_input_boundary("start", Some((14.8, 20.0))),
+                fri06_c08r_fixture_input_atomic(24),
+            ],
+        );
+        let float = fri06_c08r_fixture_input_root(
+            "block",
+            vec![
+                fri06_c08r_fixture_input_box("block", vec![]),
+                fri06_c08r_fixture_input_box("block", vec![]),
+                fri06_c08r_fixture_input_text(4),
+                fri06_c08r_fixture_input_boundary("start", Some((12.0, 20.0))),
+                fri06_c08r_fixture_input_atomic(28),
+            ],
+        );
+
+        for (name, node, expected) in [
+            (
+                "subgrid_baseline_auto_columns_first_item__border_box_ltr",
+                baseline,
+                "layout-ready-anonymous-grid-text-wrapper=\"true\"",
+            ),
+            (
+                "subgrid_auto_track_sizing_min_content_text_runs__border_box_ltr",
+                four_run,
+                "layout-ready-anonymous-grid-text-wrapper=\"true\"",
+            ),
+            (
+                "fri06_bidi_mixed_inline__border_box_ltr",
+                bidi,
+                "<inline-boundary kind=\"end\"/>",
+            ),
+            (
+                "fri06_inline_mixed_text_atomic_wrap__border_box_ltr",
+                mixed,
+                "inline-baseline=\"14.8\" inline-line-height=\"20\"",
+            ),
+            (
+                "fri06_float_line_exclusion__border_box_ltr",
+                float,
+                "inline-baseline=\"12\" inline-line-height=\"20\"",
+            ),
+        ] {
+            let xml = generate_xml(name, &node);
+            assert!(xml.contains(expected), "{name} lacks {expected:?}\n{xml}");
+            browser_parity_support::Golden::parse(&xml)
+                .unwrap_or_else(|error| panic!("{name} explicit XML must parse: {error}\n{xml}"));
+        }
+    }
+
+    #[test]
+    fn fri06_c08r_fixture_input_source_preflight_rejects_closed_inventory_mutations() {
+        let html = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        preflight_fri06_c08r_fixture_inputs(&html).expect("reviewed marker inventory");
+
+        let baseline_source = FRI06_C08R_BASELINE_SOURCES[0];
+        let baseline = fs::read_to_string(html.join(baseline_source)).expect(baseline_source);
+        for (label, mutated) in [
+            (
+                "missing",
+                baseline.replacen(
+                    " data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                    "",
+                    1,
+                ),
+            ),
+            (
+                "extra",
+                baseline.replacen(
+                    "id=\"test-root\"",
+                    "id=\"test-root\" data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                    1,
+                ),
+            ),
+            (
+                "duplicate",
+                baseline.replacen(
+                    "data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                    "data-surgeist-anonymous-grid-text-wrapper=\"true\" data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                    1,
+                ),
+            ),
+            (
+                "malformed",
+                baseline.replacen(
+                    "data-surgeist-anonymous-grid-text-wrapper=\"true\"",
+                    "data-surgeist-anonymous-grid-text-wrapper=\"false\"",
+                    1,
+                ),
+            ),
+        ] {
+            assert!(
+                validate_fri06_c08r_fixture_source(baseline_source, &mutated).is_err(),
+                "source preflight accepted {label} marker mutation"
+            );
+        }
+
+        let strut_source = "block/fri06_inline_mixed_text_atomic_wrap.html";
+        let strut = fs::read_to_string(html.join(strut_source)).expect(strut_source);
+        let malformed = strut.replacen("\"lineHeight\":20", "\"lineHeight\":20,\"extra\":1", 1);
+        assert!(validate_fri06_c08r_fixture_source(strut_source, &malformed).is_err());
+
+        let temp = std::env::temp_dir().join(format!(
+            "surgeist-layout-c08r-source-preflight-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&temp).expect("preflight temp root");
+        for source in FRI06_C08R_EXPLICIT_SOURCES {
+            let target = temp.join(source);
+            fs::create_dir_all(target.parent().expect("source parent")).expect("source parent");
+            fs::copy(html.join(source), &target).expect("copy reviewed marker source");
+        }
+        let elsewhere = temp.join("other/unreviewed.html");
+        fs::create_dir_all(elsewhere.parent().expect("elsewhere parent"))
+            .expect("elsewhere parent");
+        fs::write(
+            &elsewhere,
+            "<div data-surgeist-transparent-inline-container=\"true\"></div>",
+        )
+        .expect("elsewhere marker source");
+        let result = preflight_fri06_c08r_fixture_inputs(&temp);
+        fs::remove_dir_all(&temp).expect("preflight temp cleanup");
+        assert!(
+            result
+                .expect_err("marker use elsewhere must fail")
+                .contains("is not permitted")
+        );
+    }
+
+    #[test]
+    fn fri06_c08r_fixture_input_helper_projects_only_closed_marker_facts() {
+        let script = [
+            r#"
+const window = {};
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const document = { styleSheets: [] };
+function getComputedStyle(element) { return element.computedStyle; }
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+layoutReadyTextNodeData = function() {
+  return { layoutInput: 'inline-text', inlineSegments: [{ id: 0 }], children: [] };
+};
+const text = { nodeType: Node.TEXT_NODE, textContent: 'alpha' };
+const bdo = {
+  tagName: 'BDO', childNodes: [text], computedStyle: { display: 'inline' },
+  getAttribute(name) { return name === 'data-surgeist-transparent-inline-container' ? 'true' : null; },
+};
+const projection = layoutReadyTransparentInlineProjection(bdo);
+if (projection.length !== 3 || projection[0].inlineBoundary.kind !== 'start' ||
+    projection[1].layoutInput !== 'inline-text' || projection[2].inlineBoundary.kind !== 'end') {
+  throw new Error(`invalid transparent projection ${JSON.stringify(projection)}`);
+}
+const atomic = { nodeType: Node.ELEMENT_NODE, tagName: 'SPAN', computedStyle: { display: 'inline-block' } };
+const root = {
+  getAttribute(name) {
+    if (name === 'data-surgeist-layout-ready-inline') return 'true';
+    if (name === 'data-surgeist-inline-struts') return '[{"beforeSourceIndex":0,"baseline":12,"lineHeight":20}]';
+    return null;
+  },
+};
+const strut = layoutReadyInlineStruts(root, [atomic]).get(0).inlineBoundary;
+if (strut.kind !== 'start' || strut.baseline !== 12 || strut.lineHeight !== 20) {
+  throw new Error(`invalid strut projection ${JSON.stringify(strut)}`);
+}
+const grid = {
+  childNodes: [text],
+  getAttribute(name) { return name === 'data-surgeist-anonymous-grid-text-wrapper' ? 'true' : null; },
+};
+if (layoutReadyAnonymousGridTextWrapper(
+      grid,
+      { display: 'grid' },
+      [{ layoutInput: 'inline-text', inlineSegments: [{ id: 0 }], children: [] }]
+    ) !== true) {
+  throw new Error('anonymous wrapper marker did not project');
+}
+"#,
+        ]
+        .concat();
+        run_bundled_helper_script("fri06-c08r-closed-marker-projection", script);
+    }
+
+    #[test]
+    fn fri06_c08r_fixture_input_helper_rejects_invalid_marker_roles_metrics_and_topology() {
+        let script = [
+            r#"
+const window = {};
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const document = { styleSheets: [] };
+function getComputedStyle(element) { return element.computedStyle; }
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+function mustThrow(label, callback) {
+  try { callback(); } catch (_) { return; }
+  throw new Error(`${label} did not fail`);
+}
+const text = { nodeType: Node.TEXT_NODE, textContent: 'alpha' };
+mustThrow('transparent value', () => layoutReadyTransparentInlineProjection({
+  tagName: 'BDO', childNodes: [text], computedStyle: { display: 'inline' },
+  getAttribute() { return 'false'; },
+}));
+mustThrow('transparent topology', () => layoutReadyTransparentInlineProjection({
+  tagName: 'BDO', childNodes: [text, text], computedStyle: { display: 'inline' },
+  getAttribute() { return 'true'; },
+}));
+mustThrow('anonymous role', () => layoutReadyAnonymousGridTextWrapper(
+  { childNodes: [text], getAttribute() { return 'true'; } },
+  { display: 'block' },
+  [{ layoutInput: 'inline-text', inlineSegments: [{ id: 0 }], children: [] }]
+));
+const atomic = { nodeType: Node.ELEMENT_NODE, tagName: 'SPAN', computedStyle: { display: 'inline-block' } };
+function strutRoot(value) {
+  return {
+    getAttribute(name) {
+      if (name === 'data-surgeist-layout-ready-inline') return 'true';
+      if (name === 'data-surgeist-inline-struts') return value;
+      return null;
+    },
+  };
+}
+mustThrow('strut extra field', () => layoutReadyInlineStruts(
+  strutRoot('[{"beforeSourceIndex":0,"baseline":12,"lineHeight":20,"extra":1}]'), [atomic]
+));
+mustThrow('strut partial metrics', () => layoutReadyInlineStruts(
+  strutRoot('[{"beforeSourceIndex":0,"baseline":12}]'), [atomic]
+));
+mustThrow('strut invalid metrics', () => layoutReadyInlineStruts(
+  strutRoot('[{"beforeSourceIndex":0,"baseline":21,"lineHeight":20}]'), [atomic]
+));
+mustThrow('strut non-atomic target', () => layoutReadyInlineStruts(
+  strutRoot('[{"beforeSourceIndex":0,"baseline":12,"lineHeight":20}]'), [text]
+));
+mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
+  strutRoot('[{"beforeSourceIndex":0,"baseline":12,"lineHeight":20},{"beforeSourceIndex":0,"baseline":12,"lineHeight":20}]'), [atomic]
+));
+"#,
+        ]
+        .concat();
+        run_bundled_helper_script("fri06-c08r-invalid-marker-facts", script);
+    }
+
+    #[test]
     fn fri06_c08_recovery_inputs_owned_sources_match_reviewed_freeze() {
         const GENERATOR_TEST_MODULE_MARKER: &str = "#[cfg(test)]\nmod tests {";
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -13478,7 +14454,7 @@ status = "active"
 
         assert_eq!(
             sha256_bytes(production.as_bytes()),
-            "b8756b89abd04d55dc0d35da5acf3d5129c54be68fa2001f7122265f94b479c9",
+            "a1ae7224de4557df5b3ea779f52bd8d2ab0323677140f41dc2ae504a34622459",
             "only the reviewed C08 input serializer may change generator behavior"
         );
         for (path, expected) in [
@@ -13496,7 +14472,7 @@ status = "active"
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "d4bc9ec937f5de860f737ff7d886384a861a52d7004b39551e13852a1378acdc",
+                "23779c478c392bb7219f39ca73500b3574e497713c27e055049ff27fd38e5178",
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_base_style.css",
@@ -13521,7 +14497,7 @@ status = "active"
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "49322f454e31a462852a1a6f170be757b8b1a0245f33fa43c1692bde737adb7a"
+            "2a244da5dbc74b5b9936bf953cf04fa20af29e1ee35bb5678aca40e179a9d51f"
         );
     }
 

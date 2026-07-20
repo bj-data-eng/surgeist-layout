@@ -50,8 +50,11 @@ impl Golden {
 
         let name = required_attr(test, "name")?.to_string();
         let mut root = parse_node(one_element_child(input)?)?;
+        let explicit_fri06_c08r_input = validate_fri06_c08r_explicit_input(&root, true)?;
         let mut expectations = parse_expectation(one_element_child(expectations)?)?;
-        apply_fri06_c08_finite_adapter(&name, &mut root, &mut expectations)?;
+        if !explicit_fri06_c08r_input {
+            apply_fri06_c08_finite_adapter(&name, &mut root, &mut expectations)?;
+        }
 
         Ok(Self {
             name,
@@ -327,6 +330,9 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {}
 
 fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
+    if xml.has_tag_name("inline-boundary") {
+        return parse_inline_boundary_node(xml);
+    }
     let kind = match xml.tag_name().name() {
         "div" => NodeKind::Div,
         "text" => NodeKind::Text,
@@ -352,8 +358,27 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         }
         None => false,
     };
+    let anonymous_grid_text_wrapper =
+        match xml.attribute("layout-ready-anonymous-grid-text-wrapper") {
+            Some("true") => true,
+            Some(_) => {
+                return Err(Error::new(
+                    "`layout-ready-anonymous-grid-text-wrapper` must be exactly `true`",
+                ));
+            }
+            None => false,
+        };
     let mut attrs = BTreeMap::new();
     for attr in xml.attributes() {
+        if attr.name() == "layout-ready-anonymous-grid-text-wrapper" {
+            continue;
+        }
+        if attr.name().starts_with("layout-ready-") && attr.name() != "layout-ready-inline-root" {
+            return Err(Error::new(format!(
+                "unsupported layout-ready input attribute `{}`",
+                attr.name()
+            )));
+        }
         attrs.insert(attr.name().to_string(), attr.value().to_string());
     }
 
@@ -369,6 +394,16 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
             ));
         }
         shape_bands = Some(parse_shape_bands(table)?);
+    }
+
+    if anonymous_grid_text_wrapper
+        && xml.children().any(|child| {
+            child.is_text() && child.text().is_some_and(|text| !text.trim().is_empty())
+        })
+    {
+        return Err(Error::new(
+            "anonymous grid text wrapper rejects raw text fallback",
+        ));
     }
 
     let text = xml
@@ -417,10 +452,163 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         shape_bands,
         inline_boundary: None,
         atomic_line_strut: None,
-        anonymous_grid_text_wrapper: false,
+        anonymous_grid_text_wrapper,
         fixture_synthetic: false,
         layout_ready_inline_root,
     })
+}
+
+fn parse_inline_boundary_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
+    const ATTRIBUTES: [&str; 3] = ["kind", "inline-baseline", "inline-line-height"];
+    if let Some(attribute) = xml
+        .attributes()
+        .find(|attribute| !ATTRIBUTES.contains(&attribute.name()))
+    {
+        return Err(Error::new(format!(
+            "unsupported inline boundary attribute `{}`",
+            attribute.name()
+        )));
+    }
+    validate_inline_payload(xml)?;
+    let kind = match required_attr(xml, "kind")? {
+        "start" => layout::InlineBoundaryKind::Start,
+        "end" => layout::InlineBoundaryKind::End,
+        raw => return Err(Error::new(format!("invalid inline boundary kind `{raw}`"))),
+    };
+    let baseline = xml.attribute("inline-baseline");
+    let line_height = xml.attribute("inline-line-height");
+    let atomic_line_strut = match (baseline, line_height) {
+        (None, None) => None,
+        (Some(_), None) | (None, Some(_)) => {
+            return Err(Error::new(
+                "inline boundary metrics require both `inline-baseline` and `inline-line-height`",
+            ));
+        }
+        (Some(baseline), Some(line_height)) => {
+            if kind != layout::InlineBoundaryKind::Start {
+                return Err(Error::new("only a start inline boundary may carry metrics"));
+            }
+            let baseline = parse_number(baseline)?;
+            let line_height = parse_number(line_height)?;
+            if baseline < 0.0 || line_height <= 0.0 || baseline > line_height {
+                return Err(Error::new(
+                    "inline boundary metrics require 0 <= baseline <= positive line height",
+                ));
+            }
+            Some(
+                layout::InlineMetrics::try_new(baseline, line_height).map_err(|error| {
+                    Error::new(format!("invalid inline boundary metrics: {error:?}"))
+                })?,
+            )
+        }
+    };
+    Ok(Node {
+        kind: NodeKind::Div,
+        style: StyleAttrs::default(),
+        text: None,
+        children: Vec::new(),
+        inline_text: None,
+        atomic_inline_participation: None,
+        shape_bands: None,
+        inline_boundary: Some(kind),
+        atomic_line_strut,
+        anonymous_grid_text_wrapper: false,
+        fixture_synthetic: false,
+        layout_ready_inline_root: false,
+    })
+}
+
+fn validate_fri06_c08r_explicit_input(node: &Node, is_root: bool) -> Result<bool, Error> {
+    if node.inline_boundary.is_some() {
+        if is_root {
+            return Err(Error::new("inline boundary cannot be the fixture root"));
+        }
+        return Ok(true);
+    }
+
+    let mut explicit = node.anonymous_grid_text_wrapper;
+    if node.anonymous_grid_text_wrapper
+        && (!matches!(
+            node.style.get("display"),
+            Some("grid" | "inline-grid" | "grid-lanes" | "inline-grid-lanes")
+        ) || node.text.is_some()
+            || node.children.is_empty()
+            || node.children.iter().any(|child| {
+                child.inline_text.is_none()
+                    || child.inline_boundary.is_some()
+                    || child.atomic_inline_participation.is_some()
+                    || !child.children.is_empty()
+            }))
+    {
+        return Err(Error::new(
+            "anonymous grid text wrapper requires only direct shaped-text children in a grid role",
+        ));
+    }
+
+    let has_boundary = node
+        .children
+        .iter()
+        .any(|child| child.inline_boundary.is_some());
+    if has_boundary && !node.layout_ready_inline_root {
+        return Err(Error::new(
+            "explicit inline boundaries require a layout-ready containing root",
+        ));
+    }
+
+    let mut index = 0;
+    while index < node.children.len() {
+        let child = &node.children[index];
+        let Some(kind) = child.inline_boundary else {
+            explicit |= validate_fri06_c08r_explicit_input(child, false)?;
+            index += 1;
+            continue;
+        };
+        explicit = true;
+        match (kind, child.atomic_line_strut) {
+            (layout::InlineBoundaryKind::Start, Some(_)) => {
+                let target = node.children.get(index + 1).ok_or_else(|| {
+                    Error::new("metric start inline boundary requires a following atomic child")
+                })?;
+                if target.atomic_inline_participation.is_none()
+                    || target.inline_text.is_some()
+                    || target.inline_boundary.is_some()
+                {
+                    return Err(Error::new(
+                        "metric start inline boundary must immediately precede one typed atomic child",
+                    ));
+                }
+                index += 1;
+            }
+            (layout::InlineBoundaryKind::Start, None) => {
+                let text = node.children.get(index + 1).ok_or_else(|| {
+                    Error::new(
+                        "start inline boundary requires a typed-text payload and end boundary",
+                    )
+                })?;
+                let end = node.children.get(index + 2).ok_or_else(|| {
+                    Error::new(
+                        "start inline boundary requires a typed-text payload and end boundary",
+                    )
+                })?;
+                if text.inline_text.is_none()
+                    || text.inline_boundary.is_some()
+                    || !text.children.is_empty()
+                    || end.inline_boundary != Some(layout::InlineBoundaryKind::End)
+                    || end.atomic_line_strut.is_some()
+                {
+                    return Err(Error::new(
+                        "transparent inline boundary topology must be start, typed text, end",
+                    ));
+                }
+                index += 2;
+            }
+            (layout::InlineBoundaryKind::End, _) => {
+                return Err(Error::new("misplaced end inline boundary"));
+            }
+        }
+        index += 1;
+    }
+    Ok(explicit)
 }
 
 fn apply_fri06_c08_finite_adapter(
@@ -9977,6 +10165,36 @@ mod tests {
                 .iter()
                 .all(|node| node.layout_input.as_inline_boundary().is_none())
         );
+    }
+
+    #[test]
+    fn fri06_c08r_fixture_input_legacy_adapter_block_is_exact_and_explicit_path_is_gated() {
+        let source = std::fs::read_to_string(file!()).expect("browser parity support source");
+        let adapter_start = source
+            .find("fn apply_fri06_c08_finite_adapter(")
+            .expect("legacy adapter start");
+        let adapter_end = source[adapter_start..]
+            .find("fn parse_inline_text_node(")
+            .map(|offset| adapter_start + offset)
+            .expect("legacy adapter end");
+        assert_eq!(
+            fri06_c08_adapter_sha256(&source.as_bytes()[adapter_start..adapter_end]),
+            "60790102cb0b7ad3426b6de122e02f0836897e80dbbe5c34e4bef291b67bc68e",
+            "the stale-XML compatibility adapter and every helper must remain byte-exact"
+        );
+
+        let parse_start = source.find("impl Golden {").expect("Golden parser start");
+        let parse_end = source[parse_start..]
+            .find("pub fn fixture_files(")
+            .map(|offset| parse_start + offset)
+            .expect("Golden parser end");
+        let parser = &source[parse_start..parse_end];
+        assert!(parser.contains(
+            "let explicit_fri06_c08r_input = validate_fri06_c08r_explicit_input(&root, true)?;"
+        ));
+        assert!(parser.contains(
+            "if !explicit_fri06_c08r_input {\n            apply_fri06_c08_finite_adapter(&name, &mut root, &mut expectations)?;\n        }"
+        ));
     }
 
     fn fri06_c08_adapter_sha256(input: &[u8]) -> String {

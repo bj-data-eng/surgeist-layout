@@ -826,6 +826,7 @@ function describeElement(e, expectedElement = null) {
   return {
     tagName: e.tagName.toLowerCase(),
     layoutReadyInlineRoot: layoutReadyInlineRoot || undefined,
+    layoutReadyAnonymousGridTextWrapper: layoutReadyAnonymousGridTextWrapper(e, computedStyle, children),
     lineControlParticipation,
     unsupportedReason: unsupportedElementReason(e, computedStyle) || unsupportedChildNodesReason(e),
     style: {
@@ -1253,6 +1254,104 @@ function inlineEndEdge(computedStyle) {
   return { left: "right", right: "left", top: "bottom", bottom: "top" }[start];
 }
 
+function explicitTrueMarker(e, name) {
+  const raw = e.getAttribute?.(name);
+  if (raw === null || raw === undefined) return false;
+  if (raw !== 'true') throw new Error(`${name} must be exactly true`);
+  return true;
+}
+
+function inlineBoundaryData(kind, metrics = undefined) {
+  return {
+    layoutInput: 'inline-boundary',
+    inlineBoundary: metrics ? { kind, ...metrics } : { kind },
+    children: [],
+  };
+}
+
+function layoutReadyAnonymousGridTextWrapper(e, computedStyle, children) {
+  if (!explicitTrueMarker(e, 'data-surgeist-anonymous-grid-text-wrapper')) return undefined;
+  if (!['grid', 'inline-grid', 'grid-lanes', 'inline-grid-lanes'].includes(computedStyle.display)) {
+    throw new Error('data-surgeist-anonymous-grid-text-wrapper requires a grid formatting role');
+  }
+  if (children.length === 0 || children.some((child) => {
+    return child.layoutInput !== 'inline-text' || child.children?.length !== 0;
+  })) {
+    throw new Error('data-surgeist-anonymous-grid-text-wrapper requires only direct typed text');
+  }
+  const unsupportedDirectChild = Array.from(e.childNodes).some((child) => {
+    return child.nodeType === Node.ELEMENT_NODE ||
+      child.nodeType === Node.TEXT_NODE && !/^\s*$/.test(child.textContent) &&
+        !children.some((candidate) => candidate.inlineSegments?.[0]?.id === Array.from(e.childNodes).indexOf(child));
+  });
+  if (unsupportedDirectChild) {
+    throw new Error('data-surgeist-anonymous-grid-text-wrapper rejects mixed fallback content');
+  }
+  return true;
+}
+
+function layoutReadyTransparentInlineProjection(e) {
+  if (!explicitTrueMarker(e, 'data-surgeist-transparent-inline-container')) return undefined;
+  if (e.tagName !== 'BDO' || getComputedStyle(e).display !== 'inline') {
+    throw new Error('data-surgeist-transparent-inline-container requires an inline bdo');
+  }
+  const childNodes = Array.from(e.childNodes);
+  if (childNodes.length !== 1 || childNodes[0].nodeType !== Node.TEXT_NODE ||
+      !shouldSerializeLayoutReadyText(childNodes[0], childNodes, 0, e)) {
+    throw new Error('data-surgeist-transparent-inline-container requires one direct shaped-text child');
+  }
+  const text = layoutReadyTextNodeData(childNodes[0], e, 0);
+  if (!text) {
+    throw new Error('data-surgeist-transparent-inline-container requires one complete shaped-text child');
+  }
+  return [inlineBoundaryData('start'), text, inlineBoundaryData('end')];
+}
+
+function layoutReadyInlineStruts(parent, childNodes) {
+  const raw = parent.getAttribute?.('data-surgeist-inline-struts');
+  if (raw === null || raw === undefined) return new Map();
+  if (parent.getAttribute?.('data-surgeist-layout-ready-inline') !== 'true') {
+    throw new Error('data-surgeist-inline-struts requires a layout-ready containing root');
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    throw new Error('data-surgeist-inline-struts must be valid JSON');
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error('data-surgeist-inline-struts must be a nonempty finite table');
+  }
+
+  const struts = new Map();
+  for (const [recordIndex, record] of parsed.entries()) {
+    const fields = new Set(['beforeSourceIndex', 'baseline', 'lineHeight']);
+    if (!record || typeof record !== 'object' || Array.isArray(record) ||
+        Object.keys(record).length !== fields.size ||
+        Object.keys(record).some((key) => !fields.has(key))) {
+      throw new Error(`inline strut ${recordIndex} must contain exactly the closed fields`);
+    }
+    const { beforeSourceIndex, baseline, lineHeight } = record;
+    if (!Number.isInteger(beforeSourceIndex) || beforeSourceIndex < 0 || beforeSourceIndex >= childNodes.length) {
+      throw new Error(`inline strut ${recordIndex} requires an existing non-negative beforeSourceIndex`);
+    }
+    if (struts.has(beforeSourceIndex)) {
+      throw new Error(`inline strut ${recordIndex} duplicates beforeSourceIndex ${beforeSourceIndex}`);
+    }
+    if (!Number.isFinite(baseline) || !Number.isFinite(lineHeight) ||
+        lineHeight <= 0 || baseline < 0 || baseline > lineHeight) {
+      throw new Error(`inline strut ${recordIndex} requires complete finite metrics`);
+    }
+    const target = childNodes[beforeSourceIndex];
+    if (target.nodeType !== Node.ELEMENT_NODE || target.tagName === 'BR' || !isLoweredAtomicInline(target)) {
+      throw new Error(`inline strut ${recordIndex} must target a typed atomic child`);
+    }
+    struts.set(beforeSourceIndex, inlineBoundaryData('start', { baseline, lineHeight }));
+  }
+  return struts;
+}
+
 function layoutReadyInlineBreaks(parent, childNodes) {
   const raw = parent.getAttribute('data-surgeist-inline-breaks');
   if (raw === null) return new Map();
@@ -1309,13 +1408,23 @@ function describeChildNodes(e, expectedElement = null) {
   let children = [];
   let childNodes = Array.from(e.childNodes);
   const inlineBreaks = layoutReadyInlineBreaks(e, childNodes);
+  const inlineStruts = layoutReadyInlineStruts(e, childNodes);
   const layoutReadyInlineRun = hasLayoutReadyInlineFixture(e) && childNodes.some((child, index) => {
     return child.nodeType === Node.ELEMENT_NODE && child.tagName === 'BR' ||
       child.nodeType === Node.TEXT_NODE && shouldSerializeLayoutReadyText(child, childNodes, index, e);
   });
   for (let i = 0; i < childNodes.length; i++) {
     let child = childNodes[i];
+    if (inlineStruts.has(i)) {
+      children.push(inlineStruts.get(i));
+      inlineStruts.delete(i);
+    }
     if (child.nodeType === Node.ELEMENT_NODE) {
+      const transparent = layoutReadyTransparentInlineProjection(child);
+      if (transparent) {
+        children.push(...transparent);
+        continue;
+      }
       const described = describeElement(child, expectedElement);
       if (layoutReadyInlineRun && child.tagName !== 'BR' && isLoweredAtomicInline(child)) {
         described.atomicInlineParticipation = {
@@ -1339,6 +1448,9 @@ function describeChildNodes(e, expectedElement = null) {
   }
   if (inlineBreaks.size !== 0) {
     throw new Error(`data-surgeist-inline-breaks contains an unused sourceIndex ${inlineBreaks.keys().next().value}`);
+  }
+  if (inlineStruts.size !== 0) {
+    throw new Error(`data-surgeist-inline-struts contains an unused beforeSourceIndex ${inlineStruts.keys().next().value}`);
   }
   return children;
 }
