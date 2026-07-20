@@ -7153,7 +7153,7 @@ if (expectedReason === undefined) {{
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            "b0bbcc91652ad55c14f33d99991f46c1f89b8f3fcf91791a22e31745f40446d3"
+            "ee9976421ff6cfbf8d58e26aa10f11204452242ca80d8c2994f5abc4f5be28ac"
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
@@ -7748,7 +7748,7 @@ if (!rejected) {
     }
 
     #[test]
-    fn fri06_c08_existing_range_source_identity_never_becomes_visual_order() {
+    fn fri06_c08_existing_range_ink_omits_model_visual_identity() {
         let script = [
             r#"
 const window = {};
@@ -7766,9 +7766,6 @@ const document = { styleSheets: [], createRange() { return range; } };
 const parent = { getBoundingClientRect() { return parentRect; } };
 const text = { nodeType: Node.TEXT_NODE, textContent: "X" };
 function getComputedStyle(element) {
-  if (element === left || element === right) {
-    return { display: "inline-block", direction: "rtl", writingMode: "horizontal-tb" };
-  }
   return {
     direction: "rtl",
     writingMode: "horizontal-tb",
@@ -7779,34 +7776,22 @@ function getComputedStyle(element) {
 "#,
             TEST_HELPER_SOURCE,
             r#"
-const left = {
-  nodeType: Node.ELEMENT_NODE,
-  tagName: "SPAN",
-  getBoundingClientRect() {
-    return { x: 35, y: 0, left: 35, top: 0, right: 60, bottom: 20, width: 25, height: 20 };
-  },
-};
-const right = {
-  nodeType: Node.ELEMENT_NODE,
-  tagName: "SPAN",
-  getBoundingClientRect() {
-    return { x: 60, y: 0, left: 60, top: 0, right: 85, bottom: 20, width: 25, height: 20 };
-  },
-};
-parent.childNodes = [text, left, right];
 const shaped = layoutReadyTextNodeData(text, parent, 7);
 const rangeInk = shaped.rangeInks[0];
-if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0) {
-  throw new Error(`Range source/line identity changed: ${JSON.stringify(rangeInk)}`);
+const keys = Object.keys(rangeInk).sort();
+const expectedKeys = ["advance", "lineIndex", "physicalStartEdge", "sourceSegmentId", "start"];
+if (JSON.stringify(keys) !== JSON.stringify(expectedKeys)) {
+  throw new Error(`Range ink retained a model-only field: ${JSON.stringify(rangeInk)}`);
 }
-if (rangeInk.visualIndex !== 2) {
-  throw new Error(`Range source order became visual order: ${JSON.stringify(rangeInk)}`);
+if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0 ||
+    rangeInk.physicalStartEdge !== "right" || rangeInk.start !== 35 || rangeInk.advance !== 25) {
+  throw new Error(`Range source/line/flow-inline facts changed: ${JSON.stringify(rangeInk)}`);
 }
 "#,
         ]
         .concat();
 
-        run_bundled_helper_script("fri06-c08-range-source-not-visual", script);
+        run_bundled_helper_script("fri06-c08-range-ink-no-model-visual", script);
     }
 
     #[test]
@@ -7958,8 +7943,8 @@ for (const [name, value] of Object.entries({
 if (segment.id !== 7 || rangeInk.sourceSegmentId !== 7) {
   throw new Error("text source and Range-ink segment identity must remain stable");
 }
-if (rangeInk.lineIndex !== 0 || rangeInk.visualIndex !== 0) {
-  throw new Error("Range-ink line/geometry-derived visual identity must be explicit");
+if (rangeInk.lineIndex !== 0 || Object.prototype.hasOwnProperty.call(rangeInk, "visualIndex")) {
+  throw new Error("Range ink must retain line identity without model visual identity");
 }
 
 const metrics = brInlineMetricsForElement({ tagName: "BR" }, {
@@ -8024,12 +8009,11 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
   if (JSON.stringify(shaped.rangeInks) !== JSON.stringify([{
     sourceSegmentId: 7,
     lineIndex: 0,
-    visualIndex: 0,
     physicalStartEdge,
     start,
     advance,
   }])) {
-    throw new Error(`Range ink must retain only source/line/visual and flow-inline facts, got ${JSON.stringify(shaped.rangeInks)}`);
+    throw new Error(`Range ink must retain only source/line and flow-inline facts, got ${JSON.stringify(shaped.rangeInks)}`);
   }
   if (shaped.inlineSegments[0].inlineBaseline !== 14.8 ||
       shaped.inlineSegments[0].inlineLineHeight !== 20) {
@@ -8142,7 +8126,6 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
                 "rangeInks": [{
                     "sourceSegmentId": 7,
                     "lineIndex": 0,
-                    "visualIndex": 2,
                     "physicalStartEdge": "left",
                     "start": 15,
                     "advance": 9,
@@ -8257,7 +8240,6 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
                     "rangeInks": [{
                         "sourceSegmentId": 0,
                         "lineIndex": 0,
-                        "visualIndex": 0,
                         "physicalStartEdge": "left",
                         "start": 0,
                         "advance": 10,
@@ -8412,7 +8394,6 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
                     "rangeInks": [{
                         "sourceSegmentId": 7,
                         "lineIndex": 0,
-                        "visualIndex": 2,
                         "physicalStartEdge": "left",
                         "start": 15,
                         "advance": 9,
@@ -8480,7 +8461,8 @@ const rangeInk = shaped.rangeInks[0];
 if (rangeInk.physicalStartEdge !== "left" || rangeInk.start !== 15 || rangeInk.advance !== 4) {
   throw new Error(`Range ink must retain direct-parent-local flow-inline geometry, got ${JSON.stringify(rangeInk)}`);
 }
-if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0 || rangeInk.visualIndex !== 0) {
+if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0 ||
+    Object.prototype.hasOwnProperty.call(rangeInk, "visualIndex")) {
   throw new Error(`Range-ink identity must remain stable, got ${JSON.stringify(rangeInk)}`);
 }
 if ("y" in rangeInk || "height" in rangeInk || "baselineX" in rangeInk || "baselineY" in rangeInk) {

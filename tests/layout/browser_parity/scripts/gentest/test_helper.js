@@ -1361,8 +1361,6 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
   const vertical = isVerticalWritingMode(computedStyle.writingMode);
   const inlineExtent = vertical ? rect.height : rect.width;
   const whitespace = /^\s+$/.test(node.textContent);
-  const visualIndex = layoutReadyTextVisualIndex(node, parent, rect);
-
   const finite = [
     rect.x, rect.y, rect.width, rect.height,
     parentRect.x, parentRect.y,
@@ -1385,7 +1383,6 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
     return {
       sourceSegmentId: segmentId,
       lineIndex: 0,
-      visualIndex,
       physicalStartEdge,
       start,
       advance,
@@ -1494,58 +1491,6 @@ function isInlineLevel(e) {
 
 function isLoweredAtomicInline(e) {
   return ['inline-block', 'inline-grid', 'inline-grid-lanes'].includes(getComputedStyle(e).display);
-}
-
-function layoutReadyTextVisualIndex(node, parent, targetRect) {
-  const siblings = Array.from(parent.childNodes || [node]);
-  const computedStyle = getComputedStyle(parent);
-  const vertical = isVerticalWritingMode(computedStyle.writingMode);
-  const startEdge = inlineStartEdge(computedStyle);
-  const participants = [];
-
-  for (let index = 0; index < siblings.length; index++) {
-    const sibling = siblings[index];
-    let rect;
-    if (sibling.nodeType === Node.TEXT_NODE) {
-      if (sibling !== node && !shouldSerializeLayoutReadyText(sibling, siblings, index, parent)) continue;
-      rect = sibling === node ? targetRect : textNodeRect(sibling);
-    } else if (
-      sibling.nodeType === Node.ELEMENT_NODE &&
-      sibling.tagName !== 'BR' &&
-      isLoweredAtomicInline(sibling)
-    ) {
-      rect = sibling.getBoundingClientRect();
-    } else {
-      continue;
-    }
-
-    const blockMinimum = vertical ? rect.left : rect.top;
-    const blockMaximum = vertical ? rect.right : rect.bottom;
-    const targetBlockMinimum = vertical ? targetRect.left : targetRect.top;
-    const targetBlockMaximum = vertical ? targetRect.right : targetRect.bottom;
-    if (blockMaximum <= targetBlockMinimum || blockMinimum >= targetBlockMaximum) continue;
-
-    const start = rect[startEdge];
-    participants.push({
-      node: sibling,
-      start: startEdge === 'right' || startEdge === 'bottom' ? -start : start,
-    });
-  }
-
-  participants.sort((left, right) => left.start - right.start);
-  const visualIndex = participants.findIndex((participant) => participant.node === node);
-  if (visualIndex < 0) {
-    throw new Error('layout-ready text requires one computed visual slot');
-  }
-  return visualIndex;
-}
-
-function textNodeRect(node) {
-  let range = document.createRange();
-  range.selectNodeContents(node);
-  let rect = range.getBoundingClientRect();
-  range.detach();
-  return rect;
 }
 
 function unsupportedTestData(reason) {
