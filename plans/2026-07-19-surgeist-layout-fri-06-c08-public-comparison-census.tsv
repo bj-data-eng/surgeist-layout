@@ -50,77 +50,77 @@ FRI-06.11 new source	html/float/fri06_float_shape_exclusion.html	border_box_ltr	
 FRI-06.11 new source	html/float/fri06_float_shape_exclusion.html	border_box_rtl	FAIL	later_owned.flow_root_display_normalization	unsupported display `flow-root`
 FRI-06.11 new source	html/float/fri06_float_shape_exclusion.html	content_box_ltr	FAIL	later_owned.flow_root_display_normalization	unsupported display `flow-root`
 FRI-06.11 new source	html/float/fri06_float_shape_exclusion.html	content_box_rtl	FAIL	later_owned.flow_root_display_normalization	unsupported display `flow-root`
-Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_normal_packing.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_normal_packing.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_normal_packing.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	grid_lanes_not_inhibited_normal_packing__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_normal_packing.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_normal_packing.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_normal_packing.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	grid_lanes_not_inhibited_normal_packing__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_overflow_hidden_packing.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_overflow_hidden_packing.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_overflow_hidden_packing.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	grid_lanes_not_inhibited_overflow_hidden_packing__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_overflow_hidden_packing.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_overflow_hidden_packing.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/grid-lanes/grid_lanes_not_inhibited_overflow_hidden_packing.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	grid_lanes_not_inhibited_overflow_hidden_packing__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_baseline_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_baseline_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_baseline_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_baseline_baseline_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_baseline_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_baseline_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_baseline_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_baseline_baseline_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_center_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_center_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_center_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_baseline_center_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_center_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_center_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_center_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_baseline_center_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_end_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_end_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_end_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_baseline_end_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_end_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_end_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_end_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_baseline_end_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_start_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_start_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_start_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_baseline_start_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_start_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_start_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_baseline_start_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_baseline_start_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_baseline_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_baseline_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_baseline_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_center_baseline_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_baseline_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_baseline_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_baseline_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_center_baseline_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_center_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_center_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_center_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_center_center_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_center_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_center_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_center_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_center_center_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_end_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_end_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_end_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_center_end_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_end_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_end_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_end_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_center_end_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_start_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_start_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_start_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_center_start_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_start_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_start_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_center_start_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_center_start_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_baseline_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_baseline_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_baseline_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_end_baseline_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_baseline_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_baseline_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_baseline_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_end_baseline_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_center_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_center_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_center_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_end_center_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_center_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_center_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_center_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_end_center_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_end_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_end_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_end_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_end_end_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_end_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_end_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_end_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_end_end_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_start_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_start_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_start_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_end_start_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_start_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_start_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_end_start_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_end_start_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_baseline_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_baseline_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_baseline_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_start_baseline_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_baseline_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_baseline_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_baseline_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_start_baseline_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_center_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_center_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_center_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_start_center_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_center_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_center_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_center_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_start_center_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_end_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_end_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_end_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_start_end_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_end_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_end_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_end_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_start_end_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_start_item.html	border_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_start_item.html	border_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_start_item.html	border_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_start_start_item__border_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
-Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_start_item.html	content_box_ltr	PASS	pass	
+Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_start_item.html	content_box_ltr	PASS	pass	-
 Unsupported mixed text/element content	html/subgrid/subgrid_alignment_start_start_item.html	content_box_rtl	FAIL	identity.helper_source_order_as_visual_order	subgrid_alignment_start_start_item__content_box_rtl/1: Range ink[0] visual index mismatch, expected 1, got 5
 Unsupported mixed text/element content	html/subgrid/subgrid_auto_track_sizing_min_content_text_runs.html	border_box_ltr	FAIL	artifact.box_children_replace_required_shaped_text	subgrid_auto_track_sizing_min_content_text_runs__border_box_ltr/0: height mismatch, expected 25, got 100
 Unsupported mixed text/element content	html/subgrid/subgrid_auto_track_sizing_min_content_text_runs.html	border_box_rtl	FAIL	artifact.box_children_replace_required_shaped_text	subgrid_auto_track_sizing_min_content_text_runs__border_box_rtl/0: height mismatch, expected 25, got 100

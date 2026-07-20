@@ -13535,7 +13535,7 @@ status = "active"
         );
         assert_eq!(
             sha256_bytes(literal.as_bytes()),
-            "e972e8d67e32919ce736f6d5428f017fa9a61ec5112fa75b2ec5b9d43b53e4f5"
+            "0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691"
         );
         assert_eq!(
             sha256_bytes(executed.as_bytes()),
@@ -13552,8 +13552,17 @@ status = "active"
             let fields = line.split('\t').collect::<Vec<_>>();
             assert_eq!(fields.len(), 6, "literal census row: {line}");
             match fields[3] {
-                "PASS" => literal_pass += 1,
-                "FAIL" => literal_fail += 1,
+                "PASS" => {
+                    assert_eq!(fields[5], "-", "literal PASS census row: {line}");
+                    literal_pass += 1;
+                }
+                "FAIL" => {
+                    assert!(
+                        !fields[5].is_empty() && fields[5] != "-",
+                        "literal FAIL census row: {line}"
+                    );
+                    literal_fail += 1;
+                }
                 other => panic!("unexpected literal census result {other}"),
             }
         }
