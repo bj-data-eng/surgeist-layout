@@ -6773,7 +6773,7 @@ if (expectedReason === undefined) {{
     }
 
     #[test]
-    fn fri06_c08_new_manifest_owns_exact_active_four_variant_matrix_and_counts() {
+    fn fri06_c08_t2_manifest_owns_exact_active_four_variant_matrix_and_counts() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
         let raw = fs::read_to_string(root.join("corpus.toml")).expect("corpus manifest");
         let manifest = parse_corpus_manifest(&raw).expect("valid corpus manifest");
@@ -6822,7 +6822,7 @@ if (expectedReason === undefined) {{
     }
 
     #[test]
-    fn fri06_c08_new_sources_have_exact_inventory_and_finite_behavior_facts() {
+    fn fri06_c08_t2_sources_have_exact_inventory_and_corrected_finite_behavior_facts() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
         let expected_paths = FRI06_C08_NEW_CASES
             .iter()
@@ -6844,7 +6844,7 @@ if (expectedReason === undefined) {{
                 "block/fri06_inline_mixed_text_atomic_wrap.html",
                 &[
                     "data-surgeist-layout-ready-inline=\"true\"",
-                    "data-surgeist-inline-breaks='[{\"sourceIndex\":0,\"followingBreak\":\"allowed\"}]'",
+                    "data-surgeist-inline-breaks='[{\"sourceIndex\":0,\"followingBreak\":\"allowed\"},{\"sourceIndex\":1,\"followingBreak\":\"allowed\"}]'",
                     "width: 72px",
                     "display: inline-block; width: 18px; height: 18px",
                     "display: inline-block; width: 24px; height: 18px",
@@ -6946,9 +6946,9 @@ if (expectedReason === undefined) {{
                 &[
                     "data-surgeist-shape-bands=",
                     "&quot;bandMinimum&quot;:0",
-                    "&quot;bandMaximum&quot;:20",
-                    "&quot;bandMinimum&quot;:40",
-                    "&quot;bandMaximum&quot;:60",
+                    "&quot;bandMaximum&quot;:21.2",
+                    "&quot;bandMinimum&quot;:21.2",
+                    "&quot;bandMaximum&quot;:37.2",
                     "&quot;intervalMinimum&quot;:0",
                     "&quot;intervalMaximum&quot;:44",
                 ],
@@ -7075,7 +7075,7 @@ if (expectedReason === undefined) {{
     }
 
     #[test]
-    fn fri06_c08_new_word_only_segments_preserve_direct_root_sequence_and_break_indices() {
+    fn fri06_c08_t2_word_only_segments_preserve_direct_root_sequence_and_break_indices() {
         use Fri06C08DirectRootChild::{Element, Text};
 
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
@@ -7103,7 +7103,10 @@ if (expectedReason === undefined) {{
                 ],
                 0,
                 "text",
-                Some(json!([{"sourceIndex": 0, "followingBreak": "allowed"}])),
+                Some(json!([
+                    {"sourceIndex": 0, "followingBreak": "allowed"},
+                    {"sourceIndex": 1, "followingBreak": "allowed"}
+                ])),
             ),
             (
                 "float/fri06_float_line_exclusion.html",
@@ -7166,7 +7169,7 @@ if (expectedReason === undefined) {{
     }
 
     #[test]
-    fn fri06_c08_new_reconstructs_exact_input_census_membership() {
+    fn fri06_c08_t2_reconstructs_exact_input_census_membership() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
         let census = include_str!(
             "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
@@ -7201,7 +7204,7 @@ if (expectedReason === undefined) {{
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "255c2ee209593b0e15434dd0ee02de082fc22d58dbbdd16cb7ab8e4d97c8f7a3"
+            "8fc22a25a4d58a22398aca7a468731ce845ee98b3ea6a7d63945fd6650a86fd1"
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
@@ -8365,6 +8368,96 @@ for (const [name, element, style] of [
             }
         }
         assert_eq!(cases, 64);
+    }
+
+    #[test]
+    fn fri06_c08_t2_mixed_wrap_allows_break_after_first_atomic() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let relative = "html/block/fri06_inline_mixed_text_atomic_wrap.html";
+        let raw = fs::read_to_string(root.join(relative)).expect(relative);
+        let (_, authored_breaks) = fri06_c08_direct_test_root(&raw, relative);
+        assert_eq!(
+            authored_breaks,
+            Some(json!([
+                {"sourceIndex": 0, "followingBreak": "allowed"},
+                {"sourceIndex": 1, "followingBreak": "allowed"}
+            ])),
+            "the first 18px atomic must own the later allowed break"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_t2_bfc_avoidance_removes_label_caused_scroll_source_only() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let relative = "html/float/fri06_float_bfc_avoidance.html";
+        let raw = fs::read_to_string(root.join(relative)).expect(relative);
+
+        for oracle in [
+            "display: block; overflow: auto; width: 180px",
+            "float: left; width: 54px; height: 64px",
+            "display: block; overflow: auto; width: auto; height: 24px",
+            "display: flex; width: auto; height: 24px",
+            "display: block; width: auto; height: 24px",
+        ] {
+            assert!(
+                raw.contains(oracle),
+                "missing BFC geometry oracle {oracle:?}"
+            );
+        }
+        let retained_labels = ["overflow BFC", "flex BFC", "ordinary block"]
+            .into_iter()
+            .filter(|label| raw.contains(label))
+            .collect::<Vec<_>>();
+        assert!(
+            retained_labels.is_empty(),
+            "label-caused nonzero scroll source remains: {retained_labels:?}"
+        );
+        assert_eq!(raw.matches("<div style=").count(), 4);
+        assert!(
+            !raw.contains("<span"),
+            "the BFC oracle must remain box-only"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_t2_shape_query_recorder_uses_two_observed_finite_bands() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let relative = "html/float/fri06_float_shape_exclusion.html";
+        let raw = fs::read_to_string(root.join(relative)).expect(relative);
+        let root_start = raw.find(r#"<div id="test-root""#).expect("one test root");
+        let root_end = raw[root_start..]
+            .rfind("</div>")
+            .map(|offset| root_start + offset + "</div>".len())
+            .expect("closed test root");
+        let document = roxmltree::Document::parse(&raw[root_start..root_end])
+            .expect("shape fixture root must parse");
+        let encoded = document
+            .descendants()
+            .find_map(|node| node.attribute("data-surgeist-shape-bands"))
+            .expect("one finite shape query recorder");
+        let recorded: Value = serde_json::from_str(encoded).expect("finite shape query table");
+
+        assert_eq!(
+            recorded,
+            json!([
+                {
+                    "bandMinimum": 0,
+                    "bandMaximum": 21.2,
+                    "intervalMinimum": 0,
+                    "intervalMaximum": 44
+                },
+                {
+                    "bandMinimum": 21.2,
+                    "bandMaximum": 37.2,
+                    "intervalMinimum": 0,
+                    "intervalMaximum": 44
+                }
+            ]),
+            "query recorder must match the two exact observed browser bands"
+        );
+        assert!(!raw.contains("shape-outside"));
+        assert!(!raw.contains("path="));
+        assert!(!raw.contains("geometry="));
     }
 
     #[test]
