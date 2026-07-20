@@ -854,6 +854,7 @@ construction.
 | BFC avoidance | Current flex/grid/grid-lanes and non-replaced overflow-established block cases avoid floats and shrink auto width; ordinary block edges remain unchanged; floating and atomic boxes trap internal floats through their respective paths |
 | Scroll/cache/rounding | Exact dirty-subject path closure bypasses stale hits; failed layout or immutable preparation makes zero mutations and retains dirty subjects; infallible exclusive commit replaces all node/fragment state and clears closure caches before stores; committed nonempty/empty slices republish identically cold/warm and normal/rounded; missing warm fragment state errors; geometry contributes once |
 | Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics |
+| Fixture-input honesty | Exact-source inventories require every reviewed wrapper/container/strut marker; serializer tests prove the closed mapping in `FRI-06.11`; renamed test names and arbitrary expectation-only mutations preserve identical normalized parsed input; missing/corrupt markers fail source preflight or parser validation; transparent wrappers produce independent normalized input and expectation trees; static/runtime evidence proves no final input-lowering function reads fixture identity or expectations |
 | Browser corpus | Owned mixed text/atomic/BR, vertical BR, float/BFC, unequal alignment, baseline, percentage atomic, and shape cases parse and compare |
 
 Behavior changes require reconstructed RED evidence at each exact task base. A
@@ -1025,6 +1026,24 @@ removing or corrupting a required explicit fact must fail closed rather than
 restore synthesis. Float and clear lowering uses this closed table; the public
 `Left`/`Right` variants in the layout-ready model mean line start/end:
 
+The three formerly synthesized facts use only this closed final-lineage schema:
+
+| Layout-ready fact | Authored HTML marker | Serialized input | Validity and absence behavior |
+| --- | --- | --- | --- |
+| Anonymous grid text wrapper | `data-surgeist-anonymous-grid-text-wrapper="true"` on the exact grid element | `layout-ready-anonymous-grid-text-wrapper="true"` on that generated box node | The value is exactly `true`; computed display establishes grid or grid-lanes formatting; the marked node has only the reviewed direct typed-text child shape and no raw-text fallback. Unsupported value, role, duplicate lowering, or mixed fallback rejects. A static exact-source inventory rejects a missing marker on the five reviewed source stems. |
+| Transparent secondary inline container | `data-surgeist-transparent-inline-container="true"` on either reviewed inline `bdo` | The container box is absent from `<input>`; one `<inline-boundary kind="start"/>`, its one direct typed-text child, and one `<inline-boundary kind="end"/>` appear in its source position | The value is exactly `true`; computed display is `inline`; source tag is `bdo`; there is exactly one direct shaped-text child and no other text, box, or control. The helper applies the same input-only transparent projection before independently serializing expectations. Invalid role/topology rejects. The exact bidi source inventory rejects either missing marker. |
+| Explicit containing strut | `data-surgeist-inline-struts` on the layout-ready containing root, containing a nonempty JSON array of `{ "beforeSourceIndex": N, "baseline": B, "lineHeight": H }` | `<inline-boundary kind="start" inline-baseline="B" inline-line-height="H"/>` immediately before the one lowered child selected by DOM `sourceIndex` | Each object has exactly those fields; `N` is a unique existing child-node index that lowers to one typed atomic child; `B` and `H` are finite, `H > 0`, and `0 <= B <= H`. Missing target, duplicate target, extra field, nonfinite/out-of-range metric, or non-atomic target rejects. Exact-source inventory requires the reviewed mixed-wrap and float-line records; no topology or fixture name restores an absent record. |
+
+The generated XML parser recognizes only
+`layout-ready-anonymous-grid-text-wrapper` and the closed `inline-boundary`
+element above for these facts. An `inline-boundary` permits only `kind="start"`
+or `kind="end"`; metrics are either both absent or the complete finite
+`inline-baseline`/`inline-line-height` pair, and only a `start` boundary may carry
+metrics. It has no payload or expectation node and is always a canonical non-box
+input. Unknown attributes, partial metrics, payload, or invalid placement reject.
+No final parser helper accepts the test name and mutable input plus mutable
+expectations in one call.
+
 | Fixture token | Layout-ready value |
 | --- | --- |
 | `none` | `Float::None` or `Clear::None` |
@@ -1177,19 +1196,25 @@ FRI-06 is complete only when:
     model-fragment geometry, source/line/visual identity, and baseline, while
     Range-ink and browser-control observations cannot masquerade as model block
     geometry or invent a model visual index;
-13. the bounded HTML/parser/helper/fixture inputs settle before exactly one final
+13. final fixture lowering obeys the closed `FRI-06.11` marker/XML table;
+    fixture names and expectations cannot influence parsed layout input;
+    renamed-name and expectation-only equality controls pass; every required
+    marker is inventory-pinned; malformed or incomplete facts fail closed; and
+    the final browser result is calculated from the independently serialized
+    layout-ready input;
+14. the bounded HTML/parser/helper/fixture inputs settle before exactly one final
     full regeneration; subsequent checks are read-only and provenance-clean;
-14. FRI-06-owned mixed-text, vertical/outside-block BR, and active float/BFC
+15. FRI-06-owned mixed-text, vertical/outside-block BR, and active float/BFC
     cases leave unsupported accounting and pass focused parity;
-15. public exports and crate/parity docs describe the text/layout/shape/root
+16. public exports and crate/parity docs describe the text/layout/shape/root
     ownership boundary without claiming authored CSS, shaping, rendering, or
     later initiative behavior;
-16. default and generator-feature verification, focused parity, corpus/Taffy,
+17. default and generator-feature verification, focused parity, corpus/Taffy,
     docs, formatting, Clippy with `-F unsafe-code -D warnings`, diff/provenance,
     and the tracked/non-ignored Rust unsafe scan are clean;
-17. all FRI-06-owned dead-code allowances are removed and no new lint suppression
+18. all FRI-06-owned dead-code allowances are removed and no new lint suppression
     or executable `unsafe` exists; and
-18. no dependency, feature, MSRV, generator architecture, root/sibling,
+19. no dependency, feature, MSRV, generator architecture, root/sibling,
     FRI-09/10/11/12 behavior, FRI-13 aggregate gate, or unrelated change enters
     the reviewed range.
 
