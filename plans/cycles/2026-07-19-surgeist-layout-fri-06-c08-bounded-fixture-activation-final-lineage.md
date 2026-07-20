@@ -58,9 +58,8 @@ The retained diagnostic lineage has report SHA-256
 `69d6dc3764e0f119fcba3f6608bc51664d886f6279d18fdf23ac2b7f372e2ff4`,
 `filter: null`, 5,712 generated, and the immutable 16 missing-root unsupported
 rows. It is diagnostic evidence only: 36 of 388 public comparisons pass and 352
-fail. Its generated XML/report remain read-only until correction tests have
-captured the required evidence, then R0 discards the complete invalid lineage
-before changing helper/source inputs.
+fail. Its generated XML/report remain read-only while T1/T2 correct and freeze
+helper/source inputs; R0 then discards the complete invalid lineage before T3.
 
 Exact membership is committed in
 `plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv`,
@@ -116,15 +115,18 @@ failed run stops for a newly reviewed correction lineage.
 `scripts/gentest/test_helper.js`; narrow JSON/XML serialization in
 `tests/bin/surgeist-layout-generate/generator.rs`; focused generator tests.
 
-**Outcome:** The completed T1 ranges replace the three exact unsupported families
-with explicit layout-ready facts for all 340 existing rows. They preserve stable
-identity, significant whitespace, unsupported unmarked mixed content, the four
+**Outcome:** The complete T1 range replaces the three exact unsupported families
+with explicit layout-ready facts for all 340 existing rows and corrects every
+input-census row on those sources. Atomic participation/break/visual facts derive
+from computed/lowered atomic role after blockification; Range source order never
+becomes visual order. Preserve stable identity, significant whitespace, the four
 missing-root sources, and byte-identical base style.
 
 **RED:** At the T1 task base, the focused command exits 101 because the helper
-still classifies the exact activation families as unsupported and lacks their
-finite tuples/schema. The new tests reconstruct the exact 85-source/340-row
-membership, digest, and four-source baseline-helper subset before implementation.
+still classifies the exact activation families as unsupported, lacks finite
+tuples/schema, and treats authored-inline/computed-block children as atomic. Tests
+bind the exact 85-source/340-row digest, baseline subset, census intersection, and
+a blockification negative control before implementation.
 
 **GREEN/acceptance:** The same focused command passes with complete finite tuples,
 parser serialization, and the 5,324-output preservation predicate without reading
@@ -150,10 +152,11 @@ CARGO_NET_OFFLINE=true just fmt-check
 records, and focused manifest/helper tests. T1 helper/parser changes only when a
 T2 RED proves one missing reviewed field.
 
-**Outcome:** The completed T2 ranges author the exact 48 variants for mixed text,
+**Outcome:** The complete T2 range authors the exact 48 variants for mixed text,
 atomic wrapping/baselines/percentage basis, unequal line alignment, forced break,
 vertical clear, bidi identity, line exclusion, BFC avoidance, float auto height,
-logical clear, and finite shape bands.
+logical clear, and finite shape bands, and corrects every input-census row on
+those sources. BFC fixtures use supported overflow rather than `flow-root`.
 
 **RED:** At the T2 task base, the focused command exits 101 because the twelve
 sources, manifest records, 48-row expansion, and assigned finite facts do not yet
@@ -179,32 +182,30 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 ### `C08-R0` Correct Exact Input And Comparator Rows
 
-**Files/area:** only files selected by the 314 input rows; the helper; narrow
-parser/serializer/comparator code and focused tests; three stale accounting tests;
-and complete cleanup of the retained invalid XML/report lineage. Production and
-the 24 adapter rows are read-only.
+**Files/area:** narrow parser/comparator code and focused tests; three stale
+accounting tests; and complete cleanup of the retained invalid XML/report lineage.
+Frozen T1/T2 helper/source inputs, production, and the 24 adapter rows are
+read-only.
 
-**Outcome:** Correct exactly 252 blockified non-atomic markers from computed roles,
-38 source-order-as-visual Range facts, 20 later-owned `flow-root` source variants,
-four shaped-text identity variants, six rounded Range advances, and four browser
-`<br>` control observations. The five flow/BFC sources use the supported
-overflow-based predicate. Range observations retain source, line, physical
-flow-inline start, and unrounded advance only; browser Range order supplies no
-visual index and browser `<br>` ink supplies no model control geometry.
+**Outcome:** Reconcile the frozen exact 314 input corrections supplied by T1/T2:
+252 computed-role atomic markers, 38 non-visual Range identities, 20 supported-
+overflow BFC variants, and four shaped-text identities. Correct exactly six
+unrounded Range advances and four browser `<br>` observations. Range facts retain
+source, line, physical flow-inline start, and unrounded advance only; browser
+Range order supplies no visual index and `<br>` ink no model control geometry.
 
-**RED:** Census-bound tests prove all exact selectors and digests, then expose each
-old helper/source/parser/comparator behavior with finite controls. The three stale
-accounting tests reconstruct entry or census membership rather than consulting
-the replacement report. Before changed-input work, restore tracked XML/report to
-the cycle entry and remove every untracked diagnostic XML file; preserve the
-committed census.
+**RED:** Census-bound tests prove all exact selectors/digests and the frozen 314
+input rows, then expose each old parser/comparator behavior with finite controls.
+The three stale accounting tests reconstruct entry or census membership rather
+than consulting the replacement report. Restore tracked XML/report to the cycle
+entry and remove every untracked diagnostic XML file; preserve the census.
 
 **Acceptance:** Exact 314/10 membership passes with no spill into adapter,
 production, or 36 controls. Explicit model fragment/control expectations remain
-strict. Record the frozen helper, manifest, and source-set hashes. No XML/report
+strict. Record frozen helper, manifest, and source-set hashes. No XML/report
 change and no full generation remain. Append corrections to the existing R0 task
-range, then freshly re-review its complete ordered range and the complete T1 and
-T2 ordered ranges in the composed state; prior clean verdicts do not carry.
+range, then freshly re-review R0 and the complete T1/T2 ranges in the composed
+parser/comparator state; prior clean verdicts do not carry.
 
 **Commands:**
 
