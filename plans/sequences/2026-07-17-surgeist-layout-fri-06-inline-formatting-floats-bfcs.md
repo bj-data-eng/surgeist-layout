@@ -11,7 +11,7 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`af45a7cdfd16fa5b89cb41719b5ed2ccfbc67b138d575d35174d684d6e6bb3b2`,
+`5e89a8a81e5a5a62b38374d56d8dd89b7025e02efc65dfd73e33a887bcb3b87e`,
 committed as `213ac89f140465691e72d1569171a94346f5e42c`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
