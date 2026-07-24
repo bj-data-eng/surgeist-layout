@@ -1,7 +1,5 @@
 # FRI-06 Inline Formatting, Floats, And BFCs Implementation Sequence
 
-Status: reviewed
-
 Sequence ID: `FRI-06`
 
 Owning repository: `surgeist-layout`
@@ -11,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`d8ab88fe8bf6df68f2a4637c740014567bc6e8c78f5de8d3b56cb7d10fd93326`,
-committed as `4cad23414cc36a4c2d51853e9fcab1233d43a77e`.
+`2bd7fd592465cb2b6cc8b666f3a9fbed763eae9faea141ee21ea538713e2583a`,
+committed as `ae7e0b42b91f9cf588a0280bfb1a1618a75d0622`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -33,10 +31,13 @@ application.
 
 Scoped generation remains optional diagnostic work, never completion evidence.
 C08 synthesis is characterization only. C08R replaces name/expectation-driven
-lowering with the closed explicit fixture-input contract, records exact known
-Chrome failures or `None`, and owns the only full unfiltered existing-pinned
-lineage after inputs settle. C09 is read-only for generation inputs and outputs;
-a confirmed input defect returns to C08R and invalidates its lineage.
+lowering with the closed explicit fixture-input contract. Chrome and the browser
+helper own HTML parsing and actual-DOM marker validation; Rust must not
+reconstruct HTML, CSS, or DOM topology and may account only for helper-reported
+source-local marker use. C08R records exact known Chrome failures or `None` and
+owns the only full unfiltered existing-pinned lineage after inputs settle. C09
+is read-only for generation inputs and outputs; a confirmed input defect returns
+to C08R and invalidates its lineage.
 
 ## Activation Recovery Evidence
 
