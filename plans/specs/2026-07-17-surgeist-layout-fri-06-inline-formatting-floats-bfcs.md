@@ -854,7 +854,7 @@ construction.
 | BFC avoidance | Current flex/grid/grid-lanes and non-replaced overflow-established block cases avoid floats and shrink auto width; ordinary block edges remain unchanged; floating and atomic boxes trap internal floats through their respective paths |
 | Scroll/cache/rounding | Exact dirty-subject path closure bypasses stale hits; failed layout or immutable preparation makes zero mutations and retains dirty subjects; infallible exclusive commit replaces all node/fragment state and clears closure caches before stores; committed nonempty/empty slices republish identically cold/warm and normal/rounded; missing warm fragment state errors; geometry contributes once |
 | Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics |
-| Fixture-input honesty | Exact-source inventories require every reviewed wrapper/container/strut marker; serializer tests prove the closed mapping in `FRI-06.11`; renamed test names and arbitrary expectation-only mutations preserve identical normalized parsed input; missing/corrupt markers fail source preflight or parser validation; transparent wrappers produce independent normalized input and expectation trees; static/runtime evidence proves no final input-lowering function reads fixture identity or expectations |
+| Fixture-input honesty | The browser helper validates every reviewed wrapper/container/strut marker against the actual DOM and reports source-local marker use; serializer tests prove the closed mapping in `FRI-06.11`; renamed test names and arbitrary expectation-only mutations preserve identical normalized parsed input; missing/corrupt markers fail helper validation, final full-run inventory accounting, or generated-XML parser validation; transparent wrappers produce independent normalized input and expectation trees; static/runtime evidence proves no final input-lowering function reads fixture identity or expectations |
 | Chrome oracle exception | Default-zero exact registry; every entry proves the `FRI-06.11` certainty gate, minimized parser-independent reproduction, normative and independent corroborating evidence, exact variant scope, public-front-door synthetic RED/GREEN substitute, visible report/test disposition, and revalidation trigger; negative controls reject layout-only disagreement, ambiguous rounding/coordinates, missing evidence, and overbroad manifest status |
 | Browser corpus | Owned mixed text/atomic/BR, vertical BR, float/BFC, unequal alignment, baseline, percentage atomic, and shape cases parse and compare |
 
@@ -1062,20 +1062,24 @@ synthesize the finite anonymous grid text wrapper, secondary inline boundaries,
 and containing strut required by the fixed matrix. The final lineage instead
 serializes each such layout-ready fact explicitly from an authored finite
 `data-surgeist-*` marker or derives it through a generic input-only rule over the
-computed/lowered role. The parser never dispatches on the test or source name,
-and parsed expectations are not passed to, inspected by, or structurally mutated
-during input lowering. The serializer normalizes any transparent browser-only
-wrapper before writing the independent input and expectation trees. Renaming a
-test or mutating only expectations must leave the parsed layout input identical;
-removing or corrupting a required explicit fact must fail closed rather than
-restore synthesis. Float and clear lowering uses this closed table; the public
-`Left`/`Right` variants in the layout-ready model mean line start/end:
+computed/lowered role. The generated-XML parser never dispatches on the test or
+source name, and parsed expectations are not passed to, inspected by, or
+structurally mutated during input lowering. HTML parsing, CSS interpretation,
+and DOM topology remain owned by Chrome and the browser helper: the Rust
+generator must not reconstruct tags, attributes, nesting, style declarations,
+comments, raw-text elements, or marker placement from HTML source. The
+serializer normalizes any transparent browser-only wrapper before writing the
+independent input and expectation trees. Renaming a test or mutating only
+expectations must leave the parsed layout input identical; removing or corrupting
+a required explicit fact must fail closed rather than restore synthesis. Float
+and clear lowering uses this closed table; the public `Left`/`Right` variants in
+the layout-ready model mean line start/end:
 
 The three formerly synthesized facts use only this closed final-lineage schema:
 
 | Layout-ready fact | Authored HTML marker | Serialized input | Validity and absence behavior |
 | --- | --- | --- | --- |
-| Anonymous grid text wrapper | `data-surgeist-anonymous-grid-text-wrapper="true"` on the exact grid element | `layout-ready-anonymous-grid-text-wrapper="true"` on that generated box node | The value is exactly `true`; computed display establishes grid or grid-lanes formatting; the marked node has only the reviewed direct typed-text child shape and no raw-text fallback. Unsupported value, role, duplicate lowering, or mixed fallback rejects. A static exact-source inventory rejects a missing marker on the five reviewed source stems. |
+| Anonymous grid text wrapper | `data-surgeist-anonymous-grid-text-wrapper="true"` on the exact grid element | `layout-ready-anonymous-grid-text-wrapper="true"` on that generated box node | The value is exactly `true`; computed display establishes grid or grid-lanes formatting; the marked node has only the reviewed direct typed-text child shape and no raw-text fallback. Unsupported value, role, duplicate lowering, or mixed fallback rejects in the browser helper. Final full-run marker-use accounting rejects a missing marker on the five reviewed source stems. |
 | Transparent secondary inline container | `data-surgeist-transparent-inline-container="true"` on either reviewed inline `bdo` | The container box is absent from `<input>`; one `<inline-boundary kind="start"/>`, its one direct typed-text child, and one `<inline-boundary kind="end"/>` appear in its source position | The value is exactly `true`; computed display is `inline`; source tag is `bdo`; there is exactly one direct shaped-text child and no other text, box, or control. The helper applies the same input-only transparent projection before independently serializing expectations. Invalid role/topology rejects. The exact bidi source inventory rejects either missing marker. |
 | Explicit containing strut | `data-surgeist-inline-struts` on the layout-ready containing root, containing a nonempty JSON array of `{ "beforeSourceIndex": N, "baseline": B, "lineHeight": H }` | `<inline-boundary kind="start" inline-baseline="B" inline-line-height="H"/>` immediately before the one lowered child selected by DOM `sourceIndex` | Each object has exactly those fields; `N` is a unique existing child-node index that lowers to one typed atomic child; `B` and `H` are finite, `H > 0`, and `0 <= B <= H`. Missing target, duplicate target, extra field, nonfinite/out-of-range metric, or non-atomic target rejects. Exact-source inventory requires the reviewed mixed-wrap and float-line records; no topology or fixture name restores an absent record. |
 
@@ -1092,10 +1096,16 @@ The authored marker inventory is exactly:
 | `block/fri06_inline_mixed_text_atomic_wrap.html` | Exactly one root `data-surgeist-inline-struts` record: `{ "beforeSourceIndex": 2, "baseline": 14.8, "lineHeight": 20 }` |
 | `float/fri06_float_line_exclusion.html` | Exactly one root `data-surgeist-inline-struts` record: `{ "beforeSourceIndex": 5, "baseline": 12, "lineHeight": 20 }` |
 
-The source preflight rejects any missing, extra, duplicate, or differently placed
-marker or strut record in this inventory and rejects these three marker names on
-every other HTML source. The four generated variants of each source inherit the
-same authored marker inventory; direction and box sizing do not alter it.
+The browser helper validates marker values, roles, metrics, and topology against
+Chrome's actual DOM and emits source-local marker-use facts independently of
+geometry expectations. During the final full generation, the Rust generator
+compares those helper-reported facts and their source paths with this exact
+eight-source inventory. Missing, extra, duplicate, or differently placed facts
+and use on any other HTML source reject the run. Rust may pin exact source bytes
+or literal marker counts as diagnostic drift evidence, but such checks neither
+parse HTML nor constitute final inventory acceptance. The four generated
+variants of each source inherit the same authored marker inventory; direction
+and box sizing do not alter it.
 
 The generated XML parser recognizes only
 `layout-ready-anonymous-grid-text-wrapper` and the closed `inline-boundary`
@@ -1261,10 +1271,11 @@ FRI-06 is complete only when:
     geometry or invent a model visual index;
 13. final fixture lowering obeys the closed `FRI-06.11` marker/XML table;
     fixture names and expectations cannot influence parsed layout input;
-    renamed-name and expectation-only equality controls pass; every required
-    marker is inventory-pinned; malformed or incomplete facts fail closed; and
-    the final browser result is calculated from the independently serialized
-    layout-ready input;
+    renamed-name and expectation-only equality controls pass; Chrome/helper
+    validates actual-DOM marker semantics and the final full run accounts for
+    every required source-local marker fact without a Rust HTML pre-parser;
+    malformed or incomplete facts fail closed; and the final browser result is
+    calculated from the independently serialized layout-ready input;
 14. the active implementing plan records `Known Chrome Measurement Failures`;
     absent a fully reviewed `FRI-06.11` entry the registry and expected-fail
     count are zero, while every accepted entry has exact browser/correct values,
