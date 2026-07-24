@@ -11,8 +11,8 @@ Cycle base: `8ffb4bc551a24d2283ad54436870ab3f5e66a473`
 Reviewed specification:
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`d8ab88fe8bf6df68f2a4637c740014567bc6e8c78f5de8d3b56cb7d10fd93326`,
-commit `4cad23414cc36a4c2d51853e9fcab1233d43a77e`: `FRI-06.4 D-01`,
+`2bd7fd592465cb2b6cc8b666f3a9fbed763eae9faea141ee21ea538713e2583a`,
+commit `ae7e0b42b91f9cf588a0280bfb1a1618a75d0622`: `FRI-06.4 D-01`,
 `D-04`, `D-06`, `D-07`, `D-09`, `D-11`, `D-12`, `D-13`, and `D-16`;
 line, metric-fragment, atomic-baseline, physical-placement, comparator,
 fixture, and acceptance portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`
@@ -21,8 +21,8 @@ through `FRI-06.11`, and `FRI-06.14`.
 Reviewed implementation sequence:
 `plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`f18628f13b23f386fa21955fedc0bbf12fc27ffdfe0ccf40c33d1cd1695c2ebe`,
-commit `b924bf23b54f7f78ef1b8bac8cd0913dbbf5314c`, entry `FRI-06-C08R`.
+`2ea54a72c5ef023bcafba90c06f7b7e38a3a5cd97cd677b18e217b092632d538`,
+commit `d476bbea04ac55a8454013b159aaab9e08a440ac`, entry `FRI-06-C08R`.
 
 ## Outcome
 
@@ -165,28 +165,33 @@ focused tests in `tests/layout/browser_parity.rs`, and only these HTML sources:
 `block/{fri06_bidi_mixed_inline,fri06_inline_mixed_text_atomic_wrap}.html`, and
 `float/fri06_float_line_exclusion.html`. No production or generated output.
 
-**Outcome:** Serialize and strictly parse the exact anonymous-wrapper,
-transparent-inline-container, and containing-strut schema and inventory in
-`FRI-06.11`. The explicit path parses normalized input and expectations
-independently. Retain `apply_fri06_c08_finite_adapter` and its helpers unchanged
-and exact only to keep stale committed XML executable until T4; no explicit-form
-test may enter that compatibility path.
+**Outcome:** Validate the exact anonymous-wrapper, transparent-inline-container,
+and containing-strut schema against Chrome's actual DOM, serialize those facts,
+and strictly parse only the generated XML in `FRI-06.11`. The explicit path
+parses normalized input and expectations independently. Retain
+`apply_fri06_c08_finite_adapter` and its helpers unchanged and exact only to keep
+stale committed XML executable until T4; no explicit-form test may enter that
+compatibility path.
+
+**Correction:** Remove the rejected Rust HTML source-preflight/tag/style/topology
+parser while retaining authored markers, helper validation, closed XML
+serialization/parsing, and input/expectation independence evidence.
 
 **RED:** Add the focused `fri06_c08r_fixture_input_` equality and rejection tests
 first. At the task base, the closed XML attributes/boundaries are unsupported,
-explicit marker inventory is unenforced, renaming prevents synthesis, and a
-valid expectation-only structural change can block adapter input lowering.
+helper marker validation is absent, renaming prevents synthesis, and a valid
+expectation-only structural change can block adapter input lowering.
 
-**Acceptance:** The exact eight-source marker inventory passes and any missing,
-extra, duplicate, misplaced, malformed, or elsewhere-used marker fails. The
-three XML forms accept only the specified attributes, placement, metrics, and
-payload absence. Renaming a test and arbitrary expectation-only mutation produce
-identical normalized parsed input. Transparent browser wrappers normalize input
-and expectation trees independently. Synthetic serializer-to-parser fixtures
-cover all five former adapter source families from explicit facts. Static and
-runtime evidence proves explicit lowering reads neither fixture name nor
-expectations, while the old compatibility block and hashes remain exact. No
-generation or `corpus-check` runs.
+**Acceptance:** Helper tests reject invalid marker values, roles, metrics, and
+actual-DOM topology. The three XML forms accept only the specified attributes,
+placement, metrics, and payload absence. Renaming a test and arbitrary
+expectation-only mutation produce identical normalized parsed input. Transparent
+browser wrappers normalize input and expectation trees independently. Synthetic
+serializer-to-parser fixtures cover all five former adapter source families from
+explicit facts. No Rust code reconstructs HTML tags, attributes, styles, or DOM
+topology; literal source checks are diagnostic only. Explicit lowering reads
+neither fixture name nor expectations, while the old compatibility block and
+hashes remain exact. No generation or `corpus-check` runs.
 
 **Commands:**
 
@@ -284,8 +289,8 @@ CARGO_NET_OFFLINE=true just fmt-check
 `tests/layout/browser_parity.rs`, final compatibility removal in
 `tests/layout/browser_parity/support.rs`; generated XML under
 `tests/layout/browser_parity/xml/` and the authoritative generation report.
-Production, HTML, helper, explicit parser behavior, manifest, launch profile,
-base style, and generator behavior are frozen.
+Production, HTML, helper, generated-XML parser behavior, manifest, launch
+profile, base style, and generator behavior are frozen.
 
 **Outcome:** Pin all generation inputs and the normalized 388-row activation
 union, then remove the complete name/expectation compatibility adapter before
@@ -293,7 +298,8 @@ generation. Execute exactly one full unfiltered existing-pinned generation, then
 use read-only tests to prove the complete final lineage.
 
 **Evidence before the run:** Focused tests pin the exact task-clean T1A helper,
-eight-source HTML inventory, parser, serializer, and source-preflight hashes;
+eight-source HTML inputs, generated-XML parser, serializer, and marker-accounting
+contract;
 corpus manifest
 `99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701`,
 base style
@@ -325,12 +331,14 @@ status, output inventory, hashes, and worktree state.
 5,712 generated variants, exactly 16 unsupported missing-root variants,
 expected-fail inventory exactly equal to the reviewed plan registry (normally
 zero), and zero quarantined, failed-to-generate, or other failure buckets. Exact
-provenance matches the frozen inputs. Each of the 388 normalized activation rows
-is a browser pass or has its reviewed passing synthetic substitute. The other
-5,324 XML bodies preserve entry semantics; provenance-only byte changes are
-allowed. No fixture/source-name dispatch or expectation reader can select,
-create, or alter parsed layout input. No scoped report or untracked generated
-output remains. Record the final report SHA-256,
+provenance matches the frozen inputs. Helper-reported source-local marker use
+matches the exact eight-source inventory across all variants, with no missing,
+extra, duplicate, misplaced, malformed, or elsewhere-used fact. Each of the 388
+normalized activation rows is a browser pass or has its reviewed passing
+synthetic substitute. The other 5,324 XML bodies preserve entry semantics;
+provenance-only byte changes are allowed. No fixture/source-name dispatch or
+expectation reader can select, create, or alter parsed layout input. No scoped
+report or untracked generated output remains. Record the final report SHA-256,
 5,712-file XML aggregate, 388-row comparison aggregate, and 5,324-body semantic
 aggregate. `FRI-13` remains unclaimed.
 
