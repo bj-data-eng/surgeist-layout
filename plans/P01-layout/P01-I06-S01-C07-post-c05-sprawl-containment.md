@@ -9,7 +9,7 @@ Design owner: `surgeist-layout`
 This specification defines the behavior-preserving containment window after
 `FRI-06-C05` is published and remotely verified and before `FRI-06-C06` begins.
 It implements only `MR-001`, `MR-004`, and `MR-005` from
-`plans/2026-07-18-surgeist-layout-mechanical-refactoring-review-findings.md`.
+`plans/P01-layout/P01-I06-mechanical-refactoring-review-findings.md`.
 
 The outcome is:
 

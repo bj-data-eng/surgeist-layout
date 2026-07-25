@@ -1,17 +1,16 @@
-# FRI-04 Property-Specific Sizing Values
+# P01-I04 Property-Specific Sizing Values
 
-Status: draft
 
 Design owner: `surgeist-layout`
 
 Specification ID: `FRI-04`
 
-## FRI-04.1 Authority And Outcome
+## 1 FRI-04.1 Authority And Outcome
 
 This specification is the direct desired-state contract for `FRI-04` in
-`plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`. It owns
+`plans/P01-layout/P01-index.md`. It owns
 closure of `MODEL-005` and `MODEL-007` from
-`plans/2026-07-10-surgeist-layout-full-code-review-findings.md`.
+`plans/P01-layout/P01-initial-review-findings.md`.
 
 The outcome is one layout-ready sizing model in which:
 
@@ -42,9 +41,9 @@ This is a breaking pre-release correction. Backward compatibility is not
 required. Removed APIs are not retained through aliases, deprecated wrappers,
 permissive conversions, duplicate fields, or a public legacy enum.
 
-## FRI-04.2 Scope And Non-Goals
+## 2 FRI-04.2 Scope And Non-Goals
 
-### Owned Scope
+### 2.1 Owned Scope
 
 This specification owns:
 
@@ -73,7 +72,7 @@ This specification owns:
 - explicit typed handoffs for format-specific contextual sizing behavior owned
   by later findings-resolution initiatives.
 
-### Explicit Non-Goals
+### 2.2 Explicit Non-Goals
 
 This specification does not:
 
@@ -108,9 +107,9 @@ This specification does not:
 - acquire software, change dependencies or feature flags, add `unsafe`, or
   change the crate's MSRV.
 
-## FRI-04.3 Standards And Current Evidence
+## 3 FRI-04.3 Standards And Current Evidence
 
-### Normative Evidence
+### 3.1 Normative Evidence
 
 CSS Sizing Level 3 gives preferred sizes and minimum sizes an initial value of
 `auto`, gives maximum sizes an initial value of `none`, admits intrinsic
@@ -170,7 +169,7 @@ their named sizing states because the verified finding requires those states;
 it does not claim those exploratory drafts are a complete format-algorithm
 specification or absorb the later initiative owners listed above.
 
-### Source Evidence At The Published Base
+### 3.2 Source Evidence At The Published Base
 
 This table describes clean published commit
 `299967928b9fa2877b3496bf83cf0954d455a32a`.
@@ -194,9 +193,9 @@ Root `surgeist` is clean at
 `19590f6d9fa01c0df197c5ef07fb626c5cf18ced`; its committed layout gitlink is
 `c0c6852610b835b60e46c680fbd1a4fb127d1d13`.
 
-## FRI-04.4 Resolved Design Decisions
+## 4 FRI-04.4 Resolved Design Decisions
 
-### `D-01` Property Domains Are Separate Closed Types
+### 4.1 `D-01` Property Domains Are Separate Closed Types
 
 The public box and flex families are immutable wrappers with private semantic
 representations:
@@ -247,7 +246,7 @@ or invalid construction.
 Rejected alternative: retaining `Dimension` as a compatibility alias leaves
 root and fixture callers on the wrong contract and makes closure unprovable.
 
-### `D-02` Sizing Calculations Use An Iterative Validated Program
+### 4.2 `D-02` Sizing Calculations Use An Iterative Validated Program
 
 `SizingCalculationOf<S>` is a public immutable value with private storage. It
 represents exactly:
@@ -314,7 +313,7 @@ and lifecycle into a normalized value that has no identity-bearing semantics.
 Rejected alternative: resolving all functions upstream guesses the percentage
 basis that the layout algorithm owns.
 
-### `D-03` `calc-size()` Arrives In Canonical Layout-Ready Form
+### 4.3 `D-03` `calc-size()` Arrives In Canonical Layout-Ready Form
 
 `CalcSizeCalculationOf<S>` uses the same private iterative program shape, but
 each affine leaf has three finite coefficients:
@@ -382,7 +381,7 @@ canonical forms differ and moves CSS substitution complexity into layout.
 Rejected alternative: using one unrestricted basis enum makes invalid
 cross-property keyword states constructable again.
 
-### `D-04` Track Breadths Own Track Flex And Sizing Math
+### 4.4 `D-04` Track Breadths Own Track Flex And Sizing Math
 
 `TrackFlexFactorOf<S>` is a public semantic scalar newtype. `try_new` accepts a
 finite non-negative value, canonicalizes signed zero, and returns the existing
@@ -428,7 +427,7 @@ cannot enter a track breadth through the new API.
 Rejected alternative: reusing `NonNegativeFiniteOf` for `fr` permits accidental
 mixing of unrelated semantic scalars and obscures the track-only boundary.
 
-### `D-05` Resolution Has Property State, Numeric State, And Used State
+### 4.5 `D-05` Resolution Has Property State, Numeric State, And Used State
 
 FRI-04 distinguishes three phases:
 
@@ -463,7 +462,7 @@ Rejected alternative: retaining `LengthResolutionStatus::NonNumeric` as the
 ordinary dispatch mechanism erases which property keyword was supplied and
 recreates both findings.
 
-### `D-06` Current Algorithms Must Dispatch Explicitly Without Stealing Later Findings
+### 4.6 `D-06` Current Algorithms Must Dispatch Explicitly Without Stealing Later Findings
 
 FRI-04 implements the common model and numeric behavior now and leaves named
 format-algorithm findings with their existing owners. The typed later-owner
@@ -609,7 +608,7 @@ findings index and entangles a model foundation with flex algorithm completion.
 Rejected alternative: silently treating every contextual keyword as auto would
 make the new type surface cosmetic and leave `MODEL-005` behaviorally unsafe.
 
-### `D-07` Property-Specific Fixture Lowering Is Narrow And Exact
+### 4.7 `D-07` Property-Specific Fixture Lowering Is Narrow And Exact
 
 The browser helper preserves a sizing token only when it belongs to the finite
 FRI-04 fixture grammar:
@@ -641,7 +640,7 @@ structured recursive parsing internally, but it must lower into the iterative
 production calculation value and impose a documented finite fixture nesting
 limit before recursive parser descent.
 
-## FRI-04.5 Public Contract
+## 5 FRI-04.5 Public Contract
 
 The completed public front door includes and reexports default-scalar aliases
 and generic forms for:
@@ -683,9 +682,9 @@ runtime identity is public. Existing `LayoutScalar` remains sealed to `f32` and
 `f64`; the calculation evaluator uses only its current finite arithmetic,
 comparison, and conversion contract.
 
-## FRI-04.6 Construction And Resolution Matrices
+## 6 FRI-04.6 Construction And Resolution Matrices
 
-### Property Construction Matrix
+### 6.1 Property Construction Matrix
 
 | State | Preferred | Minimum | Maximum | Flex basis | Min track | Max track |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -702,7 +701,7 @@ comparison, and conversion contract.
 | `calc-size()` | Yes | Yes | Yes | Yes | No | No |
 | `fr` | No | No | No | No | No | Yes |
 
-### Initial And Missing-Basis Matrix
+### 6.2 Initial And Missing-Basis Matrix
 
 | Property | Initial value | Definite numeric basis | Missing numeric basis |
 | --- | --- | --- | --- |
@@ -712,7 +711,7 @@ comparison, and conversion contract.
 | Flex basis | `Auto` | Resolve against the flex container's inner main-size basis | An unresolved percentage becomes content only at the Flexbox-owned rule; `Content` remains separately observable. |
 | Track breadth | `Auto` pair | Resolve against the grid container's applicable axis basis | Preserve existing intrinsic/cyclic track handling; invalid numeric remains an error. |
 
-### Calculation Status Matrix
+### 6.3 Calculation Status Matrix
 
 | Condition | Result |
 | --- | --- |
@@ -726,9 +725,9 @@ comparison, and conversion contract.
 | Non-finite calc-size coefficient | `CalcSizeCalculationErrorOf` naming the invalid coefficient |
 | `Any` calc-size basis plus a `size` reference | `CalcSizeConstructionError::SizeReferenceWithAnyBasis` |
 
-## FRI-04.7 Browser, Fixture, And Artifact Contract
+## 7 FRI-04.7 Browser, Fixture, And Artifact Contract
 
-### Owned Browser Sources
+### 7.1 Owned Browser Sources
 
 The new active sources are:
 
@@ -751,7 +750,7 @@ No active fixture expects a later-owner `SizingBehavior` capability result.
 Model/parser tests cover the representable contextual keywords and calc-size
 bases that are not yet parity claims.
 
-### One Final Full Regeneration
+### 7.2 One Final Full Regeneration
 
 Scoped ExistingPinned runs are optional diagnostics during implementation. They
 are not required, retained, cited, or counted as verification evidence.
@@ -791,7 +790,7 @@ hand-edited. The pinned Chrome remains `149.0.7827.115`, its repository-relative
 cached executable and manifest launch profile remain unchanged, and no software
 is acquired.
 
-## FRI-04.8 Focused Evidence
+## 8 FRI-04.8 Focused Evidence
 
 The implementation supplies at least:
 
@@ -839,7 +838,7 @@ The implementation supplies at least:
 - no `unsafe`, dependency, feature, MSRV, generator architecture, ignored-test,
   or expected-failure expansion.
 
-## FRI-04.9 Module And Implementation Outline
+## 9 FRI-04.9 Module And Implementation Outline
 
 | Area | Required result |
 | --- | --- |
@@ -860,7 +859,7 @@ The calculation evaluator may live in `src/value.rs` or one new private
 the selected public model. No other new production module or artifact class is
 authorized.
 
-## FRI-04.10 Root Integration Handoff
+## 10 FRI-04.10 Root Integration Handoff
 
 Root `surgeist` later owns all integration changes. The leaf candidate report
 must tell root to:
@@ -889,7 +888,7 @@ or API artifact. Root must not resolve percentages early, reconstruct private
 calculation instructions, or translate an invalid cross-property state into an
 automatic value.
 
-## FRI-04.11 Durable Sequence Seams
+## 11 FRI-04.11 Durable Sequence Seams
 
 The implementation sequence derives cycle boundaries from these dependency
 facts:
@@ -911,7 +910,7 @@ These are durable dependency boundaries, not executable task plans. The
 implementation sequence owns cycle IDs and order; only the next ready cycle has
 a just-in-time cycle plan.
 
-## FRI-04.12 Initiative Acceptance
+## 12 FRI-04.12 Initiative Acceptance
 
 FRI-04 is complete only when:
 

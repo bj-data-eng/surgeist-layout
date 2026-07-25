@@ -1,17 +1,16 @@
-# FRI-06 Inline Formatting, Line Boxes, Floats, And BFCs
+# P01-I06 Inline Formatting, Floats, And BFCs
 
-Status: draft
 
 Design owner: `surgeist-layout`
 
-## FRI-06.1 Authority And Outcome
+## 1 FRI-06.1 Authority And Outcome
 
 This specification is the authoritative desired-state contract for `FRI-06` in
-`plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`. It owns
+`plans/P01-layout/P01-index.md`. It owns
 the layout-ready inline participant boundary, mixed inline line construction,
 line-box geometry, float exclusion, and currently representable block-formatting-
 context behavior needed to close these 14 findings from
-`plans/2026-07-10-surgeist-layout-full-code-review-findings.md`:
+`plans/P01-layout/P01-initial-review-findings.md`:
 
 - `BLOCK-014`, `FLOW-002`, `BLOCK-004`, `FLOW-001`, and `FLOW-003`;
 - `BLOCK-005`, `BLOCK-006`, `BLOCK-008`, `BLOCK-009`, `BLOCK-011`,
@@ -34,7 +33,7 @@ This specification supersedes the reviewed snapshot's stale implementation
 locations and capability claims where FRI-02 through FRI-05 already changed
 source. The finding IDs and required observable closure remain authoritative.
 
-## FRI-06.2 Ownership And Non-Goals
+## 2 FRI-06.2 Ownership And Non-Goals
 
 `surgeist-layout` owns:
 
@@ -88,7 +87,7 @@ FRI-06 does not claim non-rectangular exclusion until a caller supplies the
 typed provider result. Margin-box exclusion remains the real default. A missing
 required provider result is an error, never a rectangular approximation.
 
-## FRI-06.3 Current Evidence
+## 3 FRI-06.3 Current Evidence
 
 At the FRI-06 design base, current source already provides these prerequisites:
 
@@ -128,7 +127,7 @@ The old finding claim that sideways writing modes and parent formatting roles
 are absent is no longer true. FRI-06 consumes those completed contracts rather
 than defining substitutes.
 
-## FRI-06.4 Resolved Design Decisions
+## 4 FRI-06.4 Resolved Design Decisions
 
 | ID | Decision |
 | --- | --- |
@@ -164,9 +163,9 @@ Rejected alternatives:
 - Adding the full vertical-alignment vocabulary here would duplicate FRI-09's
   cross-format alignment ownership.
 
-## FRI-06.5 Public Model
+## 5 FRI-06.5 Public Model
 
-### Shaped Segments
+### 5.1 Shaped Segments
 
 The crate adds these public scalar-generic input types and default-scalar aliases:
 
@@ -255,7 +254,7 @@ The public `LayoutInputOf<S>` adds `InlineText(InlineTextInputOf<S>)`,
 `inline_text`, and `as_inline_text`. A text input is an inline participant, never
 a box, leaf measurement, absolute child, float, or scroll container.
 
-### Non-Box Tree Pairing
+### 5.2 Non-Box Tree Pairing
 
 `LayoutTree` continues to expose both `node_input(node)` and
 `layout_input(node)` for every node. `NodeInputOf<S>::non_box()` is the sole
@@ -282,7 +281,7 @@ pairing cannot reuse or publish a result. FRI-06.6 defines cache invalidation an
 fragment restoration; no text or shape revision is hidden in the unit cache
 context.
 
-### Fragment Output
+### 5.3 Fragment Output
 
 The crate adds:
 
@@ -343,7 +342,7 @@ existing node-output phases. The batch consumer atomically commits unrounded and
 final node/fragment state before its cache updates. A failed layout returns no
 node outputs, cache updates, or fragments.
 
-### Float Exclusion Provider
+### 5.4 Float Exclusion Provider
 
 `NodeInputOf<S>` adds a closed layout-ready field:
 
@@ -411,7 +410,7 @@ results are local algorithm state and do not enter the global cache separately.
 Provider changes use the explicit tree-owned invalidation contract in FRI-06.6;
 they never mutate `CacheKeyContext`.
 
-### Vertical Alignment
+### 5.5 Vertical Alignment
 
 `VerticalAlign` becomes:
 
@@ -432,7 +431,7 @@ contribute a fake zero baseline.
 The FRI-09 handoff must replace this subset with its reviewed complete typed
 alignment model. FRI-06 does not add an unsupported enum variant to public input.
 
-## FRI-06.6 Invariants And Errors
+## 6 FRI-06.6 Invariants And Errors
 
 Every scalar-bearing input and provider output rejects NaN, infinity, negative
 extent, inverted interval, and non-canonical signed zero where the surrounding
@@ -487,7 +486,7 @@ visible line breaks. Clear directions are mapped through the containing flow;
 the control's own stored flow is only a validation witness and never overrides
 the container.
 
-### Cache And Fragment State
+### 6.1 Cache And Fragment State
 
 FRI-01's invalidation model remains authoritative. `CacheKeyContext` stays the
 zero-field unit value, `CacheKeyContext::new()` and
@@ -603,9 +602,9 @@ No new public value has mutable fields. Output carriers have no public
 constructor or `Default`. Input values have `Default` only where a real CSS or
 layout initial exists.
 
-## FRI-06.7 Behavior Matrices
+## 7 FRI-06.7 Behavior Matrices
 
-### Participant Matrix
+### 7.1 Participant Matrix
 
 | Participant | Line advance | Line metrics | Break behavior | Public output |
 | --- | --- | --- | --- | --- |
@@ -622,7 +621,7 @@ line only when their metrics or preserved mandatory break requires one. An empty
 post-break line carries the containing strut when the break requires a following
 line; it is not dropped merely because it has no box.
 
-### Break Selection Matrix
+### 7.2 Break Selection Matrix
 
 | Candidate state | Result |
 | --- | --- |
@@ -638,7 +637,7 @@ The algorithm is greedy and deterministic. It never asks the text owner to
 reshape after choosing a break. A replacement extent supplied for a hyphenated
 break is already shaped and final.
 
-### Bidi And Whitespace Matrix
+### 7.3 Bidi And Whitespace Matrix
 
 | Fact | Layout behavior |
 | --- | --- |
@@ -660,7 +659,7 @@ segments to `InlineTextInputOf` and every shaped atomic placeholder to the
 corresponding child's `AtomicInlineParticipationOf`; containing direction owns
 the base level of structural boundary markers.
 
-### Line Alignment Matrix
+### 7.4 Line Alignment Matrix
 
 | `TextAlign` | LTR horizontal | RTL horizontal | Vertical/sideways |
 | --- | --- | --- | --- |
@@ -673,7 +672,7 @@ space never reverses or magnifies alignment; legacy center/right clamp their
 offset to zero for overflow. FRI-09 owns start/end/match-parent/justify and
 text-align-last expansion.
 
-### Float And BFC Matrix
+### 7.5 Float And BFC Matrix
 
 | Subject | Active float interaction |
 | --- | --- |
@@ -698,7 +697,7 @@ interval for the queried band; `Ok(None)` produces no exclusion for that band.
 `shape-margin` and CSS basic-shape parsing/resolution are root/shape handoff
 facts represented only through the returned interval.
 
-### Atomic Baseline Matrix
+### 7.6 Atomic Baseline Matrix
 
 | Atomic used overflow | Inner baseline present | Alignment | Used transverse placement |
 | --- | --- | --- | --- |
@@ -712,7 +711,7 @@ The used-overflow decision uses FRI-05's private canonical used axis for the
 containing line's block axis, including replaced-hidden conversion. It is not
 recomputed from authored or independent raw axes.
 
-### Control And Clear Matrix
+### 7.7 Control And Clear Matrix
 
 For each of the ten `FlowAxes` mappings, every visible line break with
 `Clear::{None,Left,Right,Both}`:
@@ -728,9 +727,9 @@ For each of the ten `FlowAxes` mappings, every visible line break with
 An inline boundary contributes its metrics to the line it occurs on and is
 compared by parity like any other zero-size control. Boundaries do not clear.
 
-## FRI-06.8 Algorithm Contract
+## 8 FRI-06.8 Algorithm Contract
 
-### Logical Line Builder
+### 8.1 Logical Line Builder
 
 `src/inline.rs` owns one algorithm state with these private concepts:
 
@@ -759,7 +758,7 @@ margin-box block endpoints. A candidate retry must either append/commit content
 or advance to a strictly later transition. This proves termination without an
 arbitrary iteration count.
 
-### Mixed Source Composition
+### 8.2 Mixed Source Composition
 
 Block layout groups consecutive inline-level children into one formatting
 context. It lowers:
@@ -781,7 +780,7 @@ For fixture-only simple text that contains no bidi-reordered atomic placeholder,
 one text child can supply only text segments. The adapter may not create a
 synthetic measured box in place of text.
 
-### Float Bands
+### 8.3 Float Bands
 
 `FloatExclusions` becomes flow-relative and records each placed float's mapped
 line side, physical margin box, block interval, exclusion mode, and source
@@ -807,7 +806,7 @@ box moves below transitions until it fits or overflows at the normal block
 position after the final transition. Floating boxes are handled by float
 placement and independently trap their internal floats.
 
-### Size, Baseline, Scroll, Cache, And Rounding
+### 8.4 Size, Baseline, Scroll, Cache, And Rounding
 
 Min/max-content inline contributions include shaped text segments, selected
 replacement extents, atomic margins, and mandatory breaks. Float/BFC intrinsic
@@ -835,7 +834,7 @@ normal and rounded path both project from the same logical line source; rounded
 layout does not rerun shaping, break selection, provider queries, or line
 construction.
 
-## FRI-06.9 Focused Evidence
+## 9 FRI-06.9 Focused Evidence
 
 | Evidence family | Required proof |
 | --- | --- |
@@ -867,7 +866,7 @@ The shape provider fake must implement the real query/result contract and expose
 only query records that are themselves observable acceptance criteria. It cannot
 return precomputed final line positions.
 
-## FRI-06.10 Module And API Outline
+## 10 FRI-06.10 Module And API Outline
 
 | Module or artifact | Desired responsibility |
 | --- | --- |
@@ -892,7 +891,7 @@ either become genuinely consumed or be removed with the dead item. No new lint
 allowance, compatibility alias, test-only public API, or broad suppression is
 permitted.
 
-### Compatibility Classification
+### 10.1 Compatibility Classification
 
 | Public surface | Compatibility and migration contract |
 | --- | --- |
@@ -925,7 +924,7 @@ No Cargo feature, dependency, lockfile entry, MSRV, browser pin, launch profile,
 generator architecture, or leaf-side generated API artifact changes for this
 compatibility migration.
 
-## FRI-06.11 Browser Fixture And Artifact Contract
+## 11 FRI-06.11 Browser Fixture And Artifact Contract
 
 FRI-06 activates bounded source families rather than the entire later-format
 corpus. The immutable starting report is
@@ -977,7 +976,7 @@ permitted. The starting manifest SHA-256 is
 the fixture task records its reviewed replacement hash after adding these twelve
 records.
 
-### Known Chrome Measurement Failure Exception
+### 11.1 Known Chrome Measurement Failure Exception
 
 Chrome remains authoritative unless every item below is satisfied. Uncertainty,
 an implementation disagreement, a Taffy result, or a synthetic expected value
@@ -1157,10 +1156,10 @@ FRI-06 variants enter active comparison. Any count, source, variant, reason, or
 bucket difference blocks closure rather than being reclassified during the
 fixture cycle.
 
-## FRI-06.12 Root And Sibling Handoff
+## 12 FRI-06.12 Root And Sibling Handoff
 
 At inspected root revision `19590f6d9fa01c0df197c5ef07fb626c5cf18ced`,
-root pins `surgeist-text@38001cc8effde426f06d7876f9e8eed1e082459a`.
+root pins `surgeist-text@754707f27feb04fb7ff31e0574ff43ded552d360`.
 That text crate owns full paragraph shaping/line-breaking output and inline box
 facts, while root has style-to-text and style-to-layout adapters but no composed
 text-to-layout inline participant path.
@@ -1204,7 +1203,7 @@ This handoff may require a separate `surgeist-text` initiative and root cycle.
 It does not authorize this leaf to edit text, shape, style, CSS, retained, render,
 or root repositories.
 
-## FRI-06.13 Finding Traceability
+## 13 FRI-06.13 Finding Traceability
 
 | Finding | Required closure evidence |
 | --- | --- |
@@ -1226,7 +1225,7 @@ or root repositories.
 FRI-06 status cannot advance to complete while any row lacks its named source,
 front-door test, and applicable browser/artifact evidence.
 
-## FRI-06.14 Initiative Acceptance
+## 14 FRI-06.14 Initiative Acceptance
 
 FRI-06 is complete only when:
 

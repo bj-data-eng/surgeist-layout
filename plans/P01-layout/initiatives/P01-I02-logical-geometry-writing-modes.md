@@ -1,17 +1,16 @@
-# FRI-02 Logical Geometry And Writing-Mode Substrate
+# P01-I02 Logical Geometry And Writing Modes
 
-Status: draft
 
 Design owner: `surgeist-layout`
 
 Specification ID: `FRI-02`
 
-## FRI-02.1 Authority And Outcome
+## 1 FRI-02.1 Authority And Outcome
 
 This specification is the direct desired-state contract for `FRI-02` in
-`plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`. It owns
+`plans/P01-layout/P01-index.md`. It owns
 closure of `BLOCK-003`, `FLEX-001`, `GRID-004`, `OVERFLOW-004`, and `TEST-005`
-from `plans/2026-07-10-surgeist-layout-full-code-review-findings.md`.
+from `plans/P01-layout/P01-initial-review-findings.md`.
 
 The outcome is one layout-owned logical geometry model in which:
 
@@ -41,9 +40,9 @@ This is a breaking pre-release correction. Backward compatibility is not
 required. Removed or renamed APIs are not retained through aliases, deprecated
 wrappers, duplicate conversion paths, or context-free helper methods.
 
-## FRI-02.2 Scope And Non-Goals
+## 2 FRI-02.2 Scope And Non-Goals
 
-### Owned Scope
+### 2.1 Owned Scope
 
 This specification owns:
 
@@ -66,7 +65,7 @@ This specification owns:
 - public reexports, layout-owned docs, tests, fixtures, XML, and generation
   reports required by those contracts.
 
-### Explicit Non-Goals
+### 2.2 Explicit Non-Goals
 
 This specification does not:
 
@@ -98,9 +97,9 @@ This specification does not:
   repositories; or
 - add compatibility aliases for `Axis`, `ScrollOffset`, or `ScrollRange`.
 
-## FRI-02.3 Standards And Current Evidence
+## 3 FRI-02.3 Standards And Current Evidence
 
-### Normative Geometry Evidence
+### 3.1 Normative Geometry Evidence
 
 CSS Writing Modes Level 4 defines five `writing-mode` values and maps abstract
 block/inline dimensions and sides from the used writing mode and direction:
@@ -130,7 +129,7 @@ overflow directions:
 - <https://www.w3.org/TR/cssom-view/#scrolling-area>
 - <https://www.w3.org/TR/cssom-view/#scroll-an-element>
 
-### Source Evidence At The Published C03 Base
+### 3.2 Source Evidence At The Published C03 Base
 
 This table describes commit
 `584f16231bed9c3e0475a4e64056fdc9e25dc2d3`. Completed substrate remains
@@ -148,9 +147,9 @@ normative initiative state; each row names only its remaining correction.
 | `E-PARITY-1` | The pinned runtime and schema-two report inventory are implemented; the fixture parser/generator/helper still reject or drop sideways modes, and existing vertical-flex XML still reaches text measurement rather than non-leaf flex layout. | Add each cycle's exact sideways-capable families/reports and the topology-checked non-leaf flex matrix. |
 | `E-BASELINE-1` | `BaselinesOf` remains physical and its shared selection/synthesis methods are flow-aware; block, flex, and grid callers still contain algorithm-local physical-axis assumptions. | Migrate each algorithm caller through shared flow without changing the physical output representation. |
 
-## FRI-02.4 Resolved Design Decisions
+## 4 FRI-02.4 Resolved Design Decisions
 
-### `D-11` FlowAxes Owns The Mapping
+### 4.1 `D-11` FlowAxes Owns The Mapping
 
 `FlowAxes` is a concrete public resolved-layout value constructed from one
 `WritingMode` and one used `Direction`. Every pair is valid, so construction is
@@ -178,7 +177,7 @@ of disagreement among inline, flex, grid, and scroll.
 Rejected alternative: an open trait or phantom coordinate-space framework adds
 an extension contract where the domain is a closed five-mode table.
 
-### `D-12` Public Geometry Is Physical; Algorithm Geometry Is Logical
+### 4.2 `D-12` Public Geometry Is Physical; Algorithm Geometry Is Logical
 
 Public `Point`, `Size`, `Edges`, `ScrollRectOf`, `NodeOutputOf`, and layout entry
 sizes retain physical fields and physical CSS-pixel meaning. `Axis` is renamed
@@ -248,7 +247,7 @@ contract. The flex-item-root context uses the same flow-aware sizing and basis
 rules but preserves its existing physical-zero host placement because that
 front door returns item sizing rather than viewport root anchoring.
 
-### `D-13` Direction Means Used Inline Direction
+### 4.3 `D-13` Direction Means Used Inline Direction
 
 Layout `Direction::{Ltr,Rtl}` represents the used inline direction supplied at
 the layout-ready boundary. It is not the authored/computed CSS `direction`
@@ -257,7 +256,7 @@ token. Root style/text integration is responsible for effects such as
 
 Layout neither stores `text-orientation` nor guesses used direction.
 
-### `D-14` Sideways Modes Are Distinct States
+### 4.4 `D-14` Sideways Modes Are Distinct States
 
 `WritingMode` has exactly these variants:
 
@@ -275,7 +274,7 @@ Sideways modes share a vertical inline axis and horizontal block axis, but
 `SidewaysLr` has inverted line orientation and used-direction mapping relative
 to `VerticalLr`. It is not normalized to a vertical variant.
 
-### `D-15` Flex And Grid Derive Local Roles From FlowAxes
+### 4.5 `D-15` Flex And Grid Derive Local Roles From FlowAxes
 
 Flex owns a crate-private `FlexAxes` value derived from `FlowAxes`,
 `FlexDirection`, and `FlexWrap`:
@@ -292,7 +291,7 @@ Grid owns only the closed conversion
 offsets, areas, and gaps remain logical until projection. Grid does not define a
 second writing-mode table.
 
-### `D-16` Baseline Points Stay Physical And Become Flow-Aware
+### 4.6 `D-16` Baseline Points Stay Physical And Become Flow-Aware
 
 `BaselinesOf<S>` remains a physical pair of optional x/y intersection points.
 This preserves output and cross-format composition. Context-free block-baseline
@@ -303,7 +302,7 @@ block axis. Synthesized first/last baselines use `line_over`/`line_under`, so
 This initiative maps existing baseline behavior. It does not add the missing
 alignment values or distribution semantics owned by `FRI-09`.
 
-### `D-17` Scroll Geometry Uses Signed Physical Ranges
+### 4.7 `D-17` Scroll Geometry Uses Signed Physical Ranges
 
 Layout output and CSSOM-facing geometry are physical. Unqualified
 `ScrollOffsetOf` and `ScrollRangeOf` are removed. The public replacement is:
@@ -337,7 +336,7 @@ layout output, rounding, browser comparison, and host adapters.
 Rejected alternative: an anchor-bearing live scroll state object belongs to
 root runtime state, not this layout calculation crate.
 
-### `D-18` No Transitional Axis APIs Remain
+### 4.8 `D-18` No Transitional Axis APIs Remain
 
 The following context-free or ambiguous public contracts are removed rather
 than deprecated:
@@ -357,7 +356,7 @@ than deprecated:
 Crate-local duplicates such as `InlineAxisMapping`, physical flex edge traits,
 and grid writing-mode match tables are deleted after their consumers migrate.
 
-## FRI-02.5 Normative Flow Mapping
+## 5 FRI-02.5 Normative Flow Mapping
 
 All coordinates are local CSS layout coordinates. Horizontal x increases to the
 right; vertical y increases downward.
@@ -387,9 +386,9 @@ Required invariants:
 7. direction never changes block-start or block-end; and
 8. `SidewaysLr` used LTR maps inline-start to physical bottom.
 
-## FRI-02.6 Public API And Type Contract
+## 6 FRI-02.6 Public API And Type Contract
 
-### Public Geometry Surface
+### 6.1 Public Geometry Surface
 
 The public front door exposes:
 
@@ -466,7 +465,7 @@ geometry are themselves crate-private. No public method mentions
 `PhysicalAxis` replaces `Axis` in public diagnostic types such as
 `RootAvailabilityErrorOf` and measurement-output errors.
 
-### Public Collapsible-Margin Output
+### 6.2 Public Collapsible-Margin Output
 
 The physical compute-output carrier is:
 
@@ -509,7 +508,7 @@ containing flow. This preserves valid parallel and opposing empty-leaf collapse
 while making the same leaf in an orthogonal parent ineligible through the
 contextual query. Non-reporting output constructors retain `NONE`.
 
-### Public Containing-Flow Context
+### 6.3 Public Containing-Flow Context
 
 The two public direct-leaf input constructors become:
 
@@ -554,7 +553,7 @@ and resolves no edge. Hidden traversal clears output/cache state and performs no
 cache lookup or store. Equality still includes the explicit flow, so test fakes
 cannot accept a context-free hidden request accidentally.
 
-### Public Scroll Surface
+### 6.4 Public Scroll Surface
 
 Each scroll scalar type has private fields and default-scalar aliases. The
 constructors are fallible because external/root input can be non-finite or
@@ -678,7 +677,7 @@ accepts any validated signed interval. Existing geometry-coherence validation
 continues to return its current typed layout-owned error until `FRI-05` replaces
 that broader contract.
 
-### Compatibility Classification
+### 6.5 Compatibility Classification
 
 This initiative is intentionally breaking:
 
@@ -691,7 +690,7 @@ This initiative is intentionally breaking:
 
 No alias, blanket conversion, or duplicate old constructor is retained.
 
-## FRI-02.7 Algorithm-Phase Logical Geometry
+## 7 FRI-02.7 Algorithm-Phase Logical Geometry
 
 Crate-private logical types use `inline` and `block` fields. They support only
 the operations required by algorithms: map, zip, add/subtract where scalar
@@ -721,9 +720,9 @@ Physical geometry is used for:
 Algorithms convert at named boundaries. They do not transpose a raw `Size` or
 `Point` based on `is_vertical` and then continue treating it as physical.
 
-## FRI-02.8 Block Behavior Contract
+## 8 FRI-02.8 Block Behavior Contract
 
-### Parent And Child Flow Ownership
+### 8.1 Parent And Child Flow Ownership
 
 The containing block's `FlowAxes` owns positioning-phase logical sides,
 physical placement, auto margins, and margin collapse. A child's own
@@ -757,7 +756,7 @@ This initiative does not implement at-risk automatic multicol behavior from
 Writing Modes Level 4. Browser-observable block sizing and positioning remain
 the conformance target.
 
-### Ordinary In-Flow Behavior Matrix
+### 8.2 Ordinary In-Flow Behavior Matrix
 
 | Behavior | Required logical rule | Physical output requirement |
 | --- | --- | --- |
@@ -776,7 +775,7 @@ container with two `20x10` ordinary block children places them at `(80,0)` and
 Sideways block progression matches its `-rl`/`-lr` block direction while using
 the sideways inline direction table.
 
-### Existing Adjacent Paths
+### 8.3 Existing Adjacent Paths
 
 Existing atomic-inline/control runs consume shared `FlowAxes` for projection so
 they support both sideways values without another table. Full soft wrapping,
@@ -786,9 +785,9 @@ Existing relative offsets and absolute static-position fallback use the mapped
 logical sides where they are touched by ordinary block flow. This is axis
 migration only; `FRI-10` still owns positioned-layout correctness.
 
-## FRI-02.9 Flex Behavior Contract
+## 9 FRI-02.9 Flex Behavior Contract
 
-### FlexAxes
+### 9.1 FlexAxes
 
 `FlexAxes` is crate-private and complete for one container. It records:
 
@@ -803,7 +802,7 @@ It is the only flex edge/axis selector. Existing flex-local `EdgeAxisExt`,
 `BoolEdgeAxisExt`, `OptionEdgeAxisExt`, and context-free geometry main/cross
 methods are removed.
 
-### Required Flex Consumers
+### 9.2 Required Flex Consumers
 
 The mapped axes apply to:
 
@@ -827,7 +826,7 @@ The finding's named regression is normative: a `100x100` `vertical-lr` row
 container with two `10x20` items places them at `(0,0)` and `(0,20)`, not
 `(0,0)` and `(10,0)`.
 
-### Flex Direction Matrix
+### 9.3 Flex Direction Matrix
 
 | Flex direction | Logical main axis | Main progression |
 | --- | --- | --- |
@@ -840,9 +839,9 @@ Cross progression is the other logical axis and is reversed only by
 `wrap-reverse`. `Direction` affects row progression through `FlowAxes`; it does
 not change block progression for column.
 
-## FRI-02.10 Grid, Subgrid, And Lanes Behavior Contract
+## 10 FRI-02.10 Grid, Subgrid, And Lanes Behavior Contract
 
-### Logical Grid Axes
+### 10.1 Logical Grid Axes
 
 Grid columns are always logical inline tracks. Grid rows are always logical
 block tracks. `GridAxisKind` maps to `LogicalAxis`; it never maps directly to
@@ -869,7 +868,7 @@ Grid-area logical extents use a distinct crate-private representation or
 `LogicalSizeOf`; raw `Size { width, height }` cannot silently carry
 column/row totals.
 
-### Required Grid Results
+### 10.2 Required Grid Results
 
 For unequal logical totals `inline=70`, `block=110`:
 
@@ -883,16 +882,16 @@ Existing baseline groups are applied along the mapped block axis. The initiative
 does not add missing alignment keywords or solve other FRI-08 track/placement
 findings.
 
-### Grid Finding Boundary
+### 10.3 Grid Finding Boundary
 
 The following remain outside `FRI-02`: `GRID-001`, `GRID-002`, `GRID-003`,
 `GRID-005`, `GRID-006`, `GRID-007`, `GRID-008`, and `GRID-010`. Axis migration
 must not lock their current incorrect result into a new abstraction. Focused
 tests isolate writing-mode projection from those known defects.
 
-## FRI-02.11 Scroll Coordinate Contract
+## 11 FRI-02.11 Scroll Coordinate Contract
 
-### Coordinate Meaning
+### 11.1 Coordinate Meaning
 
 `PhysicalScrollOffsetOf` and `PhysicalScrollRangeOf` use physical local x/y CSS
 layout coordinates:
@@ -919,7 +918,7 @@ For a logical interval `[0, extent]`, conversion follows:
 exactly for finite `f32` and `f64` values except the established signed-zero
 canonicalization.
 
-### Layout-Produced Range Pipeline
+### 11.2 Layout-Produced Range Pipeline
 
 Production layout never constructs a `PhysicalScrollRangeOf<S>` directly from
 physical overflow extents. The current extent calculation first computes the
@@ -948,7 +947,7 @@ rounded geometry tests cover every reversed axis across all 10 flow mappings in
 both scalar lanes. They assert the signed endpoint and the non-reversed opposite
 axis independently.
 
-### Geometry Boundary
+### 11.3 Geometry Boundary
 
 `FRI-02` replaces the ambiguous model and migrates current constructors,
 rounding, cache storage, output, and tests to it. It does not assert that the
@@ -967,7 +966,7 @@ remain `FRI-05` work.
 No current offset is stored in `ScrollGeometryOf`. Layout outputs geometry;
 root runtime owns live state.
 
-## FRI-02.12 Errors And Failure Semantics
+## 12 FRI-02.12 Errors And Failure Semantics
 
 `FlowAxes` construction cannot fail. Every `WritingMode`/`Direction` pair is a
 valid layout-ready state.
@@ -991,9 +990,9 @@ panic. A vertical `LineBreakInputOf` with `Clear` other than `None` remains the
 explicit `BLOCK-014`/FRI-06 capability finding; FRI-02 neither exercises it as
 owned acceptance nor weakens its existing evidence.
 
-## FRI-02.13 Browser Fixture And Oracle Contract
+## 13 FRI-02.13 Browser Fixture And Oracle Contract
 
-### Parser And Generator
+### 13.1 Parser And Generator
 
 The layout-owned XML parser accepts all five exact writing-mode strings. The
 generator records the browser's computed writing mode without normalizing
@@ -1003,7 +1002,7 @@ error.
 Generated XML continues to store physical x/y/width/height and source
 provenance. Generator output is never hand-edited.
 
-### Ordinary Block Families
+### 13.2 Ordinary Block Families
 
 Add five HTML families:
 
@@ -1019,7 +1018,7 @@ cover LTR/RTL and content-box/border-box. A named non-ignored integration test
 requires all four variants of all five families and compares them through
 `compute_layout`.
 
-### Non-Leaf Flex Families
+### 13.3 Non-Leaf Flex Families
 
 Add the 20 family cross product:
 
@@ -1038,7 +1037,7 @@ A named non-ignored integration test requires the exact path set and runs all
 vertical cases remain valid text-measurement coverage but are not counted as
 flex-axis evidence.
 
-### Grid Families
+### 13.4 Grid Families
 
 Add these exact nine ordinary-grid intrinsic-axis families, each with unequal
 column and row totals and at least one in-flow item whose position exposes the
@@ -1108,7 +1107,7 @@ XML files. Every HTML family is an active `surgeist` case in `corpus.toml`, and
 the report contract below accounts for all FRI-02 files without hiding unrelated
 corpus classifications.
 
-### FRI-02 Generation Reports
+### 13.5 FRI-02 Generation Reports
 
 `corpus.toml` retains the schema version 2 implemented by C03 and remains the
 sole fixture-phase owner of the browser pin, stable launch profile, and report
@@ -1254,7 +1253,7 @@ path sets, reject missing/misplaced/duplicate variants, and compare every case
 through `compute_layout`. A child-only writing mode under an otherwise
 horizontal container cannot satisfy a container-axis family.
 
-### Oracle And Property Evidence
+### 13.6 Oracle And Property Evidence
 
 The test matrix includes:
 
@@ -1271,7 +1270,7 @@ The test matrix includes:
 Property tests generate finite extents and positions. Named concrete tests remain
 the primary evidence for each behavior and failure class.
 
-## FRI-02.14 Module And Code Outline
+## 14 FRI-02.14 Module And Code Outline
 
 | Area | Required outcome |
 | --- | --- |
@@ -1293,7 +1292,7 @@ No module may define another exhaustive `WritingMode` mapping table. Direct
 matches are limited to the one owning geometry implementation, enum parsing,
 and tests that verify the canonical table.
 
-## FRI-02.15 Root Integration Handoff
+## 15 FRI-02.15 Root Integration Handoff
 
 After a published layout candidate exists, the archival root handoff states
 that root later must:
@@ -1312,7 +1311,7 @@ that root later must:
 
 Layout does not edit root, style, retained, text, or generated root artifacts.
 
-## FRI-02.16 Dependency, Feature, Artifact, Documentation, And MSRV Impact
+## 16 FRI-02.16 Dependency, Feature, Artifact, Documentation, And MSRV Impact
 
 No new third-party dependency or feature is required. The existing optional
 `chromiumoxide` `fetcher`, `rustls`, and `zip8` features remain because managed
@@ -1404,7 +1403,7 @@ production argument constant remains. That list retains `use-mock-keychain`, `no
 suppression, and the required layout feature flags. No documented or internal
 single-use path executes Chrome directly or omits this builder.
 
-### Generator Stability Invariants
+### 16.1 Generator Stability Invariants
 
 The current fixture-generation operating profile is preserved as tested
 behavior. FRI-02 changes browser resolution/version validation and centralizes
@@ -1474,9 +1473,9 @@ README and rustdoc document:
 
 Surgeist-owned Rust remains free of `unsafe`.
 
-## FRI-02.17 Required Test Evidence
+## 17 FRI-02.17 Required Test Evidence
 
-### Construction And Mapping
+### 17.1 Construction And Mapping
 
 Tests cover every public constructor and accessor, all 10 mapping rows, opposing
 sides, axis inversion, sideways-lr direction inversion, physical/logical round
@@ -1503,7 +1502,7 @@ convert(range).clamp(convert(offset)) == convert(range.clamp(offset))
 They also prove that each clamped result lies inside its range and that a second
 clamp is idempotent.
 
-### Algorithm Behavior
+### 17.2 Algorithm Behavior
 
 Focused tests use the real public `compute_layout` front door and prove:
 
@@ -1533,7 +1532,7 @@ interval on every reversed axis for all 10 mappings and both scalar lanes. A
 production-source search rejects direct physical range construction from
 overflow extents outside the one `FlowAxes` projection pipeline.
 
-### Fixture Evidence
+### 17.3 Fixture Evidence
 
 The block, flex, and grid family inventories are exact. Missing variants,
 duplicates, misplaced paths, leaf-lowered flex topology, unsupported
@@ -1564,7 +1563,7 @@ one-shot path through the same measurement and launch configuration.
 `check-corpus` passes without a browser environment, rejects every missing or
 extra report filename, and verifies the exact scoped/full report relationships.
 
-### Regression Boundary
+### 17.4 Regression Boundary
 
 Existing focused evidence for later findings remains visible. A FRI-02 test does
 not change an unrelated expected result merely to make axis migration green. If
@@ -1573,7 +1572,7 @@ the exact later-owned behavior without weakening the FRI-02 assertion.
 The vertical line-break clear panic remains visible as `BLOCK-014` evidence and
 is not reclassified as an FRI-02 regression.
 
-## FRI-02.18 Verification Surface
+## 18 FRI-02.18 Verification Surface
 
 The product verification surface includes these repository commands. Their
 execution, review, landing, and publication procedure remains owned solely by
@@ -1605,7 +1604,7 @@ The ignored full browser corpus is not claimed as FRI-02 closure; `FRI-13` owns
 the aggregate normal-verification gate. Every FRI-02-owned family itself is
 non-ignored and green.
 
-## FRI-02.19 Finding Closure Matrix
+## 19 FRI-02.19 Finding Closure Matrix
 
 | Finding | Closure condition | Evidence |
 | --- | --- | --- |
@@ -1615,7 +1614,7 @@ non-ignored and green.
 | `OVERFLOW-004` | Public offset/range types name physical or flow-relative coordinates, encode signed minima/maxima, and convert through the canonical mapping. | Constructor/error/round-trip tests, public API search, and `ScrollGeometry` contract review. |
 | `TEST-005` | Default parity evidence proves target flex nodes are non-leaf and executes all five writing modes through flex layout. | Exact topology-checked family inventory and non-ignored comparison test. |
 
-## FRI-02.20 Initiative Acceptance
+## 20 FRI-02.20 Initiative Acceptance
 
 `FRI-02` is complete only when all of the following are true:
 

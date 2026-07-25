@@ -1,17 +1,16 @@
-# FRI-03 Box Participation Contracts
+# P01-I03 Box Participation Contracts
 
-Status: draft
 
 Design owner: `surgeist-layout`
 
 Specification ID: `FRI-03`
 
-## FRI-03.1 Authority And Outcome
+## 1 FRI-03.1 Authority And Outcome
 
 This specification is the direct desired-state contract for `FRI-03` in
-`plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`. It owns
+`plans/P01-layout/P01-index.md`. It owns
 closure of `MODEL-001`, `CORE-005`, and `BLOCK-007` from
-`plans/2026-07-10-surgeist-layout-full-code-review-findings.md`.
+`plans/P01-layout/P01-initial-review-findings.md`.
 
 The outcome is one layout-ready participation model in which:
 
@@ -35,9 +34,9 @@ This is a breaking pre-release correction. Backward compatibility is not
 required. Removed or renamed APIs are not retained through aliases, deprecated
 wrappers, duplicate fields, or permissive conversions.
 
-## FRI-03.2 Scope And Non-Goals
+## 2 FRI-03.2 Scope And Non-Goals
 
-### Owned Scope
+### 2.1 Owned Scope
 
 This specification owns:
 
@@ -69,7 +68,7 @@ This specification owns:
 - public reexports, crate docs, focused tests, reports, and root integration
   requirements.
 
-### Explicit Non-Goals
+### 2.2 Explicit Non-Goals
 
 This specification does not:
 
@@ -104,9 +103,9 @@ This specification does not:
   repositories; or
 - acquire software, add `unsafe`, or change the crate's MSRV.
 
-## FRI-03.3 Standards And Current Evidence
+## 3 FRI-03.3 Standards And Current Evidence
 
-### Normative Evidence
+### 3.1 Normative Evidence
 
 CSS Display Level 3 defines `order` as an integer with initial value zero,
 applying to flex and grid items. Flex and grid containers lay items out from the
@@ -151,7 +150,7 @@ rounded through a layout scalar:
 
 - <https://www.w3.org/TR/css-values-4/#integers>
 
-### Source Evidence At The Published Base
+### 3.2 Source Evidence At The Published Base
 
 This table describes clean published commit
 `14f887823c22b69c083e522a73826e6a30b180e0`.
@@ -177,9 +176,9 @@ scopes). Root `surgeist` is clean at
 `19590f6d9fa01c0df197c5ef07fb626c5cf18ced`; its committed layout gitlink is
 `c0c6852610b835b60e46c680fbd1a4fb127d1d13`.
 
-## FRI-03.4 Resolved Design Decisions
+## 4 FRI-03.4 Resolved Design Decisions
 
-### `D-01` Item Order And Source Index Are Different Types
+### 4.1 `D-01` Item Order And Source Index Are Different Types
 
 `ItemOrder` is a public scalar-independent newtype over `i32`. Every signed
 32-bit value is valid. `ItemOrder::ZERO` and `Default` represent the CSS initial
@@ -220,7 +219,7 @@ and makes a non-geometric value vary between scalar lanes.
 Rejected alternative: replacing source identity with order-modified rank breaks
 source-aligned grid/subgrid reports and equal-order identity.
 
-### `D-02` One Stable Order-Modified Permutation Serves Layout Algorithms
+### 4.2 `D-02` One Stable Order-Modified Permutation Serves Layout Algorithms
 
 One crate-private helper accepts a finite sequence of in-flow source indexes and
 their `ItemOrder` values and returns a permutation sorted lexicographically by:
@@ -257,7 +256,7 @@ initiative. All outputs continue to publish their source indexes. Hidden
 children receive their actual enumerated source indexes even though they occupy
 no layout slot; a hidden root uses `SourceIndex::ZERO`.
 
-### `D-03` Containing Flow And Parent Formatting Context Travel Together
+### 4.3 `D-03` Containing Flow And Parent Formatting Context Travel Together
 
 `ParentFormattingContext` is a public closed enum:
 
@@ -348,7 +347,7 @@ confuses inner layout with outer participation and repeats the present bug.
 Rejected alternative: expanding `Display` is owned by `FRI-12A`, not this
 initiative.
 
-### `D-04` Parent Context Gates Only Boundary Collapse
+### 4.4 `D-04` Parent Context Gates Only Boundary Collapse
 
 A block box in `BlockFlow` may collapse its block-start/block-end margins with
 its first/last in-flow block child when all existing style, edge, size,
@@ -365,7 +364,7 @@ The gate is logical-axis neutral. Existing `FlowAxes` and
 `PhysicalBlockMarginCollapseOf` remain the only owners of mapping and physical
 collapse output; this initiative adds no physical top/bottom special case.
 
-### `D-05` Replacedness Remains An Independent Proposition
+### 4.5 `D-05` Replacedness Remains An Independent Proposition
 
 `pub item_is_replaced: bool` remains the representation and defaults to false.
 A boolean is appropriate because replacedness is one independent proposition,
@@ -397,7 +396,7 @@ This initiative does not globally exempt replaced flex items from stretch and
 does not invent natural dimensions when no measurement provider or authored
 size exists.
 
-### `D-06` Batch Entry Order Is Not CSS Order
+### 4.6 `D-06` Batch Entry Order Is Not CSS Order
 
 `CompletedLayoutBatchOf::final_entries()` retains source-tree rounding
 traversal. `unrounded_entries()` remains computation staging order and is not a
@@ -408,7 +407,7 @@ read `output.source_index`; they do not infer identity from slice position.
 The implementation need not buffer flex/grid staging writes merely to make
 unrounded entries follow CSS order or source order.
 
-## FRI-03.5 Public Contract
+## 5 FRI-03.5 Public Contract
 
 The completed public front door includes and reexports:
 
@@ -437,9 +436,9 @@ All new types are scalar-independent and derive the ordinary copy/debug/equality
 and ordering/hash traits required by their semantic use. They introduce no
 generic scalar bound and no runtime allocation.
 
-## FRI-03.6 Algorithm Contracts
+## 6 FRI-03.6 Algorithm Contracts
 
-### Order Matrix
+### 6.1 Order Matrix
 
 | Algorithm/path | Eligible order consumers | Ordering point | Storage/output invariant |
 | --- | --- | --- | --- |
@@ -455,7 +454,7 @@ Required cases include negative, zero, positive, and equal values; flex row and
 reverse progression; grid row/column flow; sparse/dense placement; mixed fully
 definite, definite-major, and auto items; and grid-lanes running offsets.
 
-### Parent-Context Matrix
+### 6.2 Parent-Context Matrix
 
 | Current box context | Boundary margin behavior | Constructor owner |
 | --- | --- | --- |
@@ -469,7 +468,7 @@ parent-formatting role. Intrinsic passes do not silently fall back to
 `BlockFlow`. The role is observable in cache identity even when the current
 request's geometry happens to match.
 
-## FRI-03.7 Failure And Numeric Semantics
+## 7 FRI-03.7 Failure And Numeric Semantics
 
 - Every `i32` item order and every `usize` source index is valid; their
   constructors are infallible.
@@ -488,9 +487,9 @@ request's geometry happens to match.
 - Existing fallible length, measurement, scroll, and tree operations retain
   their current typed errors.
 
-## FRI-03.8 Browser, Fixture, And Oracle Contract
+## 8 FRI-03.8 Browser, Fixture, And Oracle Contract
 
-### Narrow Generator/Parser Update
+### 8.1 Narrow Generator/Parser Update
 
 The existing constrained-HTML pipeline changes only as follows:
 
@@ -586,7 +585,7 @@ Browser-derived evidence identifies the already-present pinned Chrome
 `149.0.7827.115`, the repository-relative cached executable, and the unchanged
 manifest-owned launch profile. It requires no managed acquisition.
 
-### Replaced Evidence Boundary
+### 8.2 Replaced Evidence Boundary
 
 The current browser harness converts authored/replaced natural sizing into used
 style dimensions and only provides text/zero-size leaf measurement. Inferring
@@ -597,7 +596,7 @@ paired non-replaced controls, both scalar lanes, and the normative standards
 links in this specification. No XML is hand-authored and no replaced case is
 hidden in an unsupported bucket.
 
-### Focused Evidence
+### 8.3 Focused Evidence
 
 The implementation supplies at least:
 
@@ -655,7 +654,7 @@ The implementation supplies at least:
 - flex automatic-minimum tests in which content and transferred suggestions
   differ, plus preservation of replaced cross-axis stretch.
 
-## FRI-03.9 Source And Module Outline
+## 9 FRI-03.9 Source And Module Outline
 
 | Path | Required responsibility |
 | --- | --- |
@@ -681,7 +680,7 @@ The implementation supplies at least:
 No new module, feature, dependency, build script, proc macro, code generator,
 or external crate is introduced.
 
-## FRI-03.10 Root Integration Contract
+## 10 FRI-03.10 Root Integration Contract
 
 Root integration is deliberately read-only in this leaf initiative. A
 compatible root composition has these observable requirements:
@@ -706,7 +705,7 @@ The current root style API has no `Order` property, and
 `src/adapters/style_layout.rs` lowers only `style::Resolved` while defaulting
 non-style box facts. This leaf does not guess either missing fact or edit root.
 
-## FRI-03.11 Compatibility, Feature, And Documentation Impact
+## 11 FRI-03.11 Compatibility, Feature, And Documentation Impact
 
 - Adding `NodeInputOf::item_order` breaks exhaustive public struct literals;
   default/FRU construction receives zero.
@@ -731,7 +730,7 @@ non-style box facts. This leaf does not guess either missing fact or edit root.
   launch profile, import provenance, or MSRV changes.
 - Source remains authoritative; root owns generated API artifacts.
 
-## FRI-03.12 Initiative-Wide Evidence
+## 12 FRI-03.12 Initiative-Wide Evidence
 
 Geometry evidence covers both scalar lanes. The generator's focused tests,
 corpus validation, the full report, exact owned-output inventory, and
@@ -744,7 +743,7 @@ but is not an FRI-03 green gate: it contains failures owned by later initiatives
 FRI-03 neither weakens nor quarantines those failures and claims only its exact
 nonignored 32-output union.
 
-## FRI-03.13 Finding Closure Matrix
+## 13 FRI-03.13 Finding Closure Matrix
 
 | Finding | Closure evidence |
 | --- | --- |
@@ -756,7 +755,7 @@ No later initiative may claim closure for these IDs. `FRI-07`, `FRI-08`, and
 `FRI-12A` consume the completed order, replaced, and participation contracts
 without reopening their FRI-03-owned behavior.
 
-## FRI-03.14 Acceptance
+## 14 FRI-03.14 Acceptance
 
 FRI-03 is complete only when:
 

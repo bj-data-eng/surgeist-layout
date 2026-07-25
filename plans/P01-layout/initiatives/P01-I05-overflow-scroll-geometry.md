@@ -1,19 +1,18 @@
-# FRI-05 Overflow And Scroll Geometry
+# P01-I05 Overflow And Scroll Geometry
 
-Status: draft
 
 Design owner: `surgeist-layout`
 
 Specification ID: `FRI-05`
 
-## FRI-05.1 Authority And Outcome
+## 1 FRI-05.1 Authority And Outcome
 
 This specification is the direct desired-state contract for `FRI-05` in
-`plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`. It owns
+`plans/P01-layout/P01-index.md`. It owns
 closure of `BLOCK-001`, `BLOCK-002`, `GRID-011`, `OVERFLOW-001`,
 `OVERFLOW-002`, `OVERFLOW-003`, `OVERFLOW-005`, `CORE-006`, `GRID-009`, and
 `TEST-002` from
-`plans/2026-07-10-surgeist-layout-full-code-review-findings.md`.
+`plans/P01-layout/P01-initial-review-findings.md`.
 
 The outcome is one layout-owned overflow contract in which:
 
@@ -56,9 +55,9 @@ This is a breaking pre-release correction. Backward compatibility is not
 required. Removed constructors, fields, aliases, and deferred-capability
 variants are not retained through wrappers or duplicate paths.
 
-## FRI-05.2 Scope And Non-Goals
+## 2 FRI-05.2 Scope And Non-Goals
 
-### Owned Scope
+### 2.1 Owned Scope
 
 This specification owns:
 
@@ -94,7 +93,7 @@ This specification owns:
 - explicit later-owner boundaries where overflow consumes behavior but does not
   absorb its formatting algorithm.
 
-### Explicit Non-Goals
+### 2.2 Explicit Non-Goals
 
 This specification does not:
 
@@ -135,9 +134,9 @@ This specification does not:
 - acquire software, change dependencies or feature flags, add `unsafe`, or
   change the crate's MSRV.
 
-## FRI-05.3 Standards And Current Evidence
+## 3 FRI-05.3 Standards And Current Evidence
 
-### Normative Evidence
+### 3.1 Normative Evidence
 
 CSS Overflow Level 3 defines `visible`, `hidden`, `clip`, `scroll`, and `auto`,
 the computed coupling of physical overflow axes, replaced-element used-value
@@ -204,7 +203,7 @@ The standards define more rendering and host behavior than this layout crate
 owns. FRI-05 implements the layout-ready inputs and geometry needed at the leaf
 boundary; the explicit non-goals above remain outside that claim.
 
-### Source Evidence At The Published Base
+### 3.2 Source Evidence At The Published Base
 
 This table describes clean published commit
 `683ffac1b7ba633410aca6b490dc2ac65bc9c8bd`.
@@ -235,9 +234,9 @@ and one canonical full generation report. Exactly 312 checked-in XML files carry
 paired `scroll_width` and `scroll_height` expectations. These counts describe
 the input baseline; the final report owns the post-fixture counts.
 
-## FRI-05.4 Resolved Design Decisions
+## 4 FRI-05.4 Resolved Design Decisions
 
-### `D-01` Node Input Carries Canonical Computed Overflow
+### 4.1 `D-01` Node Input Carries Canonical Computed Overflow
 
 `Overflow` remains one public closed semantic choice and adds `Auto`:
 
@@ -343,7 +342,7 @@ Rejected alternative: normalizing mixed specified values in layout would move
 authored-style computation into the leaf crate and make fixture/root behavior
 diverge.
 
-### `D-02` Scroll Properties Are Layout-Ready Closed Values
+### 4.2 `D-02` Scroll Properties Are Layout-Ready Closed Values
 
 The following public input types are owned by `surgeist-layout`:
 
@@ -420,7 +419,7 @@ Rejected alternative: precomputing snap positions in layout requires retained
 identity, ancestor capture, transforms, and host policy that this crate does not
 own.
 
-### `D-03` Output Separates Container Geometry From Target Geometry
+### 4.3 `D-03` Output Separates Container Geometry From Target Geometry
 
 `ScrollGeometryOf<S>` is immutable container/output geometry. It exposes:
 
@@ -558,7 +557,7 @@ Rejected alternative: placing a registry or list of descendant targets inside
 each container geometry would duplicate tree identity and create retained snap
 state in the leaf.
 
-### `D-04` Derived Geometry Has One Canonical Factory
+### 4.4 `D-04` Derived Geometry Has One Canonical Factory
 
 `ScrollRectOf::new` is replaced by `ScrollRectOf::try_new` with a scalar-generic
 `ScrollRectErrorOf<S>`. Construction rejects:
@@ -623,7 +622,7 @@ Rejected alternative: broadening validation in the existing arbitrary
 `ScrollGeometryOf::new` still allows two independently calculated but mutually
 inconsistent sources of truth.
 
-### `D-05` Small Boxes Use Proportionally Saturated Edge Reservations
+### 4.5 `D-05` Small Boxes Use Proportionally Saturated Edge Reservations
 
 All box derivation is per axis and saturating. Border, padding, and requested
 gutter insets are non-negative, but their sum may exceed a final small border or
@@ -648,7 +647,7 @@ an invalid `-13px` width.
 Border and padding inset derivation uses the same non-negative saturation rule
 for rectangles, but authored border and padding output values are not rewritten.
 
-### `D-06` Scrollbar Placement And Auto Coupling Are Flow-Aware
+### 4.6 `D-06` Scrollbar Placement And Auto Coupling Are Flow-Aware
 
 Scrollbar reservation is expressed in logical roles and then placed through
 `FlowAxes`:
@@ -715,7 +714,7 @@ Rejected alternative: running the entire layout twice unconditionally makes a
 diagnostic technique part of ordinary verification and still misses cross-axis
 induction that needs a third state.
 
-### `D-07` Clip Edges Are Per Axis
+### 4.7 `D-07` Clip Edges Are Per Axis
 
 For used `Hidden`, `Scroll`, or `Auto`, the clip interval on that physical axis
 is the corresponding scrollport interval. Overflow clip margin has no effect.
@@ -749,7 +748,7 @@ trapped child cannot enlarge the parent through nested overflow or activate the
 parent's auto gutter merely because a formatting helper preserved its local clip
 rectangle.
 
-### `D-08` One Shared Accumulator Owns Contribution Semantics
+### 4.8 `D-08` One Shared Accumulator Owns Contribution Semantics
 
 `src/scroll.rs` owns one crate-private accumulator used by root, block, flex,
 ordinary grid, subgrid, and grid-lanes. It tracks minimum and maximum physical
@@ -794,7 +793,7 @@ negative origins, child clips, and transitive overflow.
 Rejected alternative: ignoring every zero-area child also ignores the standard
 case where a zero-area box has non-zero descendant scrollable overflow.
 
-### `D-09` Ranges Own Format Origins And Alignment Overflow
+### 4.9 `D-09` Ranges Own Format Origins And Alignment Overflow
 
 The initial layout scroll offset is physical zero. Every range contains zero.
 Root can later choose another current or snap-initial offset inside that range,
@@ -895,7 +894,7 @@ its subject. It must feed the resulting subject into this FRI-05 origin contract
 it does not own a second range convention or defer the existing alignment-origin
 behavior defined here.
 
-### `D-10` Box And Content Extents Are Axis-Independent
+### 4.10 `D-10` Box And Content Extents Are Axis-Independent
 
 The canonical output content box is derived from final border size and effective
 edges. Every subtraction saturates x and y independently.
@@ -916,7 +915,7 @@ Range remains the authoritative scroll delta because it also accounts for
 scrollport, direction, clipping mode, and unreachable overflow. Browser parity
 never substitutes `content_size` for range.
 
-### `D-11` Rounding Rebuilds Derived Geometry
+### 4.11 `D-11` Rounding Rebuilds Derived Geometry
 
 Rounding operates on the source border size, resolved edges, effective
 scrollbar state, accumulated overflow, format-origin progression, active
@@ -933,7 +932,7 @@ bounds in the retained format origin, then projected through the retained
 `FlowAxes`. Target geometry rounds its local border box; finite scroll-margin
 input and semantic snap values are retained.
 
-### `D-12` Browser Scroll Expectations Compare Range Span
+### 4.12 `D-12` Browser Scroll Expectations Compare Range Span
 
 The generator's existing expectation meaning remains:
 
@@ -960,7 +959,7 @@ The helper continues to emit the paired attributes only for browser computed
 overflow that can be a scroll container (`hidden`, `scroll`, or `auto`). The XML
 parser continues to require both attributes together.
 
-### `D-13` Fixture Lowering Is Narrow And Computed-Style Based
+### 4.13 `D-13` Fixture Lowering Is Narrow And Computed-Style Based
 
 The browser helper records these additional computed-style fields:
 
@@ -999,7 +998,7 @@ owned.
 Rejected alternative: placing parser-only variants in production enums would
 mix fixture and normalized phases.
 
-## FRI-05.5 Public Contract
+## 5 FRI-05.5 Public Contract
 
 The public front door reexports the types named in Sections D-01 through D-04,
 their default-scalar aliases, `ScrollCoordinateErrorOf`, and the signed scroll
@@ -1040,9 +1039,9 @@ on output geometry but cannot manufacture phase-ambiguous facts. No
 compatibility alias for the other removed constructors, raw overflow point,
 scrollbar field, or unsupported-feature enum remains.
 
-## FRI-05.6 Behavior Matrices
+## 6 FRI-05.6 Behavior Matrices
 
-### Computed And Used Overflow Matrix
+### 6.1 Computed And Used Overflow Matrix
 
 | Computed value | Computed scrollable | Computed block-container IFC/BFC | Ordinary used value | Replaced used value | Used clip/range | Used classic gutter/UI |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -1058,7 +1057,7 @@ scrollability group. This table does not add the missing general BFC/float
 algorithm owned by FRI-06; it requires current margin-collapse and existing
 formatting-context branches to classify `Auto` correctly.
 
-### Geometry Presence Matrix
+### 6.2 Geometry Presence Matrix
 
 | Output state | Container geometry | Target geometry |
 | --- | --- | --- |
@@ -1068,7 +1067,7 @@ formatting-context branches to classify `Auto` correctly.
 | Line-break or inline-boundary control | `None` | Absent |
 | Measurement-only result with no box output | `None` | Absent |
 
-### Child Propagation Matrix
+### 6.3 Child Propagation Matrix
 
 | Child used overflow on axis | Child nested overflow contribution to parent on that axis |
 | --- | --- |
@@ -1079,7 +1078,7 @@ The child's own positive-area border/margin contribution is independent of this
 matrix. A zero-area child's own box remains excluded; only a used-visible
 propagatable descendant interval can exercise the zero-area exception.
 
-### Invalid And Failure Matrix
+### 6.4 Invalid And Failure Matrix
 
 | Input or state | Result |
 | --- | --- |
@@ -1095,9 +1094,9 @@ propagatable descendant interval can exercise the zero-area exception.
 | Impossible geometry after validated inputs | Contextual `LayoutInternalInvariant`, never panic and never later-FRI unsupported |
 | Missing output geometry for a present browser scroll expectation | Parity mismatch |
 
-## FRI-05.7 Algorithm Integration Contract
+## 7 FRI-05.7 Algorithm Integration Contract
 
-### Root And Leaf
+### 7.1 Root And Leaf
 
 Root and leaf use the same canonical box/reservation/range factory as formatting
 containers. Leaf measurement receives the effective content box for the current
@@ -1112,7 +1111,7 @@ The existing fully known `ComputeSize` fast path remains measurement-free and
 invokes it zero times. Tree-backed measurement follows the same applicable input
 sequence.
 
-### Block
+### 7.2 Block
 
 Block moves its local accumulator behavior to the shared scroll module. It
 retains current margin-collapse and line/float calculations, but contributes
@@ -1125,7 +1124,7 @@ so `Auto` follows hidden/scroll and `Visible`/`Clip` do not. Its range origin is
 flow inline/block start and it supplies no content-distribution start adjustment
 until FRI-09 adds block content alignment.
 
-### Flex
+### 7.3 Flex
 
 Flex performs its sizing and placement with the effective scrollbar reservation
 for the current pass. After final placement it accumulates every in-flow item and
@@ -1140,7 +1139,7 @@ content subjects independently from out-of-flow overflow. FRI-07 remains
 responsible for missing flex sizing and positioning semantics, not for a second
 overflow path.
 
-### Grid, Subgrid, And Grid-Lanes
+### 7.4 Grid, Subgrid, And Grid-Lanes
 
 Ordinary grid and grid-lanes use the effective reservation in available content
 space and track the final container-relative item location. Their final
@@ -1165,7 +1164,7 @@ before this decision. Ordinary grid, intrinsic subgrid, and grid-lanes share
 that helper; no caller performs a context-free `Column => x` or `Row => y`
 match.
 
-### Cache And Diagnostics
+### 7.5 Cache And Diagnostics
 
 Every final `NodeOutputOf` field, including container geometry and target
 geometry, participates in existing cache equality and cached/uncached tests.
@@ -1175,7 +1174,7 @@ Errors preserve the existing contextual subject/site mapping. Temporary
 diagnostic instrumentation is removed before task completion and is never used
 as closure evidence.
 
-## FRI-05.8 Focused Evidence
+## 8 FRI-05.8 Focused Evidence
 
 The initiative requires these named evidence families:
 
@@ -1211,7 +1210,7 @@ The absolute unsafe scan covers all tracked and non-ignored Surgeist-owned Rust
 files. No FRI-05 code, test, fixture helper, or generator change may add or retain
 executable `unsafe`.
 
-## FRI-05.9 Module And Implementation Outline
+## 9 FRI-05.9 Module And Implementation Outline
 
 | Module or artifact | Desired responsibility |
 | --- | --- |
@@ -1238,7 +1237,7 @@ The implementation may choose private helper names and internal struct
 decomposition. It may not weaken the public phases, construction invariants,
 matrices, or ownership boundaries above.
 
-## FRI-05.10 Errors, Capabilities, And State
+## 10 FRI-05.10 Errors, Capabilities, And State
 
 FRI-05 leaves no layout-owned deferred capability for its input surface.
 `Overflow::Auto`, clip margin, stable/both-edge gutters, scroll padding, scroll
@@ -1258,9 +1257,9 @@ An internal geometry failure identifies the formatting operation and subject
 through the existing `LayoutErrorOf` context. It is not erased to a string and
 does not panic.
 
-## FRI-05.11 Browser, Fixture, And Artifact Contract
+## 11 FRI-05.11 Browser, Fixture, And Artifact Contract
 
-### Owned Browser Sources
+### 11.1 Owned Browser Sources
 
 FRI-05 adds exactly these eleven active Surgeist HTML sources under the existing
 suite directories:
@@ -1313,7 +1312,7 @@ alignment-origin evidence. FRI-05 changes neither their authored alignment
 values nor the alignment algorithm merely to obtain a preferred range; it
 compares the range implied by their final browser-backed positions.
 
-### One Final Full Regeneration
+### 11.2 One Final Full Regeneration
 
 During implementation, a scoped ExistingPinned generation may be used to
 diagnose a changed source. It is report-free, may touch only matching derived
@@ -1347,14 +1346,14 @@ No generated XML or report is hand-edited. The final inventory contains one
 full canonical report, no scoped report, no stale XML, no expected failure or
 quarantine introduced for an owned FRI-05 behavior, and exact source provenance.
 
-### Verification Boundary
+### 11.3 Verification Boundary
 
 FRI-05 verification uses the repository's existing `just` recipes for normal,
 generator, and corpus gates. Focused parity filters cover the eleven owned
 sources and named pre-existing regression families. The ignored aggregate
 `just parity-all` release gate remains untouched and unclaimed for `FRI-13`.
 
-## FRI-05.12 Root Integration Handoff
+## 12 FRI-05.12 Root Integration Handoff
 
 At inspected root revision
 `19590f6d9fa01c0df197c5ef07fb626c5cf18ced`, pinned
@@ -1614,7 +1613,7 @@ The leaf adds no adapter or facade compatibility layer. Root may use its own
 temporary migration sequence, but the final integrated surface contains one
 canonical lowering path.
 
-## FRI-05.13 Durable Sequence Boundaries
+## 13 FRI-05.13 Durable Sequence Boundaries
 
 An implementation sequence can derive these durable dependency boundaries
 without redesign:
@@ -1645,7 +1644,7 @@ may proceed independently, while the root adapter/gitlink/API-artifact
 integration waits for those two published candidates and the published FRI-05
 layout candidate.
 
-## FRI-05.14 Finding Traceability
+## 14 FRI-05.14 Finding Traceability
 
 | Finding | Required closure evidence |
 | --- | --- |
@@ -1663,7 +1662,7 @@ layout candidate.
 The initiative status does not advance to complete while any row lacks its named
 implementation and evidence.
 
-## FRI-05.15 Initiative Acceptance
+## 15 FRI-05.15 Initiative Acceptance
 
 FRI-05 is complete only when:
 

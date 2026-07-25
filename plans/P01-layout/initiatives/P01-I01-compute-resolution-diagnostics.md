@@ -1,18 +1,17 @@
-# FRI-01 Compute, Resolution, And Diagnostic Contracts
+# P01-I01 Compute, Resolution, And Diagnostic Contracts
 
-Status: draft
 
 Design owner: `surgeist-layout`
 
 Specification ID: `FRI-01`
 
-## FRI-01.1 Authority And Outcome
+## 1 FRI-01.1 Authority And Outcome
 
 This specification is the direct desired-state contract for `FRI-01` in
-`plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`. It owns
+`plans/P01-layout/P01-index.md`. It owns
 closure of `CORE-001`, `CORE-002`, `CORE-003`, `CORE-004`, `CORE-007`, and
 `DIAG-001` from
-`plans/2026-07-10-surgeist-layout-full-code-review-findings.md`.
+`plans/P01-layout/P01-initial-review-findings.md`.
 
 The outcome is a layout computation substrate in which:
 
@@ -39,9 +38,9 @@ This is a breaking pre-release correction. Backward compatibility is not
 required. Removed APIs are not retained through aliases, adapters, overloads,
 default resolver behavior, or duplicate compute paths.
 
-## FRI-01.2 Scope And Non-Goals
+## 2 FRI-01.2 Scope And Non-Goals
 
-### Owned Scope
+### 2.1 Owned Scope
 
 This specification owns the layout crate's:
 
@@ -56,7 +55,7 @@ This specification owns the layout crate's:
 - public reexports, crate documentation, tests, and layout-owned parity support
   required by those contracts.
 
-### Explicit Non-Goals
+### 2.2 Explicit Non-Goals
 
 This specification does not:
 
@@ -76,7 +75,11 @@ This specification does not:
 - make the full browser corpus green when a fixture still exercises a finding
   owned by another initiative.
 
-## FRI-01.3 Current Evidence
+## 3 FRI-01.3 Historical Baseline Evidence
+
+Unless an exact later revision is named, this section records the planning
+baseline at `8ba9186909b7692a3bfcf88cf39254d16498562c`; it does not describe the
+post-initiative repository tip.
 
 | Evidence ID | Current source fact | Required correction |
 | --- | --- | --- |
@@ -92,9 +95,9 @@ This specification does not:
 | `E-ROOT-1` | Root owns style-to-layout lowering and previously constructed layout calc IDs while building `NodeInput`. | Root later lowers style calc into layout affine coefficients and uses the validated public request contracts. |
 | `E-MSRV-1` | The user-selected project MSRV and current root manifest worktree are Rust 1.97; this leaf manifest has no independent `rust-version`. | Declare `rust-version = "1.97"` in this leaf and verify the implementation with the already-installed Rust 1.97 toolchain. |
 
-## FRI-01.4 Resolved Design Decisions
+## 4 FRI-01.4 Resolved Design Decisions
 
-### `D-01` Calc Is A Storeless Normalized Affine Value
+### 4.1 `D-01` Calc Is A Storeless Normalized Affine Value
 
 Layout calc values are represented by
 `LengthPercentageOf<S> { absolute_px: S, percent_fraction: S }` with private
@@ -117,7 +120,7 @@ Rejected alternative: retaining separate public `Px`, `Percent`, and `Calc`
 variants would preserve phase leakage and force every algorithm to decide which
 variant is basis-dependent.
 
-### `D-02` Resolution Is Explicit Basis Evaluation
+### 4.2 `D-02` Resolution Is Explicit Basis Evaluation
 
 `LengthPercentageOf<S>::resolve_against` receives a
 `PercentageBasisOf<S>`. A definite basis is finite and non-negative. A missing
@@ -130,7 +133,7 @@ context. A non-finite computed result returns
 
 Missing basis is not automatically a compute error. Each consuming property
 algorithm decides whether missing basis has a valid CSS/layout behavior or must
-be raised as `MissingLayoutContextOf::RequiredBasis`.
+be raised as `LayoutMissingContext::RequiredBasis`.
 
 Invalid numeric resolution is always an error when consumed by computation and
 maps to `LayoutErrorKindOf::InvalidInput` with `LayoutOperation::ValueResolution`
@@ -140,7 +143,7 @@ Rejected alternative: mapping every missing basis to zero guesses context.
 Rejected alternative: rejecting every missing basis would break valid intrinsic
 and cyclic sizing behavior.
 
-### `D-03` Current Value Families Collapse Only Where Their Phase Is The Same
+### 4.3 `D-03` Current Value Families Collapse Only Where Their Phase Is The Same
 
 This initiative removes calc-specific variants but does not complete the later
 property-specific sizing split. Current public value families move to the
@@ -159,11 +162,14 @@ constructors reject non-finite input. If implementation introduces a validated
 finite scalar newtype, additional constructors that accept that type may be
 infallible.
 
-### `D-04` The Compute Front Door Uses Requests, Not Public Algorithm Inputs
+### 4.4 `D-04` The Compute Front Door Uses Requests, Not Public Algorithm Inputs
 
-`ComputeInputOf<S>`, `RunMode`, and `SizingMode` stop being public construction
-surface. Recursive algorithm inputs become crate-private and are only produced by
-the layout session. Public callers start from typed root requests such as:
+`RunMode`, `SizingMode`, and recursive `ComputeInputOf<S>` construction stop
+being public surface. Recursive, root, child, and hidden-layout inputs become
+crate-private and are only produced by the layout session. `ComputeInputOf<S>`
+retains only the validated public `leaf_layout` and `leaf_content_size`
+constructors required by the standalone `compute_leaf` front door. Public
+tree callers start from typed root requests such as:
 
 ```rust
 pub struct LayoutRootRequestOf<S: LayoutScalar = DefaultScalar> { /* private */ }
@@ -189,7 +195,7 @@ Rejected alternative: keeping `ComputeInputOf` publicly constructible would keep
 invalid run-mode and availability combinations expressible and would make every
 internal scheduling change a public product surface.
 
-### `D-05` Root Computation Produces A Completed Batch
+### 4.5 `D-05` Root Computation Produces A Completed Batch
 
 Public root layout returns:
 
@@ -215,7 +221,7 @@ tree implementations that allocate during apply. Requiring computation to return
 the validated batch keeps failure atomicity inside layout without pretending all
 host state writes are infallible.
 
-### `D-06` Cache Writes Are Batch Entries
+### 4.6 `D-06` Cache Writes Are Batch Entries
 
 Cache hits and stores use the same private algorithm input identity as
 computation and store complete `ComputeOutputOf<S>`. Cache mutations are staged
@@ -229,7 +235,7 @@ normalized layout-ready values through the node input identity or the cache's
 existing node/input invalidation contract. If a future nonlinear value adds
 external identity, that future type must define its own cache key contract.
 
-### `D-07` Measurement Is Content-Space And Validated
+### 4.7 `D-07` Measurement Is Content-Space And Validated
 
 Leaf measurement receives one validated input:
 
@@ -242,9 +248,11 @@ padding, border, and reserved scrollbar insets and flooring at zero. Intrinsic
 availability remains symbolic as min-content or max-content. The callback
 receives only `LeafMeasureInputOf<S>` and returns `Result<Size<S>, M>`, where
 `M` is the compute provider's associated measurement error. The direct leaf
-helper returns `Result<ComputeOutputOf<S>, LeafMeasureErrorOf<S, M>>` in
-`FRI-01-C02`; the tree-backed root/session result envelope remains `FRI-01-C03`
-work.
+helper returns `LayoutResultOf<(), ComputeOutputOf<S>, S, M>` with standalone
+site identity. Value-resolution failures use the unified invalid-input or
+missing-context envelope, while provider and invalid-output failures use the
+leaf-measurement operation. The tree-backed root/session result uses the same
+envelope with node-bearing sites.
 
 `LeafMeasureErrorOf<S, M>` is a C02-local public error with two closed variants:
 `Provider(M)` and `InvalidOutput(InvalidMeasurementOutputOf<S>)`.
@@ -254,7 +262,7 @@ Layout preserves `M` exactly as the typed safe source and rejects a negative or
 non-finite successful component before adding padding, border, scrollbar,
 cache, or output state.
 
-### `D-08` Numeric Properties Use Distinct Wrappers
+### 4.8 `D-08` Numeric Properties Use Distinct Wrappers
 
 Scrollbar width, flex grow, and flex shrink each use a private-field newtype:
 
@@ -268,7 +276,7 @@ They do not implement `Deref`, arithmetic traits, or an infallible conversion
 from arbitrary scalar. Accessors return the scalar only after construction has
 proved the invariant.
 
-### `D-09` Failures Are Classified, Typed, And Site-Aware
+### 4.9 `D-09` Failures Are Classified, Typed, And Site-Aware
 
 All tree-backed compute functions use `LayoutResultOf<Node, T, S, M>`. A
 `LayoutErrorOf<Node, S, M>` records the original offending site, operation, and
@@ -284,7 +292,7 @@ Public error detail enums are `#[non_exhaustive]` only where later FRI
 initiatives are expected to add domain-specific detail. Closed construction
 errors such as non-negative finite scalar rejection remain exhaustive.
 
-### `D-10` Rounding Is A Named Output Policy
+### 4.10 `D-10` Rounding Is A Named Output Policy
 
 The current `round(value + 0.5).floor()` behavior is named by an explicit
 rounding mode such as `NearestCssPixel`. Public callers do not select
@@ -292,7 +300,7 @@ rounding mode such as `NearestCssPixel`. Public callers do not select
 produces final node output entries in the completed batch while preserving
 unrounded output for algorithms that need it during the same session.
 
-## FRI-01.5 Ownership And Phase Model
+## 5 FRI-01.5 Ownership And Phase Model
 
 | Concept | Owner | Phase | Construction authority | Consumed by |
 | --- | --- | --- | --- | --- |
@@ -306,9 +314,9 @@ unrounded output for algorithms that need it during the same session.
 | numeric wrappers | layout | normalized property values | public constructors and `NodeInput` builders | algorithms |
 | `LayoutErrorOf<Node, S, M>` | layout | diagnostic result | compute/session/domain boundaries | callers, tests, root integration |
 
-## FRI-01.6 Length-Percentage Contract
+## 6 FRI-01.6 Length-Percentage Contract
 
-### Public Shape
+### 6.1 Public Shape
 
 The public value API exposes semantic constructors and accessors, not fields:
 
@@ -321,13 +329,17 @@ pub enum PercentageBasisOf<S: LayoutScalar = DefaultScalar> {
 pub enum NumericResolutionOf<S: LayoutScalar = DefaultScalar> {
     Resolved(S),
     MissingBasis { value: LengthPercentageOf<S> },
-    InvalidNumeric { value: LengthPercentageOf<S>, basis: PercentageBasisOf<S> },
+    InvalidNumeric {
+        value: LengthPercentageOf<S>,
+        basis: PercentageBasisOf<S>,
+        resolved: S,
+    },
 }
 
 impl<S: LayoutScalar> LengthPercentageOf<S> {
     pub const ZERO: Self;
     pub fn px(value: S) -> Result<Self, FiniteScalarErrorOf<S>>;
-    pub fn percent_fraction(value: S) -> Result<Self, FiniteScalarErrorOf<S>>;
+    pub fn from_percent_fraction(value: S) -> Result<Self, FiniteScalarErrorOf<S>>;
     pub fn from_coefficients(
         absolute_px: S,
         percent_fraction: S,
@@ -345,7 +357,7 @@ root style lowering is responsible for producing the final coefficients.
 `PercentageBasisOf::Definite` can only be constructed from a finite,
 non-negative scalar or an already validated `NonNegativeFiniteOf<S>`.
 
-### Resolution Matrix
+### 6.2 Resolution Matrix
 
 | Value | Basis | Resolution |
 | --- | --- | --- |
@@ -354,12 +366,12 @@ non-negative scalar or an already validated `NonNegativeFiniteOf<S>`.
 | `absolute + percent%` where percent is nonzero | definite finite non-negative basis | `Resolved(absolute + percent * basis)` if finite |
 | `absolute + percent%` where percent is nonzero | missing | `MissingBasis { value }` |
 | coefficient is non-finite | any | construction error |
-| computed scalar is non-finite | definite basis | `InvalidNumeric { value, basis }`, mapped to `InvalidInput` by compute |
+| computed scalar is non-finite | definite basis | `InvalidNumeric { value, basis, resolved }`, mapped to `InvalidInput` by compute |
 
 There is no `MissingResolver`, `MissingExpression`, `NonNumeric`, foreign-store,
 or stale-ID state in the layout value model.
 
-## FRI-01.7 Compute Front Door And Session Contract
+## 7 FRI-01.7 Compute Front Door And Session Contract
 
 The public root entry point accepts a tree/read provider, root node, and
 `LayoutRootRequestOf<S>`, then returns a completed batch:
@@ -388,15 +400,14 @@ contract is fixed:
   distinct validated request state;
 - every invalid root request is rejected before traversal begins.
 
-`compute_leaf` remains a public pure helper in `FRI-01-C02` only with the
-validated public leaf measurement contract and
-`Result<ComputeOutputOf<S>, LeafMeasureErrorOf<S, M>>`. C03 wraps that
-leaf-local error into the tree-backed `LayoutResultOf` envelope when the helper
-is used through session/root computation. The helper must not install an
-implicit no-calc context because no resolver context exists after this
-initiative.
+`compute_leaf` remains a public pure helper with the validated public leaf
+measurement contract and
+`LayoutResultOf<(), ComputeOutputOf<S>, S, M>`. It composes value-resolution
+and leaf-measurement failures directly at the standalone site; callers do not
+perform a later envelope-wrapping step. The helper must not install an implicit
+no-calc context because no resolver context exists after this initiative.
 
-## FRI-01.8 Cache Contract
+## 8 FRI-01.8 Cache Contract
 
 Cache storage owns complete outputs:
 
@@ -407,12 +418,42 @@ Cache storage owns complete outputs:
 | Hidden layout or invalidated node | Stage a cache clear in the completed batch. |
 | Error during compute | Drop staged cache changes with the rest of the session. |
 
-No public `CacheKeyContext` hook can hide calc resolver generations or
-consumer-defined dimensions. If a tree needs invalidation, it does so by owning
-cache lifetime and clearing stale entries through layout's typed batch/update
-contract.
+`CacheKeyContext` remains a public zero-field unit value, and
+`LayoutTree::cache_context()` returns it. It cannot carry resolver generation,
+consumer identity, style revision, or any other caller-defined cache dimension.
+The authoritative cache identity is the node plus the complete private
+`ComputeInputOf<S>` projection: run mode, sizing mode, requested axis, known
+size, parent size, containing layout context, available size, settled
+auto-scrollbar state, containing auto-scrollbar pass, and the unit context.
 
-## FRI-01.9 Measurement Contract
+`LayoutTree::cache_get(node, &input, context)` is the read-only cache query and
+returns a complete `ComputeOutputOf<S>`. A container hit is reusable only when
+the tree can also return each required committed unrounded descendant through
+`unrounded_layout(node)`; absence prevents warm-subtree restoration rather than
+inventing state.
+
+Cache validity is a mandatory caller/tree boundary. `cache_get` may return an
+entry only for the current committed node, subtree, topology, and provider
+snapshot. A change to normalized `node_input`, `layout_input`, child structure,
+or provider-owned measurement facts makes the affected node a dirty subject
+before the next compute. The caller supplies those subjects to
+`compute_layout_invalidated`; layout derives the inclusive ancestor closure,
+bypasses stale reads for that closure, and stages its clears. `compute_layout`
+is only the convenience entry point for a tree with no pending dirty subjects.
+
+Cache stores and clears are emitted as typed entries in
+`CompletedLayoutBatchOf`, prepared with all other output state, and committed
+atomically by the caller's `LayoutBatchSink`. Hidden layout bypasses cache, and
+a failed session publishes no cache mutation.
+
+FRI-01 establishes the fail-closed extension rule for later output classes:
+every state needed to reconstruct and publish a warm subtree must have a
+committed readback path. FRI-06 applies that rule with
+`LayoutTree::unrounded_inline_fragments`. `None` means absent committed state,
+`Some(&[])` means committed empty state, and a warm inline-text node without its
+required fragment state fails closed rather than fabricating fragments.
+
+## 9 FRI-01.9 Measurement Contract
 
 `LeafMeasureInputOf<S>` exposes:
 
@@ -433,28 +474,30 @@ The provider result is validated for finite non-negative width and height before
 the algorithm adds padding, border, scrollbar, or cache state. A provider error
 keeps the original `M` as `LeafMeasureErrorOf::Provider(M)`.
 
-`compute_leaf` is the only public C02 function that returns the leaf-local
-measurement error:
+`compute_leaf` is the public standalone leaf front door:
 
 ```rust
 pub fn compute_leaf<S, M>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
-    measure: impl FnOnce(LeafMeasureInputOf<S>) -> Result<Size<S>, M>,
-) -> Result<ComputeOutputOf<S>, LeafMeasureErrorOf<S, M>>
+    measure: impl FnMut(LeafMeasureInputOf<S>) -> Result<Size<S>, M>,
+) -> LayoutResultOf<(), ComputeOutputOf<S>, S, M>
 where
     S: LayoutScalar;
 ```
 
-`LeafMeasureErrorOf::InvalidOutput` is produced only for successful provider
-output whose width or height fails `NonNegativeFiniteOf<S>` construction.
-`InvalidMeasurementOutputOf<S>` exposes `axis() -> Axis` and
-`error() -> NonNegativeFiniteScalarErrorOf<S>` accessors. It does not contain
-layout root site, node identity, operation, batch state, or partial output;
-`FRI-01-C03` wraps this leaf-local error into the tree-backed
-`LayoutErrorOf<Node, S, M>` envelope.
+The internal leaf-measurement boundary produces
+`LeafMeasureErrorOf::InvalidOutput` only for successful provider output whose
+width or height fails `NonNegativeFiniteOf<S>` construction, then composes it as
+`LayoutErrorKindOf::InvalidInput` at standalone site and
+`LayoutOperation::LeafMeasurement`. A provider failure becomes
+`LayoutErrorKindOf::Measurement(M)` at the same site and operation.
+`InvalidMeasurementOutputOf<S>` exposes `axis() -> PhysicalAxis` and
+`error() -> NonNegativeFiniteScalarErrorOf<S>` accessors. Value-resolution
+failures occur before measurement and retain standalone site plus the
+value-resolution operation. No failure exposes batch state or partial output.
 
-## FRI-01.10 Error Contract
+## 10 FRI-01.10 Error Contract
 
 `LayoutErrorOf<Node, S, M>` contains:
 
@@ -466,19 +509,35 @@ layout root site, node identity, operation, batch state, or partial output;
 layout, leaf measurement, value resolution, cache access, rounding/finalization,
 and domain-specific standalone operations such as grid-lane placement.
 
-`LayoutErrorKindOf<S, M>` includes:
+`LayoutErrorKindOf<S, M>` is a non-exhaustive typed payload enum:
 
-| Kind | Examples |
+| Kind | Required detail |
 | --- | --- |
-| `InvalidInput` | non-finite scalar, negative root availability, invalid provider size, invalid numeric property |
-| `MissingContext` | required percentage basis is absent for an operation with no valid indefinite behavior |
-| `UnsupportedCapability` | later-initiative feature represented but not implemented in the current operation |
-| `Measurement` | provider returned `Err(M)` |
-| `InternalInvariant` | a layout-owned invariant failed despite a checked boundary |
+| `InvalidInput(LayoutInvalidInputOf<S>)` | `RootAvailability { axis, error }`, `MeasurementOutput(InvalidMeasurementOutputOf<S>)`, or `InvalidNumeric { value: S }` preserves the applicable typed scalar detail. |
+| `MissingContext(LayoutMissingContext)` | `RequiredBasis` marks a consumed percentage whose operation has no valid indefinite behavior. |
+| `UnsupportedCapability(LayoutUnsupportedCapability)` | `LaterFriBehavior` identifies represented behavior intentionally deferred by this initiative; later initiatives may add typed capability descriptors under the non-exhaustive enum. |
+| `Measurement(M)` | Preserves the provider's original error value. |
+| `InternalInvariant(LayoutInternalInvariant)` | Uses an exact layout-owned invariant such as invalid root scroll geometry, missing leaf provider, or missing staged unrounded output. |
+
+`NumericResolutionOf::MissingBasis { value }` remains available while the
+property algorithm decides whether indefinite behavior is valid. If it is not,
+the envelope records `MissingContext::RequiredBasis` at the consuming site and
+`ValueResolution` operation. `NumericResolutionOf::InvalidNumeric {
+value, basis, resolved }` maps to
+`LayoutInvalidInputOf::InvalidNumeric { value: resolved }` at that same site and
+operation. This mapping intentionally retains the failing scalar and
+classification rather than copying the affine value and basis into the final
+compute envelope; `DIAG-001` requires callers to distinguish valid, unresolved,
+unsupported, and invalid outcomes, not to recover the pre-consumption affine
+expression. A rejected successful measurement maps to
+`LayoutInvalidInputOf::MeasurementOutput`, preserving
+`InvalidMeasurementOutputOf<S>` and therefore its physical axis and
+`NonNegativeFiniteScalarErrorOf<S>`; provider `Err(M)` maps directly to
+`Measurement(M)`.
 
 There is no calc identity error because FRI-01 removes calc identity.
 
-## FRI-01.11 Domain Error Composition
+## 11 FRI-01.11 Domain Error Composition
 
 Existing report or panic paths become typed errors inside the unified envelope:
 
@@ -491,13 +550,13 @@ Existing report or panic paths become typed errors inside the unified envelope:
 
 Temporary unsupported errors do not close later behavior findings.
 
-## FRI-01.12 Public Surface Outline
+## 12 FRI-01.12 Public Surface Outline
 
 | Module | Required change |
 | --- | --- |
 | `src/value.rs` or a focused value submodule | Add `LengthPercentageOf`, `PercentageBasisOf`, `NumericResolutionOf`; remove calc IDs, stores, generations, resolver traits, and no-calc sentinels. |
 | `src/node_input.rs` | Replace raw calc-bearing variants and raw numeric fields along current construction paths; preserve later `FRI-04` sizing-family split as future work. |
-| `src/output.rs` | Make public algorithm input construction private or crate-private; expose validated request/result/batch types. |
+| `src/output.rs` | Make recursive, root, child, and hidden algorithm input construction private or crate-private; retain only validated public `ComputeInputOf::leaf_layout` and `ComputeInputOf::leaf_content_size` construction for the standalone leaf helper; expose validated request/result/batch types. |
 | `src/traits.rs` | Replace mutation-oriented compute hooks with read/provider/session contracts needed by public request computation. |
 | `src/cache.rs` | Store and retrieve complete `ComputeOutputOf<S>` and stage cache changes in the completed batch. |
 | `src/compute.rs` and algorithm modules | Thread session-owned private algorithm input and `LayoutResultOf`; remove panic and implicit no-calc paths. |
@@ -506,10 +565,11 @@ Temporary unsupported errors do not close later behavior findings.
 
 Removed public surface includes `CalcId`, `CalcGeneration`, `CalcResolver`,
 `NoCalcResolver`, `LayoutCalcStore`, `CalcExpression`, `CalcTerm`,
-resolver-free calc-capable resolution methods, and public field construction of
-`ComputeInputOf`.
+resolver-free calc-capable resolution methods, and public field or
+recursive/root/child/hidden construction of `ComputeInputOf`. The validated
+direct-leaf constructors remain public.
 
-## FRI-01.13 Root Integration Handoff
+## 13 FRI-01.13 Root Integration Handoff
 
 Root later owns all integration changes. The handoff must state that root:
 
@@ -525,7 +585,7 @@ Root later owns all integration changes. The handoff must state that root:
 Layout does not implement root adapters, root facade exports, or generated API
 artifacts.
 
-## FRI-01.14 Dependency, Feature, Artifact, And MSRV Impact
+## 14 FRI-01.14 Dependency, Feature, Artifact, And MSRV Impact
 
 No new third-party dependency is allowed or required. The default feature remains
 the normal layout engine. Browser-parity and generator feature behavior remains
@@ -543,7 +603,7 @@ plan to include the generator output.
 
 Surgeist-owned Rust remains free of `unsafe`.
 
-## FRI-01.15 Documentation Contract
+## 15 FRI-01.15 Documentation Contract
 
 README and rustdoc update the public contract in layout-owned terms:
 
@@ -558,9 +618,9 @@ README and rustdoc update the public contract in layout-owned terms:
 Examples must construct valid requests and match semantic error classes. They do
 not show raw numeric field assignment, resolver traits, or calc stores.
 
-## FRI-01.16 Required Test Evidence
+## 16 FRI-01.16 Required Test Evidence
 
-### Calc And Resolution Tests
+### 16.1 Calc And Resolution Tests
 
 Focused tests cover:
 
@@ -577,7 +637,7 @@ Focused tests cover:
 Tests prove `CORE-002` no longer has an implicit no-calc path and `CORE-003` no
 longer has foreign-store or generation state.
 
-### Cache Tests
+### 16.2 Cache Tests
 
 Tests prove compute-size cold and hit outputs are field-for-field equal for:
 
@@ -588,14 +648,21 @@ Tests prove compute-size cold and hit outputs are field-for-field equal for:
 - collapse-through flag; and
 - scalar modes `f32` and `f64`.
 
-### Atomic Compute Tests
+Mutation tests require changed layout-ready node, subtree, topology, and
+measurement-provider facts to enter the dirty-subject set before warm reuse.
+The invalidated closure bypasses stale reads and stages matching clears. Later
+output classes add their own cold/warm equality evidence; FRI-06 includes
+inline-fragment descendants and distinguishes absent from committed-empty
+fragment state.
+
+### 16.3 Atomic Compute Tests
 
 Tests prove that a failing root request or provider error returns no completed
 batch and exposes no partial unrounded output, final output, cache store, or
 cache clear. Successful computation produces one batch containing all expected
 updates.
 
-### Measurement Tests
+### 16.4 Measurement Tests
 
 Tests prove:
 
@@ -605,16 +672,16 @@ Tests prove:
 - negative, infinite, and NaN provider dimensions are rejected;
 - both scalar modes behave the same within established scalar tolerances.
 
-### Numeric Wrapper Tests
+### 16.5 Numeric Wrapper Tests
 
 Tests cover construction, defaults, public node-input builders/defaults, and
 algorithm consumption for scrollbar width, flex grow, and flex shrink. Raw
 negative or non-finite construction through every public path is rejected.
 
-### Diagnostics Tests
+### 16.6 Diagnostics Tests
 
-Tests assert exact failure class, site, operation, scalar/source provenance, and
-typed detail for:
+Tests assert exact failure class, site, operation, and the typed detail retained
+by the public envelope for:
 
 - invalid root availability;
 - invalid numeric property;
@@ -630,7 +697,7 @@ scroll-container geometry remain `FRI-05` behavior closure; this initiative only
 requires that any shared diagnostic substrate it introduces can carry those
 future errors without preserving panic-only APIs.
 
-### Browser-Parity Tests
+### 16.7 Browser-Parity Tests
 
 All four box-sizing/direction variants for each active calc fixture family must
 reach comparison rather than panic:
@@ -643,28 +710,15 @@ The fixture support uses the same public layout request and affine value
 contract. No test-local resolver implementation or duplicated style/retained
 lowering may exist in layout.
 
-## FRI-01.17 Verification Surface
+## 17 FRI-01.17 Verification Surface
 
-Every implementation cycle derived from this specification runs the focused
-commands named by its cycle plan. The complete initiative acceptance gate
-includes at least:
+Every implementation cycle derived from this specification records the focused
+and complete evidence required by its cycle plan. Exact commands, feature
+coverage, linting, formatting, diff checks, unsafe scanning, and review gates
+are owned by that cycle plan and the repository command inventory rather than
+copied into this specification.
 
-```sh
-CARGO_NET_OFFLINE=true cargo test -p surgeist-layout
-CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --features layout-golden-generate
-SURGEIST_PARITY_FILTER=block/block_calc_width_margin CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored
-SURGEIST_PARITY_FILTER=flex/flex_calc_basis_margin_gap CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored
-SURGEIST_PARITY_FILTER=grid/grid_calc_track_and_item_margin CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored
-CARGO_NET_OFFLINE=true cargo clippy -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
-cargo fmt --check
-git diff --check
-```
-
-The final gate also scans every tracked and non-ignored untracked
-Surgeist-owned Rust file for executable unsafe constructs using the canonical
-unsafe scan.
-
-## FRI-01.18 Finding Closure Matrix
+## 18 FRI-01.18 Finding Closure Matrix
 
 | Finding | Closure condition | Evidence |
 | --- | --- | --- |
@@ -675,13 +729,14 @@ unsafe scan.
 | `CORE-007` | Scrollbar width and flex factors are distinct validated newtypes on every construction path. | Constructor/default/root-handoff/API tests. |
 | `DIAG-001` | Tree compute returns one site-aware scalar/provider-preserving result; current invalid/report/panic/silent paths compose into it; all layout-owned state is atomic. | Exact error matrix, failure-batch tests, and public API review. |
 
-## FRI-01.19 Initiative Acceptance
+## 19 FRI-01.19 Initiative Acceptance
 
 `FRI-01` is complete only when all of the following are true:
 
-1. obsolete resolver, store, generation, calc ID, raw cache-context, per-node
-   compute write, and infallible calc-capable APIs are absent from public surface
-   and source;
+1. obsolete resolver, store, generation, calc ID, extensible/raw cache-context,
+   per-node compute write, and infallible calc-capable APIs are absent from
+   public surface and source; the remaining `CacheKeyContext` is a zero-field
+   unit value;
 2. `LengthPercentageOf<S>` and its resolution outcome obey the modeling guide
    owner, phase, invariant, construction, and context rules;
 3. public root requests reject invalid intrinsic input and recursive algorithm
@@ -693,13 +748,12 @@ unsafe scan.
    provider-error preserving;
 7. scrollbar width, flex grow, and flex shrink are distinct validated property
    values throughout construction and algorithm consumption;
-8. diagnostics preserve failure class, site, operation, scalar/source
-   provenance, and no public-input panic or silent fallback remains in
-   `FRI-01`-owned paths;
+8. diagnostics preserve failure class, site, operation, and the typed detail
+   defined in `FRI-01.10`, and no public-input panic or silent fallback remains
+   in `FRI-01`-owned paths;
 9. all three calc browser fixture families pass every checked-in direction and
    box-sizing variant that is not blocked by a later-FRI finding;
 10. leaf documentation, public reexports, Rust 1.97 MSRV, feature behavior, and
     root handoff match the implemented contract; and
-11. required tests, generator-feature test, Clippy with unsafe-code denied,
-    format, diff check, unsafe scan, task reviews, and final holistic review are
-    clean.
+11. the applicable cycle-plan and repository verification contract is satisfied
+    with clean, recorded evidence.

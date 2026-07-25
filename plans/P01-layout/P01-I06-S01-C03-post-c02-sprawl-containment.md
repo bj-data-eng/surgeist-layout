@@ -4,7 +4,7 @@
 
 This specification is the authoritative desired-state contract for the first
 bounded mechanical realignment identified by
-`plans/2026-07-18-surgeist-layout-mechanical-refactoring-review-findings.md`.
+`plans/P01-layout/P01-I06-mechanical-refactoring-review-findings.md`.
 It applies after the published FRI-06-C02 candidate
 `c26735c59874697084316bbe147b2f92a26728a1` and before FRI-06-C03 begins.
 
