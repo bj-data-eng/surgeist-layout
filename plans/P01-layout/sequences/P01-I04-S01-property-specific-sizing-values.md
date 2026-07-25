@@ -1,25 +1,23 @@
-# FRI-04 Property-Specific Sizing Values Implementation Sequence
+# P01-I04-S01 Property-Specific Sizing Values Implementation Sequence
 
-Status: draft
-
-Sequence ID: `FRI-04`
+Sequence ID: `P01/I04/S01`
 
 Owning repository: `surgeist-layout`
 
-## Authority
+## 1 Authority
 
 This sequence implements the independently reviewed specification
-`plans/specs/2026-07-15-surgeist-layout-fri-04-property-specific-sizing-values.md`
+`plans/P01-layout/initiatives/P01-I04-property-specific-sizing-values.md`
 at content SHA-256
-`e0116f0e3dd28eafabe1ed31117a61ea208e97dee986887f5600d7cbd5a06db4`,
-committed as `5d33f3a4ab694f12985d713f7dbc74b251d55fb6`.
+`601f4ad4700827465096dc62c029b4d8147336b8593b6b80ae7abfb09fc22577`,
+committed as `49ede2ba2672a91f99ba193651dbb1350ede7b80`.
 
 The specification is authoritative for behavior, API, ownership, artifact
 counts, non-goals, and acceptance. This sequence owns only the ordered durable
 implementation boundaries. Only the next ready cycle receives a detailed
 just-in-time plan.
 
-## Sequence Boundary
+## 2 Sequence Boundary
 
 All cycles mutate only `surgeist-layout`. Root adapters, facade exports, API
 artifacts, and the root gitlink remain root-owned handoff work. No cycle adds a
@@ -32,9 +30,9 @@ generation inputs and performs the one final full regeneration after those
 inputs settle; later cycles use read-only artifact checks unless a corrected
 input invalidates and replaces that run.
 
-## Ordered Cycles
+## 3 Ordered Cycles
 
-### `FRI-04-C01` Validated Sizing Calculation Model
+### 3.1 `P01/I04/S01/C01` Validated Sizing Calculation Model
 
 **Specification sources:** `FRI-04.4 D-02`, `D-03`; `FRI-04.5` calculation
 surface; `FRI-04.6` calculation status matrix; `FRI-04.8` calculation evidence.
@@ -58,14 +56,14 @@ coefficients. Existing public behavior and browser artifacts are unchanged.
 **Handoff:** A reviewed calculation substrate is ready for property wrappers
 and the coherent public field migration.
 
-### `FRI-04-C02` Property Domains And Public Field Migration
+### 3.2 `P01/I04/S01/C02` Property Domains And Public Field Migration
 
 **Specification sources:** `FRI-04.4 D-01`, property-basis construction in
 `D-03`, `D-04`, `D-05`; `FRI-04.5` public contract; `FRI-04.6`
 construction/default matrices; `FRI-04.9` value, node, front-door, and parser
 outlines.
 
-**Prerequisites:** `FRI-04-C01` complete.
+**Prerequisites:** `P01/I04/S01/C01` complete.
 
 **Entry state:** Calculation values exist, but `DimensionOf` still owns box,
 flex, and broad track conversion paths.
@@ -85,13 +83,13 @@ surface, no invalid cross-property constructor, and no generated artifact delta.
 **Handoff:** Every production consumer receives an explicit property domain;
 calculation-aware algorithm resolution can proceed without a compatibility path.
 
-### `FRI-04-C03` Numeric Calculation Consumption
+### 3.3 `P01/I04/S01/C03` Numeric Calculation Consumption
 
 **Specification sources:** `FRI-04.4 D-02`, `D-04`, `D-05`; the supported
 numeric rows of `D-06`; `FRI-04.6` missing-basis and status matrices;
 `FRI-04.8` front-door and track evidence.
 
-**Prerequisites:** `FRI-04-C02` complete.
+**Prerequisites:** `P01/I04/S01/C02` complete.
 
 **Entry state:** Algorithms consume property-specific values but only the
 legacy-equivalent simple affine behavior is proven.
@@ -109,12 +107,12 @@ remain unchanged and readable.
 **Handoff:** Numeric calculation behavior is complete; only contextual
 keyword/calc-size dispatch and later-owner capability routing remain.
 
-### `FRI-04-C04` Contextual And Calc-Size Dispatch
+### 3.4 `P01/I04/S01/C04` Contextual And Calc-Size Dispatch
 
 **Specification sources:** `FRI-04.4 D-03`, `D-05`, `D-06`; `FRI-04.5` error
 front door; `FRI-04.6` calc-size status; `FRI-04.8` capability and flex evidence.
 
-**Prerequisites:** `FRI-04-C03` complete.
+**Prerequisites:** `P01/I04/S01/C03` complete.
 
 **Entry state:** Numeric calculations are correct, while contextual keywords,
 flex content semantics, calc-size bases, and later-owner results are not yet
@@ -133,12 +131,12 @@ and later finding ownership is preserved without browser unsupported expansion.
 **Handoff:** Production sizing semantics and capability boundaries are stable;
 fixture capture can target only the supported FRI-04 surface.
 
-### `FRI-04-C05` Bounded Fixtures And Final Derivation
+### 3.5 `P01/I04/S01/C05` Bounded Fixtures And Final Derivation
 
 **Specification sources:** `FRI-04.4 D-07`; `FRI-04.7`; fixture/parser/generator
 parts of `FRI-04.8` and `FRI-04.9`.
 
-**Prerequisites:** `FRI-04-C04` complete and all production/parser value
+**Prerequisites:** `P01/I04/S01/C04` complete and all production/parser value
 decisions stable.
 
 **Entry state:** The supported behavior is implemented, but helper capture,
@@ -159,12 +157,12 @@ failure classes, and all artifact checks after regeneration are read-only.
 **Handoff:** The supported public and browser surfaces are stable with final
 derived artifacts; documentation and aggregate initiative evidence can close.
 
-### `FRI-04-C06` Public Evidence And Candidate Closure
+### 3.6 `P01/I04/S01/C06` Public Evidence And Candidate Closure
 
 **Specification sources:** `FRI-04.5`, `FRI-04.8`, `FRI-04.9`, `FRI-04.10`,
 and `FRI-04.12`.
 
-**Prerequisites:** `FRI-04-C05` complete with the final generated inventory.
+**Prerequisites:** `P01/I04/S01/C05` complete with the final generated inventory.
 
 **Entry state:** Product behavior and artifacts are complete, but aggregate
 public-contract, documentation, traceability, and root-handoff evidence has not
@@ -185,9 +183,9 @@ API and root-lowering obligations.
 initiative in the findings-resolution index; root promotion remains a separate
 root-owned cycle.
 
-## Sequence Completion
+## 4 Sequence Completion
 
-The sequence is complete when `FRI-04-C01` through `FRI-04-C06` satisfy their
+The sequence is complete when `P01/I04/S01/C01` through `P01/I04/S01/C06` satisfy their
 observable exits in order and the specification's initiative acceptance is
 fully traceable. A later cycle may not begin early merely because its files are
 convenient to edit. A material specification change returns to specification

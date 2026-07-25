@@ -1,22 +1,20 @@
-# FRI-05 Overflow And Scroll Geometry Implementation Sequence
+# P01-I05-S01 Overflow And Scroll Geometry Implementation Sequence
 
-Status: draft
-
-Sequence ID: `FRI-05`
+Sequence ID: `P01/I05/S01`
 
 Owning repository: `surgeist-layout`
 
-## Authority
+## 1 Authority
 
 This sequence implements the independently reviewed specification at
-`plans/specs/2026-07-16-surgeist-layout-fri-05-overflow-scroll-geometry.md`, SHA-256
-`747dcd6c12ae7d883999b5517572d6877d3c803bdb611143af7affc5afd44f39`,
-committed as `50c83f01ded0fe4a284e087ffcbd677bfc12af2a`.
+`plans/P01-layout/initiatives/P01-I05-overflow-scroll-geometry.md`, SHA-256
+`ba3a0dcb214b3b19b4e49c76922712f61e467bc7e80a592780b4c5548d705294`,
+committed as `49ede2ba2672a91f99ba193651dbb1350ede7b80`.
 
 The specification is authoritative for behavior, API, ownership, artifacts, non-goals, and
 acceptance. This sequence owns only durable ordering; only the next ready cycle receives a detailed just-in-time plan.
 
-## Sequence Boundary
+## 2 Sequence Boundary
 
 All cycles mutate only `surgeist-layout`. Root adapters, sibling CSS/style models, facade
 exports, root API artifacts, and the root gitlink remain the separate handoff in `FRI-05.12`.
@@ -29,9 +27,9 @@ Focused parser/corpus evidence covers omitted axes and every existing cross-grou
 Once those inputs settle, `C06` performs one full ExistingPinned regeneration. `C07` is read-only for generated artifacts; a confirmed input bug returns to `C06`, invalidates the prior run, and permits one replacement full regeneration after corrected inputs settle.
 The aggregate `parity-all` release gate remains FRI-13-owned.
 
-## Ordered Cycles
+## 3 Ordered Cycles
 
-### `FRI-05-C01` Canonical Overflow And Scroll Input Model
+### 3.1 `P01/I05/S01/C01` Canonical Overflow And Scroll Input Model
 
 **Specification sources:** `FRI-05.4 D-01`, `D-02`; input portions of `FRI-05.5`, `FRI-05.6`, `FRI-05.8`, and `FRI-05.9`.
 
@@ -51,12 +49,12 @@ capability or compatibility alias.
 
 **Handoff:** All algorithms receive canonical source facts; geometry can be derived without raw specified overflow or placeholder scroll values.
 
-### `FRI-05-C02` Canonical Scroll Geometry Substrate
+### 3.2 `P01/I05/S01/C02` Canonical Scroll Geometry Substrate
 
 **Specification sources:** `FRI-05.4 D-03` through `D-11`; output portions of
 `FRI-05.5`, `FRI-05.6`, `FRI-05.8`, and `FRI-05.9`.
 
-**Prerequisites:** `FRI-05-C01` complete.
+**Prerequisites:** `P01/I05/S01/C01` complete.
 
 **Entry state:** Canonical inputs exist, while current rectangles, legacy facts, output constructors,
 clipping, ranges, gutters, accumulation, and rounding do not form one coherent derivation.
@@ -74,11 +72,11 @@ rounding reconstruction in both scalar lanes without a second derived source.
 
 **Handoff:** One reviewed substrate can replace format-local geometry logic.
 
-### `FRI-05-C03` Root Leaf And Block Geometry Integration
+### 3.3 `P01/I05/S01/C03` Root Leaf And Block Geometry Integration
 
 **Specification sources:** `FRI-05.4 D-03` through `D-12`; root/leaf/block portions of `FRI-05.5` through `FRI-05.8`.
 
-**Prerequisites:** `FRI-05-C02` complete.
+**Prerequisites:** `P01/I05/S01/C02` complete.
 
 **Entry state:** Canonical geometry is available but root, leaf, and block paths still use local accumulation, mutable scrollbar facts, or incomplete output.
 
@@ -93,12 +91,12 @@ Root/block legacy facts and constructors are absent; shared output removal remai
 
 **Handoff:** Shared block-side behavior is stable for flex and grid consumers.
 
-### `FRI-05-C04` Flex Scroll Geometry And Main-Axis Semantics
+### 3.4 `P01/I05/S01/C04` Flex Scroll Geometry And Main-Axis Semantics
 
 **Specification sources:** `FRI-05.4 D-01`, `D-06` through `D-11`;
 `FRI-05.7` flex contract; flex portions of `FRI-05.8` and `FRI-05.9`.
 
-**Prerequisites:** `FRI-05-C03` complete.
+**Prerequisites:** `P01/I05/S01/C03` complete.
 
 **Entry state:** Flex lacks canonical container output and retained child geometry. Its two
 automatic-minimum callers already share one classifier whose result is correct for every valid
@@ -119,11 +117,11 @@ rounding, and cached/uncached output pass through the real flex front door.
 
 **Handoff:** Flex owns no separate scroll path; grid-family integration remains.
 
-### `FRI-05-C05` Grid Family Scroll Geometry
+### 3.5 `P01/I05/S01/C05` Grid Family Scroll Geometry
 
 **Specification sources:** `FRI-05.4 D-01`, `D-03`, `D-04`, `D-06` through `D-11`; `FRI-05.5`; grid portions of `FRI-05.7` through `FRI-05.9`.
 
-**Prerequisites:** `FRI-05-C04` complete.
+**Prerequisites:** `P01/I05/S01/C04` complete.
 
 **Entry state:** Ordinary grid, subgrid, and grid-lanes still omit canonical
 container geometry, use incomplete automatic/intrinsic overflow decisions, or
@@ -144,52 +142,49 @@ accessors, and no legacy output field or construction bridge remains.
 
 **Handoff:** All owned formatting contexts emit only the shared geometry contract.
 
-### `FRI-05-C06` Bounded Fixtures Comparator And Final Regeneration
+### 3.6 `P01/I05/S01/C06` Bounded Fixtures Comparator And Final Regeneration
 
 **Specification sources:** `FRI-05.4 D-04`, `D-06`, `D-08`, `D-09`, `D-12`,
 and `D-13`; fixture/comparator portions of `FRI-05.8` and `FRI-05.9`;
 `FRI-05.11`.
 
-**Prerequisites:** `FRI-05-C05` complete and all production and generation-input
+**Prerequisites:** `P01/I05/S01/C05` complete and all production and generation-input
 decisions stable.
 
 **Entry state:** Product behavior is otherwise implemented; the bounded legacy
 parser transition remains, while the exact computed-style fixture lowering,
 eleven sources, manifest records, comparator activation, and final derived
 browser corpus are absent. Derivation may expose a production parity omission
-inside the specified range-span contract; the frozen corpus has since exposed
-the block path retaining padding-box range basis across reserved gutters and the
-target source's active mandatory snap changing Chromium's live offset before
-geometry capture, which is outside leaf layout ownership.
+inside the specified range-span contract. The known block contribution
+range-basis correction and removal of the target source's active snap-container
+declaration are generation-input prerequisites, not post-generation repair.
 
 **Bounded outcome:** Remove the legacy pair transition; add only the bounded computed-style fixture lowering, serializer/parser support, eleven active HTML sources and manifest records,
 range-span comparator diagnostics, and frozen bucket/hash contract. After every
-input settles, perform the one full regeneration and retain its canonical XML,
-report, and provenance. Correct only the confirmed block contribution range
-basis so reserved gutters do not create range span while complete overflow is
-unchanged. Remove only the target source's active snap-container declaration
-while retaining its target metadata fields, then replace the invalidated corpus
-once after the corrected input settles; no later generation is permitted.
+input settles, including those two known corrections, perform the one full
+regeneration and retain its canonical XML, report, and provenance. A later
+confirmed input defect invalidates that lineage and returns to this cycle under
+the specification's conditional replacement rule; no unchanged-input retry or
+preplanned second run is permitted.
 
 **Observable exit evidence:** The frozen manifest and full report agree at
 5,324 generated, 356 unsupported, and zero failure classes; all eleven sources
 produce four variants; comparator negative controls fail correctly; focused
 parity and read-only corpus checks pass with no scoped report or hand edit. The
-block stable-both-edges front door proves RED at range span 15 against the frozen
-browser span 0, GREEN at span 0, and unchanged complete overflow. Read-only hash,
-inventory, provenance, and corpus checks prove the final replacement owns the
-unchanged manifest and complete corpus; target layout positions no longer include
-a browser-selected live snap offset.
+block stable-both-edges front door preserves complete overflow while reserved
+gutters contribute no range span. Read-only hash, inventory, provenance, and
+corpus checks prove the final lineage owns the unchanged manifest and complete
+corpus; target layout positions contain no browser-selected live snap offset.
 
 **Handoff:** Generator inputs and derived artifacts are frozen for read-only
 candidate closure.
 
-### `FRI-05-C07` Public Evidence And Leaf Candidate Closure
+### 3.7 `P01/I05/S01/C07` Public Evidence And Leaf Candidate Closure
 
 **Specification sources:** `FRI-05.5`, `FRI-05.8` through `FRI-05.10`,
 `FRI-05.12`, `FRI-05.14`, and `FRI-05.15`.
 
-**Prerequisites:** `FRI-05-C06` complete with its valid final regeneration.
+**Prerequisites:** `P01/I05/S01/C06` complete with its valid final regeneration.
 
 **Entry state:** Behavior and browser artifacts are complete, while aggregate
 exports, documentation, traceability, removed-surface proof, and candidate
@@ -208,9 +203,9 @@ clean; no forbidden legacy or scope expansion remains.
 **Handoff:** Publish the reviewed leaf candidate to remote `main`, verify remote
 readback, and return its exact SHA plus the breaking root integration contract.
 
-## Sequence Completion
+## 4 Sequence Completion
 
-The sequence is complete when `FRI-05-C01` through `FRI-05-C07` satisfy their
+The sequence is complete when `P01/I05/S01/C01` through `P01/I05/S01/C07` satisfy their
 observable exits in order and every `FRI-05.15` criterion is traceable. A later
 cycle may not begin before the preceding candidate is published and remotely
 verified. A material specification change returns to specification review

@@ -1,4 +1,4 @@
-# FRI-06-MR01 Post-C02 Sprawl Containment
+# FRI-06-MR01 Post-C02 Sprawl Containment Contract
 
 ## FRI-06-MR01.1 Authority And Outcome
 
@@ -16,10 +16,12 @@ consolidation of two already-equivalent implementation surfaces:
 - one scalar-generic `Compute` implementation for the existing test-only
   `OracleTreeOf<S>` harness.
 
-This is a one-cycle, single-repository sub-initiative. It does not alter the
-reviewed FRI-06 inline behavior sequence or its C03 entry state. Completion
+This is supplemental governing design evidence for canonical
+`P01/I06/S01/C03`, not a separate initiative or telemetry object. It occupies
+the legacy C02-to-C03 window: legacy C02 remains canonical C02, this contract
+governs inserted canonical C03, and legacy C03 is canonical C04. Completion
 returns a remotely verified descendant that becomes the cycle base for
-FRI-06-C03.
+canonical C04.
 
 ## FRI-06-MR01.2 Scope And Non-Goals
 
@@ -193,20 +195,16 @@ The focused test prefix is `fri06_mr01_`. Acceptance requires:
    `Compute` behavior;
 5. exactly one scalar-generic oracle `Compute` implementation remains and neither
    scalar-specific implementation remains;
-6. the complete package tests, Clippy with `-F unsafe-code -D warnings`, format
-   check, and repository `just verify` gate pass offline;
-7. the exact changed-file inventory contains only this specification, its current
-   cycle plan, expected Rust source/tests, and administrative planning commits;
-8. no generator command runs and no generator input or output changes;
-9. no dependency, feature, manifest, lockfile, public API, docs/example, root, or
-   sibling change occurs;
-10. the exact cycle receives clean task reviews and one clean holistic review;
-11. local `main`, its authority tracking ref, and observed remote `main` agree
-    after publication, with the immutable candidate reachable from remote `main`;
-    and
-12. all temporary branches, worktrees, and refs created for the cycle are removed.
+6. no generator input or output changes; and
+7. no dependency, feature, manifest, lockfile, public API, docs/example, root, or
+   sibling change occurs.
 
-The handoff records the published candidate as the base for FRI-06-C03 and keeps
-the later review windows unchanged: `MR-001`, `MR-004`, and `MR-005` wait until
-after FRI-06-C05; `MR-003` and broad `MR-002` migration wait until after the
-FRI-06-C07 leaf candidate handoff.
+Exact task decomposition, commands, review gates, publication, and resource
+cleanup are owned by the canonical C03 cycle plan, repository command inventory,
+and selected workflow authority.
+
+The successful C03 result becomes the base for legacy FRI-06-C03, now canonical
+`P01/I06/S01/C04`, and keeps the later review windows unchanged: `MR-001`,
+`MR-004`, and `MR-005` wait until after legacy FRI-06-C05; `MR-003` and broad
+`MR-002` migration wait until after the legacy FRI-06-C07 leaf candidate
+handoff.

@@ -1,19 +1,19 @@
-# FRI-03 Box Participation Contracts Implementation Sequence
-## Authority
+# P01-I03-S01 Box Participation Contracts Implementation Sequence
+## 1 Authority
 
 - Owning repository: `surgeist-layout`
-- Reviewed specification: `plans/specs/2026-07-15-surgeist-layout-fri-03-box-participation-contracts.md`
+- Reviewed specification: `plans/P01-layout/initiatives/P01-I03-box-participation-contracts.md`
 - Specification SHA-256:
-  `f05c9520196957e949dfbc55442d93cf03bbcff4f9bd4da81c4e5afe9db54572`
+  `9482b43c7b3bed5355fa438a353c103625ff032a311a10b1a5c90c7e4f199d0b`
 - Specification commit:
-  `beb8c5ed20fc76fd5535fbda0b1eb4708c6a3fba`
-- Initiative index: `plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`, `FRI-03`
+  `49ede2ba2672a91f99ba193651dbb1350ede7b80`
+- Initiative index: `plans/P01-layout/P01-index.md`, `FRI-03`
 
 This sequence orders complete implementation of `MODEL-001`, `CORE-005`, and
 `BLOCK-007`. Detailed desired-state decisions remain owned by the reviewed
 specification.
 
-## Boundary
+## 2 Boundary
 
 All cycles are owned by `surgeist-layout`; root and sibling repositories remain
 outside mutation scope. Root integration is an archival handoff after the
@@ -33,7 +33,7 @@ pin, launch profile, import provenance, MSRV, or the crate-wide `unsafe`
 prohibition. Browser-backed work uses only the already-present pinned
 executable under the canonical no-acquisition workflow.
 
-## C01 - Exact Order And Source Identity
+## 3 `P01/I03/S01/C01` Exact Order And Source Identity
 
 - Owner: `surgeist-layout`
 - Outcome: Public scalar-independent `ItemOrder` and `SourceIndex` types replace
@@ -52,7 +52,7 @@ executable under the canonical no-acquisition workflow.
 - Handoff: `C02` may serialize/parse `ItemOrder`; `C05` through `C07` are the
   only geometry consumers of the permutation.
 
-## C02 - Bounded Fixture Schema And Corpus Baseline
+## 4 `P01/I03/S01/C02` Bounded Fixture Schema And Corpus Baseline
 
 - Owner: `surgeist-layout`
 - Outcome: The producer emits exact item order and flex-item viewport parent
@@ -73,7 +73,7 @@ executable under the canonical no-acquisition workflow.
   consumer/API boundary; `C04`-`C07` make expectations pass; `C08` may supersede
   artifacts only for its confirmed missing host-allocation schema input.
 
-## C03 - Complete Containing Context And Cache Identity
+## 5 `P01/I03/S01/C03` Complete Containing Context And Cache Identity
 
 - Owner: `surgeist-layout`
 - Outcome: `ContainingLayoutContext` carries parent `FlowAxes` and
@@ -93,7 +93,7 @@ executable under the canonical no-acquisition workflow.
 - Handoff: `C04` consumes the role for collapse barriers; later algorithm cycles
   construct no independent context flag or flow mapping.
 
-## C04 - Block And Root Participation
+## 6 `P01/I03/S01/C04` Block And Root Participation
 
 - Owner: `surgeist-layout`
 - Outcome: Parent context gates only the current block box's boundary collapse,
@@ -113,7 +113,7 @@ executable under the canonical no-acquisition workflow.
   block order is ignored.
 - Handoff: `BLOCK-007` and the block/root portion of `CORE-005` are closed.
 
-## C05 - Flex Participation
+## 7 `P01/I03/S01/C05` Flex Participation
 
 - Owner: `surgeist-layout`
 - Outcome: Flex consumes the canonical order-modified sequence before line
@@ -134,7 +134,7 @@ executable under the canonical no-acquisition workflow.
 - Handoff: Flex's FRI-03-owned portions of `MODEL-001` and `CORE-005` are closed
   without claiming `FRI-07` completeness.
 
-## C06 - Ordinary-Grid Participation
+## 8 `P01/I03/S01/C06` Ordinary-Grid Participation
 
 - Owner: `surgeist-layout`
 - Outcome: Ordinary-grid order-sensitive placement traverses one canonical
@@ -154,7 +154,7 @@ executable under the canonical no-acquisition workflow.
   pass.
 - Handoff: `C07` receives the single permutation and normal-alignment helper.
 
-## C07 - Grid-Lanes Participation
+## 9 `P01/I03/S01/C07` Grid-Lanes Participation
 
 - Owner: `surgeist-layout`
 - Outcome: Grid-lanes production placement and sequential intrinsic
@@ -176,7 +176,7 @@ executable under the canonical no-acquisition workflow.
 - Handoff: All FRI-03 algorithm consumers are complete; broader `FRI-08`
   placement, sizing, and subgrid findings remain untouched.
 
-## C08 - Public Surface, Evidence, And Initiative Closure
+## 10 `P01/I03/S01/C08` Public Surface, Evidence, And Initiative Closure
 
 - Owner: `surgeist-layout`
 - Outcome: A bounded flex-host allocation schema correction makes the exact

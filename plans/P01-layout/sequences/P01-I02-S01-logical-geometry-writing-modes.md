@@ -1,23 +1,23 @@
-# FRI-02 Logical Geometry And Writing Modes Implementation Sequence
+# P01-I02-S01 Logical Geometry And Writing Modes Implementation Sequence
 
-## Authority
+## 1 Authority
 
 - Owning repository: `surgeist-layout`
 - Reviewed specification:
-  `plans/specs/2026-07-12-surgeist-layout-fri-02-logical-geometry-writing-modes.md`
+  `plans/P01-layout/initiatives/P01-I02-logical-geometry-writing-modes.md`
 - Specification normalized SHA-256:
-  `9f3b3587c2feaafb02c28500034b29c6d47b58f1233b6dc8f530716ce6bf17ba`
+  `3b04314e2d5afb3da4e10b321bea032536370f5218c430338528c2a43683e751`
 - Specification commit:
-  `ddb23fed47297bcdd1df67f67f0ee1ac20de7876`
+  `49ede2ba2672a91f99ba193651dbb1350ede7b80`
 - Initiative index:
-  `plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`,
+  `plans/P01-layout/P01-index.md`,
   `FRI-02`
 
 This sequence orders the complete implementation of `BLOCK-003`, `FLEX-001`,
 `GRID-004`, `OVERFLOW-004`, and `TEST-005`. Detailed design remains owned by
 the reviewed specification.
 
-## Sequence Boundary
+## 2 Sequence Boundary
 
 All cycles are owned by `surgeist-layout`. Root and sibling repositories remain
 outside the mutation boundary; only the final archival handoff describes their
@@ -31,7 +31,7 @@ specification's `ExistingPinned` path unless the user separately authorizes an
 acquisition. No cycle retunes the experimentally established fixture-generation
 profile.
 
-## C01 - Shared Flow And Compute Context
+## 3 `P01/I02/S01/C01` Shared Flow And Compute Context
 
 - Owner: `surgeist-layout`
 - Outcome: One canonical `FlowAxes` model represents all five writing modes and
@@ -52,7 +52,7 @@ profile.
 - Handoff: `C02`, `C04`, `C05`, `C06`, and `C07` may consume the shared model
   without defining another mapping table.
 
-## C02 - Signed Scroll Coordinate Contract
+## 4 `P01/I02/S01/C02` Signed Scroll Coordinate Contract
 
 - Owner: `surgeist-layout`
 - Outcome: Physical and flow-relative offsets and ranges have unambiguous signed,
@@ -71,7 +71,7 @@ profile.
   `FRI-05` geometry.
 - Handoff: Later algorithm cycles use only the typed projection contract.
 
-## C03 - Reproducible Browser Runtime
+## 5 `P01/I02/S01/C03` Reproducible Browser Runtime
 
 - Owner: `surgeist-layout`
 - Outcome: Managed-pinned and existing-pinned resolution validate the actual
@@ -95,7 +95,7 @@ profile.
   refresh the full report cumulatively; `C08` removes the nine temporary entries
   and prunes their files. No compatibility manifest reader survives `C03`.
 
-## C04 - Logical Block Flow
+## 6 `P01/I02/S01/C04` Logical Block Flow
 
 - Owner: `surgeist-layout`
 - Outcome: Ordinary block sizing, placement, edges, collapse, baseline, root,
@@ -118,7 +118,7 @@ profile.
 - Handoff: Later algorithms consume typed physical collapse state; no legacy
   vertical-only flow, loose margin field, or unqualified through query remains.
 
-## C05 - Logical Flex Flow
+## 7 `P01/I02/S01/C05` Logical Flex Flow
 
 - Owner: `surgeist-layout`
 - Outcome: Current flex sizing, placement, wrapping, margins, alignment,
@@ -135,7 +135,7 @@ profile.
   report validate; `FLEX-001` and `TEST-005` are closed.
 - Handoff: Flex has no remaining consumer that justifies a legacy axis helper.
 
-## C06 - Logical Ordinary Grid
+## 8 `P01/I02/S01/C06` Logical Ordinary Grid
 
 - Owner: `surgeist-layout`
 - Outcome: Ordinary grid keeps columns and rows logical through intrinsic sizing,
@@ -152,7 +152,7 @@ profile.
   report validate.
 - Handoff: `C07` receives logical ordinary-grid tracks and projection semantics.
 
-## C07 - Logical Lanes And Subgrid
+## 9 `P01/I02/S01/C07` Logical Lanes And Subgrid
 
 - Owner: `surgeist-layout`
 - Outcome: Grid-lanes and subgrid inheritance, offsets, areas, and baseline
@@ -170,7 +170,7 @@ profile.
 - Handoff: All algorithm families are ready for initiative-wide surface and
   corpus closure.
 
-## C08 - Corpus, Public Surface, And Initiative Closure
+## 10 `P01/I02/S01/C08` Corpus, Public Surface, And Initiative Closure
 
 - Owner: `surgeist-layout`
 - Outcome: The manifest, generated artifacts, report inventory, public API,

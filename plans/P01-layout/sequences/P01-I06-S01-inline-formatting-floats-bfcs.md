@@ -1,22 +1,22 @@
-# FRI-06 Inline Formatting, Floats, And BFCs Implementation Sequence
+# P01-I06-S01 Inline Formatting, Floats, And BFCs Implementation Sequence
 
-Sequence ID: `FRI-06`
+Sequence ID: `P01/I06/S01`
 
 Owning repository: `surgeist-layout`
 
-## Authority
+## 1 Authority
 
 This sequence implements the independently reviewed specification at
-`plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`,
+`plans/P01-layout/initiatives/P01-I06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`2bd7fd592465cb2b6cc8b666f3a9fbed763eae9faea141ee21ea538713e2583a`,
-committed as `ae7e0b42b91f9cf588a0280bfb1a1618a75d0622`.
+`702fab3acac6c66b22333f5120212ab36e365c7b6a00734d70285c583fb3c212`,
+committed as `49ede2ba2672a91f99ba193651dbb1350ede7b80`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
 the next ready cycle receives a detailed just-in-time plan.
 
-## Sequence Boundary
+## 2 Sequence Boundary
 
 Every cycle mutates only `surgeist-layout`. Root composition, text shaping and
 source association, shape geometry, authored CSS/style lowering, facade/API
@@ -30,78 +30,34 @@ the reviewed FRI-06 entry point, exact ancestor closure, and two-phase batch
 application.
 
 Scoped generation remains optional diagnostic work, never completion evidence.
-C08 synthesis is characterization only. C08R replaces name/expectation-driven
+C10 synthesis is characterization only. C12 replaces name/expectation-driven
 lowering with the closed explicit fixture-input contract. Chrome and the browser
 helper own HTML parsing and actual-DOM marker validation; Rust must not
 reconstruct HTML, CSS, or DOM topology and may account only for helper-reported
-source-local marker use. C08R records exact known Chrome failures or `None` and
-owns the only full unfiltered existing-pinned lineage after inputs settle. C09
-is read-only for generation inputs and outputs; a confirmed input defect returns
-to C08R and invalidates its lineage.
+source-local marker use. C12 records exact known Chrome failures or `None` and
+owns the only full unfiltered existing-pinned lineage after inputs settle. A
+confirmed input defect returns to C12 and invalidates its lineage.
 
-## Activation Recovery Evidence
+## 3 Activation Recovery Evidence
 
-The immutable entry report is
-`tests/layout/browser_parity/xml/generation-reports/all.json` at SHA-256
-`4f18b4299765d7f0cf996fa5c2510724cfadb577651c3a438c3f2904cc4b94ab`.
-Matrix digests below are SHA-256 over sorted, LF-terminated
-`source<TAB>variant` rows. The base-generated digest also appends
-`TABoutput`. The four standard variants are `border_box_ltr`,
-`content_box_ltr`, `border_box_rtl`, and `content_box_rtl`.
+The C10 diagnostic and C11 recovery boundaries use the exact activation,
+fixture-correction, production-correction, baseline-helper,
+semantic-preservation, and base-generated matrices retained in
+`plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv`, SHA-256
+`0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691`,
+the diagnostic report narrative in
+`plans/P01-layout/P01-I06-S01-C10-post-generation-census.md`, SHA-256
+`2c4179f559c5fa9e93c6933e0ba1a4969b758fc4a4f738d619c2751796b8bf00`,
+and the corrected recovery census in
+`plans/P01-layout/P01-I06-S01-C10-second-lineage-census.md`, SHA-256
+`a56b09ed4d68ee901dbc385db3d78b66bf5faeb82f844f1d531c94aef10a23b9`.
+Those fixed predicates own recovery membership; no later cycle may add, omit,
+reclassify, or dynamically widen a row. Aggregate failures remain outside this
+initiative until the index-only release conformance gate receives its own plan.
 
-- **Activation matrix:** the report's 340 entries carrying one of the three exact
-  D-16 transition reasons plus all four variants of the twelve sources named in
-  `FRI-06.11`; 388 rows, digest
-  `3a0f78a7fdefc9f49feee9f0fcb5a035bc87f381f8fc8d96049eaa0cdcbc2eb1`.
-- **Fixture-correction matrix:** the report's 240 entries carrying either exact
-  vertical/outside-block break reason; all four variants of
-  `fri06_inline_unequal_line_alignment` and `fri06_bidi_mixed_inline`; and both
-  RTL variants of `fri06_inline_mixed_text_atomic_wrap`,
-  `fri06_atomic_inline_baseline`,
-  `fri06_atomic_inline_percentage_block_size`, and
-  `fri06_float_auto_height`; 256 rows, digest
-  `35dc887d32232c365e132f38032021ae0b64147480ab7536971765b3fa5d0214`.
-- **Production-correction matrix:** all four variants of
-  `grid_lanes_not_inhibited_normal_packing`,
-  `grid_lanes_not_inhibited_overflow_hidden_packing`,
-  `subgrid_auto_track_sizing_min_content_text_runs`,
-  `fri06_vertical_break_clear`, and `fri06_float_logical_clear`; plus both RTL
-  variants of the sixteen
-  `subgrid_alignment_<self>_<item>_item` sources formed by the exact cross product
-  `{baseline,center,end,start}` x `{baseline,center,end,start}`; 52 rows across 21
-  sources, digest
-  `d5cd1140c094fb43fa9960ff7beb21ce52161e6b7d58ddb5f33e7dff2dee761e`.
-- **C08 baseline-helper subset:** all four variants of
-  `html/subgrid/subgrid_baseline_auto_columns_first_item.html`,
-  `html/subgrid/subgrid_baseline_auto_columns_second_item.html`,
-  `html/subgrid/subgrid_baseline_standalone_axis_first_item.html`, and
-  `html/subgrid/subgrid_baseline_standalone_axis_second_item.html`; 16 rows,
-  digest `f9ac335e450b4ffd014ae91ef211e699b513676711f70e2c27414fb64f7455a3`.
-- **Semantic-preservation matrix:** all four variants of
-  `block_br_inline_block_metrics`, `block_br_vertical_lr_inline_block_metrics`,
-  `block_br_vertical_rl_inline_block_metrics`, and
-  `block_br_vertical_rl_rtl_inline_block_metrics`; 16 rows, digest
-  `ff3b0c67a33ed008235891b3019e4491783fd7933a37c7b50589fec6b573a8b1`.
-- **Base-generated matrix:** every generated `source`, `variant`, and `output`
-  tuple in the entry report; 5,324 rows, digest
-  `3381162173bc2c09bbbae736391d9420c5e96c375083fb9fd0b337bcec12cffb`.
+## 4 Ordered Cycles
 
-These predicates own recovery membership. Later cycle plans may partition them
-into executable tasks but may not add, omit, reclassify, or dynamically widen a
-row. C07 exact-base public-compute probes proved the fixed baseline-helper subset
-and all four variants of `html/block/fri06_forced_break_strut.html` already
-satisfy the production oracles. One bounded diagnostic proved every baseline-
-helper row stops in `unsupportedChildNodesReason` via
-`isSignificantInlineWhitespace` before Rust lowering; C08 therefore owns that
-helper correction, while its existing twelve-source activation set already owns
-the forced-break rows. This evidence replaces their invalid production
-classification; it does not add rows or authorize another diagnostic derivation.
-The 408 failures observed by the aggregate diagnostic are not a recovery matrix
-and do not move the final aggregate gate out of FRI-13.
-
-## Ordered Cycles
-
-### `FRI-06-C01` Public Inline Model And Transaction Substrate
+### 4.1 `P01/I06/S01/C01` Public Inline Model And Transaction Substrate
 
 **Specification sources:** `FRI-06.4`; `FRI-06.5`; cache, validation, and error
 portions of `FRI-06.6`; module and compatibility portions of `FRI-06.10`.
@@ -132,13 +88,13 @@ match the transaction contract without a cache revision token.
 fragments without redesigning public state, errors, invalidation, or commit
 atomicity.
 
-### `FRI-06-C02` Unified Shaped-Text Line Construction
+### 4.2 `P01/I06/S01/C02` Unified Shaped-Text Line Construction
 
 **Specification sources:** `FRI-06.4 D-01` through `D-10`; shaped text and
 fragment portions of `FRI-06.5`; text, break, bidi, whitespace, alignment, and
 intrinsic portions of `FRI-06.7` through `FRI-06.9`.
 
-**Prerequisites:** `FRI-06-C01` complete and remotely verified.
+**Prerequisites:** `P01/I06/S01/C01` complete and remotely verified.
 
 **Entry state:** Validated text and fragment phases exist, while production
 inline layout remains box/control-only, splits horizontal and vertical behavior,
@@ -151,7 +107,7 @@ mandatory breaking, edge-whitespace handling, min/max-content contribution,
 per-line band and legacy alignment, complete-unit bidi ordering, physical
 projection for all ten flows, and phase-correct text-node/fragment publication.
 The full-band interface remains ready for later float exclusion; atomic and
-existing control integration remain in C03.
+existing control integration remain in C04.
 
 **Observable exit evidence:** Both scalar lanes prove deterministic wrapping,
 replacement ownership, rejected replacement/discard state, mandatory/final
@@ -163,13 +119,31 @@ synthetic measured text.
 **Handoff:** One reviewed line source can accept atomic boxes, controls, and
 float-adjusted bands without another axis algorithm.
 
-### `FRI-06-C03` Mixed Atomic And Control Line Completion
+### 4.3 `P01/I06/S01/C03` Post-C02 Sprawl Containment
+
+**Specification sources:** Retained MR01 contract
+`plans/P01-layout/P01-I06-S01-C03-post-c02-sprawl-containment.md`, SHA-256
+`0c88ec011067e25d61d0ddfdf90ad47e9e5db0149dbdc214e8326668665711e4`,
+clauses `FRI-06-MR01.1` through `.7`; compatible `FRI-06.4 D-02` and
+validation/transaction/test-support portions of `FRI-06.5`, `.6`, and `.10`.
+**Prerequisites:** `P01/I06/S01/C02` complete and remotely verified.
+**Entry state:** The legacy C02-to-C03 window maps to canonical C02, inserted
+C03, then former C03 at C04; equivalent non-box validation and scalar-lane
+oracle-tree implementations remain duplicated.
+**Bounded outcome:** Contain the concrete post-C02 duplication and
+multi-responsibility hotspots without changing public behavior, fixture inputs,
+generator architecture, or the next algorithm boundary.
+**Observable exit evidence:** Every MR01 acceptance clause passes with no
+observable behavior, fixture, artifact, or public-surface change.
+**Handoff:** The unified line source remains the sole basis for C04.
+
+### 4.4 `P01/I06/S01/C04` Mixed Atomic And Control Line Completion
 
 **Specification sources:** `FRI-06.4 D-03`, `D-06` through `D-13`; atomic,
 control, baseline, percentage, and non-box portions of `FRI-06.5` through
 `FRI-06.9`.
 
-**Prerequisites:** `FRI-06-C02` complete and remotely verified.
+**Prerequisites:** `P01/I06/S01/C03` complete and remotely verified.
 
 **Entry state:** Shaped text lines work through the unified builder, while atomic
 boxes, line breaks, boundaries, top/bottom alignment, percentage block basis,
@@ -193,13 +167,13 @@ fixed fast paths complete without panic, silent omission, or guessed facts.
 **Handoff:** The complete inline participant engine is ready for production
 float bands and BFC placement.
 
-### `FRI-06-C04` Rectangular Float And BFC Geometry
+### 4.5 `P01/I06/S01/C05` Rectangular Float And BFC Geometry
 
 **Specification sources:** `FRI-06.4 D-13` and `D-15`; rectangular float, clear,
 BFC, sizing, baseline, scroll, and cache portions of `FRI-06.7` through
 `FRI-06.9`.
 
-**Prerequisites:** `FRI-06-C03` complete and remotely verified.
+**Prerequisites:** `P01/I06/S01/C04` complete and remotely verified.
 
 **Entry state:** Inline lines are complete against a full containing band, while
 ordinary lines can overlap floats and current float/BFC placement is physical-
@@ -211,7 +185,7 @@ ordered; place line-left/right, opposing, stacked, cleared, and overwide floats;
 query full line spans monotonically; map float/clear through containing flow;
 enclose owned floats in auto block size; trap nested floats; and implement the
 exact current flex/grid/grid-lanes plus non-replaced-overflow BFC avoidance and
-auto-inline-size predicate. Keep provider-backed shapes for C05.
+auto-inline-size predicate. Keep provider-backed shapes for C06.
 
 **Observable exit evidence:** Every float/clear side and flow mapping, mixed line
 exclusion, finite-transition progress, overwide behavior, float-only auto height,
@@ -222,12 +196,12 @@ has production front-door proof with no overlap or second side table.
 **Handoff:** Margin-box exclusion is complete and the bounded provider can refine
 the same band query without changing placement ownership.
 
-### `FRI-06-C05` Provider-Backed Shape Exclusion
+### 4.6 `P01/I06/S01/C06` Provider-Backed Shape Exclusion
 
 **Specification sources:** `FRI-06.4 D-14`; shape provider, error, band, cache,
 fake, and root-handoff portions of `FRI-06.5` through `FRI-06.12`.
 
-**Prerequisites:** `FRI-06-C04` complete and remotely verified.
+**Prerequisites:** `P01/I06/S01/C05` complete and remotely verified.
 
 **Entry state:** Rectangular exclusion is complete, while `Shape` requests do
 not yet invoke the reviewed tree provider or refine bands with typed empty,
@@ -244,23 +218,38 @@ and failed provider results; non-float shape rejection; query bounds; cache
 invalidation; failed recomputation; and cold/warm/rounded geometry agree through
 the real provider and block-line front doors in both scalar lanes.
 
-**Handoff:** The focused C05 production baseline and fixture-facing facts are
+**Handoff:** The focused C06 production baseline and fixture-facing facts are
 stable for adapter preparation. Activated-fixture validation and any confirmed
-production correction remain explicitly owned by C07.
+production correction remain explicitly owned by C09.
 
-### `FRI-06-C06` Finite Fixture Adapter Preparation
+### 4.7 `P01/I06/S01/C07` Post-C05 Sprawl Containment
+
+**Specification sources:** Retained MR02 contract
+`plans/P01-layout/P01-I06-S01-C07-post-c05-sprawl-containment.md`, SHA-256
+`3e9d894791ffc3fa9ce772350a7fd9d667979dc5d86c37affebc2922b8c1322d`,
+clauses `FRI-06-MR02.1` through `.9`; compatible `FRI-06.4 D-01`, `D-14` and
+internal line/geometry/error/scalar portions of `FRI-06.5` through `.10`.
+**Prerequisites:** `P01/I06/S01/C06` complete and remotely verified.
+**Entry state:** The legacy C05-to-C06 window maps to canonical C06, inserted
+C07, then former C06 at C08; proven-equivalent line scans and private
+scalar/geometry helpers remain duplicated.
+**Bounded outcome:** Apply the reviewed post-C05 mechanical containment before
+fixture work, preserving the provider, cache, transaction, and public geometry
+contracts without behavior expansion.
+**Observable exit evidence:** Every MR02 acceptance clause passes with no
+observable behavior, fixture, artifact, or public-surface change.
+**Handoff:** Fixture adapter preparation starts from the contained C06 result.
+
+### 4.8 `P01/I06/S01/C08` Finite Fixture Adapter Preparation
 
 **Specification sources:** `FRI-06.4 D-16`; browser/comparator portions of
 `FRI-06.9` and `FRI-06.10`; `FRI-06.11`; artifact portions of `FRI-06.14`.
 
-**Prerequisites:** `FRI-06-C05` and the `FRI-06-MR02-C01` post-C05 containment
-handoff in `plans/cycles/2026-07-19-surgeist-layout-fri-06-mr02-c01-post-c05-sprawl-containment.md`
-complete, published, and remotely verified at
-`6e3772f509b919ec9a9d027d8298600ed98ee531`, with fixture and generator inputs
-unchanged.
+**Prerequisites:** `P01/I06/S01/C07` complete and remotely verified, with
+fixture and generator inputs unchanged.
 
 **Entry state:** Product behavior and finite production fixture-facing facts have
-focused C05 evidence but have not yet faced the activation matrix; C07 owns that
+focused C06 evidence but have not yet faced the activation matrix; C09 owns that
 validation. The browser adapter cannot compare control/fragment output or lower
 shaped text, atomic participation, bottom alignment, and finite shape-band
 tables. Generation inputs and derived artifacts remain frozen. Final
@@ -287,23 +276,23 @@ without relying on implicit file-close timing.
 whether the frozen production handoff and proposed fixture inputs satisfy all 388
 owned comparisons before any valid final derivation.
 
-### `FRI-06-C07` Activated-Fixture Production Corrections
+### 4.9 `P01/I06/S01/C09` Activated-Fixture Production Corrections
 
 **Specification sources:** `FRI-06.4 D-03`, `D-06`, `D-07`, `D-10`, `D-12`, and
 `D-13`; line, intrinsic, bidi, control, flow, and clear portions of
 `FRI-06.7` through `FRI-06.9`; behavioral portions of `FRI-06.14`.
 
-**Prerequisites:** `FRI-06-C06` complete and remotely verified. Its invalid
+**Prerequisites:** `P01/I06/S01/C08` complete and remotely verified. Its invalid
 diagnostic derivation is discarded and never counts as artifact lineage.
 
 **Entry state:** Focused activation diagnostics and exact-base typed probes prove
 52 valid FRI-06 variants across 21 sources still miss reviewed production
 behavior: 12 intrinsic/track height results and 40 physical/logical placements.
-The fixed baseline-helper subset instead requires C08 correction before lowering,
-and all variants of `html/block/fri06_forced_break_strut.html` require only C08
+The fixed baseline-helper subset instead requires C10 correction before lowering,
+and all variants of `html/block/fri06_forced_break_strut.html` require only C10
 fixture activation. Their typed production oracles already pass. The 408 pre-existing aggregate failures
 remain outside this cycle, the final aggregate gate remains FRI-13-owned, and all
-fixture-input failures remain C08-owned.
+fixture-input failures remain C10-owned.
 
 **Bounded outcome:** Correct only the confirmed FRI-06 production paths reached
 by those 21 sources, preserving exact shaped-participant, intrinsic, bidi,
@@ -319,36 +308,40 @@ unrelated focused regression suites are clean without fixture or artifact deltas
 **Handoff:** Production behavior required by the 388 owned fixture variants is
 stable before helper, source, manifest, and final-lineage work resumes.
 
-### `FRI-06-C08` Fixture Input Recovery And Characterization
+### 4.10 `P01/I06/S01/C10` Fixture Activation Diagnostic Boundary
+
+**Specification sources:** `FRI-06.4 D-01`, `D-04`, `D-09`, `D-11`, `D-13`,
+`D-16`; applicable `FRI-06.5`, `.7`, `.9` through `.11`, and `.14`.
+**Prerequisites:** `P01/I06/S01/C09` complete and remotely verified.
+**Entry state:** Production and finite-adapter contracts are available; the fixed 388-row activation union and generated lineage remain unresolved.
+**Bounded outcome:** Establish the diagnostic recovery boundary for the fixed
+activation union. No output grants completion or publication authority.
+**Observable exit evidence:** The pinned recovery artifacts preserve exact
+membership, baseline, and diagnostic partitions without serving acceptance.
+**Handoff:** C11 receives the exact pinned recovery membership.
+
+### 4.11 `P01/I06/S01/C11` Fixture Input Recovery And Characterization
 **Specification sources:** `FRI-06.4 D-01`, `D-04`, `D-09` through `D-11`, and
 `D-16`; metric-fragment, atomic-baseline, physical-placement, and browser-
 comparator portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`, `FRI-06.10`, and
 `FRI-06.14`; `FRI-06.11`.
-**Prerequisites:** `FRI-06-C07` complete and remotely verified; its production
-and finite adapter decisions are the C08 entry handoff.
-**Entry state:** Two full runs supplied diagnostic evidence only. The latest
-census at `plans/2026-07-20-surgeist-layout-fri-06-c08-second-lineage-census.md`,
-SHA-256 `a56b09ed4d68ee901dbc385db3d78b66bf5faeb82f844f1d531c94aef10a23b9`,
-records valid 5,712/16 accounting, exact base-output preservation, and an
-executed 104 pass / 284 fail partition. It corrects the prior prose census's
-inferred 94/294 statement and partitions the remaining rows into 244 blockified
-BR input, 18 Range-coordinate, two direct RTL placement, four Range-line, four
-shape-break, four strut, four vertical-placement, and four float-height failures.
-**Bounded outcome:** Restore diagnostic artifacts; settle the BR, Range, shape,
-strut, and test-lifecycle inputs; and characterize the exact ten remaining
-production rows through public-fixture-shaped RED evidence. Do not generate.
-**Observable exit evidence:** Every nonproduction boundary has real comparator
-proof, the ten production rows have complete exact-input characterization, full
-non-generation gates pass, and artifacts retain committed entry hashes.
-**Handoff:** Publish the task-clean input/characterization freeze for C08R.
+**Prerequisites:** `P01/I06/S01/C10` diagnostic handoff; the C09 production and
+finite-adapter decisions remain authoritative.
+**Entry state:** The pinned recovery census identifies unresolved fixture-input
+categories and ten production rows; all generated output remains diagnostic.
+**Bounded outcome:** Produce one settled input contract and exact remaining
+production characterization without generation.
+**Observable exit evidence:** The reviewed input freeze and characterization
+cover the complete pinned recovery membership.
+**Handoff:** C12 receives the settled input and production boundary.
 
-### `FRI-06-C08R` Final Production Correction And Lineage
+### 4.12 `P01/I06/S01/C12` Final Production Correction And Lineage
 **Specification sources:** `FRI-06.4 D-01`, `D-04`, `D-06`, `D-07`, `D-09`,
 `D-11`, `D-12`, `D-13`, and `D-16`; line, metric-fragment, atomic-baseline,
 physical-placement, comparator, fixture, and acceptance portions of `FRI-06.5`,
 `FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and `FRI-06.14`.
-**Prerequisites:** `FRI-06-C08` complete and remotely verified.
-**Entry state:** C08's inputs and ten-row characterization are diagnostic-frozen;
+**Prerequisites:** `P01/I06/S01/C11` complete and remotely verified.
+**Entry state:** C11's inputs and ten-row characterization are diagnostic-frozen;
 name/expectation-driven final lowering and unresolved production rows remain.
 **Bounded outcome:** Serialize the closed input-only fixture facts, record exact
 known Chrome failures or `None`, correct remaining production boundaries, freeze
@@ -358,39 +351,11 @@ generator architecture change, or later-owned behavior is permitted.
 inventory exactly equals the reviewed plan registry, normally zero; every 388 row
 is browser-pass or has the reviewed synthetic substitute; the other 5,324 bodies
 preserve semantics; no scoped report remains and FRI-13 stays unclaimed.
-**Handoff:** Generator inputs and outputs are frozen for read-only C09 closure.
+**Handoff:** The realized sequence ends with generator inputs and outputs frozen.
 
-### `FRI-06-C09` Public Evidence And Leaf Candidate Closure
+## 5 Sequence Completion
 
-**Specification sources:** `FRI-06.10`; `FRI-06.12` through `FRI-06.14`.
-
-**Prerequisites:** `FRI-06-C08R` complete and remotely verified with its valid
-final artifact lineage.
-
-**Entry state:** Behavior and browser artifacts are complete, while aggregate
-public docs/exports, compatibility inventory, finding trace, dead-code cleanup,
-complete verification, and root/text/shape handoff remain unreconciled.
-
-**Bounded outcome:** Reconcile the reviewed public front door and documentation,
-remove every FRI-06-owned dead-code allowance and obsolete path, prove all 14
-finding rows and initiative acceptance, and record the exact breaking leaf,
-text/shape adapter, transactional invalidation, artifact, and root-promotion
-handoff. Do not change generation inputs or outputs.
-
-**Observable exit evidence:** Every acceptance item is traceable to current
-source, focused and browser evidence, public/static negative surfaces,
-transaction behavior, artifacts, docs, and compatibility accounting. Complete
-default/generator verification, focused parity, corpus/Taffy checks, formatting,
-warnings-denied Clippy, unsafe absence, and range/provenance review are clean.
-
-**Handoff:** Publish the reviewed leaf candidate to remote `main`, verify remote
-readback, and return its exact SHA plus the complete FRI-06 root/text/shape
-integration contract.
-
-## Sequence Completion
-
-The sequence is complete when every listed cycle through `FRI-06-C09` satisfies
-observable exits in order and every `FRI-06.14` criterion is traceable. A later
-cycle cannot begin before its predecessor is published and remotely verified.
-A material specification change returns to specification review before this
-sequence is revised.
+This realized sequence ends at `P01/I06/S01/C12`. Every listed cycle satisfies
+its observable exit in order. No later cycle is represented. A material
+specification change returns to specification review before this sequence is
+revised.

@@ -1,6 +1,4 @@
-# FRI-06-MR02 Post-C05 Sprawl Containment
-
-Status: draft
+# FRI-06-MR02 Post-C05 Sprawl Containment Contract
 
 Design owner: `surgeist-layout`
 
@@ -20,9 +18,11 @@ The outcome is:
    layout-coordinate rounding, and physical-edge selection.
 
 The work changes no observable layout, validation, error, public API, fixture,
-or generated-artifact behavior. It is a one-cycle, single-repository mechanical
-sub-initiative and must be published before any C06 plan or generator input is
-changed.
+or generated-artifact behavior. It is supplemental governing design evidence
+for canonical `P01/I06/S01/C07`, not a separate initiative or telemetry object.
+It occupies the legacy C05-to-C06 window: legacy C05 is canonical C06, this
+contract governs inserted canonical C07, and legacy C06 is canonical C08. It
+must be published before canonical C08 planning or generator input changes.
 
 ## FRI-06-MR02.2 Ownership And Non-Goals
 
@@ -279,16 +279,7 @@ projection, or error policy merely because syntax resembles a selected helper.
 
 ## FRI-06-MR02.8 Test And Verification Contract
 
-The one-cycle JIT plan derives exactly seven independently reviewed task
-boundaries from this specification: D-01 alone; coupled D-02 plus D-03; D-04
-alone; D-05 alone; D-06 alone; D-07 alone; and D-08 alone. D-02 and D-03 are
-coupled because the summary and incremental selector must share one preservation
-model for candidate extent, discard bounds, metric order, and replacement.
-Their implementation order, dependencies, exact files, and commits belong to
-the cycle plan rather than this specification.
-
-Each task first adds focused passing characterization at its exact base and
-records that evidence before implementation. Focused test prefixes are:
+Focused preservation evidence uses these prefixes:
 
 - `fri06_mr02_duplicate_id_`;
 - `fri06_mr02_inline_linear_`;
@@ -299,14 +290,13 @@ records that evidence before implementation. Focused test prefixes are:
 - `fri06_mr02_physical_edge_`.
 
 Every applicable test is scalar-generic across `f32` and `f64`. Existing
-`fri06_c02_` through `fri06_c05_` regressions remain green. Full package check,
-test, Clippy with `-F unsafe-code -D warnings`, format, exact path inventory,
-new allowance/expect absence, legacy-helper absence, owned-Rust unsafe absence,
-clean worktree, independent task reviews, one holistic review, publication, and
-remote readback are required.
+`fri06_c02_` through `fri06_c05_` regressions remain green. Exact task
+decomposition, commands, review gates, publication, and resource cleanup are
+owned by the canonical C07 cycle plan, repository command inventory, and
+selected workflow authority.
 
-No generator, generator-feature, browser, parity, fixture, corpus, or network
-acquisition command is part of this sub-initiative.
+No generator, browser, parity, fixture, corpus, or network acquisition work is
+part of this contract.
 
 ## FRI-06-MR02.9 Acceptance And Handoff
 
@@ -317,15 +307,12 @@ Acceptance requires all of the following:
    selection scaling without timing assertions;
 3. each duplicated target has exactly one owned helper and no old identical
    helper remains;
-4. no unrelated similar-looking policy is consolidated;
-5. all task ranges and the complete cycle range receive clean independent
-   review;
-6. the final candidate is published to and read back from authority `main` with
-   local, tracking, `FETCH_HEAD`, and live remote agreement; and
-7. no temporary resource remains.
+4. no unrelated similar-looking policy is consolidated; and
+5. the public surface, observable behavior, fixtures, and generated artifacts
+   remain unchanged.
 
-The handoff gives FRI-06-C06 one clean published base with production behavior
-unchanged and the shaped-text, scroll, and geometry surfaces mechanically
-contained. C06 alone may then plan fixture activation and the one final full
-regeneration. `MR-002` broad migration and `MR-003` remain deferred until after
-FRI-06-C07 and the leaf candidate handoff.
+The handoff gives legacy FRI-06-C06, now canonical `P01/I06/S01/C08`, one clean
+published base with production behavior unchanged and the shaped-text, scroll,
+and geometry surfaces mechanically contained. Canonical C08 alone may then plan
+fixture activation. `MR-002` broad migration and `MR-003` remain deferred until
+after the legacy FRI-06-C07 leaf candidate handoff.
