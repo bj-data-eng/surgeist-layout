@@ -7135,7 +7135,7 @@ if (expectedReason === undefined) {{
         let html_root =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
         let census = include_str!(
-            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
         );
         let actual_rows = census
             .lines()
@@ -7304,7 +7304,7 @@ if (expectedReason === undefined) {{
     fn fri06_c08_t2_reconstructs_exact_input_census_membership() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
         let census = include_str!(
-            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
         );
         let mut sources = BTreeSet::new();
         let rows = census
@@ -7780,7 +7780,7 @@ console.log(JSON.stringify({
         );
 
         let census = include_str!(
-            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
         );
         let input_rows = census
             .lines()
@@ -7816,7 +7816,7 @@ console.log(JSON.stringify({
         assert_eq!(existing_sources.len(), 85);
 
         let census = include_str!(
-            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
         );
         let mut global = BTreeMap::<&str, usize>::new();
         let mut existing = BTreeMap::<&str, usize>::new();
@@ -9276,7 +9276,7 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
     #[test]
     fn fri06_c08_range_ink_census_partitions_retain_exact_selectors_counts_and_digests() {
         let census = include_str!(
-            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
         );
         let mut partitions = BTreeMap::<&str, Vec<String>>::new();
         let mut comparator_categories = BTreeMap::<&str, usize>::new();
@@ -13982,7 +13982,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
     #[test]
     fn fri06_c08_recovery_characterization_reconciles_literal_and_executed_censuses() {
         let literal = include_str!(
-            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
         );
         let executed = include_str!(
             "../../../plans/2026-07-20-surgeist-layout-fri-06-c08-second-lineage-census.md"

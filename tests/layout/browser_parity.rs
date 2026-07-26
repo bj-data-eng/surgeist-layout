@@ -3233,7 +3233,7 @@ fn fri06_c08_r0_control_probe_matrix_is_exact_72_plus_24_rows() {
     ];
 
     let rows = include_str!(
-        "../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+        "../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
     )
     .lines()
     .filter(|line| !line.starts_with('#'))
