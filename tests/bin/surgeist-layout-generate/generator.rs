@@ -4207,10 +4207,6 @@ fn write_expectation(lines: &mut Vec<String>, node: &Value, context: Expectation
             "layout-ready fixture field `rangeInks` is valid only on inline text"
         );
         assert!(
-            !range_inks.is_empty(),
-            "layout-ready fixture field `rangeInks` must be nonempty"
-        );
-        assert!(
             node["fragments"].is_null(),
             "Range ink and explicit model fragments are distinct expectation categories"
         );
@@ -4531,6 +4527,10 @@ fn write_fragment_expectations(lines: &mut Vec<String>, fragments: &[Value], ind
 
 fn write_range_ink_expectations(lines: &mut Vec<String>, range_inks: &[Value], indent: usize) {
     let pad = " ".repeat(indent);
+    if range_inks.is_empty() {
+        lines.push(format!("{pad}<range-inks/>"));
+        return;
+    }
     lines.push(format!("{pad}<range-inks>"));
     for range_ink in range_inks {
         let physical_start_edge = required_string_attr(range_ink, "physicalStartEdge");
@@ -13754,6 +13754,16 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         ]
         .concat();
         run_bundled_helper_script("fri06-c08r-zero-width-whitespace", script);
+    }
+
+    #[test]
+    fn fri06_c08r_empty_range_serializer_preserves_explicit_zero_observations() {
+        let mut text = fri06_c08r_fixture_input_text(7);
+        text["rangeInks"] = json!([]);
+        let node = fri06_c08r_fixture_input_root("block", vec![text]);
+
+        let xml = generate_xml("fri06_c08r_empty_range", &node);
+        assert!(xml.contains("<range-inks/>"), "{xml}");
     }
 
     #[test]

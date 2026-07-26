@@ -1202,17 +1202,10 @@ fn parse_range_ink_expectations(
         )));
     }
     validate_fragment_payload(xml, Some("range-ink"))?;
-    let range_inks = xml
-        .children()
+    xml.children()
         .filter(roxmltree::Node::is_element)
         .map(parse_range_ink_expectation)
-        .collect::<Result<Vec<_>, _>>()?;
-    if range_inks.is_empty() {
-        return Err(Error::new(
-            "expected at least one `<range-ink>` child on `<range-inks>`",
-        ));
-    }
-    Ok(range_inks)
+        .collect()
 }
 
 fn parse_range_ink_expectation(
@@ -5369,6 +5362,27 @@ mod tests {
     }
 
     #[test]
+    fn fri06_c08r_empty_range_parser_preserves_explicit_zero_observations() {
+        let golden = Golden::parse(&fri06_c06_fragment_xml("<range-inks/>"))
+            .expect("explicit empty Range evidence should parse");
+
+        assert_eq!(golden.expectations.range_inks, Some(Vec::new()));
+    }
+
+    #[test]
+    fn fri06_c08r_empty_range_comparator_rejects_unexpected_model_fragment() {
+        let mut golden = fri06_c08_range_ink_golden();
+        golden.expectations.children[0].range_inks = Some(Vec::new());
+
+        let error = assert_surgeist_matches(&golden)
+            .expect_err("explicit empty Range evidence must enforce zero model fragments");
+        assert_eq!(
+            error.to_string(),
+            "fri06-c08-range-ink/0: Range ink count mismatch, expected 0, got 1"
+        );
+    }
+
+    #[test]
     fn fri06_c08_r0_range_observation_order_does_not_supply_model_visual_order() {
         let root_input = layout::NodeInput {
             display: layout::Display::Block,
@@ -5739,10 +5753,6 @@ mod tests {
     fn fri06_c08_range_ink_parser_is_finite_complete_and_category_exclusive() {
         let complete = r#"<range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="0" advance="10" />"#;
         for (body, diagnostic) in [
-            (
-                "<range-inks />".to_string(),
-                "expected at least one `<range-ink>` child on `<range-inks>`",
-            ),
             (
                 r#"<range-inks><range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="0" /></range-inks>"#.to_string(),
                 "missing `advance` on `<range-ink>`",
