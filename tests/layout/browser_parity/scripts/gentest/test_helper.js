@@ -1466,7 +1466,18 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
   const rect = range.getBoundingClientRect();
   const fragmentRects = Array.from(range.getClientRects());
   range.detach();
-  if (fragmentRects.length !== 1) {
+  const completeZeroSizeBoundingTuple = [
+    rect.x, rect.y, rect.left, rect.top, rect.right, rect.bottom, rect.width, rect.height,
+  ].every(Number.isFinite) &&
+    rect.width === 0 && rect.height === 0 &&
+    rect.left === rect.x && rect.right === rect.x &&
+    rect.top === rect.y && rect.bottom === rect.y;
+  const zeroFragmentWhitespaceAnchor =
+    fragmentRects.length === 0 &&
+    /^\s+$/.test(node.textContent) &&
+    isSignificantInlineWhitespace(node, Array.from(parent.childNodes || []), segmentId, parent) &&
+    completeZeroSizeBoundingTuple;
+  if (fragmentRects.length !== 1 && !zeroFragmentWhitespaceAnchor) {
     throw new Error(`layout-ready text segment ${segmentId} must have exactly one fragment`);
   }
 

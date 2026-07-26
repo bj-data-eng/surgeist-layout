@@ -7338,7 +7338,7 @@ if (expectedReason === undefined) {{
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            "23779c478c392bb7219f39ca73500b3574e497713c27e055049ff27fd38e5178"
+            "8a577da1af24df4d80fa1262b40c370af2ba1ddf4aa3ff54de166e1d75128e0d"
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
@@ -13651,12 +13651,118 @@ status = "active"
     }
 
     #[test]
+    fn fri06_c08r_zero_width_wrapping_sources_declare_block_wrapper_role() {
+        let html = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        let expected_wrapper = r#"<div style="display: block; font-size: 0;">
+      <div style="display: inline-block; width: 100px; height: 50px;"></div>
+      <div style="display: inline-block; width: 100px; height: 50px;"></div>
+    </div>"#;
+        let mut missing = Vec::new();
+        for (relative, expected_hash) in [
+            (
+                "subgrid/subgrid_standalone_axis_max_width_clamp.html",
+                "c26ed9831e7c5c57dc141195b6f9c435d53e80cb5d72845236da48a96c5e47d8",
+            ),
+            (
+                "subgrid/subgrid_standalone_axis_min_content_wrapping.html",
+                "0e11df317be33fef883fefcb26f01eb44c8f519876c293e7df0d8e1d9efe2fb2",
+            ),
+        ] {
+            let raw = fs::read_to_string(html.join(relative)).expect(relative);
+            assert_eq!(sha256_bytes(raw.as_bytes()), expected_hash, "{relative}");
+            if raw.matches(expected_wrapper).count() != 1 {
+                missing.push(relative);
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "standalone-axis sources lack the exact block wrapper role: {}",
+            missing.join(", ")
+        );
+    }
+
+    #[test]
+    fn fri06_c08r_zero_width_whitespace_helper_preserves_discard_anchor() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+let rect = { x: 100, y: 50, left: 100, top: 50, right: 100, bottom: 50, width: 0, height: 0 };
+let fragments = [];
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return rect; },
+  getClientRects() { return fragments; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const root = {
+  parentElement: null,
+  getAttribute(name) { return name === "data-surgeist-layout-ready-inline" ? "true" : null; },
+  getBoundingClientRect() {
+    return { x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 };
+  },
+};
+const first = { nodeType: Node.ELEMENT_NODE, style: { display: "inline-block" } };
+const second = { nodeType: Node.ELEMENT_NODE, style: { display: "inline-block" } };
+const whitespace = { nodeType: Node.TEXT_NODE, textContent: "\n      ", parentElement: null };
+const parent = {
+  parentElement: root,
+  childNodes: [{ nodeType: Node.TEXT_NODE, textContent: "\n      " }, first, whitespace, second],
+};
+whitespace.parentElement = parent;
+function getComputedStyle(element) {
+  return {
+    display: element === parent ? "block" : element.style?.display || "block",
+    direction: "ltr", writingMode: "horizontal-tb", fontSize: "0px", lineHeight: "0px",
+  };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+function mustReject(label, callback) {
+  try { callback(); } catch (_) { return; }
+  throw new Error(`${label} did not reject`);
+}
+const shaped = layoutReadyTextNodeData(whitespace, parent, 2);
+const segment = shaped.inlineSegments[0];
+if (JSON.stringify({
+  id: segment.id,
+  inlineExtent: segment.inlineExtent,
+  inlineBaseline: segment.inlineBaseline,
+  inlineLineHeight: segment.inlineLineHeight,
+  whitespaceEdge: segment.whitespaceEdge,
+  followingBreak: segment.followingBreak,
+  rangeInks: shaped.rangeInks,
+}) !== JSON.stringify({
+  id: 2, inlineExtent: 0, inlineBaseline: 0, inlineLineHeight: 0,
+  whitespaceEdge: "discard-at-both", followingBreak: "allowed", rangeInks: [],
+})) {
+  throw new Error(`zero-width discard anchor changed: ${JSON.stringify(shaped)}`);
+}
+mustReject("non-whitespace zero fragment", () =>
+  layoutReadyTextNodeData({ ...whitespace, textContent: "x" }, parent, 2));
+rect = { ...rect, right: 101, width: 1 };
+mustReject("nonzero bounding tuple", () => layoutReadyTextNodeData(whitespace, parent, 2));
+rect = { x: 100, y: 50, left: 100, top: 50, right: undefined, bottom: 50, width: 0, height: 0 };
+mustReject("incomplete bounding tuple", () => layoutReadyTextNodeData(whitespace, parent, 2));
+rect = { x: 100, y: 50, left: 100, top: 50, right: 100, bottom: 50, width: 0, height: 0 };
+fragments = [rect, rect];
+mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, parent, 2));
+"#,
+        ]
+        .concat();
+        run_bundled_helper_script("fri06-c08r-zero-width-whitespace", script);
+    }
+
+    #[test]
     fn fri06_c08r_lineage_helper_and_eight_html_inputs_are_byte_frozen() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
         for (path, expected) in [
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "23779c478c392bb7219f39ca73500b3574e497713c27e055049ff27fd38e5178",
+                "8a577da1af24df4d80fa1262b40c370af2ba1ddf4aa3ff54de166e1d75128e0d",
             ),
             (
                 "tests/layout/browser_parity/html/subgrid/subgrid_baseline_auto_columns_first_item.html",
@@ -14259,7 +14365,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "23779c478c392bb7219f39ca73500b3574e497713c27e055049ff27fd38e5178",
+                "8a577da1af24df4d80fa1262b40c370af2ba1ddf4aa3ff54de166e1d75128e0d",
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_base_style.css",
