@@ -2828,8 +2828,6 @@ fn atomic_inline_box_participant<S: LayoutScalar>(
     containing_flow_axes: crate::geometry::FlowAxes,
 ) -> AtomicInlineBoxParticipant<S> {
     let logical_size = containing_flow_axes.logical_size(output.size);
-    let logical_margin = containing_flow_axes.logical_edges(margin);
-    let fallback_baseline = logical_size.block + logical_margin.block_end;
     let used_overflow =
         UsedOverflow::from_computed(child_style.overflow, child_style.item_is_replaced);
     let block_overflow = match containing_flow_axes.block_axis() {
@@ -2863,7 +2861,7 @@ fn atomic_inline_box_participant<S: LayoutScalar>(
         padding,
         border,
         scrollbar_size: child_scrollbar_size(&child_style),
-        first_baseline: Some(selected_inner_baseline.unwrap_or(fallback_baseline)),
+        first_baseline: selected_inner_baseline,
         alignment: child_style.vertical_align.into(),
     }
 }

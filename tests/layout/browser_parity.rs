@@ -3232,15 +3232,13 @@ fn fri06_c08_r0_control_probe_matrix_is_exact_72_plus_24_rows() {
         "content_box_rtl",
     ];
 
-    let rows = include_str!(
-        "../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
-    )
-    .lines()
-    .filter(|line| !line.starts_with('#'))
-    .skip(1)
-    .map(|line| line.split('\t').collect::<Vec<_>>())
-    .map(|fields| format!("{}\t{}", fields[1], fields[2]))
-    .collect::<BTreeSet<_>>();
+    let rows = include_str!("../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv")
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .skip(1)
+        .map(|line| line.split('\t').collect::<Vec<_>>())
+        .map(|fields| format!("{}\t{}", fields[1], fields[2]))
+        .collect::<BTreeSet<_>>();
     let expected_rows = |sources: &[&str], variants: &[&str]| {
         sources
             .iter()
@@ -3375,6 +3373,17 @@ fn fri06_c08_recovery_characterization_vertical_xml(
     )
 }
 
+fn fri06_c08_recovery_characterization_vertical_browser_rows() -> Vec<String> {
+    ["border_box", "content_box"]
+        .into_iter()
+        .flat_map(|box_sizing| {
+            ["ltr", "rtl"].map(|direction| {
+                fri06_c08_recovery_characterization_vertical_xml(box_sizing, direction, 75, 51, 30)
+            })
+        })
+        .collect()
+}
+
 fn fri06_c08_recovery_characterization_float_xml(
     box_sizing: &str,
     direction: &str,
@@ -3438,16 +3447,6 @@ fn fri06_c08_recovery_characterization_rows(
     for box_sizing in ["border_box", "content_box"] {
         for direction in ["ltr", "rtl"] {
             rows.push((
-                fri06_c08_recovery_characterization_vertical_xml(
-                    box_sizing,
-                    direction,
-                    if browser_geometry { 75 } else { 78 },
-                    if browser_geometry { 51 } else { 53 },
-                    if browser_geometry { 30 } else { 28 },
-                ),
-                browser_geometry.then_some("x mismatch, expected 75, got 78"),
-            ));
-            rows.push((
                 fri06_c08_recovery_characterization_float_xml(
                     box_sizing,
                     direction,
@@ -3480,22 +3479,40 @@ fn fri06_c08_recovery_characterization_direct_rtl_browser_geometry_matches_both_
 }
 
 #[test]
-fn fri06_c08_recovery_characterization_current_geometry_matches_remaining_eight_exact_rows() {
-    let rows = fri06_c08_recovery_characterization_rows(false);
-    assert_eq!(rows.len(), 8);
-    for (xml, browser_error) in rows {
-        assert_eq!(browser_error, None);
-        let golden = support::Golden::parse(&xml).expect("exact C08 current fixture should parse");
+fn fri06_c08_recovery_characterization_vertical_browser_geometry_matches_all_variants() {
+    let rows = fri06_c08_recovery_characterization_vertical_browser_rows();
+    assert_eq!(rows.len(), 4);
+    for xml in rows {
+        let golden = support::Golden::parse(&xml).expect("exact C08 vertical fixture should parse");
         support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
-            panic!("{} current geometry changed: {error}\n{xml}", golden.name)
+            panic!("{} browser geometry mismatch: {error}\n{xml}", golden.name)
         });
     }
 }
 
 #[test]
+fn fri06_c08_recovery_characterization_current_geometry_matches_remaining_four_exact_rows() {
+    let rows = fri06_c08_recovery_characterization_rows(false);
+    assert_eq!(rows.len(), 4);
+    let mut mismatches = Vec::new();
+    for (xml, browser_error) in rows {
+        assert_eq!(browser_error, None);
+        let golden = support::Golden::parse(&xml).expect("exact C08 current fixture should parse");
+        if let Err(error) = support::assert_surgeist_matches(&golden) {
+            mismatches.push(format!("{}: {error}", golden.name));
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "C08R browser geometry mismatches:\n{}",
+        mismatches.join("\n")
+    );
+}
+
+#[test]
 fn fri06_c08_recovery_characterization_remaining_browser_geometry_is_unaccepted_production() {
     let rows = fri06_c08_recovery_characterization_rows(true);
-    assert_eq!(rows.len(), 8);
+    assert_eq!(rows.len(), 4);
     for (xml, browser_error) in rows {
         let golden = support::Golden::parse(&xml).expect("exact C08 browser fixture should parse");
         let error = support::assert_surgeist_matches(&golden)

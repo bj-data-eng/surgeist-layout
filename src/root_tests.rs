@@ -5218,33 +5218,67 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                     fri06_c02_final_node(&batch, 0).size,
                     Size::new(S::from_f64(96.0), S::from_f64(140.0))
                 );
+                let mut mismatches = Vec::new();
                 for (node, x, y, width, height) in [
                     (1, 68.0, float_y, 28.0, 36.0),
-                    (2, 78.0, first_y, 18.0, 42.0),
-                    (4, 53.0, second_y, 18.0, 30.0),
-                    (5, 28.0, clear_y, 18.0, 18.0),
+                    (2, 75.0, first_y, 18.0, 42.0),
+                    (4, 51.0, second_y, 18.0, 30.0),
+                    (5, 30.0, clear_y, 18.0, 18.0),
                 ] {
                     let output = fri06_c02_final_node(&batch, node);
-                    assert_eq!(
-                        (output.location, output.size),
-                        (
-                            Point::new(S::from_f64(x), S::from_f64(y)),
-                            Size::new(S::from_f64(width), S::from_f64(height)),
-                        ),
-                        "{axes:?} {box_sizing:?} source {node}"
+                    let expected = (
+                        Point::new(S::from_f64(x), S::from_f64(y)),
+                        Size::new(S::from_f64(width), S::from_f64(height)),
                     );
+                    if (output.location, output.size) != expected {
+                        mismatches.push(format!(
+                            "source {node}: expected {expected:?}, got {:?}",
+                            (output.location, output.size)
+                        ));
+                    }
                 }
-                let control = fri06_c02_final_node(&batch, 3);
+                let control = batch
+                    .unrounded_entries()
+                    .iter()
+                    .find(|entry| entry.node() == 3)
+                    .expect("forced break publishes unrounded geometry")
+                    .output();
                 assert_eq!(control.size, Size::ZERO);
-                assert_eq!(
-                    axes.logical_point(
+                let control_block = axes
+                    .logical_point(
                         control.location,
                         control.size,
-                        Size::new(S::from_f64(96.0), S::from_f64(140.0))
+                        Size::new(S::from_f64(96.0), S::from_f64(140.0)),
                     )
-                    .block,
-                    S::from_f64(18.0),
-                    "{axes:?} {box_sizing:?} forced-break line band"
+                    .block;
+                if (control_block - S::from_f64(16.8)).abs() > S::from_f64(0.000_1) {
+                    mismatches.push(format!(
+                        "forced-break metric baseline: expected 16.8, got {control_block:?}"
+                    ));
+                }
+                let clear_block = batch
+                    .unrounded_entries()
+                    .iter()
+                    .find(|entry| entry.node() == 5)
+                    .map(|entry| {
+                        let output = entry.output();
+                        axes.logical_point(
+                            output.location,
+                            output.size,
+                            Size::new(S::from_f64(96.0), S::from_f64(140.0)),
+                        )
+                        .block
+                    })
+                    .expect("cleared block publishes unrounded geometry");
+                if clear_block != S::from_f64(48.0) {
+                    mismatches.push(format!(
+                        "two resolved 24px line bands: expected 48, got {clear_block:?}"
+                    ));
+                }
+                assert!(
+                    mismatches.is_empty(),
+                    "{axes:?} {box_sizing:?} vertical line-band mismatches:\n{}",
+                    mismatches.join("\n")
                 );
             }
         }

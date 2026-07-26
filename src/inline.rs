@@ -158,6 +158,7 @@ struct SelectedInlineLineOf<S: LayoutScalar> {
     post_line_clear_intent: PostLineClearIntent,
     baseline: S,
     after_baseline: S,
+    fallback_line_band: Option<InlineMetricContributionOf<S>>,
     used_inline_extent: S,
     band: LogicalLineBandOf<S>,
 }
@@ -170,6 +171,7 @@ struct InlineLineSummaryOf<S: LayoutScalar> {
     post_line_clear_intent: PostLineClearIntent,
     baseline: S,
     after_baseline: S,
+    fallback_line_band: Option<InlineMetricContributionOf<S>>,
     used_inline_extent: S,
     selected_terminal_replacement: Option<S>,
 }
@@ -191,6 +193,12 @@ struct SelectedInlineLineCandidateOf<S: LayoutScalar> {
 struct InlineMetricContributionOf<S: LayoutScalar> {
     baseline: S,
     after_baseline: S,
+}
+
+impl<S: LayoutScalar> InlineMetricContributionOf<S> {
+    fn extent(self) -> S {
+        self.baseline + self.after_baseline
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -306,15 +314,7 @@ impl<S: LayoutScalar> MixedInlineParticipantOf<S> {
                     after_baseline: metrics.after_baseline(),
                 }
             }
-            Self::Atomic { item, .. } => {
-                let logical_size = flow_axes.logical_size(item.size);
-                let logical_margin = flow_axes.logical_edges(item.margin);
-                let baseline = item.first_baseline.unwrap_or(logical_size.block);
-                InlineMetricContributionOf {
-                    baseline: logical_margin.block_start + baseline,
-                    after_baseline: logical_size.block - baseline + logical_margin.block_end,
-                }
-            }
+            Self::Atomic { item, .. } => item.metrics(flow_axes),
             Self::ForcedLineBreak(control) => {
                 let metrics = control.metrics();
                 InlineMetricContributionOf {
@@ -338,6 +338,19 @@ impl<S: LayoutScalar> MixedInlineParticipantOf<S> {
             Self::Atomic { item, .. } => item.alignment,
             Self::ForcedLineBreak(control) => control.alignment(),
             Self::Boundary(control) => control.alignment(),
+        }
+    }
+
+    fn fallback_fits_line_band(
+        self,
+        flow_axes: FlowAxes,
+        line_band: Option<InlineMetricContributionOf<S>>,
+    ) -> bool {
+        match self {
+            Self::Atomic { item, .. } => line_band
+                .and_then(|band| item.fallback_block_start_in_band(flow_axes, band))
+                .is_some(),
+            Self::ShapedText(_) | Self::ForcedLineBreak(_) | Self::Boundary(_) => false,
         }
     }
 }
@@ -373,6 +386,8 @@ fn summarize_inline_line<S: LayoutScalar>(
             },
         );
     }
+    let fallback_line_band =
+        (strut.is_some() || line_break.is_some()).then(|| metric_groups.resolve());
     let mut used_inline_extent = S::ZERO;
     let selected_replacement = selected_break
         .then(|| {
@@ -402,7 +417,9 @@ fn summarize_inline_line<S: LayoutScalar>(
             discarded_start_end = index + 1;
         } else {
             at_line_start = false;
-            metric_groups.include(participant.alignment(), participant.metrics(flow_axes));
+            if !participant.fallback_fits_line_band(flow_axes, fallback_line_band) {
+                metric_groups.include(participant.alignment(), participant.metrics(flow_axes));
+            }
             used_inline_extent = used_inline_extent + participant.inline_advance(flow_axes);
         }
         if index + 1 == participants.len()
@@ -429,6 +446,7 @@ fn summarize_inline_line<S: LayoutScalar>(
         }),
         baseline: metrics.baseline,
         after_baseline: metrics.after_baseline,
+        fallback_line_band,
         used_inline_extent,
         selected_terminal_replacement: selected_replacement,
     }
@@ -461,6 +479,7 @@ fn select_inline_line<S: LayoutScalar>(
         post_line_clear_intent: summary.post_line_clear_intent,
         baseline: summary.baseline,
         after_baseline: summary.after_baseline,
+        fallback_line_band: summary.fallback_line_band,
         used_inline_extent: summary.used_inline_extent,
         band: LogicalLineBandOf {
             inline_start: S::ZERO,
@@ -903,9 +922,16 @@ where
                     let logical_margin = input.flow_axes.logical_edges(item.margin);
                     let logical_size = input.flow_axes.logical_size(item.size);
                     let line_block_extent = line.baseline + line.after_baseline;
-                    let baseline = item.first_baseline.unwrap_or(logical_size.block);
                     let item_block_start = match item.alignment {
-                        InlineControlAlignment::Baseline => line_baseline - baseline,
+                        InlineControlAlignment::Baseline => line
+                            .fallback_line_band
+                            .and_then(|band| {
+                                item.fallback_block_start_in_band(input.flow_axes, band)
+                            })
+                            .map_or_else(
+                                || line_baseline - item.baseline_offset(input.flow_axes),
+                                |offset| block_start + offset,
+                            ),
                         InlineControlAlignment::Top => block_start - logical_margin.block_start,
                         InlineControlAlignment::Bottom => {
                             block_start + line_block_extent
@@ -987,6 +1013,48 @@ pub(super) struct AtomicInlineBoxParticipant<S: LayoutScalar = DefaultScalar> {
     pub scrollbar_size: Size<S>,
     pub first_baseline: Option<S>,
     pub alignment: InlineControlAlignment,
+}
+
+impl<S: LayoutScalar> AtomicInlineBoxParticipant<S> {
+    fn baseline_offset(self, flow_axes: FlowAxes) -> S {
+        let logical_size = flow_axes.logical_size(self.size);
+        let logical_margin = flow_axes.logical_edges(self.margin);
+        self.first_baseline
+            .unwrap_or(logical_size.block + logical_margin.block_end)
+    }
+
+    fn metrics(self, flow_axes: FlowAxes) -> InlineMetricContributionOf<S> {
+        let logical_size = flow_axes.logical_size(self.size);
+        let logical_margin = flow_axes.logical_edges(self.margin);
+        InlineMetricContributionOf {
+            baseline: logical_margin.block_start + self.baseline_offset(flow_axes),
+            after_baseline: self.first_baseline.map_or(S::ZERO, |inner| {
+                logical_size.block - inner + logical_margin.block_end
+            }),
+        }
+    }
+
+    fn fallback_block_start_in_band(
+        self,
+        flow_axes: FlowAxes,
+        line_band: InlineMetricContributionOf<S>,
+    ) -> Option<S> {
+        if self.alignment != InlineControlAlignment::Baseline || self.first_baseline.is_some() {
+            return None;
+        }
+        let logical_size = flow_axes.logical_size(self.size);
+        let logical_margin = flow_axes.logical_edges(self.margin);
+        let margin_box_extent =
+            logical_margin.block_start + logical_size.block + logical_margin.block_end;
+        let fallback_metrics = self.metrics(flow_axes);
+        (margin_box_extent >= S::ZERO
+            && margin_box_extent < line_band.extent()
+            && fallback_metrics.baseline > line_band.baseline)
+            .then(|| {
+                (line_band.extent() - margin_box_extent) / S::from_f64(2.0)
+                    + logical_margin.block_start
+            })
+    }
 }
 
 fn control_block_position<S: LayoutScalar>(

@@ -9601,9 +9601,8 @@ mod tests {
 
     #[test]
     fn fri06_c08_adapter_census_reconstructs_exact_24_rows_and_digest() {
-        let census = include_str!(
-            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
-        );
+        let census =
+            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
         let mut categories = BTreeMap::<&str, usize>::new();
         let rows = census
             .lines()

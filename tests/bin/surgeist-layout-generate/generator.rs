@@ -7134,9 +7134,8 @@ if (expectedReason === undefined) {{
     fn fri06_c08_new_exact_flow_root_census_sources_use_supported_overflow_bfcs() {
         let html_root =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
-        let census = include_str!(
-            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
-        );
+        let census =
+            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
         let actual_rows = census
             .lines()
             .filter(|line| !line.starts_with('#'))
@@ -7303,9 +7302,8 @@ if (expectedReason === undefined) {{
     #[test]
     fn fri06_c08_t2_reconstructs_exact_input_census_membership() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
-        let census = include_str!(
-            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
-        );
+        let census =
+            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
         let mut sources = BTreeSet::new();
         let rows = census
             .lines()
@@ -7779,9 +7777,8 @@ console.log(JSON.stringify({
             "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6"
         );
 
-        let census = include_str!(
-            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
-        );
+        let census =
+            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
         let input_rows = census
             .lines()
             .filter(|line| !line.starts_with('#'))
@@ -7815,9 +7812,8 @@ console.log(JSON.stringify({
             .collect::<BTreeSet<_>>();
         assert_eq!(existing_sources.len(), 85);
 
-        let census = include_str!(
-            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
-        );
+        let census =
+            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
         let mut global = BTreeMap::<&str, usize>::new();
         let mut existing = BTreeMap::<&str, usize>::new();
         let mut existing_rows = 0;
@@ -9275,9 +9271,8 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
 
     #[test]
     fn fri06_c08_range_ink_census_partitions_retain_exact_selectors_counts_and_digests() {
-        let census = include_str!(
-            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
-        );
+        let census =
+            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
         let mut partitions = BTreeMap::<&str, Vec<String>>::new();
         let mut comparator_categories = BTreeMap::<&str, usize>::new();
         for line in census.lines().filter(|line| !line.starts_with('#')).skip(1) {
@@ -13981,9 +13976,8 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
 
     #[test]
     fn fri06_c08_recovery_characterization_reconciles_literal_and_executed_censuses() {
-        let literal = include_str!(
-            "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
-        );
+        let literal =
+            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
         let executed = include_str!(
             "../../../plans/2026-07-20-surgeist-layout-fri-06-c08-second-lineage-census.md"
         );
