@@ -212,15 +212,19 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 **Files/area:** line metric resolution and physical projection in
 `src/inline.rs` and, only if the focused call path requires it, `src/block.rs`;
-focused tests in `src/root_tests.rs` and `tests/layout/browser_parity.rs`. No
-fixture, parser, helper, generator, or generated output.
+focused tests in `src/root_tests.rs` and `tests/layout/browser_parity.rs`.
+Before behavioral work, replace only the stale census `include_str!` path in
+that test, `tests/layout/browser_parity/support.rs`, and
+`tests/bin/surgeist-layout-generate/generator.rs` with the canonical C10 path.
+No fixture, parser, helper or generator behavior, or generated output.
 
 **Outcome:** Resolve the forced-break strut and atomic fallback baseline within
 the containing 24px vertical line bands, then project logical block positions
 through `vertical-rl` without changing horizontal fallback behavior.
 
-**RED:** Change all four exact vertical browser expectations first. At the task
-base, both box models and both inline directions must fail at first atomic x 78
+**RED:** Commit the path-only prerequisite separately, then change all four
+exact vertical browser expectations. Against the task base plus that repair,
+both box models and both inline directions must fail at first atomic x 78
 instead of 75, second atomic x 53 instead of 51, and cleared box x 28 instead
 of 30 while retaining the characterized y and float geometry.
 
@@ -243,7 +247,8 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 **Dependency:** T02 is task-clean.
 
-**Intended commit:** `fix(layout): preserve vertical line band phase`.
+**Intended commits:** `test(parity): follow canonical census path`, then
+`fix(layout): preserve vertical line band phase`.
 
 ### 5.4 `P01/I06/S01/C12/T04` Derive Float Continuation And Terminal Extent
 
