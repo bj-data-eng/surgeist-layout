@@ -75,30 +75,27 @@ serialization for the three closed XML forms, strict parser support, and focused
 fixture-input tests. Public API, browser policy, base style, dependencies, root
 integration, and generator architecture remain unchanged.
 
-T05's committed preflight removed the stale adapter and froze its checks. Its
-full run generated 5,704 variants but failed on the two 5.5 standalone-axis
-sources because segment 2 had no browser `Range` fragment. A pinned-browser DOM
-probe found that the adapted sources omitted the WPT wrapper's implicit block
-role while the base style defaults `div` to flex, and the helper rejects a
-significant zero-font-size whitespace anchor with zero extent and fragments
-despite `FRI-06.5`. Explicit `display:block` restores 100x100 geometry in all
-eight rows; accepting only that complete zero-fragment whitespace tuple preserves
-its allowed break and discarded anchor. The failed residue remains evidence.
-After the reviewed correction commit, one replacement full run supersedes it.
-Scoped or unchanged-input generation remains prohibited.
+T05's preflight run generated 5,704 variants but failed on the two 5.5 sources.
+The reviewed correction makes their WPT wrappers explicit blocks and preserves
+segment 2 as the `FRI-06.5` zero-advance discarded anchor; all eight browser rows
+are 100x100. Its replacement then exposed one genuine closed-schema defect:
+`rangeInks: []` reaches the serializer, but serializer and parser prohibit empty
+Range evidence while `Expectation::Some(empty)` and the comparator already model
+an explicit zero-fragment assertion. Both failed lineages remain evidence. One
+focused parser/serializer correction may mirror the existing empty-fragment
+category, after which one final full run supersedes the residue. Scoped or
+unchanged-input generation remains prohibited.
 
 ## 3 Known Chrome Measurement Failures
 
-None. Chrome remains authoritative; an entry requires every `FRI-06.11` proof,
-substitute, disposition, revalidation, and fresh plan review.
+None. Chrome remains authoritative; an entry requires the full `FRI-06.11` gate.
 
 ## 4 Impacts
 
 - **Public API and compatibility:** unchanged.
 - **Production:** narrow inline traversal, line-metric projection, and terminal
   auto-block corrections in existing internal paths.
-- **Tests:** explicit-input honesty, malformed-input controls, exact ten-row GREEN,
-  zero-fragment/block-role regressions, and final 388-row lineage evidence.
+- **Tests:** input honesty, malformed controls, exact ten-row GREEN, zero-fragment regressions, and final 388-row evidence.
 - **Generated artifacts:** T05 alone replaces the 5,712 XML lineage and report;
   no scoped report is accepted.
 - **Dependencies, features, docs, examples, MSRV, and root:** unchanged. This
@@ -288,18 +285,19 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 **Files/area:** focused tests in `tests/bin/surgeist-layout-generate/generator.rs`
 and `tests/layout/browser_parity.rs`; final compatibility removal in
-`tests/layout/browser_parity/support.rs`; the zero-fragment whitespace guard in
+`tests/layout/browser_parity/support.rs`; zero-Range serializer/parser handling;
+the zero-fragment whitespace guard in
 `tests/layout/browser_parity/scripts/gentest/test_helper.js`; only the two
 `subgrid_standalone_axis_{max_width_clamp,min_content_wrapping}.html` sources;
 generated XML under
 `tests/layout/browser_parity/xml/` and the authoritative generation report.
-Production, other HTML/helper behavior, generated-XML parser behavior, manifest,
-launch profile, base style, and generator behavior are frozen.
+Production, other HTML/helper/parser/generator behavior, manifest, launch
+profile, and base style are frozen.
 
-**Outcome:** Pin the normalized 388-row activation union, remove the complete
-name/expectation adapter, and correct both confirmed input defects without
-changing source semantics. Execute one replacement full unfiltered
-existing-pinned generation and prove its final lineage read-only.
+**Outcome:** Pin the 388-row union, remove the name/expectation adapter, correct
+the confirmed inputs, and serialize/parse explicit empty Range evidence as a
+zero-fragment assertion. Execute one final full unfiltered existing-pinned
+generation and prove its lineage read-only.
 
 **Evidence before the run:** Focused tests pin the exact task-clean T02 helper,
 eight-source HTML inputs, generated-XML parser, serializer, and marker-accounting
@@ -316,10 +314,11 @@ browser `149.0.7827.115`, Taffy source
 They prove the filter variables are absent, explicit input and expectation
 lowering are independent, all compatibility identifiers and calls are absent,
 and each production row already browser-passes from frozen input or has the exact
-reviewed substitute registry disposition. The preflight owns those checks and
-stale-artifact RED. Add focused RED for the implicit-flex wrappers and rejected
-zero-fragment whitespace, then commit only the two block inputs, the generic
-complete-tuple helper correction, and their tests.
+reviewed substitute registry disposition. The preflight and input correction own
+their RED/GREEN evidence. Add focused RED proving empty `rangeInks` panics in the
+serializer and `<range-inks/>` rejects in the parser; prove `Some(empty)` rejects
+an unexpected model fragment. Commit only the closed serializer/parser fix and
+focused tests before the final run.
 
 **Single generation command:**
 
@@ -327,11 +326,11 @@ complete-tuple helper correction, and their tests.
 env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
-The first execution after preflight is retained as failed evidence. Run this
-command exactly once more after the reviewed correction commit; it supersedes
-the incomplete residue. Do not run scoped generation, another replacement, or
-regeneration to repair verification. A new failure stops with exact status,
-inventory, hashes, and worktree state.
+The preflight and input-correction executions are retained as failed evidence.
+Run this command exactly once more after the reviewed parser/serializer commit;
+it supersedes the incomplete residue. Do not run scoped generation, another
+replacement, or regeneration to repair verification. A new failure stops with
+exact status, inventory, hashes, and worktree state.
 
 **Acceptance after the run:** The authoritative report records `filter: null`,
 5,712 generated variants, exactly 16 unsupported missing-root variants,
@@ -340,7 +339,8 @@ zero), and zero quarantined, failed-to-generate, or other failure buckets. Exact
 provenance matches the corrected frozen inputs. Both sources retain WPT
 structure, an explicit block wrapper, 100x100 browser geometry, two 100x50
 atomics, and one zero-advance discardable whitespace segment with an allowed
-break and no `Range` ink. Helper-reported source-local marker use
+break. Empty Range evidence serializes as `<range-inks/>`, parses as
+`Some(empty)`, and compares exactly zero model fragments. Helper-reported marker use
 matches the exact eight-source inventory across all variants, with no missing,
 extra, duplicate, misplaced, malformed, or elsewhere-used fact. Each of the 388
 normalized activation rows is a browser pass or has its reviewed passing
@@ -363,16 +363,16 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just fmt-check
 ```
 
-**Dependency:** T01 through T04 are task-clean, preflight is committed, and this
-material correction has a fresh clean plan review.
+**Dependency:** T01 through T04 are task-clean, both T05 corrections are
+committed in order, and this material correction has a fresh clean plan review.
 
-**Intended commits:** `test(parity): freeze C08R lineage inputs`, then
-`fix(parity): preserve zero-width wrapping inputs`, then final C08R lineage.
+**Intended commits:** freeze inputs; preserve zero-width wrapping; preserve empty
+Range evidence; then derive final C08R lineage.
 
 ## 6 Completion
 
-Before completion, prove the failed run and replacement each appear once, no
-scoped or redundant generation ran, inputs match the correction commit, and
+Before completion, prove both failed runs and the final run each appear once, no
+scoped or redundant generation ran, inputs match both correction commits, and
 every task command passes. Then run:
 
 ```sh
