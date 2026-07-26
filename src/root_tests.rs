@@ -4681,12 +4681,23 @@ fn assert_fri06_c08_float_line_final_height<S: LayoutScalar>(
         style.box_sizing = box_sizing;
         style
     };
-    let left_float = float(Float::Left, 42.0, 42.0);
-    let right_float = float(Float::Right, 50.0, 62.0);
+    let (physical_left_side, physical_right_side) = match direction {
+        Direction::Ltr => (Float::Left, Float::Right),
+        Direction::Rtl => (Float::Right, Float::Left),
+    };
+    let left_float = float(physical_left_side, 42.0, 42.0);
+    let right_float = float(physical_right_side, 50.0, 62.0);
     let first_atomic = atomic(28.0, InlineBreakOpportunityOf::allowed());
     let second_atomic = atomic(32.0, InlineBreakOpportunityOf::allowed());
     let third_atomic = atomic(36.0, InlineBreakOpportunityOf::allowed());
     let fourth_atomic = atomic(40.0, InlineBreakOpportunityOf::prohibited());
+    let line_strut = InlineBoundaryInputOf::new(
+        InlineBoundaryKind::Start,
+        InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(12.0))
+            .unwrap(),
+    )
+    .with_writing_mode(WritingMode::HorizontalTb)
+    .with_direction(direction);
     let root = NodeInputOf {
         display: Display::Block,
         writing_mode: WritingMode::HorizontalTb,
@@ -4709,6 +4720,11 @@ fn assert_fri06_c08_float_line_final_height<S: LayoutScalar>(
             (
                 3,
                 fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(4, 40.0, 14.8, 5.2)]),
+                NodeInputOf::non_box(),
+            ),
+            (
+                8,
+                LayoutInputOf::inline_boundary(line_strut),
                 NodeInputOf::non_box(),
             ),
             (
@@ -4736,10 +4752,7 @@ fn assert_fri06_c08_float_line_final_height<S: LayoutScalar>(
         root,
     );
 
-    let (expected_left_float_x, expected_right_float_x) = match direction {
-        Direction::Ltr => (0.0, 130.0),
-        Direction::Rtl => (138.0, 0.0),
-    };
+    let (expected_left_float_x, expected_right_float_x) = (0.0, 130.0);
     for entries in [batch.unrounded_entries(), batch.final_entries()] {
         assert_eq!(
             public_flow_output(entries, 1).location,
@@ -4771,10 +4784,25 @@ fn assert_fri06_c08_float_line_final_height<S: LayoutScalar>(
         ],
         "{direction:?} {box_sizing:?} atomic sizes"
     );
+    for (node, expected) in [4, 5, 6, 7].into_iter().zip([0.0, 21.2, 21.2, 42.0]) {
+        let actual = public_flow_output(batch.unrounded_entries(), node)
+            .location
+            .y;
+        assert!(
+            (actual - S::from_f64(expected)).abs() <= S::from_f64(0.000_1),
+            "{direction:?} {box_sizing:?} unrounded float-band line placement: \
+             node {node} expected {expected}, got {actual:?}"
+        );
+    }
     assert_eq!(
-        [4, 5, 6, 7].map(|node| public_flow_output(batch.final_entries(), node).location.y),
-        [0.0, 21.0, 21.0, 37.0].map(S::from_f64),
-        "{direction:?} {box_sizing:?} float-band line placement"
+        public_flow_output(batch.unrounded_entries(), 7).location.x,
+        S::from_f64(90.0),
+        "{direction:?} {box_sizing:?} terminal atomic physical placement"
+    );
+    assert_eq!(
+        public_flow_output(batch.unrounded_entries(), 0).size,
+        Size::new(S::from_f64(180.0), S::from_f64(62.5)),
+        "{direction:?} {box_sizing:?} unrounded block geometry"
     );
     assert_eq!(
         public_flow_output(batch.final_entries(), 0).size,
@@ -5387,8 +5415,12 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                     root,
                 );
                 assert_eq!(
+                    public_flow_output(batch.unrounded_entries(), 0).size,
+                    Size::new(S::from_f64(180.0), S::from_f64(62.5))
+                );
+                assert_eq!(
                     fri06_c02_final_node(&batch, 0).size,
-                    Size::new(S::from_f64(180.0), S::from_f64(62.0))
+                    Size::new(S::from_f64(180.0), S::from_f64(63.0))
                 );
                 for (node, x, y, width, height) in
                     [(1, 0.0, 0.0, 42.0, 42.0), (2, 130.0, 0.0, 50.0, 62.0)]
@@ -5403,14 +5435,14 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                     );
                 }
                 let atomic_x = match direction {
-                    Direction::Ltr => [81.0, 42.0, 74.0, 42.0],
-                    Direction::Rtl => [102.0, 62.0, 94.0, 90.0],
+                    Direction::Ltr => [81.0, 42.0, 74.0, 90.0],
+                    Direction::Rtl => [63.0, 98.0, 62.0, 90.0],
                 };
                 for (index, (node, width, y)) in [
                     (4, 28.0, 0.0),
-                    (5, 32.0, 24.0),
-                    (6, 36.0, 24.0),
-                    (7, 40.0, 40.0),
+                    (5, 32.0, 21.0),
+                    (6, 36.0, 21.0),
+                    (7, 40.0, 42.0),
                 ]
                 .into_iter()
                 .enumerate()
@@ -5425,10 +5457,20 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                         "{axes:?} {box_sizing:?} atomic {node}"
                     );
                 }
+                for (node, expected) in [4, 5, 6, 7].into_iter().zip([0.0, 21.2, 21.2, 42.0]) {
+                    let actual = public_flow_output(batch.unrounded_entries(), node)
+                        .location
+                        .y;
+                    assert!(
+                        (actual - S::from_f64(expected)).abs() <= S::from_f64(0.000_1),
+                        "{axes:?} {box_sizing:?} unrounded continuation phase: \
+                         node {node} expected {expected}, got {actual:?}"
+                    );
+                }
                 let fragment = batch.unrounded_inline_fragments()[0].fragment();
                 let (x, baseline_x) = match direction {
                     Direction::Ltr => (42.0, 42.0),
-                    Direction::Rtl => (63.46875, 102.0),
+                    Direction::Rtl => (91.46875, 130.0),
                 };
                 assert_eq!(fragment.line_index(), 0);
                 assert_eq!(fragment.rect().origin().x, S::from_f64(x));

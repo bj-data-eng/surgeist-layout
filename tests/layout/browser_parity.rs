@@ -3384,21 +3384,12 @@ fn fri06_c08_recovery_characterization_vertical_browser_rows() -> Vec<String> {
         .collect()
 }
 
-fn fri06_c08_recovery_characterization_float_xml(
-    box_sizing: &str,
-    direction: &str,
-    browser_geometry: bool,
-    root_height: u8,
-    second_line_y: u8,
-    fourth_atomic_x: u8,
-    third_line_y: u8,
-) -> String {
+fn fri06_c08_recovery_characterization_float_xml(box_sizing: &str, direction: &str) -> String {
     let box_attr = fri06_c08_recovery_characterization_box_attr(box_sizing);
-    let (bidi_level, edge, range_start, atomic_x) = match (direction, browser_geometry) {
-        ("ltr", _) => (0, "left", 42, [81, 42, 74, 0]),
-        ("rtl", true) => (1, "right", 130, [63, 98, 62, 90]),
-        ("rtl", false) => (1, "right", 102, [102, 62, 94, 90]),
-        (other, _) => panic!("unexpected C08 characterization direction {other}"),
+    let (bidi_level, edge, range_start, atomic_x) = match direction {
+        "ltr" => (0, "left", 42, [81, 42, 74, 90]),
+        "rtl" => (1, "right", 130, [63, 98, 62, 90]),
+        other => panic!("unexpected C08 characterization direction {other}"),
     };
     format!(
         r#"<test name="fri06_float_line_exclusion__{box_sizing}_{direction}" use-rounding="true">
@@ -3421,7 +3412,7 @@ fn fri06_c08_recovery_characterization_float_xml(
     </div>
   </input>
   <expectations>
-    <node x="0" y="0" width="180" height="{root_height}">
+    <node x="0" y="0" width="180" height="63">
       <node x="0" y="0" width="42" height="42"/>
       <node x="130" y="0" width="50" height="62"/>
       <node>
@@ -3430,9 +3421,9 @@ fn fri06_c08_recovery_characterization_float_xml(
         </range-inks>
       </node>
       <node x="{}" y="0" width="28" height="16"/>
-      <node x="{}" y="{second_line_y}" width="32" height="16"/>
-      <node x="{}" y="{second_line_y}" width="36" height="16"/>
-      <node x="{fourth_atomic_x}" y="{third_line_y}" width="40" height="16"/>
+      <node x="{}" y="21" width="32" height="16"/>
+      <node x="{}" y="21" width="36" height="16"/>
+      <node x="90" y="42" width="40" height="16"/>
     </node>
   </expectations>
 </test>"#,
@@ -3440,31 +3431,15 @@ fn fri06_c08_recovery_characterization_float_xml(
     )
 }
 
-fn fri06_c08_recovery_characterization_rows(
-    browser_geometry: bool,
-) -> Vec<(String, Option<&'static str>)> {
-    let mut rows = Vec::new();
-    for box_sizing in ["border_box", "content_box"] {
-        for direction in ["ltr", "rtl"] {
-            rows.push((
-                fri06_c08_recovery_characterization_float_xml(
-                    box_sizing,
-                    direction,
-                    browser_geometry,
-                    if browser_geometry { 63 } else { 62 },
-                    if browser_geometry { 21 } else { 24 },
-                    if browser_geometry || direction == "rtl" {
-                        90
-                    } else {
-                        42
-                    },
-                    if browser_geometry { 42 } else { 40 },
-                ),
-                browser_geometry.then_some("height mismatch, expected 63, got 62"),
-            ));
-        }
-    }
-    rows
+fn fri06_c08_recovery_characterization_float_browser_rows() -> Vec<String> {
+    ["border_box", "content_box"]
+        .into_iter()
+        .flat_map(|box_sizing| {
+            ["ltr", "rtl"].map(|direction| {
+                fri06_c08_recovery_characterization_float_xml(box_sizing, direction)
+            })
+        })
+        .collect()
 }
 
 #[test]
@@ -3491,13 +3466,12 @@ fn fri06_c08_recovery_characterization_vertical_browser_geometry_matches_all_var
 }
 
 #[test]
-fn fri06_c08_recovery_characterization_current_geometry_matches_remaining_four_exact_rows() {
-    let rows = fri06_c08_recovery_characterization_rows(false);
+fn fri06_c08_recovery_characterization_float_browser_geometry_matches_all_variants() {
+    let rows = fri06_c08_recovery_characterization_float_browser_rows();
     assert_eq!(rows.len(), 4);
     let mut mismatches = Vec::new();
-    for (xml, browser_error) in rows {
-        assert_eq!(browser_error, None);
-        let golden = support::Golden::parse(&xml).expect("exact C08 current fixture should parse");
+    for xml in rows {
+        let golden = support::Golden::parse(&xml).expect("exact C08 float fixture should parse");
         if let Err(error) = support::assert_surgeist_matches(&golden) {
             mismatches.push(format!("{}: {error}", golden.name));
         }
@@ -3507,24 +3481,6 @@ fn fri06_c08_recovery_characterization_current_geometry_matches_remaining_four_e
         "C08R browser geometry mismatches:\n{}",
         mismatches.join("\n")
     );
-}
-
-#[test]
-fn fri06_c08_recovery_characterization_remaining_browser_geometry_is_unaccepted_production() {
-    let rows = fri06_c08_recovery_characterization_rows(true);
-    assert_eq!(rows.len(), 4);
-    for (xml, browser_error) in rows {
-        let golden = support::Golden::parse(&xml).expect("exact C08 browser fixture should parse");
-        let error = support::assert_surgeist_matches(&golden)
-            .expect_err("C08R browser correction must remain unimplemented");
-        assert!(
-            error
-                .to_string()
-                .contains(browser_error.expect("browser mismatch")),
-            "{} exposed a different browser contract: {error}",
-            golden.name
-        );
-    }
 }
 
 fn fri06_c08_recovery_inputs_shape_xml() -> String {
