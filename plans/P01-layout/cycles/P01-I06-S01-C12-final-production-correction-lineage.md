@@ -70,39 +70,35 @@ terminal extent of 62.5 and rounded root height 63. The correction derives the
 extent from resolved line/float geometry and does not retain or replace an ad
 hoc content-type or integer-rounding adjustment.
 
-T02 owns only the eight exact HTML marker sources in `FRI-06.11`, helper and
-narrow existing-generator serialization for the three closed XML forms, strict
-parser support, and focused fixture-input tests. No task changes public API,
-browser policy, launch profile, base style, Taffy source, dependency, feature,
-MSRV, root integration, or later-owned behavior. Generator architecture
-expansion is prohibited. Any generator change beyond those exact serializer
-forms requires a focused test proving a genuine bug and returns the plan for
-semantic revision and review before implementation.
+T02 owns its eight exact `FRI-06.11` HTML marker sources, helper, narrow
+serialization for the three closed XML forms, strict parser support, and focused
+fixture-input tests. Public API, browser policy, base style, dependencies, root
+integration, and generator architecture remain unchanged.
 
-Scoped generation remains an optional diagnostic during an implementation
-iteration, never acceptance evidence. This cycle does not need it. T02 adds the
-explicit path while retaining the exact old adapter only for stale committed XML.
-After T02 through T04 are task-clean, T05 commits its final adapter removal and
-input/check freeze, then runs one full unfiltered `generate-existing` invocation.
-No task reruns generation over unchanged inputs. A failed process or unexpected
-output returns the exact blocker and preserves the resulting evidence; it is not
-retried. Any later authorized input change requires plan reconciliation before
-one replacement full run.
+T05's committed preflight removed the stale adapter and froze its checks. Its
+full run generated 5,704 variants but failed on the two 5.5 standalone-axis
+sources because segment 2 had no browser `Range` fragment. A pinned-browser DOM
+probe found that the adapted sources omitted the WPT wrapper's implicit block
+role while the base style defaults `div` to flex, and the helper rejects a
+significant zero-font-size whitespace anchor with zero extent and fragments
+despite `FRI-06.5`. Explicit `display:block` restores 100x100 geometry in all
+eight rows; accepting only that complete zero-fragment whitespace tuple preserves
+its allowed break and discarded anchor. The failed residue remains evidence.
+After the reviewed correction commit, one replacement full run supersedes it.
+Scoped or unchanged-input generation remains prohibited.
 
 ## 3 Known Chrome Measurement Failures
 
-None at this reviewed revision. Chrome remains authoritative. Adding an entry is
-a material plan change requiring all exact `FRI-06.11` proof, substitute,
-disposition, and revalidation evidence plus fresh plan review before
-implementation or generation.
+None. Chrome remains authoritative; an entry requires every `FRI-06.11` proof,
+substitute, disposition, revalidation, and fresh plan review.
 
 ## 4 Impacts
 
 - **Public API and compatibility:** unchanged.
 - **Production:** narrow inline traversal, line-metric projection, and terminal
   auto-block corrections in existing internal paths.
-- **Tests:** explicit-input honesty and malformed-input controls, exact ten-row
-  GREEN transitions, and one final 388-row comparator and lineage/provenance.
+- **Tests:** explicit-input honesty, malformed-input controls, exact ten-row GREEN,
+  zero-fragment/block-role regressions, and final 388-row lineage evidence.
 - **Generated artifacts:** T05 alone replaces the 5,712 XML lineage and report;
   no scoped report is accepted.
 - **Dependencies, features, docs, examples, MSRV, and root:** unchanged. This
@@ -290,18 +286,20 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 ### 5.5 `P01/I06/S01/C12/T05` Freeze Inputs And Derive One Final Lineage
 
-**Files/area:** focused lineage/comparator tests in
-`tests/bin/surgeist-layout-generate/generator.rs` and
-`tests/layout/browser_parity.rs`, final compatibility removal in
-`tests/layout/browser_parity/support.rs`; generated XML under
+**Files/area:** focused tests in `tests/bin/surgeist-layout-generate/generator.rs`
+and `tests/layout/browser_parity.rs`; final compatibility removal in
+`tests/layout/browser_parity/support.rs`; the zero-fragment whitespace guard in
+`tests/layout/browser_parity/scripts/gentest/test_helper.js`; only the two
+`subgrid_standalone_axis_{max_width_clamp,min_content_wrapping}.html` sources;
+generated XML under
 `tests/layout/browser_parity/xml/` and the authoritative generation report.
-Production, HTML, helper, generated-XML parser behavior, manifest, launch
-profile, base style, and generator behavior are frozen.
+Production, other HTML/helper behavior, generated-XML parser behavior, manifest,
+launch profile, base style, and generator behavior are frozen.
 
-**Outcome:** Pin all generation inputs and the normalized 388-row activation
-union, then remove the complete name/expectation compatibility adapter before
-generation. Execute exactly one full unfiltered existing-pinned generation, then
-use read-only tests to prove the complete final lineage.
+**Outcome:** Pin the normalized 388-row activation union, remove the complete
+name/expectation adapter, and correct both confirmed input defects without
+changing source semantics. Execute one replacement full unfiltered
+existing-pinned generation and prove its final lineage read-only.
 
 **Evidence before the run:** Focused tests pin the exact task-clean T02 helper,
 eight-source HTML inputs, generated-XML parser, serializer, and marker-accounting
@@ -318,9 +316,10 @@ browser `149.0.7827.115`, Taffy source
 They prove the filter variables are absent, explicit input and expectation
 lowering are independent, all compatibility identifiers and calls are absent,
 and each production row already browser-passes from frozen input or has the exact
-reviewed substitute registry disposition. Commit all such test/parser changes
-before the run; stale checked-in artifacts are the expected task-local RED and
-no generated output is part of that preflight commit.
+reviewed substitute registry disposition. The preflight owns those checks and
+stale-artifact RED. Add focused RED for the implicit-flex wrappers and rejected
+zero-fragment whitespace, then commit only the two block inputs, the generic
+complete-tuple helper correction, and their tests.
 
 **Single generation command:**
 
@@ -328,16 +327,20 @@ no generated output is part of that preflight commit.
 env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
-This command runs once after the preflight commit. Do not run a scoped
-generation before it, rerun it after it, or regenerate to repair a verification
-failure. If it exits nonzero or produces unexpected output, stop with exact
-status, output inventory, hashes, and worktree state.
+The first execution after preflight is retained as failed evidence. Run this
+command exactly once more after the reviewed correction commit; it supersedes
+the incomplete residue. Do not run scoped generation, another replacement, or
+regeneration to repair verification. A new failure stops with exact status,
+inventory, hashes, and worktree state.
 
 **Acceptance after the run:** The authoritative report records `filter: null`,
 5,712 generated variants, exactly 16 unsupported missing-root variants,
 expected-fail inventory exactly equal to the reviewed plan registry (normally
 zero), and zero quarantined, failed-to-generate, or other failure buckets. Exact
-provenance matches the frozen inputs. Helper-reported source-local marker use
+provenance matches the corrected frozen inputs. Both sources retain WPT
+structure, an explicit block wrapper, 100x100 browser geometry, two 100x50
+atomics, and one zero-advance discardable whitespace segment with an allowed
+break and no `Range` ink. Helper-reported source-local marker use
 matches the exact eight-source inventory across all variants, with no missing,
 extra, duplicate, misplaced, malformed, or elsewhere-used fact. Each of the 388
 normalized activation rows is a browser pass or has its reviewed passing
@@ -360,17 +363,17 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just fmt-check
 ```
 
-**Dependency:** T01, T02, T03, and T04 are task-clean; T05 preflight inputs and tests
-are committed and unchanged.
+**Dependency:** T01 through T04 are task-clean, preflight is committed, and this
+material correction has a fresh clean plan review.
 
 **Intended commits:** `test(parity): freeze C08R lineage inputs`, then
-`test(parity): derive final C08R lineage`.
+`fix(parity): preserve zero-width wrapping inputs`, then final C08R lineage.
 
 ## 6 Completion
 
-Before cycle completion, prove the single-generation command appears once in
-execution evidence, generated inputs match the frozen preflight commit, and
-every task acceptance command passes. Then run:
+Before completion, prove the failed run and replacement each appear once, no
+scoped or redundant generation ran, inputs match the correction commit, and
+every task command passes. Then run:
 
 ```sh
 CARGO_NET_OFFLINE=true just verify
