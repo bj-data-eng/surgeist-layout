@@ -4813,6 +4813,7 @@ fn assert_fri06_c08_float_line_final_height<S: LayoutScalar>(
 
 fn fri06_c08_float_line_control_batch<S: LayoutScalar>(
     mut in_flow: Vec<(u32, LayoutInputOf<S>, NodeInputOf<S>)>,
+    right_float_block_extent: f64,
 ) -> CompletedLayoutBatchOf<u32, S> {
     let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
     let left_float = fri06_c04_line_box(
@@ -4823,7 +4824,7 @@ fn fri06_c08_float_line_control_batch<S: LayoutScalar>(
     );
     let right_float = fri06_c04_line_box(
         flow_axes,
-        LogicalSizeOf::new(S::from_f64(50.0), S::from_f64(62.0)),
+        LogicalSizeOf::new(S::from_f64(50.0), S::from_f64(right_float_block_extent)),
         Float::Right,
         None,
     );
@@ -4855,12 +4856,81 @@ fn assert_fri06_c08_float_line_control_height<S: LayoutScalar>(
 ) {
     assert_eq!(
         public_flow_output(
-            fri06_c08_float_line_control_batch(in_flow).final_entries(),
+            fri06_c08_float_line_control_batch(in_flow, 62.0).final_entries(),
             0,
         )
         .size,
         Size::new(S::from_f64(180.0), S::from_f64(62.0)),
     );
+}
+
+fn fri06_c08_float_line_continuation_input<S: LayoutScalar>(
+    line_height: f64,
+    levels: [u8; 4],
+) -> Vec<(u32, LayoutInputOf<S>, NodeInputOf<S>)> {
+    let atomic = |node, inline, level, following_break| {
+        let style = fri06_c03_atomic_style(inline, 16.0, 0.0, 0.0, level, following_break);
+        (node, LayoutInputOf::box_input(style.clone()), style)
+    };
+    let strut = InlineBoundaryInputOf::new(
+        InlineBoundaryKind::Start,
+        InlineMetricsOf::from_line_height_and_baseline(S::from_f64(line_height), S::from_f64(12.0))
+            .unwrap(),
+    );
+    vec![
+        (
+            3,
+            fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(813, 40.0, 14.8, 5.2)]),
+            NodeInputOf::non_box(),
+        ),
+        (
+            8,
+            LayoutInputOf::inline_boundary(strut),
+            NodeInputOf::non_box(),
+        ),
+        atomic(4, 28.0, levels[0], InlineBreakOpportunityOf::allowed()),
+        atomic(5, 32.0, levels[1], InlineBreakOpportunityOf::allowed()),
+        atomic(6, 36.0, levels[2], InlineBreakOpportunityOf::allowed()),
+        atomic(7, 40.0, levels[3], InlineBreakOpportunityOf::prohibited()),
+    ]
+}
+
+#[test]
+fn fri06_c08_float_line_mixed_bidi_continuation_uses_visual_placement() {
+    fn assert_lane<S: LayoutScalar>() {
+        let batch = fri06_c08_float_line_control_batch(
+            fri06_c08_float_line_continuation_input::<S>(20.0, [0, 1, 2, 1]),
+            62.0,
+        );
+
+        assert_eq!(
+            [5, 6].map(|node| public_flow_output(batch.unrounded_entries(), node)
+                .location
+                .x),
+            [S::from_f64(78.0), S::from_f64(42.0)],
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c08_float_line_fractional_terminal_extent_uses_resolved_geometry() {
+    fn assert_lane<S: LayoutScalar>() {
+        let batch = fri06_c08_float_line_control_batch(
+            fri06_c08_float_line_continuation_input::<S>(20.25, [0; 4]),
+            62.0,
+        );
+
+        assert_eq!(
+            public_flow_output(batch.unrounded_entries(), 0).size.height,
+            S::from_f64(62.25),
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
 }
 
 #[test]

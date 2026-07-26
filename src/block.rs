@@ -983,7 +983,7 @@ struct InFlowResult<Node, S: LayoutScalar> {
     content_size: LogicalSizeOf<S>,
     scroll_content_size: LogicalSizeOf<S>,
     owned_float_block_end: S,
-    terminal_inline_float_edge_phase: S,
+    resolved_terminal_float_block_end: Option<S>,
     contributions: ScrollContributionAccumulatorOf<S>,
     baselines: BaselinesOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
@@ -1021,7 +1021,10 @@ impl<Node, S: LayoutScalar> InFlowResult<Node, S> {
             };
         let content_box_inset = constants.logical_content_box_inset();
         let in_flow_block_end = self.cursor_block + bottom_margin_offset;
-        let float_block_end = self.owned_float_block_end + self.terminal_inline_float_edge_phase;
+        let float_block_end = self
+            .resolved_terminal_float_block_end
+            .unwrap_or(self.owned_float_block_end)
+            .max(self.owned_float_block_end);
         (in_flow_block_end.max(float_block_end) + content_box_inset.block_end)
             .max(content_box_inset.block_sum())
     }
@@ -1143,7 +1146,7 @@ where
     let mut content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut scroll_content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut owned_float_block_end = constants.logical_content_box_inset().block_start;
-    let mut terminal_inline_float_edge_phase = S::ZERO;
+    let mut resolved_terminal_float_block_end = None;
     let mut baselines = BaselinesOf::NONE;
     let mut static_positions = Vec::new();
     let mut active_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -1212,6 +1215,7 @@ where
                     InlineRunContext {
                         source_index_start: run_start,
                         cursor_block,
+                        owned_float_block_end,
                         constants,
                         input,
                         node_inner_size,
@@ -1234,10 +1238,9 @@ where
                     .block
                     .max(placement_scroll_content_size.block);
                 record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
+                cursor_block = cursor_block + placement.logical_block_extent(constants.flow_axes);
                 static_positions.extend(placement.static_positions);
-                cursor_block =
-                    cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                terminal_inline_float_edge_phase = placement.float_terminal_edge_phase;
+                resolved_terminal_float_block_end = placement.resolved_float_terminal_block_end;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1279,6 +1282,7 @@ where
                     InlineRunContext {
                         source_index_start: run_start,
                         cursor_block,
+                        owned_float_block_end,
                         constants,
                         input,
                         node_inner_size,
@@ -1301,10 +1305,9 @@ where
                     .block
                     .max(placement_scroll_content_size.block);
                 record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
+                cursor_block = cursor_block + placement.logical_block_extent(constants.flow_axes);
                 static_positions.extend(placement.static_positions);
-                cursor_block =
-                    cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                terminal_inline_float_edge_phase = placement.float_terminal_edge_phase;
+                resolved_terminal_float_block_end = placement.resolved_float_terminal_block_end;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1334,6 +1337,7 @@ where
                     InlineRunContext {
                         source_index_start: run_start,
                         cursor_block,
+                        owned_float_block_end,
                         constants,
                         input,
                         node_inner_size,
@@ -1356,10 +1360,9 @@ where
                     .block
                     .max(placement_scroll_content_size.block);
                 record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
+                cursor_block = cursor_block + placement.logical_block_extent(constants.flow_axes);
                 static_positions.extend(placement.static_positions);
-                cursor_block =
-                    cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                terminal_inline_float_edge_phase = placement.float_terminal_edge_phase;
+                resolved_terminal_float_block_end = placement.resolved_float_terminal_block_end;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1416,6 +1419,7 @@ where
                 InlineRunContext {
                     source_index_start: run_start,
                     cursor_block,
+                    owned_float_block_end,
                     constants,
                     input,
                     node_inner_size,
@@ -1437,9 +1441,9 @@ where
                 .block
                 .max(placement_scroll_content_size.block);
             record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
+            cursor_block = cursor_block + placement.logical_block_extent(constants.flow_axes);
             static_positions.extend(placement.static_positions);
-            cursor_block = cursor_block + constants.flow_axes.logical_size(placement.size).block;
-            terminal_inline_float_edge_phase = placement.float_terminal_edge_phase;
+            resolved_terminal_float_block_end = placement.resolved_float_terminal_block_end;
             active_margin = CollapsibleMarginOf::<S>::ZERO;
             active_margin_can_collapse_with_parent = false;
             all_in_flow_children_can_collapse_through = false;
@@ -1739,7 +1743,7 @@ where
             index += 1;
             continue;
         }
-        terminal_inline_float_edge_phase = S::ZERO;
+        resolved_terminal_float_block_end = None;
         let inset_offset = relative_inset_offset(
             constants
                 .flow_axes
@@ -1923,7 +1927,7 @@ where
         content_size,
         scroll_content_size,
         owned_float_block_end,
-        terminal_inline_float_edge_phase,
+        resolved_terminal_float_block_end,
         contributions,
         baselines,
         static_positions,
@@ -1944,16 +1948,38 @@ struct InlineRunPlacement<Node, S: LayoutScalar> {
     baselines: BaselinesOf<S>,
     first_baseline: Option<S>,
     last_baseline: Option<S>,
-    float_terminal_edge_phase: S,
+    resolved_float_terminal_block_end: Option<S>,
+}
+
+impl<Node, S: LayoutScalar> InlineRunPlacement<Node, S> {
+    fn logical_block_extent(&self, flow_axes: crate::geometry::FlowAxes) -> S {
+        flow_axes.logical_size(self.size).block
+    }
 }
 
 struct InlineRunContext<'a, S: LayoutScalar> {
     source_index_start: usize,
     cursor_block: S,
+    owned_float_block_end: S,
     constants: &'a Constants<S>,
     input: ComputeInputOf<S>,
     node_inner_size: Size<Option<S>>,
     set_layout: bool,
+}
+
+fn resolved_inline_float_terminal_block_end<S: LayoutScalar>(
+    report: &crate::inline::MixedInlineRunReportOf<S>,
+    cursor_block: S,
+    owned_float_block_end: S,
+) -> Option<S> {
+    let terminal_line_block_end = cursor_block + report.block_extent;
+    report.float_edge_phase.map(|phase| {
+        if terminal_line_block_end > owned_float_block_end {
+            terminal_line_block_end
+        } else {
+            owned_float_block_end + phase
+        }
+    })
 }
 
 fn forced_line_break_control<S: LayoutScalar>(
@@ -2007,6 +2033,7 @@ where
     let InlineRunContext {
         source_index_start,
         cursor_block,
+        owned_float_block_end,
         constants,
         input,
         node_inner_size,
@@ -2228,6 +2255,8 @@ where
     if let Some(error) = provider_error {
         return Err(error);
     }
+    let resolved_float_terminal_block_end =
+        resolved_inline_float_terminal_block_end(&report, cursor_block, owned_float_block_end);
     let report_logical_size = LogicalSizeOf::new(report.inline_extent, report.block_extent);
     let report_size = constants.flow_axes.physical_size(report_logical_size);
     let project_point = |inline: S, block: S, size: LogicalSizeOf<S>| {
@@ -2460,7 +2489,7 @@ where
         baselines,
         first_baseline: report.first_baseline,
         last_baseline: report.last_baseline,
-        float_terminal_edge_phase: report.float_terminal_edge_phase,
+        resolved_float_terminal_block_end,
     })
 }
 

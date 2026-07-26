@@ -134,7 +134,7 @@ pub(super) struct InlineControlSourceOf<S: LayoutScalar = DefaultScalar> {
 pub(super) struct MixedInlineRunReportOf<S: LayoutScalar = DefaultScalar> {
     pub inline_extent: S,
     pub block_extent: S,
-    pub float_terminal_edge_phase: S,
+    pub float_edge_phase: Option<S>,
     pub first_baseline: Option<S>,
     pub last_baseline: Option<S>,
     pub fragments: Vec<ShapedTextFragmentSourceOf<S>>,
@@ -161,9 +161,10 @@ struct SelectedInlineLineOf<S: LayoutScalar> {
     after_baseline: S,
     fallback_line_band: Option<InlineMetricContributionOf<S>>,
     used_inline_extent: S,
-    has_split_baseline_edge_phase: bool,
+    split_baseline_edge_phase: Option<S>,
     inline_start_override: Option<S>,
     uses_float_strut_phase: bool,
+    float_band_slots_decrease: bool,
     band: LogicalLineBandOf<S>,
 }
 
@@ -177,7 +178,7 @@ struct InlineLineSummaryOf<S: LayoutScalar> {
     after_baseline: S,
     fallback_line_band: Option<InlineMetricContributionOf<S>>,
     used_inline_extent: S,
-    has_split_baseline_edge_phase: bool,
+    split_baseline_edge_phase: Option<S>,
     selected_terminal_replacement: Option<S>,
 }
 
@@ -269,10 +270,12 @@ impl<S: LayoutScalar> InlineLineMetricGroupsOf<S> {
         }
     }
 
-    fn has_split_baseline_edge_phase(self) -> bool {
-        self.has_positive_after_baseline
-            && self.zero_after_baseline_peak == self.baseline
-            && self.baseline > S::ZERO
+    fn split_baseline_edge_phase(self) -> Option<S> {
+        let phase_span = self.baseline + self.zero_after_baseline_peak;
+        (self.has_positive_after_baseline
+            && self.zero_after_baseline_peak > S::ZERO
+            && phase_span > S::ZERO)
+            .then(|| self.zero_after_baseline_peak / phase_span)
     }
 }
 
@@ -472,7 +475,7 @@ fn summarize_inline_line<S: LayoutScalar>(
         after_baseline: metrics.after_baseline,
         fallback_line_band,
         used_inline_extent,
-        has_split_baseline_edge_phase: metric_groups.has_split_baseline_edge_phase(),
+        split_baseline_edge_phase: metric_groups.split_baseline_edge_phase(),
         selected_terminal_replacement: selected_replacement,
     }
 }
@@ -506,9 +509,10 @@ fn select_inline_line<S: LayoutScalar>(
         after_baseline: summary.after_baseline,
         fallback_line_band: summary.fallback_line_band,
         used_inline_extent: summary.used_inline_extent,
-        has_split_baseline_edge_phase: summary.has_split_baseline_edge_phase,
+        split_baseline_edge_phase: summary.split_baseline_edge_phase,
         inline_start_override: None,
         uses_float_strut_phase: false,
+        float_band_slots_decrease: false,
         band: LogicalLineBandOf {
             inline_start: S::ZERO,
             inline_end: S::ZERO,
@@ -843,6 +847,69 @@ fn selected_line_inline_start<S: LayoutScalar>(
     })
 }
 
+fn resolved_float_terminal_block_extent<S: LayoutScalar>(
+    line: &SelectedInlineLineOf<S>,
+    carried_strut: Option<InlineMetricContributionOf<S>>,
+    float_transition: Option<S>,
+    flow_axes: FlowAxes,
+    line_inline_start: S,
+    line_inline_end: S,
+) -> S {
+    let line_block_end = line.band.block_end;
+    let Some(strut) = carried_strut.filter(|strut| strut.after_baseline > S::ZERO) else {
+        return line_block_end;
+    };
+    let touches_float_edge = if flow_axes
+        .logical_axis_progression(crate::LogicalAxis::Inline)
+        .is_decreasing()
+    {
+        line_inline_start == line.band.inline_start
+    } else {
+        line_inline_end == line.band.inline_end
+    };
+    if float_transition != Some(line_block_end) || !touches_float_edge {
+        return line_block_end;
+    }
+    let baseline_phase = (line.baseline - strut.baseline).max(S::ZERO) / strut.after_baseline;
+    line_block_end + baseline_phase
+}
+
+fn resolved_inline_unit_slots<S: LayoutScalar>(
+    line: &SelectedInlineLineOf<S>,
+    flow_axes: FlowAxes,
+    text_align: TextAlign,
+) -> (S, Vec<usize>, Vec<S>) {
+    let line_inline_start = selected_line_inline_start(line, flow_axes, text_align);
+    let visual_order = reordered_inline_unit_indices(&line.units);
+    let mut visual_indices = vec![0; line.units.len()];
+    let mut inline_starts = vec![S::ZERO; line.units.len()];
+    for (visual_index, source_index) in visual_order.iter().copied().enumerate() {
+        visual_indices[source_index] = visual_index;
+    }
+    let mut inline_start = if line.float_band_slots_decrease {
+        line_inline_start + line.used_inline_extent
+    } else {
+        line_inline_start
+    };
+    for source_index in visual_order {
+        let selected = line.units[source_index];
+        let selected_inline_extent = if selected.discarded {
+            S::ZERO
+        } else {
+            selected.participant.inline_advance(flow_axes)
+                + selected.replacement_inline_extent.unwrap_or(S::ZERO)
+        };
+        if line.float_band_slots_decrease {
+            inline_start = inline_start - selected_inline_extent;
+        }
+        inline_starts[source_index] = inline_start;
+        if !line.float_band_slots_decrease {
+            inline_start = inline_start + selected_inline_extent;
+        }
+    }
+    (line_inline_start, visual_indices, inline_starts)
+}
+
 #[must_use]
 #[cfg(test)]
 pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
@@ -895,7 +962,8 @@ where
     let mut float_strut = None;
     let mut continuation_inline_cursor = None;
     let mut advanced_phase_transition = false;
-    let mut float_terminal_edge_phase = S::ZERO;
+    let mut resolved_terminal_block_extent = S::ZERO;
+    let mut float_edge_phase = None;
 
     while let Some(mut provisional) = select_next_inline_line(
         &input.participants,
@@ -987,14 +1055,28 @@ where
             block_start: block_cursor,
             block_end: selected_block_end,
         };
+        line.float_band_slots_decrease = has_float_transition
+            && input
+                .flow_axes
+                .logical_axis_progression(crate::LogicalAxis::Inline)
+                .is_decreasing();
         source_cursor = selected.next_source_cursor;
         pending_strut = selected.pending_strut;
         let line_block_end = block_cursor + line.baseline + line.after_baseline;
-        let line_inline_end = selected_line_inline_start(&line, input.flow_axes, input.text_align)
-            + line.used_inline_extent;
-        if has_float_transition && line.has_split_baseline_edge_phase {
-            float_terminal_edge_phase = S::ONE / S::from_f64(2.0);
+        let line_inline_start =
+            selected_line_inline_start(&line, input.flow_axes, input.text_align);
+        let line_inline_end = line_inline_start + line.used_inline_extent;
+        if has_float_transition && line.split_baseline_edge_phase.is_some() {
+            float_edge_phase = line.split_baseline_edge_phase;
         }
+        resolved_terminal_block_extent = resolved_float_terminal_block_extent(
+            &line,
+            float_strut,
+            queried_band.next_transition,
+            input.flow_axes,
+            line_inline_start,
+            line_inline_end,
+        );
         continuation_inline_cursor = float_strut.is_some().then_some(line_inline_end);
         float_strut = next_float_strut;
         advanced_phase_transition = false;
@@ -1017,32 +1099,11 @@ where
         let line_baseline = block_start + line.baseline;
         first_baseline.get_or_insert(line_baseline);
         last_baseline = Some(line_baseline);
-        let line_inline_start =
-            selected_line_inline_start(&line, input.flow_axes, input.text_align);
+        let (line_inline_start, visual_indices, inline_starts) =
+            resolved_inline_unit_slots(&line, input.flow_axes, input.text_align);
         inline_extent = inline_extent.max(line_inline_start + line.used_inline_extent);
         post_line_clear_intents.push(line.post_line_clear_intent);
         line_bands.push(line.band);
-        let visual_order = reordered_inline_unit_indices(&line.units);
-        let mut visual_indices = vec![0; line.units.len()];
-        let mut inline_starts = vec![S::ZERO; line.units.len()];
-        for (visual_index, source_index) in visual_order.iter().copied().enumerate() {
-            visual_indices[source_index] = visual_index;
-        }
-        let placement_order = if line.uses_float_strut_phase {
-            (0..line.units.len()).collect::<Vec<_>>()
-        } else {
-            visual_order
-        };
-        let mut inline_start = line_inline_start;
-        for source_index in placement_order {
-            let selected = line.units[source_index];
-            inline_starts[source_index] = inline_start;
-            if !selected.discarded {
-                inline_start = inline_start
-                    + selected.participant.inline_advance(input.flow_axes)
-                    + selected.replacement_inline_extent.unwrap_or(S::ZERO);
-            }
-        }
         for (source_index, selected) in line.units.into_iter().enumerate() {
             let inline_start = inline_starts[source_index];
             match selected.participant {
@@ -1146,8 +1207,8 @@ where
 
     MixedInlineRunReportOf {
         inline_extent,
-        block_extent: block_cursor,
-        float_terminal_edge_phase,
+        block_extent: block_cursor.max(resolved_terminal_block_extent),
+        float_edge_phase,
         first_baseline,
         last_baseline,
         fragments,
