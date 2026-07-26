@@ -11,8 +11,8 @@ Cycle base: `8ffb4bc551a24d2283ad54436870ab3f5e66a473`
 Reviewed specification:
 `plans/P01-layout/initiatives/P01-I06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`702fab3acac6c66b22333f5120212ab36e365c7b6a00734d70285c583fb3c212`,
-commit `49ede2ba2672a91f99ba193651dbb1350ede7b80`: `FRI-06.4 D-01`,
+`c7caa79f1c8016e8eb2210e1987ef81ddf6a5055b1c0452a59b6666431581c3e`,
+commit `28a763b58ff0c856b8e655b158d3293e7998f62d`: `FRI-06.4 D-01`,
 `D-04`, `D-06`, `D-07`, `D-09`, `D-11`, `D-12`, `D-13`, and `D-16`;
 line, metric-fragment, atomic-baseline, physical-placement, comparator,
 fixture, and acceptance portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`
@@ -21,19 +21,18 @@ through `FRI-06.11`, and `FRI-06.14`.
 Reviewed implementation sequence:
 `plans/P01-layout/sequences/P01-I06-S01-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`b608fe1864b3bb34b4ef293055cc9d1015ec4fb6595295c7bd8f123d675c6b52`,
-commit `0a666f8f698703cd7979194a7f75f834e4c9b522`, entry `P01/I06/S01/C12`.
+`547e4ab7c3f1335fac62df47182adf69a7fcab52ebb29b960bc54135fc3cf986`,
+commit `6df2730fbeb43819a2e392e5208065c575fcaacb`, entry `P01/I06/S01/C12`.
 
 ## 1 Outcome
 
-Replace C08's diagnostic name/expectation synthesis with the specification's
-closed explicit fixture inputs, then correct the ten C08-characterized
-production rows: two direct-root RTL percentage-block-size rows, four vertical
-break/clear placement rows, and four float-line exclusion rows. Freeze the
-reviewed inputs, run exactly one full unfiltered generation with the
-already-installed pinned browser, and publish a lineage in which every 388-row
-activation entry has browser-pass evidence or one reviewed Chrome-failure
-substitute while the other 5,324 XML bodies preserve their entry semantics.
+Complete the reviewed T01-T04 production corrections, retain T05's successful
+full generation as diagnostic evidence of an invalid final-lineage assumption,
+resolve the newly configured crate-wide line-count lint in its own task, and
+restore honest finite fixture/comparator inputs. Use the resulting scoped
+diagnostic census to realize only the next exact production tasks. After all
+inputs and production behavior settle, one later plan amendment authorizes the
+single final full lineage and publication gate.
 
 ## 2 Boundary And Evidence
 
@@ -75,16 +74,14 @@ serialization for the three closed XML forms, strict parser support, and focused
 fixture-input tests. Public API, browser policy, base style, dependencies, root
 integration, and generator architecture remain unchanged.
 
-T05's preflight run generated 5,704 variants but failed on the two 5.5 sources.
-The reviewed correction makes their WPT wrappers explicit blocks and preserves
-segment 2 as the `FRI-06.5` zero-advance discarded anchor; all eight browser rows
-are 100x100. Its replacement then exposed one genuine closed-schema defect:
-`rangeInks: []` reaches the serializer, but serializer and parser prohibit empty
-Range evidence while `Expectation::Some(empty)` and the comparator already model
-an explicit zero-fragment assertion. Both failed lineages remain evidence. One
-focused parser/serializer correction may mirror the existing empty-fragment
-category, after which one final full run supersedes the residue. Scoped or
-unchanged-input generation remains prohibited.
+T05's preflight and replacement runs exposed zero-fragment whitespace and empty
+Range schema defects. Their focused corrections are committed. The next full run
+succeeded structurally at 5,712 generated and 16 expected missing-root
+unsupported variants, then honestly failed 314 of the 388 activation rows. Its
+uncommitted XML/report residue and exact hashes are diagnostic evidence, not
+lineage. Independent audits partition the failures into comparator transparency
+and line identity, fixture adaptation, truthful bidi input, RTL projection,
+float phase, and only then any residual production behavior.
 
 ## 3 Known Chrome Measurement Failures
 
@@ -93,265 +90,62 @@ None. Chrome remains authoritative; an entry requires the full `FRI-06.11` gate.
 ## 4 Impacts
 
 - **Public API and compatibility:** unchanged.
-- **Production:** narrow inline traversal, line-metric projection, and terminal
-  auto-block corrections in existing internal paths.
-- **Tests:** input honesty, malformed controls, exact ten-row GREEN, zero-fragment regressions, and final 388-row evidence.
-- **Generated artifacts:** T05 alone replaces the 5,712 XML lineage and report;
-  no scoped report is accepted.
-- **Dependencies, features, docs, examples, MSRV, and root:** unchanged. This
-  terminal cycle leaves the leaf inputs and outputs frozen; no later cycle
-  receives them.
+- **Production:** T01-T04 remain scoped; later production work is realized only
+  from the corrected-input diagnostic.
+- **Tests/fixtures:** exact comparator, default-block, and bidi-input honesty.
+- **Generated artifacts:** T05 residue is diagnostic and uncommitted; scoped
+  generation remains diagnostic only; one later reviewed full run owns lineage.
+- **Lint:** T06 alone owns the crate-wide `too_many_lines` remediation.
+- **Dependencies, features, docs, examples, MSRV, and root:** unchanged.
 - **Safety:** Surgeist-owned code remains free of unsafe; no new `allow` or
   `expect` attribute is permitted.
 
 ## 5 Tasks
 
-### 5.1 `P01/I06/S01/C12/T01` Correct Direct RTL Visual Traversal
+### 5.1 Completed Task Evidence
 
-**Files/area:** `src/inline.rs`; focused tests in `src/root_tests.rs`,
-`src/grid_tests.rs`, and `tests/layout/browser_parity.rs`. The grid test change
-may only correct the existing C07 RTL physical-origin expectation that encoded
-the same redundant second mirror. No fixture, parser, helper, generator, or
-generated output.
+T01-T04 are historical, independently reviewed, task-clean contracts. They must
+not be re-executed or widened by later work.
 
-**Outcome:** Consume the visual order returned by bidi reordering exactly once.
-Map logical inline starts through decreasing physical progression without a
-direction-wide second reversal.
+| Task | Realized commits | Clean outcome |
+| --- | --- | --- |
+| `T01` Correct Direct RTL Visual Traversal | `cff9204e`, `70d6e048` | Consume visual order once; composition-independent RTL controls pass |
+| `T02` Replace Synthetic Fixture Dispatch With Explicit Inputs | `37a776b3`, `48f7bfac` | Explicit marker/XML lowering remains; rejected Rust HTML pre-parser is absent |
+| `T03` Preserve Vertical Line-Band Phase | `7f6a0657`, `150a379a` | Canonical census path and vertical 24px line-band projection pass |
+| `T04` Derive Float Continuation And Terminal Extent | `515b712c`, `90c7e861` | Float continuation and terminal geometry pass within T04 scope |
 
-**RED:** Change the two exact direct-root RTL browser expectations first and
-run the focused library and public-fixture-shaped tests. At the task base they
-must fail with first Range start 180 instead of 73.296875, atomic x 102 instead
-of 73, and trailing Range start 102.203125 instead of 180. Reconstruct the
-test-only change against the exact task base if the existing expected-RED test
-uses a panic wrapper; do not fabricate RED from the implementation diff.
+Each task's recorded RED/GREEN, focused/default gates, independent task review,
+commit validation, and telemetry completion remain authoritative. The newly
+enabled crate-wide line-count lint is later T06 scope, not a retroactive T04
+finding.
 
-**Acceptance:** Both `content-box` and `border-box` variants pass for f32 and
-f64. First Range start is 73.296875, the atomic occupies the browser x/width,
-and trailing Range start is 180 with all y, line, baseline, and root geometry
-unchanged. Existing ten-flow mapping, mixed-level, source-index, and visual-index
-controls pass. The C07 subgrid RTL physical origins follow the same single
-visual-order projection. The direction-wide second reversal is absent.
+### 5.5 `P01/I06/S01/C12/T05` Capture The Diagnostic Lineage Failure
 
-**Commands:**
+**Files/area:** historical span `90c7e861..0bbfbc04`, whose T05 code commits are
+exactly `5ba51d3f`, `78876ebe`, and `0bbfbc04`; focused
+generator/parser/helper/comparator tests; uncommitted diagnostic residue. No new
+code, generation, or commit.
 
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c08_recovery_characterization_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08_recovery_characterization_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c08_r1_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c07_subgrid_rtl_
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just fmt-check
-```
+**Outcome:** Preserve the input freeze, zero-width whitespace, and empty Range
+schema corrections. Record the structurally successful full run as diagnostic,
+not final, because 314/388 activation rows fail.
 
-**Dependency:** cycle plan is reviewed and in progress.
+**RED:** The preflight failed on two zero-fragment whitespace sources; the first
+replacement failed on empty `rangeInks`; the structurally successful replacement
+then failed the exact activation union at 314 rows. These historical failures and
+their intervening focused GREEN commits are the task's TDD evidence.
 
-**Intended commit:** `fix(layout): consume RTL visual order once`.
-
-### 5.2 `P01/I06/S01/C12/T02` Replace Synthetic Fixture Dispatch With Explicit Inputs
-
-**Files/area:** `tests/layout/browser_parity/support.rs`,
-`tests/layout/browser_parity/scripts/gentest/test_helper.js`, the narrow
-serializer and focused tests in `tests/bin/surgeist-layout-generate/generator.rs`,
-focused tests in `tests/layout/browser_parity.rs`, and only these HTML sources:
-`subgrid/subgrid_baseline_auto_columns_{first,second}_item.html`,
-`subgrid/subgrid_baseline_standalone_axis_{first,second}_item.html`,
-`subgrid/subgrid_auto_track_sizing_min_content_text_runs.html`,
-`block/{fri06_bidi_mixed_inline,fri06_inline_mixed_text_atomic_wrap}.html`, and
-`float/fri06_float_line_exclusion.html`. No production or generated output.
-
-**Outcome:** Validate the exact anonymous-wrapper, transparent-inline-container,
-and containing-strut schema against Chrome's actual DOM, serialize those facts,
-and strictly parse only the generated XML in `FRI-06.11`. The explicit path
-parses normalized input and expectations independently. Retain
-`apply_fri06_c08_finite_adapter` and its helpers unchanged and exact only to keep
-stale committed XML executable until T05; no explicit-form test may enter that
-compatibility path.
-
-**Correction:** Remove the rejected Rust HTML source-preflight/tag/style/topology
-parser while retaining authored markers, helper validation, closed XML
-serialization/parsing, and input/expectation independence evidence.
-
-**RED:** Add the focused `fri06_c08r_fixture_input_` equality and rejection tests
-first. At the task base, the closed XML attributes/boundaries are unsupported,
-helper marker validation is absent, renaming prevents synthesis, and a valid
-expectation-only structural change can block adapter input lowering.
-
-**Acceptance:** Helper tests reject invalid marker values, roles, metrics, and
-actual-DOM topology. The three XML forms accept only the specified attributes,
-placement, metrics, and payload absence. Renaming a test and arbitrary
-expectation-only mutation produce identical normalized parsed input. Transparent
-browser wrappers normalize input and expectation trees independently. Synthetic
-serializer-to-parser fixtures cover all five former adapter source families from
-explicit facts. No Rust code reconstructs HTML tags, attributes, styles, or DOM
-topology; literal source checks are diagnostic only. Explicit lowering reads
-neither fixture name nor expectations, while the old compatibility block and
-hashes remain exact. No generation or `corpus-check` runs.
+**Acceptance:** Report has `filter:null`, 5,712 generated, 16 missing-root
+unsupported, zero expected-fail/quarantine/generation failures, report SHA
+`91b37caf03dcb418def6ecf45ebccc50705ab323c153a9b7f2cba7e9522f0028`,
+XML aggregate
+`19eba32b808f51e08fafd106878b3f93dee9e8e0bf3cef8580851fb0e7be5cc3`,
+and activation aggregate
+`3a0f78a7fdefc9f49feee9f0fcb5a035bc87f381f8fc8d96049eaa0cdcbc2eb1`.
+Focused GREEN, corpus/Taffy, and format checks pass; the exact activation and
+full verification failures are retained. No generated residue is committed.
 
 **Commands:**
-
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_fixture_input_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_fixture_input_
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just fmt-check
-```
-
-**Dependency:** T01 is task-clean.
-
-**Intended commit:** `test(parity): serialize explicit C08R fixture inputs`.
-
-### 5.3 `P01/I06/S01/C12/T03` Preserve Vertical Line-Band Phase
-
-**Files/area:** line metric resolution and physical projection in
-`src/inline.rs` and, only if the focused call path requires it, `src/block.rs`;
-focused tests in `src/root_tests.rs` and `tests/layout/browser_parity.rs`.
-Before behavioral work, replace only the stale census `include_str!` path in
-that test, `tests/layout/browser_parity/support.rs`, and
-`tests/bin/surgeist-layout-generate/generator.rs` with the canonical C10 path.
-No fixture, parser, helper or generator behavior, or generated output.
-
-**Outcome:** Resolve the forced-break strut and atomic fallback baseline within
-the containing 24px vertical line bands, then project logical block positions
-through `vertical-rl` without changing horizontal fallback behavior.
-
-**RED:** Commit the path-only prerequisite separately, then change all four
-exact vertical browser expectations. Against the task base plus that repair,
-both box models and both inline directions must fail at first atomic x 78
-instead of 75, second atomic x 53 instead of 51, and cleared box x 28 instead
-of 30 while retaining the characterized y and float geometry.
-
-**Acceptance:** All four rows pass for f32 and f64 with first atomic x 75,
-second atomic x 51, cleared box x 30, and the complete characterized browser
-geometry. Metric fragments retain resolved 24px line height and 16.8 baseline;
-D-11 atomic fallback, horizontal writing, top/bottom alignment, clear, and float
-controls remain green. No writing-mode-specific coordinate patch or fixture-name
-branch is introduced.
-
-**Commands:**
-
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c08_recovery_characterization_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08_recovery_characterization_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c06_
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just fmt-check
-```
-
-**Dependency:** T02 is task-clean.
-
-**Intended commits:** `test(parity): follow canonical census path`, then
-`fix(layout): preserve vertical line band phase`.
-
-### 5.4 `P01/I06/S01/C12/T04` Derive Float Continuation And Terminal Extent
-
-**Files/area:** continuation-line placement in `src/inline.rs`, automatic block
-size in `src/block.rs`, and focused tests in `src/root_tests.rs` and
-`tests/layout/browser_parity.rs`. No fixture, parser, helper, generator, or
-generated output.
-
-**Outcome:** Carry the resolved line/strut phase through float exclusion and
-derive terminal automatic block size from actual in-flow and float extents.
-Remove the C08-owned content-type/rounding adjustment once geometry owns the
-result.
-
-**RED:** Change all four exact float-line browser expectations first. At the
-task base they must expose root height 62 instead of 63, second-line y 24
-instead of 21.2, third-line y 40 instead of 42, and LTR fourth-atomic x 42
-instead of 90, with the complete characterized geometry retained.
-
-**Acceptance:** Both box models and directions pass for f32 and f64. Browser
-line phase is y 0, 21.2, 21.2, and 42; the fourth atomic has the expected
-physical x in both directions; terminal unrounded extent is 62.5 and rounded
-root height is 63. Pure-text, all-atomic, empty-inline, nonterminal-mixed, and
-integral-height controls remain 62. No fixture-name, content-type, or integer-
-rounding special case contributes the terminal 0.5px.
-
-**Commands:**
-
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c08_recovery_characterization_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08_recovery_characterization_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c08_float_line_
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just fmt-check
-```
-
-**Dependency:** T03 is task-clean.
-
-**Intended commit:** `fix(layout): derive terminal float line extent`.
-
-### 5.5 `P01/I06/S01/C12/T05` Freeze Inputs And Derive One Final Lineage
-
-**Files/area:** focused tests in `tests/bin/surgeist-layout-generate/generator.rs`
-and `tests/layout/browser_parity.rs`; final compatibility removal in
-`tests/layout/browser_parity/support.rs`; zero-Range serializer/parser handling;
-the zero-fragment whitespace guard in
-`tests/layout/browser_parity/scripts/gentest/test_helper.js`; only the two
-`subgrid_standalone_axis_{max_width_clamp,min_content_wrapping}.html` sources;
-generated XML under
-`tests/layout/browser_parity/xml/` and the authoritative generation report.
-Production, other HTML/helper/parser/generator behavior, manifest, launch
-profile, and base style are frozen.
-
-**Outcome:** Pin the 388-row union, remove the name/expectation adapter, correct
-the confirmed inputs, and serialize/parse explicit empty Range evidence as a
-zero-fragment assertion. Execute one final full unfiltered existing-pinned
-generation and prove its lineage read-only.
-
-**Evidence before the run:** Focused tests pin the exact task-clean T02 helper,
-eight-source HTML inputs, generated-XML parser, serializer, and marker-accounting
-contract;
-corpus manifest
-`99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701`,
-base style
-`5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6`,
-launch profile
-`9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb`,
-browser `149.0.7827.115`, Taffy source
-`d1ff7e339b9ee35b33858779f8d7653197e93d92`, and normalized census
-`0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691`.
-They prove the filter variables are absent, explicit input and expectation
-lowering are independent, all compatibility identifiers and calls are absent,
-and each production row already browser-passes from frozen input or has the exact
-reviewed substitute registry disposition. The preflight and input correction own
-their RED/GREEN evidence. Add focused RED proving empty `rangeInks` panics in the
-serializer and `<range-inks/>` rejects in the parser; prove `Some(empty)` rejects
-an unexpected model fragment. Commit only the closed serializer/parser fix and
-focused tests before the final run.
-
-**Single generation command:**
-
-```sh
-env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
-```
-
-The preflight and input-correction executions are retained as failed evidence.
-Run this command exactly once more after the reviewed parser/serializer commit;
-it supersedes the incomplete residue. Do not run scoped generation, another
-replacement, or regeneration to repair verification. A new failure stops with
-exact status, inventory, hashes, and worktree state.
-
-**Acceptance after the run:** The authoritative report records `filter: null`,
-5,712 generated variants, exactly 16 unsupported missing-root variants,
-expected-fail inventory exactly equal to the reviewed plan registry (normally
-zero), and zero quarantined, failed-to-generate, or other failure buckets. Exact
-provenance matches the corrected frozen inputs. Both sources retain WPT
-structure, an explicit block wrapper, 100x100 browser geometry, two 100x50
-atomics, and one zero-advance discardable whitespace segment with an allowed
-break. Empty Range evidence serializes as `<range-inks/>`, parses as
-`Some(empty)`, and compares exactly zero model fragments. Helper-reported marker use
-matches the exact eight-source inventory across all variants, with no missing,
-extra, duplicate, misplaced, malformed, or elsewhere-used fact. Each of the 388
-normalized activation rows is a browser pass or has its reviewed passing
-synthetic substitute. The other 5,324 XML bodies preserve entry semantics;
-provenance-only byte changes are allowed. No fixture/source-name dispatch or
-expectation reader can select, create, or alter parsed layout input. No scoped
-report or untracked generated output remains. Record the final report SHA-256,
-5,712-file XML aggregate, 388-row comparison aggregate, and 5,324-body semantic
-aggregate. `FRI-13` remains unclaimed.
-
-**Commands after the run:**
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_
@@ -363,38 +157,118 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just fmt-check
 ```
 
-**Dependency:** T01 through T04 are task-clean, both T05 corrections are
-committed in order, and this material correction has a fresh clean plan review.
+The layout command retains one aggregate RED; `verify` retains six and
+`verify-generator` three. Every other result matches the recorded T05 evidence.
+T05 creates no additional commit.
 
-**Intended commits:** freeze inputs; preserve zero-width wrapping; preserve empty
-Range evidence; then derive final C08R lineage.
+**Dependency:** T01-T04 are task-clean. T06 may proceed before T05 review.
 
-## 6 Completion
+### 5.6 `P01/I06/S01/C12/T06` Bound Newly Linted Rust Functions
 
-Before completion, prove both failed runs and the final run each appear once, no
-scoped or redundant generation ran, inputs match both correction commits, and
-every task command passes. Then run:
+**Files/area:** root `clippy.toml`, the two Clippy branches in
+`scripts/run-cargo-task.sh`, the union of Rust functions then reported by the
+default and generator-feature matrices for `clippy::too_many_lines`, and focused
+tests needed to preserve behavior. A reported generator/parser function may be
+split mechanically; no semantic HTML/parser/helper, generated artifact, manifest,
+dependency, feature, public API, or generator architecture change.
+
+**Outcome:** Configure `too-many-lines-threshold = 100` and make both canonical
+Clippy commands pass `-D clippy::too_many_lines`. Census their union, then extract
+cohesive existing phases/helpers until every function meets the gate. This is
+mechanical responsibility separation, not feature work or an excuse to refactor
+T04.
+
+**RED:** In a temporary exact-base worktree, apply only the owned Clippy
+configuration/command activation and run `just clippy` plus
+`just generator-clippy`. Their deduplicated failing identity union is the complete
+task census. Remove the temporary worktree after recording the authentic RED; no
+failing gate-only commit lands. No other lint or behavior enters this task.
+
+**Acceptance:** Both canonical Clippy branches visibly deny
+`clippy::too_many_lines`, root configuration pins 100, every censused identity is
+resolved, and both matrices plus format pass. Default and generator verification
+preserve only T05's exact six and three final-activation failures; every other
+test remains green. Neither task range nor repository adds `allow`/`expect`,
+executable unsafe, dependency, feature, public API, or unrelated semantic change.
+
+**Commands:**
 
 ```sh
+CARGO_NET_OFFLINE=true just clippy
+CARGO_NET_OFFLINE=true just generator-clippy
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just corpus-check
-CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just fmt-check
-git diff --check 8ffb4bc551a24d2283ad54436870ab3f5e66a473..HEAD
+git diff --check
 ```
 
-Build a nonempty manifest of every tracked and nonignored untracked Rust file.
-Run the repository-wide executable-unsafe regex and the owning Clippy matrices
-with `-F unsafe-code -D warnings`; classify every textual match. Scan every
-task range for added `allow` and `expect` attributes. All gates must pass with a
-clean worktree.
+**Dependency:** T04 is task-clean. It may run while T05 awaits review.
 
-Apply the canonical task-review, cycle-review, landing, publication, remote
-readback, closure, and handoff contracts after the cycle-specific evidence is
-clean. The handoff records the immutable candidate, reviewed planning
-revisions, task ranges, RED/GREEN evidence, final provenance and aggregate
-hashes, single-generation evidence, all gates, safety evidence, and the
-terminal frozen-input/output inventory. No later cycle is represented.
+**Intended commit:** `refactor(lint): bound oversized Rust functions`.
 
-Blocker: none at planning time.
+### 5.7 `P01/I06/S01/C12/T07` Restore Honest Fixture And Comparator Inputs
+
+**Files/area:** the exact 61 HTML sources/363 direct BR-parent divs in the
+reviewed specification; `fri06_bidi_mixed_inline.html`; browser helper;
+`support.rs`; narrow serializer/accounting tests in the generator; focused
+browser-parity tests; T05-owned uncommitted provenance edits in `generator.rs`,
+all 5,712 generated XML paths under `tests/layout/browser_parity/xml/`, and
+`xml/generation-reports/all.json`. No production, base style, manifest,
+dependency, feature, or generator architecture.
+
+**Outcome:** Author `display:block` on every audited default-block parent; add
+and validate the one source-indexed nonzero bidi marker; make level zero the
+layout-ready-inline adapter rule without reading computed direction; keep typed
+inline boundaries expectation-transparent; and normalize Range line identity to
+the explicit containing root's physical block coordinates with 0.1px tolerance.
+Remove T05 generated residue only after its hashes/evidence are read back.
+
+**RED:** Focused tests prove unauthored parents compute flex, direction changes
+currently change bidi input, boundaries inflate expected child counts, and local
+wrapper Range lines disagree with root-local line identity.
+
+**Acceptance:** Chrome computes all 363 corrected parents as block and their
+pinned WPT target roles remain ordinary boxes. Marker syntax, range, target,
+uniqueness, and consumption reject malformed input. Renaming and
+expectation-only mutation preserve normalized input; direction-only changes do
+not choose bidi levels. The 28 explicit-adapter/comparator rows pass without
+source-name dispatch or Rust HTML/CSS parsing. Focused/default/generator gates
+and format pass; no full generation runs.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t07_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t07_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just fmt-check
+git diff --check
+```
+
+Before edits, read back the recorded T05 hashes, then restore the 5,324 modified
+and 388 untracked XML files, report, and uncommitted provenance-only generator
+delta to `0bbfbc04`. Prove no diagnostic residue remains before T07's authored
+changes. The two full verification commands may fail only at the exact final
+activation aggregates; their corrected census is T07 diagnostic output.
+
+**Diagnostic:** After the committed task is clean, scoped generation may be used
+only to census the changed 388-row activation union. Each run must follow a real
+input/adapter iteration and must not be repeated over unchanged files. Its
+output is diagnostic, is cleaned after hashes and categories are recorded, and
+is never verification or lineage evidence.
+
+**Dependency:** T05 and T06 are task-clean.
+
+**Intended commit:** `fix(parity): restore honest inline fixture inputs`.
+
+## 6 Successive Planning Gate
+
+After T07's corrected-input diagnostic, amend this plan with only the exact
+remaining production categories and tasks it proves. Do not create placeholder
+tasks. The later reviewed amendment owns one final full unfiltered pinned-browser
+generation after all HTML/helper/parser/fixture inputs and production code settle,
+then the complete verification, independent task reviews, holistic review,
+publication, remote readback, closure, and handoff gates.
+
+Blocker: current T05 residue is diagnostic and awaits reviewed replacement.
