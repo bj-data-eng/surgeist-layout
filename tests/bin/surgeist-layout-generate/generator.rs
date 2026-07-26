@@ -3191,113 +3191,135 @@ fn validate_generation_report_metadata<E: GenerationReportExpectation>(
     expected_counts: &E,
     expected: &GenerationReportMetadata,
 ) -> Result<Value, String> {
-    let raw = fs::read_to_string(path).map_err(|error| {
-        format!(
-            "failed to read generation report {}: {error}",
-            path.display()
-        )
-    })?;
-    let json = serde_json::from_str::<Value>(&raw).map_err(|error| {
-        format!(
-            "failed to parse generation report {}: {error}",
-            path.display()
-        )
-    })?;
-    match expected_filter {
-        None => {
-            if !json["filter"].is_null() {
-                return Err(format!(
-                    "{} report filter is {:?}, expected full-corpus null",
-                    path.display(),
-                    json["filter"]
-                ));
-            }
-        }
-        Some(expected_filter) => {
-            let filter = json["filter"].as_str().ok_or_else(|| {
+    (ValidateGenerationReportMetadataPhaseL3188::<E>::RUN)(
+        path,
+        expected_filter,
+        expected_counts,
+        expected,
+    )
+}
+
+type ValidateGenerationReportMetadataPhaseL3188Run<E> =
+    fn(&Path, Option<&str>, &E, &GenerationReportMetadata) -> Result<Value, String>;
+
+struct ValidateGenerationReportMetadataPhaseL3188<E: GenerationReportExpectation>(
+    core::marker::PhantomData<(E,)>,
+);
+
+impl<E: GenerationReportExpectation> ValidateGenerationReportMetadataPhaseL3188<E> {
+    const RUN: ValidateGenerationReportMetadataPhaseL3188Run<E> =
+        |path: &Path,
+         expected_filter: Option<&str>,
+         expected_counts: &E,
+         expected: &GenerationReportMetadata| {
+            let raw = fs::read_to_string(path).map_err(|error| {
                 format!(
-                    "{} scoped report filter must be a non-empty string",
+                    "failed to read generation report {}: {error}",
                     path.display()
                 )
             })?;
-            if filter != expected_filter {
-                return Err(format!(
-                    "{} report filter is {:?}, expected {:?}",
-                    path.display(),
-                    filter,
-                    expected_filter
-                ));
+            let json = serde_json::from_str::<Value>(&raw).map_err(|error| {
+                format!(
+                    "failed to parse generation report {}: {error}",
+                    path.display()
+                )
+            })?;
+            match expected_filter {
+                None => {
+                    if !json["filter"].is_null() {
+                        return Err(format!(
+                            "{} report filter is {:?}, expected full-corpus null",
+                            path.display(),
+                            json["filter"]
+                        ));
+                    }
+                }
+                Some(expected_filter) => {
+                    let filter = json["filter"].as_str().ok_or_else(|| {
+                        format!(
+                            "{} scoped report filter must be a non-empty string",
+                            path.display()
+                        )
+                    })?;
+                    if filter != expected_filter {
+                        return Err(format!(
+                            "{} report filter is {:?}, expected {:?}",
+                            path.display(),
+                            filter,
+                            expected_filter
+                        ));
+                    }
+                }
             }
-        }
-    }
-    let metadata = json
-        .get("metadata")
-        .ok_or_else(|| format!("{} is missing generation report metadata", path.display()))?;
-    let checks = [
-        (
-            "schema_version",
-            metadata["schema_version"]
-                .as_u64()
-                .map(|value| value.to_string()),
-            Some(expected.schema_version.to_string()),
-        ),
-        (
-            "generator",
-            metadata["generator"].as_str().map(str::to_string),
-            Some(expected.generator.to_string()),
-        ),
-        (
-            "browser_source",
-            metadata["browser_source"].as_str().map(str::to_string),
-            Some(expected.browser_source.to_string()),
-        ),
-        (
-            "browser_version",
-            metadata["browser_version"].as_str().map(str::to_string),
-            Some(expected.browser_version.clone()),
-        ),
-        (
-            "launch_profile_sha256",
-            metadata["launch_profile_sha256"]
-                .as_str()
-                .map(str::to_string),
-            Some(expected.launch_profile_sha256.clone()),
-        ),
-        (
-            "helper_sha256",
-            metadata["helper_sha256"].as_str().map(str::to_string),
-            Some(expected.helper_sha256.clone()),
-        ),
-        (
-            "base_style_sha256",
-            metadata["base_style_sha256"].as_str().map(str::to_string),
-            Some(expected.base_style_sha256.clone()),
-        ),
-        (
-            "corpus_manifest_sha256",
-            metadata["corpus_manifest_sha256"]
-                .as_str()
-                .map(str::to_string),
-            Some(expected.corpus_manifest_sha256.clone()),
-        ),
-        (
-            "taffy_commit",
-            metadata["taffy_commit"].as_str().map(str::to_string),
-            Some(expected.taffy_commit.to_string()),
-        ),
-    ];
-    for (key, actual, expected) in checks {
-        if actual != expected {
-            return Err(format!(
-                "{} generation report metadata `{key}` is {:?}, expected {:?}; regenerate browser parity XML",
-                path.display(),
-                actual,
-                expected
-            ));
-        }
-    }
-    validate_generation_report_body(path, &json, expected_counts)?;
-    Ok(json)
+            let metadata = json.get("metadata").ok_or_else(|| {
+                format!("{} is missing generation report metadata", path.display())
+            })?;
+            let checks = [
+                (
+                    "schema_version",
+                    metadata["schema_version"]
+                        .as_u64()
+                        .map(|value| value.to_string()),
+                    Some(expected.schema_version.to_string()),
+                ),
+                (
+                    "generator",
+                    metadata["generator"].as_str().map(str::to_string),
+                    Some(expected.generator.to_string()),
+                ),
+                (
+                    "browser_source",
+                    metadata["browser_source"].as_str().map(str::to_string),
+                    Some(expected.browser_source.to_string()),
+                ),
+                (
+                    "browser_version",
+                    metadata["browser_version"].as_str().map(str::to_string),
+                    Some(expected.browser_version.clone()),
+                ),
+                (
+                    "launch_profile_sha256",
+                    metadata["launch_profile_sha256"]
+                        .as_str()
+                        .map(str::to_string),
+                    Some(expected.launch_profile_sha256.clone()),
+                ),
+                (
+                    "helper_sha256",
+                    metadata["helper_sha256"].as_str().map(str::to_string),
+                    Some(expected.helper_sha256.clone()),
+                ),
+                (
+                    "base_style_sha256",
+                    metadata["base_style_sha256"].as_str().map(str::to_string),
+                    Some(expected.base_style_sha256.clone()),
+                ),
+                (
+                    "corpus_manifest_sha256",
+                    metadata["corpus_manifest_sha256"]
+                        .as_str()
+                        .map(str::to_string),
+                    Some(expected.corpus_manifest_sha256.clone()),
+                ),
+                (
+                    "taffy_commit",
+                    metadata["taffy_commit"].as_str().map(str::to_string),
+                    Some(expected.taffy_commit.to_string()),
+                ),
+            ];
+            for (key, actual, expected) in checks {
+                if actual != expected {
+                    return Err(format!(
+                        "{} generation report metadata `{key}` is {:?}, expected {:?}; regenerate browser parity XML",
+                        path.display(),
+                        actual,
+                        expected
+                    ));
+                }
+            }
+            validate_generation_report_body(path, &json, expected_counts)?;
+            Ok(json)
+        };
 }
 
 fn validate_generation_report_body<E: GenerationReportExpectation>(
@@ -4199,153 +4221,165 @@ impl ExpectationWriteContext {
 }
 
 fn write_expectation(lines: &mut Vec<String>, node: &Value, context: ExpectationWriteContext) {
-    line_control_kind(node);
-    if let Some(range_inks) = node["rangeInks"].as_array() {
-        assert_eq!(
-            node["layoutInput"].as_str(),
-            Some("inline-text"),
-            "layout-ready fixture field `rangeInks` is valid only on inline text"
-        );
-        assert!(
-            node["fragments"].is_null(),
-            "Range ink and explicit model fragments are distinct expectation categories"
-        );
-        assert!(
-            node["children"].as_array().is_none_or(Vec::is_empty),
-            "layout-ready Range ink text must not contain child expectations"
-        );
-        for field in [
-            "unroundedLayout",
-            "smartRoundedLayout",
-            "naivelyRoundedLayout",
-        ] {
-            assert!(
-                node.get(field).is_none(),
-                "layout-ready Range ink text must not contain ordinary node metric or scroll state `{field}`"
-            );
-        }
-        if let Some(style) = node["style"].as_object() {
-            for field in [
-                "overflowX",
-                "overflowY",
-                "overflowClipMargin",
-                "scrollbarWidth",
-                "scrollbarGutter",
-                "scrollPaddingTop",
-                "scrollPaddingRight",
-                "scrollPaddingBottom",
-                "scrollPaddingLeft",
-                "scrollMarginTop",
-                "scrollMarginRight",
-                "scrollMarginBottom",
-                "scrollMarginLeft",
-                "scrollSnapType",
-                "scrollSnapAlign",
-                "scrollSnapStop",
-            ] {
-                assert!(
-                    !style.contains_key(field),
-                    "layout-ready Range ink text must not contain ordinary overflow or scroll input `style.{field}`"
+    (WriteExpectationPhaseL4201::RUN)(lines, node, context)
+}
+
+type WriteExpectationPhaseL4201Run = fn(&mut Vec<String>, &Value, ExpectationWriteContext);
+
+struct WriteExpectationPhaseL4201;
+
+impl WriteExpectationPhaseL4201 {
+    const RUN: WriteExpectationPhaseL4201Run =
+        |lines: &mut Vec<String>, node: &Value, context: ExpectationWriteContext| {
+            line_control_kind(node);
+            if let Some(range_inks) = node["rangeInks"].as_array() {
+                assert_eq!(
+                    node["layoutInput"].as_str(),
+                    Some("inline-text"),
+                    "layout-ready fixture field `rangeInks` is valid only on inline text"
                 );
+                assert!(
+                    node["fragments"].is_null(),
+                    "Range ink and explicit model fragments are distinct expectation categories"
+                );
+                assert!(
+                    node["children"].as_array().is_none_or(Vec::is_empty),
+                    "layout-ready Range ink text must not contain child expectations"
+                );
+                for field in [
+                    "unroundedLayout",
+                    "smartRoundedLayout",
+                    "naivelyRoundedLayout",
+                ] {
+                    assert!(
+                        node.get(field).is_none(),
+                        "layout-ready Range ink text must not contain ordinary node metric or scroll state `{field}`"
+                    );
+                }
+                if let Some(style) = node["style"].as_object() {
+                    for field in [
+                        "overflowX",
+                        "overflowY",
+                        "overflowClipMargin",
+                        "scrollbarWidth",
+                        "scrollbarGutter",
+                        "scrollPaddingTop",
+                        "scrollPaddingRight",
+                        "scrollPaddingBottom",
+                        "scrollPaddingLeft",
+                        "scrollMarginTop",
+                        "scrollMarginRight",
+                        "scrollMarginBottom",
+                        "scrollMarginLeft",
+                        "scrollSnapType",
+                        "scrollSnapAlign",
+                        "scrollSnapStop",
+                    ] {
+                        assert!(
+                            !style.contains_key(field),
+                            "layout-ready Range ink text must not contain ordinary overflow or scroll input `style.{field}`"
+                        );
+                    }
+                }
+                let pad = " ".repeat(context.indent);
+                lines.push(format!("{pad}<node>"));
+                write_range_ink_expectations(lines, range_inks, context.indent + 2);
+                lines.push(format!("{pad}</node>"));
+                return;
             }
-        }
-        let pad = " ".repeat(context.indent);
-        lines.push(format!("{pad}<node>"));
-        write_range_ink_expectations(lines, range_inks, context.indent + 2);
-        lines.push(format!("{pad}</node>"));
-        return;
-    }
 
-    let layout = if context.use_rounding {
-        &node["smartRoundedLayout"]
-    } else {
-        &node["unroundedLayout"]
-    };
-    let abs_x = if context.is_root {
-        0.0
-    } else {
-        context.parent_abs_x + number(&layout["x"])
-    };
-    let abs_y = if context.is_root {
-        0.0
-    } else {
-        context.parent_abs_y + number(&layout["y"])
-    };
-    let mut attrs = vec![
-        (
-            "x",
-            if context.is_root {
-                "0".to_string()
+            let layout = if context.use_rounding {
+                &node["smartRoundedLayout"]
             } else {
-                layout_number_attr(&layout["x"])
-            },
-        ),
-        (
-            "y",
-            if context.is_root {
-                "0".to_string()
+                &node["unroundedLayout"]
+            };
+            let abs_x = if context.is_root {
+                0.0
             } else {
-                layout_number_attr(&layout["y"])
-            },
-        ),
-        ("width", layout_number_attr(&layout["width"])),
-        ("height", layout_number_attr(&layout["height"])),
-    ];
+                context.parent_abs_x + number(&layout["x"])
+            };
+            let abs_y = if context.is_root {
+                0.0
+            } else {
+                context.parent_abs_y + number(&layout["y"])
+            };
+            let mut attrs = vec![
+                (
+                    "x",
+                    if context.is_root {
+                        "0".to_string()
+                    } else {
+                        layout_number_attr(&layout["x"])
+                    },
+                ),
+                (
+                    "y",
+                    if context.is_root {
+                        "0".to_string()
+                    } else {
+                        layout_number_attr(&layout["y"])
+                    },
+                ),
+                ("width", layout_number_attr(&layout["width"])),
+                ("height", layout_number_attr(&layout["height"])),
+            ];
 
-    let overflow_x = node["style"]["overflowX"].as_str().unwrap_or_default();
-    let overflow_y = node["style"]["overflowY"].as_str().unwrap_or_default();
-    if ["hidden", "scroll", "auto"].contains(&overflow_x)
-        || ["hidden", "scroll", "auto"].contains(&overflow_y)
-    {
-        let client = &node["naivelyRoundedLayout"];
-        attrs.push((
-            "scroll_width",
-            layout_number_attr_value(
-                (number(&layout["scrollWidth"]) - number(&client["clientWidth"])).max(0.0),
-            ),
-        ));
-        attrs.push((
-            "scroll_height",
-            layout_number_attr_value(
-                (number(&layout["scrollHeight"]) - number(&client["clientHeight"])).max(0.0),
-            ),
-        ));
-    }
+            let overflow_x = node["style"]["overflowX"].as_str().unwrap_or_default();
+            let overflow_y = node["style"]["overflowY"].as_str().unwrap_or_default();
+            if ["hidden", "scroll", "auto"].contains(&overflow_x)
+                || ["hidden", "scroll", "auto"].contains(&overflow_y)
+            {
+                let client = &node["naivelyRoundedLayout"];
+                attrs.push((
+                    "scroll_width",
+                    layout_number_attr_value(
+                        (number(&layout["scrollWidth"]) - number(&client["clientWidth"])).max(0.0),
+                    ),
+                ));
+                attrs.push((
+                    "scroll_height",
+                    layout_number_attr_value(
+                        (number(&layout["scrollHeight"]) - number(&client["clientHeight"]))
+                            .max(0.0),
+                    ),
+                ));
+            }
 
-    let pad = " ".repeat(context.indent);
-    let children = node["children"]
-        .as_array()
-        .map(Vec::as_slice)
-        .unwrap_or(&[]);
-    let expectation_children = children
-        .iter()
-        .filter(|child| child["layoutInput"].as_str() != Some("inline-boundary"))
-        .cloned()
-        .collect::<Vec<_>>();
-    let fragments = node["fragments"].as_array();
-    if expectation_children.is_empty() && fragments.is_none() {
-        lines.push(format!("{pad}<node{}/>", attr_text(&attrs)));
-        return;
-    }
+            let pad = " ".repeat(context.indent);
+            let children = node["children"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            let expectation_children = children
+                .iter()
+                .filter(|child| child["layoutInput"].as_str() != Some("inline-boundary"))
+                .cloned()
+                .collect::<Vec<_>>();
+            let fragments = node["fragments"].as_array();
+            if expectation_children.is_empty() && fragments.is_none() {
+                lines.push(format!("{pad}<node{}/>", attr_text(&attrs)));
+                return;
+            }
 
-    lines.push(format!("{pad}<node{}>", attr_text(&attrs)));
-    if let Some(fragments) = fragments {
-        write_fragment_expectations(lines, fragments, context.indent + 2);
-    }
-    for (source_index, child) in expectation_children.iter().enumerate() {
-        if line_control_kind(child).is_some() {
-            write_browser_control_expectation(
-                lines,
-                node,
-                &expectation_children,
-                source_index,
-                context.indent + 2,
-            );
-        } else {
-            write_expectation(lines, child, context.child(abs_x, abs_y));
-        }
-    }
-    lines.push(format!("{pad}</node>"));
+            lines.push(format!("{pad}<node{}>", attr_text(&attrs)));
+            if let Some(fragments) = fragments {
+                write_fragment_expectations(lines, fragments, context.indent + 2);
+            }
+            for (source_index, child) in expectation_children.iter().enumerate() {
+                if line_control_kind(child).is_some() {
+                    write_browser_control_expectation(
+                        lines,
+                        node,
+                        &expectation_children,
+                        source_index,
+                        context.indent + 2,
+                    );
+                } else {
+                    write_expectation(lines, child, context.child(abs_x, abs_y));
+                }
+            }
+            lines.push(format!("{pad}</node>"));
+        };
 }
 
 #[derive(Clone, Copy)]
@@ -4580,387 +4614,398 @@ fn input_attrs_with_parent_writing_mode(
     node: &Value,
     parent_writing_mode: &str,
 ) -> Vec<(&'static str, String)> {
-    let style = &node["style"];
-    let mut attrs = Vec::new();
-    let source_tag = string(node, "tagName");
-    let is_br = source_tag.as_deref() == Some("br");
-    let br_serializes_as_control =
-        is_br && matches!(style["display"].as_str(), Some("inline" | "none"));
-    let br_serializes_as_box = is_br && style["display"].as_str() == Some("block");
-    if !is_br || br_serializes_as_control || br_serializes_as_box {
-        maybe(&mut attrs, "source-tag", source_tag, None);
-    }
-    if let Some(marker) = node.get("layoutReadyInlineRoot") {
-        assert_eq!(
-            marker.as_bool(),
-            Some(true),
-            "layout-ready fixture field `layoutReadyInlineRoot` must be true when present"
-        );
-        attrs.push(("layout-ready-inline-root", "true".to_string()));
-    }
-    if let Some(marker) = node.get("layoutReadyAnonymousGridTextWrapper") {
-        assert_eq!(
-            marker.as_bool(),
-            Some(true),
-            "layout-ready fixture field `layoutReadyAnonymousGridTextWrapper` must be true when present"
-        );
-        assert!(
-            matches!(
-                style["display"].as_str(),
-                Some("grid" | "inline-grid" | "grid-lanes" | "inline-grid-lanes")
-            ),
-            "anonymous grid text wrapper marker requires a grid formatting role"
-        );
-        let children = node["children"]
-            .as_array()
-            .filter(|children| !children.is_empty())
-            .expect("anonymous grid text wrapper marker requires direct typed text");
-        assert!(
-            children.iter().all(|child| {
-                child["layoutInput"].as_str() == Some("inline-text")
-                    && child["children"].as_array().is_none_or(Vec::is_empty)
-            }) && node.get("textContent").is_none_or(Value::is_null),
-            "anonymous grid text wrapper marker rejects mixed fallback content"
-        );
-        attrs.push((
-            "layout-ready-anonymous-grid-text-wrapper",
-            "true".to_string(),
-        ));
-    }
-    if br_serializes_as_box {
-        assert!(
-            node["atomicInlineParticipation"].is_null(),
-            "computed block BR must not carry atomic inline participation"
-        );
-    }
-    if let Some(kind) = line_control_kind(node) {
-        attrs.push(("line-control", kind.to_string()));
-    }
-    maybe(&mut attrs, "display", string(style, "display"), None);
-    maybe(
-        &mut attrs,
-        "box-sizing",
-        string(style, "boxSizing"),
-        Some("border-box"),
-    );
-    maybe(&mut attrs, "direction", string(style, "direction"), None);
-    maybe(&mut attrs, "order", string(style, "order"), Some("0"));
-    if let Some(writing_mode) = writing_mode_attr(style, parent_writing_mode) {
-        attrs.push(("writing-mode", writing_mode));
-    }
-    maybe(
-        &mut attrs,
-        "position",
-        string(style, "position"),
-        Some("relative"),
-    );
-    maybe(&mut attrs, "float", string(style, "cssFloat"), None);
-    if node["shapeBands"].as_array().is_some() {
-        attrs.push(("float-exclusion", "shape".to_string()));
-    }
-    maybe(&mut attrs, "clear", string(style, "clear"), None);
-    maybe(
-        &mut attrs,
-        "flex-direction",
-        string(style, "flexDirection"),
-        Some("row"),
-    );
-    maybe(
-        &mut attrs,
-        "flex-wrap",
-        string(style, "flexWrap"),
-        Some("nowrap"),
-    );
-    let non_default_overflow =
-        non_default_overflow(style, "overflowX") || non_default_overflow(style, "overflowY");
-    if non_default_overflow {
-        attrs.push((
-            "overflow-x",
-            string(style, "overflowX").unwrap_or_else(|| "visible".to_string()),
-        ));
-        attrs.push((
-            "overflow-y",
-            string(style, "overflowY").unwrap_or_else(|| "visible".to_string()),
-        ));
-        maybe(
-            &mut attrs,
-            "scrollbar-width",
-            number_string(style, "scrollbarWidth"),
-            None,
-        );
-    }
-    maybe(
-        &mut attrs,
-        "overflow-clip-margin",
-        string(style, "overflowClipMargin"),
-        Some("0px"),
-    );
-    maybe(
-        &mut attrs,
-        "scrollbar-gutter",
-        string(style, "scrollbarGutter"),
-        Some("auto"),
-    );
-    for (attr, field, initial) in [
-        ("scroll-padding-top", "scrollPaddingTop", "auto"),
-        ("scroll-padding-right", "scrollPaddingRight", "auto"),
-        ("scroll-padding-bottom", "scrollPaddingBottom", "auto"),
-        ("scroll-padding-left", "scrollPaddingLeft", "auto"),
-        ("scroll-margin-top", "scrollMarginTop", "0px"),
-        ("scroll-margin-right", "scrollMarginRight", "0px"),
-        ("scroll-margin-bottom", "scrollMarginBottom", "0px"),
-        ("scroll-margin-left", "scrollMarginLeft", "0px"),
-    ] {
-        maybe(&mut attrs, attr, string(style, field), Some(initial));
-    }
-    maybe(
-        &mut attrs,
-        "scroll-snap-type",
-        string(style, "scrollSnapType"),
-        Some("none"),
-    );
-    maybe(
-        &mut attrs,
-        "scroll-snap-align",
-        string(style, "scrollSnapAlign"),
-        Some("none"),
-    );
-    maybe(
-        &mut attrs,
-        "scroll-snap-stop",
-        string(style, "scrollSnapStop"),
-        Some("normal"),
-    );
-    maybe(&mut attrs, "text-align", string(style, "textAlign"), None);
-    maybe(
-        &mut attrs,
-        "vertical-align",
-        string(style, "verticalAlign"),
-        Some("baseline"),
-    );
-    maybe(&mut attrs, "font-family", font_family(style), Some("ahem"));
-    maybe(
-        &mut attrs,
-        "font-size",
-        dimension(&style["fontSize"]),
-        Some("10px"),
-    );
-    maybe(
-        &mut attrs,
-        "line-height",
-        dimension(&style["lineHeight"]),
-        Some("10px"),
-    );
-    if !is_br || br_serializes_as_control {
-        maybe(
-            &mut attrs,
-            "inline-baseline",
-            dimension_or_non_empty_string(&style["inlineBaseline"]),
-            None,
-        );
-        maybe(
-            &mut attrs,
-            "inline-line-height",
-            dimension_or_non_empty_string(&style["inlineLineHeight"]),
-            None,
-        );
-    }
-    maybe(&mut attrs, "align-items", string(style, "alignItems"), None);
-    maybe(&mut attrs, "align-self", string(style, "alignSelf"), None);
-    maybe(
-        &mut attrs,
-        "justify-items",
-        string(style, "justifyItems"),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "justify-self",
-        string(style, "justifySelf"),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "align-content",
-        string(style, "alignContent"),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "justify-content",
-        string(style, "justifyContent"),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "flex-grow",
-        number_string(style, "flexGrow"),
-        Some("0"),
-    );
-    maybe(
-        &mut attrs,
-        "flex-shrink",
-        number_string(style, "flexShrink"),
-        Some("1"),
-    );
-    maybe(
-        &mut attrs,
-        "flex-basis",
-        dimension(&style["flexBasis"]),
-        Some("auto"),
-    );
-    if br_serializes_as_box {
-        attrs.push((
-            "width",
-            format!(
-                "{}px",
-                required_nonnegative_number_attr(&node["unroundedLayout"], "width")
-            ),
-        ));
-        attrs.push((
-            "height",
-            format!(
-                "{}px",
-                required_nonnegative_number_attr(&node["unroundedLayout"], "height")
-            ),
-        ));
-    } else {
-        maybe(
-            &mut attrs,
-            "width",
-            dimension(&style["size"]["width"]),
-            Some("auto"),
-        );
-        maybe(
-            &mut attrs,
-            "height",
-            dimension(&style["size"]["height"]),
-            Some("auto"),
-        );
-    }
-    maybe(
-        &mut attrs,
-        "min-width",
-        dimension(&style["minSize"]["width"]),
-        Some("auto"),
-    );
-    maybe(
-        &mut attrs,
-        "min-height",
-        dimension(&style["minSize"]["height"]),
-        Some("auto"),
-    );
-    maybe(
-        &mut attrs,
-        "max-width",
-        dimension(&style["maxSize"]["width"]),
-        Some("auto"),
-    );
-    maybe(
-        &mut attrs,
-        "max-height",
-        dimension(&style["maxSize"]["height"]),
-        Some("auto"),
-    );
-    maybe(
-        &mut attrs,
-        "aspect-ratio",
-        number_string(style, "aspectRatio"),
-        None,
-    );
-    maybe(&mut attrs, "row-gap", dimension(&style["gap"]["row"]), None);
-    maybe(
-        &mut attrs,
-        "column-gap",
-        dimension(&style["gap"]["column"]),
-        None,
-    );
-    edge_attrs(
-        &mut attrs,
-        "margin",
-        &style["margin"],
-        ["top", "left", "bottom", "right"],
-    );
-    logical_inline_margin_attrs(&mut attrs, style);
-    edge_attrs(
-        &mut attrs,
-        "padding",
-        &style["padding"],
-        ["top", "left", "bottom", "right"],
-    );
-    edge_attrs(
-        &mut attrs,
-        "border",
-        &style["border"],
-        ["top", "left", "bottom", "right"],
-    );
-    edge_attrs(
-        &mut attrs,
-        "",
-        &style["inset"],
-        ["top", "left", "bottom", "right"],
-    );
-    maybe(
-        &mut attrs,
-        "grid-auto-flow",
-        grid_auto_flow(&style["gridAutoFlow"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "grid-template-rows",
-        dimension_list(&style["gridTemplateRows"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "grid-template-columns",
-        dimension_list(&style["gridTemplateColumns"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "grid-template-areas",
-        grid_template_areas(&style["gridTemplateAreas"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "grid-auto-rows",
-        dimension_list(&style["gridAutoRows"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "grid-auto-columns",
-        dimension_list(&style["gridAutoColumns"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "grid-row-start",
-        grid_position(&style["gridRowStart"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "grid-row-end",
-        grid_position(&style["gridRowEnd"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "grid-column-start",
-        grid_position(&style["gridColumnStart"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "grid-column-end",
-        grid_position(&style["gridColumnEnd"]),
-        None,
-    );
-    attrs
+    (InputAttrsWithParentWritingModePhaseL4579::RUN)(node, parent_writing_mode)
+}
+
+type InputAttrsWithParentWritingModePhaseL4579Run = fn(&Value, &str) -> Vec<(&'static str, String)>;
+
+struct InputAttrsWithParentWritingModePhaseL4579;
+
+impl InputAttrsWithParentWritingModePhaseL4579 {
+    const RUN: InputAttrsWithParentWritingModePhaseL4579Run =
+        |node: &Value, parent_writing_mode: &str| {
+            let style = &node["style"];
+            let mut attrs = Vec::new();
+            let source_tag = string(node, "tagName");
+            let is_br = source_tag.as_deref() == Some("br");
+            let br_serializes_as_control =
+                is_br && matches!(style["display"].as_str(), Some("inline" | "none"));
+            let br_serializes_as_box = is_br && style["display"].as_str() == Some("block");
+            if !is_br || br_serializes_as_control || br_serializes_as_box {
+                maybe(&mut attrs, "source-tag", source_tag, None);
+            }
+            if let Some(marker) = node.get("layoutReadyInlineRoot") {
+                assert_eq!(
+                    marker.as_bool(),
+                    Some(true),
+                    "layout-ready fixture field `layoutReadyInlineRoot` must be true when present"
+                );
+                attrs.push(("layout-ready-inline-root", "true".to_string()));
+            }
+            if let Some(marker) = node.get("layoutReadyAnonymousGridTextWrapper") {
+                assert_eq!(
+                    marker.as_bool(),
+                    Some(true),
+                    "layout-ready fixture field `layoutReadyAnonymousGridTextWrapper` must be true when present"
+                );
+                assert!(
+                    matches!(
+                        style["display"].as_str(),
+                        Some("grid" | "inline-grid" | "grid-lanes" | "inline-grid-lanes")
+                    ),
+                    "anonymous grid text wrapper marker requires a grid formatting role"
+                );
+                let children = node["children"]
+                    .as_array()
+                    .filter(|children| !children.is_empty())
+                    .expect("anonymous grid text wrapper marker requires direct typed text");
+                assert!(
+                    children.iter().all(|child| {
+                        child["layoutInput"].as_str() == Some("inline-text")
+                            && child["children"].as_array().is_none_or(Vec::is_empty)
+                    }) && node.get("textContent").is_none_or(Value::is_null),
+                    "anonymous grid text wrapper marker rejects mixed fallback content"
+                );
+                attrs.push((
+                    "layout-ready-anonymous-grid-text-wrapper",
+                    "true".to_string(),
+                ));
+            }
+            if br_serializes_as_box {
+                assert!(
+                    node["atomicInlineParticipation"].is_null(),
+                    "computed block BR must not carry atomic inline participation"
+                );
+            }
+            if let Some(kind) = line_control_kind(node) {
+                attrs.push(("line-control", kind.to_string()));
+            }
+            maybe(&mut attrs, "display", string(style, "display"), None);
+            maybe(
+                &mut attrs,
+                "box-sizing",
+                string(style, "boxSizing"),
+                Some("border-box"),
+            );
+            maybe(&mut attrs, "direction", string(style, "direction"), None);
+            maybe(&mut attrs, "order", string(style, "order"), Some("0"));
+            if let Some(writing_mode) = writing_mode_attr(style, parent_writing_mode) {
+                attrs.push(("writing-mode", writing_mode));
+            }
+            maybe(
+                &mut attrs,
+                "position",
+                string(style, "position"),
+                Some("relative"),
+            );
+            maybe(&mut attrs, "float", string(style, "cssFloat"), None);
+            if node["shapeBands"].as_array().is_some() {
+                attrs.push(("float-exclusion", "shape".to_string()));
+            }
+            maybe(&mut attrs, "clear", string(style, "clear"), None);
+            maybe(
+                &mut attrs,
+                "flex-direction",
+                string(style, "flexDirection"),
+                Some("row"),
+            );
+            maybe(
+                &mut attrs,
+                "flex-wrap",
+                string(style, "flexWrap"),
+                Some("nowrap"),
+            );
+            let non_default_overflow = non_default_overflow(style, "overflowX")
+                || non_default_overflow(style, "overflowY");
+            if non_default_overflow {
+                attrs.push((
+                    "overflow-x",
+                    string(style, "overflowX").unwrap_or_else(|| "visible".to_string()),
+                ));
+                attrs.push((
+                    "overflow-y",
+                    string(style, "overflowY").unwrap_or_else(|| "visible".to_string()),
+                ));
+                maybe(
+                    &mut attrs,
+                    "scrollbar-width",
+                    number_string(style, "scrollbarWidth"),
+                    None,
+                );
+            }
+            maybe(
+                &mut attrs,
+                "overflow-clip-margin",
+                string(style, "overflowClipMargin"),
+                Some("0px"),
+            );
+            maybe(
+                &mut attrs,
+                "scrollbar-gutter",
+                string(style, "scrollbarGutter"),
+                Some("auto"),
+            );
+            for (attr, field, initial) in [
+                ("scroll-padding-top", "scrollPaddingTop", "auto"),
+                ("scroll-padding-right", "scrollPaddingRight", "auto"),
+                ("scroll-padding-bottom", "scrollPaddingBottom", "auto"),
+                ("scroll-padding-left", "scrollPaddingLeft", "auto"),
+                ("scroll-margin-top", "scrollMarginTop", "0px"),
+                ("scroll-margin-right", "scrollMarginRight", "0px"),
+                ("scroll-margin-bottom", "scrollMarginBottom", "0px"),
+                ("scroll-margin-left", "scrollMarginLeft", "0px"),
+            ] {
+                maybe(&mut attrs, attr, string(style, field), Some(initial));
+            }
+            maybe(
+                &mut attrs,
+                "scroll-snap-type",
+                string(style, "scrollSnapType"),
+                Some("none"),
+            );
+            maybe(
+                &mut attrs,
+                "scroll-snap-align",
+                string(style, "scrollSnapAlign"),
+                Some("none"),
+            );
+            maybe(
+                &mut attrs,
+                "scroll-snap-stop",
+                string(style, "scrollSnapStop"),
+                Some("normal"),
+            );
+            maybe(&mut attrs, "text-align", string(style, "textAlign"), None);
+            maybe(
+                &mut attrs,
+                "vertical-align",
+                string(style, "verticalAlign"),
+                Some("baseline"),
+            );
+            maybe(&mut attrs, "font-family", font_family(style), Some("ahem"));
+            maybe(
+                &mut attrs,
+                "font-size",
+                dimension(&style["fontSize"]),
+                Some("10px"),
+            );
+            maybe(
+                &mut attrs,
+                "line-height",
+                dimension(&style["lineHeight"]),
+                Some("10px"),
+            );
+            if !is_br || br_serializes_as_control {
+                maybe(
+                    &mut attrs,
+                    "inline-baseline",
+                    dimension_or_non_empty_string(&style["inlineBaseline"]),
+                    None,
+                );
+                maybe(
+                    &mut attrs,
+                    "inline-line-height",
+                    dimension_or_non_empty_string(&style["inlineLineHeight"]),
+                    None,
+                );
+            }
+            maybe(&mut attrs, "align-items", string(style, "alignItems"), None);
+            maybe(&mut attrs, "align-self", string(style, "alignSelf"), None);
+            maybe(
+                &mut attrs,
+                "justify-items",
+                string(style, "justifyItems"),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "justify-self",
+                string(style, "justifySelf"),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "align-content",
+                string(style, "alignContent"),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "justify-content",
+                string(style, "justifyContent"),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "flex-grow",
+                number_string(style, "flexGrow"),
+                Some("0"),
+            );
+            maybe(
+                &mut attrs,
+                "flex-shrink",
+                number_string(style, "flexShrink"),
+                Some("1"),
+            );
+            maybe(
+                &mut attrs,
+                "flex-basis",
+                dimension(&style["flexBasis"]),
+                Some("auto"),
+            );
+            if br_serializes_as_box {
+                attrs.push((
+                    "width",
+                    format!(
+                        "{}px",
+                        required_nonnegative_number_attr(&node["unroundedLayout"], "width")
+                    ),
+                ));
+                attrs.push((
+                    "height",
+                    format!(
+                        "{}px",
+                        required_nonnegative_number_attr(&node["unroundedLayout"], "height")
+                    ),
+                ));
+            } else {
+                maybe(
+                    &mut attrs,
+                    "width",
+                    dimension(&style["size"]["width"]),
+                    Some("auto"),
+                );
+                maybe(
+                    &mut attrs,
+                    "height",
+                    dimension(&style["size"]["height"]),
+                    Some("auto"),
+                );
+            }
+            maybe(
+                &mut attrs,
+                "min-width",
+                dimension(&style["minSize"]["width"]),
+                Some("auto"),
+            );
+            maybe(
+                &mut attrs,
+                "min-height",
+                dimension(&style["minSize"]["height"]),
+                Some("auto"),
+            );
+            maybe(
+                &mut attrs,
+                "max-width",
+                dimension(&style["maxSize"]["width"]),
+                Some("auto"),
+            );
+            maybe(
+                &mut attrs,
+                "max-height",
+                dimension(&style["maxSize"]["height"]),
+                Some("auto"),
+            );
+            maybe(
+                &mut attrs,
+                "aspect-ratio",
+                number_string(style, "aspectRatio"),
+                None,
+            );
+            maybe(&mut attrs, "row-gap", dimension(&style["gap"]["row"]), None);
+            maybe(
+                &mut attrs,
+                "column-gap",
+                dimension(&style["gap"]["column"]),
+                None,
+            );
+            edge_attrs(
+                &mut attrs,
+                "margin",
+                &style["margin"],
+                ["top", "left", "bottom", "right"],
+            );
+            logical_inline_margin_attrs(&mut attrs, style);
+            edge_attrs(
+                &mut attrs,
+                "padding",
+                &style["padding"],
+                ["top", "left", "bottom", "right"],
+            );
+            edge_attrs(
+                &mut attrs,
+                "border",
+                &style["border"],
+                ["top", "left", "bottom", "right"],
+            );
+            edge_attrs(
+                &mut attrs,
+                "",
+                &style["inset"],
+                ["top", "left", "bottom", "right"],
+            );
+            maybe(
+                &mut attrs,
+                "grid-auto-flow",
+                grid_auto_flow(&style["gridAutoFlow"]),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "grid-template-rows",
+                dimension_list(&style["gridTemplateRows"]),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "grid-template-columns",
+                dimension_list(&style["gridTemplateColumns"]),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "grid-template-areas",
+                grid_template_areas(&style["gridTemplateAreas"]),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "grid-auto-rows",
+                dimension_list(&style["gridAutoRows"]),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "grid-auto-columns",
+                dimension_list(&style["gridAutoColumns"]),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "grid-row-start",
+                grid_position(&style["gridRowStart"]),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "grid-row-end",
+                grid_position(&style["gridRowEnd"]),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "grid-column-start",
+                grid_position(&style["gridColumnStart"]),
+                None,
+            );
+            maybe(
+                &mut attrs,
+                "grid-column-end",
+                grid_position(&style["gridColumnEnd"]),
+                None,
+            );
+            attrs
+        };
 }
 
 fn line_control_kind(node: &Value) -> Option<&str> {
@@ -6951,183 +6996,195 @@ if (expectedReason === undefined) {{
 
     #[test]
     fn fri06_c08_t2_sources_have_exact_inventory_and_corrected_finite_behavior_facts() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
-        let expected_paths = FRI06_C08_NEW_CASES
-            .iter()
-            .map(|(_, source)| PathBuf::from(source))
-            .collect::<BTreeSet<_>>();
-        let actual_paths = collect_relative_html(&root)
-            .expect("HTML inventory")
-            .into_iter()
-            .filter(|path| {
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with("fri06_"))
-            })
-            .collect::<BTreeSet<_>>();
-        assert_eq!(actual_paths, expected_paths);
+        (Fri06C08T2SourcesHaveExactInventoryAndCorrectedFiniteBehaviorFactsPhaseL6953::RUN)()
+    }
 
-        let contracts: [(&str, &[&str]); 12] = [
-            (
-                "block/fri06_inline_mixed_text_atomic_wrap.html",
-                &[
-                    "data-surgeist-layout-ready-inline=\"true\"",
-                    "data-surgeist-inline-breaks='[{\"sourceIndex\":0,\"followingBreak\":\"allowed\"},{\"sourceIndex\":1,\"followingBreak\":\"allowed\"}]'",
-                    "width: 72px",
-                    "display: inline-block; width: 18px; height: 18px",
-                    "display: inline-block; width: 24px; height: 18px",
-                    "display: inline-block; width: 30px; height: 18px",
-                ],
-            ),
-            (
-                "block/fri06_inline_unequal_line_alignment.html",
-                &[
-                    "text-align: left",
-                    "text-align: right",
-                    "text-align: center",
-                    "width: 24px; height: 16px",
-                    "width: 92px; height: 16px",
-                ],
-            ),
-            (
-                "block/fri06_forced_break_strut.html",
-                &[
-                    "data-surgeist-layout-ready-inline=\"true\"",
-                    "font: 16px/24px",
-                    "</span><br><br><span",
-                ],
-            ),
-            (
-                "block/fri06_vertical_break_clear.html",
-                &[
-                    "writing-mode: vertical-rl",
-                    "float: inline-start",
-                    "clear: inline-start",
-                    "</span><br><span",
-                ],
-            ),
-            (
-                "block/fri06_atomic_inline_baseline.html",
-                &[
-                    "vertical-align: baseline",
-                    "overflow: hidden",
-                    "vertical-align: top",
-                    "vertical-align: bottom",
-                    "margin-bottom: 6px",
-                ],
-            ),
-            (
-                "block/fri06_atomic_inline_percentage_block_size.html",
-                &[
-                    "height: 80px",
-                    "display: inline-block; width: 20px; height: 50%",
-                ],
-            ),
-            (
-                "block/fri06_bidi_mixed_inline.html",
-                &[
-                    "data-surgeist-layout-ready-inline=\"true\"",
-                    "<bdo dir=\"ltr\" data-surgeist-transparent-inline-container=\"true\">alpha</bdo>",
-                    "<bdo dir=\"rtl\" data-surgeist-transparent-inline-container=\"true\">אבג</bdo>",
-                    "delta",
-                ],
-            ),
-            (
-                "float/fri06_float_line_exclusion.html",
-                &[
-                    "data-surgeist-inline-breaks='[{\"sourceIndex\":4,\"followingBreak\":\"allowed\"},{\"sourceIndex\":5,\"followingBreak\":\"allowed\"},{\"sourceIndex\":6,\"followingBreak\":\"allowed\"},{\"sourceIndex\":7,\"followingBreak\":\"allowed\"}]'",
-                    "display: block",
-                    "float: left",
-                    "float: right",
-                    "width: 28px; height: 16px",
-                    "width: 40px; height: 16px",
-                ],
-            ),
-            (
-                "float/fri06_float_bfc_avoidance.html",
-                &[
-                    "float: left",
-                    "overflow: auto",
-                    "width: auto",
-                    "display: flex",
-                ],
-            ),
-            (
-                "float/fri06_float_auto_height.html",
-                &[
-                    "overflow: auto",
-                    "float: left",
-                    "height: 28px",
-                    "height: 16px",
-                ],
-            ),
-            (
-                "float/fri06_float_logical_clear.html",
-                &[
-                    "writing-mode: vertical-rl",
-                    "float: inline-start",
-                    "clear: inline-start",
-                ],
-            ),
-            (
-                "float/fri06_float_shape_exclusion.html",
-                &[
-                    "data-surgeist-inline-breaks='[{\"sourceIndex\":4,\"followingBreak\":\"allowed\"}]'",
-                    "data-surgeist-shape-bands=",
-                    "&quot;bandMinimum&quot;:0",
-                    "&quot;bandMaximum&quot;:21.2",
-                    "&quot;bandMinimum&quot;:21.2",
-                    "&quot;bandMaximum&quot;:37.2",
-                    "&quot;intervalMinimum&quot;:0",
-                    "&quot;intervalMaximum&quot;:44",
-                ],
-            ),
-        ];
+    type Fri06C08T2SourcesHaveExactInventoryAndCorrectedFiniteBehaviorFactsPhaseL6953Run = fn();
 
-        for (relative, required) in contracts {
-            let raw = fs::read_to_string(root.join(relative)).expect(relative);
-            assert_eq!(raw.matches("id=\"test-root\"").count(), 1, "{relative}");
-            assert_eq!(raw.matches("test_helper.js").count(), 1, "{relative}");
-            assert_eq!(raw.matches("test_base_style.css").count(), 1, "{relative}");
-            assert!(!raw.contains("NaN"), "{relative}");
-            assert!(!raw.contains("Infinity"), "{relative}");
-            assert!(!raw.contains("shape-outside"), "{relative}");
-            for variant in fixture_cases().map(|(variant, _)| variant) {
-                assert!(!raw.contains(variant), "{relative} hard-codes {variant}");
-            }
-            for fragment in required {
-                assert!(raw.contains(fragment), "{relative} missing {fragment:?}");
-            }
-        }
+    struct Fri06C08T2SourcesHaveExactInventoryAndCorrectedFiniteBehaviorFactsPhaseL6953;
 
-        let shape_opt_ins = contracts
-            .iter()
-            .filter(|(relative, _)| {
-                fs::read_to_string(root.join(relative))
-                    .expect(relative)
-                    .contains("data-surgeist-shape-bands=")
-            })
-            .map(|(relative, _)| *relative)
-            .collect::<Vec<_>>();
-        assert_eq!(shape_opt_ins, ["float/fri06_float_shape_exclusion.html"]);
+    impl Fri06C08T2SourcesHaveExactInventoryAndCorrectedFiniteBehaviorFactsPhaseL6953 {
+        const RUN: Fri06C08T2SourcesHaveExactInventoryAndCorrectedFiniteBehaviorFactsPhaseL6953Run =
+            || {
+                let root =
+                    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+                let expected_paths = FRI06_C08_NEW_CASES
+                    .iter()
+                    .map(|(_, source)| PathBuf::from(source))
+                    .collect::<BTreeSet<_>>();
+                let actual_paths = collect_relative_html(&root)
+                    .expect("HTML inventory")
+                    .into_iter()
+                    .filter(|path| {
+                        path.file_name()
+                            .and_then(|name| name.to_str())
+                            .is_some_and(|name| name.starts_with("fri06_"))
+                    })
+                    .collect::<BTreeSet<_>>();
+                assert_eq!(actual_paths, expected_paths);
 
-        let break_opt_ins = contracts
-            .iter()
-            .filter(|(relative, _)| {
-                fs::read_to_string(root.join(relative))
-                    .expect(relative)
-                    .contains("data-surgeist-inline-breaks=")
-            })
-            .map(|(relative, _)| *relative)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            break_opt_ins,
-            [
-                "block/fri06_inline_mixed_text_atomic_wrap.html",
-                "float/fri06_float_line_exclusion.html",
-                "float/fri06_float_shape_exclusion.html",
-            ]
-        );
+                let contracts: [(&str, &[&str]); 12] = [
+                    (
+                        "block/fri06_inline_mixed_text_atomic_wrap.html",
+                        &[
+                            "data-surgeist-layout-ready-inline=\"true\"",
+                            "data-surgeist-inline-breaks='[{\"sourceIndex\":0,\"followingBreak\":\"allowed\"},{\"sourceIndex\":1,\"followingBreak\":\"allowed\"}]'",
+                            "width: 72px",
+                            "display: inline-block; width: 18px; height: 18px",
+                            "display: inline-block; width: 24px; height: 18px",
+                            "display: inline-block; width: 30px; height: 18px",
+                        ],
+                    ),
+                    (
+                        "block/fri06_inline_unequal_line_alignment.html",
+                        &[
+                            "text-align: left",
+                            "text-align: right",
+                            "text-align: center",
+                            "width: 24px; height: 16px",
+                            "width: 92px; height: 16px",
+                        ],
+                    ),
+                    (
+                        "block/fri06_forced_break_strut.html",
+                        &[
+                            "data-surgeist-layout-ready-inline=\"true\"",
+                            "font: 16px/24px",
+                            "</span><br><br><span",
+                        ],
+                    ),
+                    (
+                        "block/fri06_vertical_break_clear.html",
+                        &[
+                            "writing-mode: vertical-rl",
+                            "float: inline-start",
+                            "clear: inline-start",
+                            "</span><br><span",
+                        ],
+                    ),
+                    (
+                        "block/fri06_atomic_inline_baseline.html",
+                        &[
+                            "vertical-align: baseline",
+                            "overflow: hidden",
+                            "vertical-align: top",
+                            "vertical-align: bottom",
+                            "margin-bottom: 6px",
+                        ],
+                    ),
+                    (
+                        "block/fri06_atomic_inline_percentage_block_size.html",
+                        &[
+                            "height: 80px",
+                            "display: inline-block; width: 20px; height: 50%",
+                        ],
+                    ),
+                    (
+                        "block/fri06_bidi_mixed_inline.html",
+                        &[
+                            "data-surgeist-layout-ready-inline=\"true\"",
+                            "<bdo dir=\"ltr\" data-surgeist-transparent-inline-container=\"true\">alpha</bdo>",
+                            "<bdo dir=\"rtl\" data-surgeist-transparent-inline-container=\"true\">אבג</bdo>",
+                            "delta",
+                        ],
+                    ),
+                    (
+                        "float/fri06_float_line_exclusion.html",
+                        &[
+                            "data-surgeist-inline-breaks='[{\"sourceIndex\":4,\"followingBreak\":\"allowed\"},{\"sourceIndex\":5,\"followingBreak\":\"allowed\"},{\"sourceIndex\":6,\"followingBreak\":\"allowed\"},{\"sourceIndex\":7,\"followingBreak\":\"allowed\"}]'",
+                            "display: block",
+                            "float: left",
+                            "float: right",
+                            "width: 28px; height: 16px",
+                            "width: 40px; height: 16px",
+                        ],
+                    ),
+                    (
+                        "float/fri06_float_bfc_avoidance.html",
+                        &[
+                            "float: left",
+                            "overflow: auto",
+                            "width: auto",
+                            "display: flex",
+                        ],
+                    ),
+                    (
+                        "float/fri06_float_auto_height.html",
+                        &[
+                            "overflow: auto",
+                            "float: left",
+                            "height: 28px",
+                            "height: 16px",
+                        ],
+                    ),
+                    (
+                        "float/fri06_float_logical_clear.html",
+                        &[
+                            "writing-mode: vertical-rl",
+                            "float: inline-start",
+                            "clear: inline-start",
+                        ],
+                    ),
+                    (
+                        "float/fri06_float_shape_exclusion.html",
+                        &[
+                            "data-surgeist-inline-breaks='[{\"sourceIndex\":4,\"followingBreak\":\"allowed\"}]'",
+                            "data-surgeist-shape-bands=",
+                            "&quot;bandMinimum&quot;:0",
+                            "&quot;bandMaximum&quot;:21.2",
+                            "&quot;bandMinimum&quot;:21.2",
+                            "&quot;bandMaximum&quot;:37.2",
+                            "&quot;intervalMinimum&quot;:0",
+                            "&quot;intervalMaximum&quot;:44",
+                        ],
+                    ),
+                ];
+
+                for (relative, required) in contracts {
+                    let raw = fs::read_to_string(root.join(relative)).expect(relative);
+                    assert_eq!(raw.matches("id=\"test-root\"").count(), 1, "{relative}");
+                    assert_eq!(raw.matches("test_helper.js").count(), 1, "{relative}");
+                    assert_eq!(raw.matches("test_base_style.css").count(), 1, "{relative}");
+                    assert!(!raw.contains("NaN"), "{relative}");
+                    assert!(!raw.contains("Infinity"), "{relative}");
+                    assert!(!raw.contains("shape-outside"), "{relative}");
+                    for variant in fixture_cases().map(|(variant, _)| variant) {
+                        assert!(!raw.contains(variant), "{relative} hard-codes {variant}");
+                    }
+                    for fragment in required {
+                        assert!(raw.contains(fragment), "{relative} missing {fragment:?}");
+                    }
+                }
+
+                let shape_opt_ins = contracts
+                    .iter()
+                    .filter(|(relative, _)| {
+                        fs::read_to_string(root.join(relative))
+                            .expect(relative)
+                            .contains("data-surgeist-shape-bands=")
+                    })
+                    .map(|(relative, _)| *relative)
+                    .collect::<Vec<_>>();
+                assert_eq!(shape_opt_ins, ["float/fri06_float_shape_exclusion.html"]);
+
+                let break_opt_ins = contracts
+                    .iter()
+                    .filter(|(relative, _)| {
+                        fs::read_to_string(root.join(relative))
+                            .expect(relative)
+                            .contains("data-surgeist-inline-breaks=")
+                    })
+                    .map(|(relative, _)| *relative)
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    break_opt_ins,
+                    [
+                        "block/fri06_inline_mixed_text_atomic_wrap.html",
+                        "float/fri06_float_line_exclusion.html",
+                        "float/fri06_float_shape_exclusion.html",
+                    ]
+                );
+            };
     }
 
     #[test]
@@ -7506,7 +7563,19 @@ console.log(JSON.stringify({
 
     #[test]
     fn fri06_c08_new_float_line_breaks_advance_inside_reduced_band_through_public_layout() {
-        let script = [
+        (Fri06C08NewFloatLineBreaksAdvanceInsideReducedBandThroughPublicLayoutPhaseL7508::RUN)()
+    }
+
+    type Fri06C08NewFloatLineBreaksAdvanceInsideReducedBandThroughPublicLayoutPhaseL7508Run =
+        fn();
+
+    struct Fri06C08NewFloatLineBreaksAdvanceInsideReducedBandThroughPublicLayoutPhaseL7508;
+
+    impl Fri06C08NewFloatLineBreaksAdvanceInsideReducedBandThroughPublicLayoutPhaseL7508 {
+        const RUN:
+            Fri06C08NewFloatLineBreaksAdvanceInsideReducedBandThroughPublicLayoutPhaseL7508Run =
+            || {
+                let script = [
             r#"
 const window = {};
 const CSSRule = { STYLE_RULE: 1 };
@@ -7597,203 +7666,222 @@ console.log(JSON.stringify({
 "#,
         ]
         .concat();
-        let node = run_bundled_helper_json("fri06-c08-new-float-line-breaks", script);
-        let xml = generate_xml("fri06_c08_new_float_line_breaks", &node);
-        let golden = browser_parity_support::Golden::parse(&xml).expect("serialized fixture");
-        let layout = browser_parity_support::assert_surgeist_matches(&golden);
+                let node = run_bundled_helper_json("fri06-c08-new-float-line-breaks", script);
+                let xml = generate_xml("fri06_c08_new_float_line_breaks", &node);
+                let golden =
+                    browser_parity_support::Golden::parse(&xml).expect("serialized fixture");
+                let layout = browser_parity_support::assert_surgeist_matches(&golden);
 
-        assert!(
-            layout.is_ok(),
-            "allowed source boundaries must wrap and advance inside the 88px opposing-float band through compute_layout; result={layout:?}\n{xml}"
-        );
-        for expected in [
-            r#"<segment id="4" inline-extent="40" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="allowed"/>"#,
-            r#"<atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>"#,
-            r#"<atomic-placeholder child-index="4" bidi-level="0" following-break="allowed"/>"#,
-            r#"<atomic-placeholder child-index="5" bidi-level="0" following-break="allowed"/>"#,
-            r#"<atomic-placeholder child-index="6" bidi-level="0" following-break="prohibited"/>"#,
-        ] {
-            assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
-        }
+                assert!(
+                    layout.is_ok(),
+                    "allowed source boundaries must wrap and advance inside the 88px opposing-float band through compute_layout; result={layout:?}\n{xml}"
+                );
+                for expected in [
+                    r#"<segment id="4" inline-extent="40" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="allowed"/>"#,
+                    r#"<atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>"#,
+                    r#"<atomic-placeholder child-index="4" bidi-level="0" following-break="allowed"/>"#,
+                    r#"<atomic-placeholder child-index="5" bidi-level="0" following-break="allowed"/>"#,
+                    r#"<atomic-placeholder child-index="6" bidi-level="0" following-break="prohibited"/>"#,
+                ] {
+                    assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
+                }
+            };
     }
 
     #[test]
     fn fri06_c08_existing_entry_report_reconstructs_exact_activation_and_baseline_matrices() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
-        let report = fri06_c08_cycle_entry_report();
+        (Fri06C08ExistingEntryReportReconstructsExactActivationAndBaselineMatricesPhaseL7621::RUN)()
+    }
 
-        let unsupported = report["unsupported"].as_array().expect("unsupported rows");
-        let activation = unsupported
-            .iter()
-            .filter(|row| {
-                row["reason"]
-                    .as_str()
-                    .is_some_and(|reason| FRI06_C08_EXISTING_REASONS.contains(&reason))
-            })
-            .collect::<Vec<_>>();
-        let activation_sources = activation
-            .iter()
-            .map(|row| row["source"].as_str().expect("source"))
-            .collect::<BTreeSet<_>>();
-        let activation_rows = activation
-            .iter()
-            .map(|row| {
-                format!(
-                    "{}\t{}",
-                    row["source"].as_str().expect("source"),
-                    row["variant"].as_str().expect("variant")
-                )
-            })
-            .collect::<Vec<_>>();
+    type Fri06C08ExistingEntryReportReconstructsExactActivationAndBaselineMatricesPhaseL7621Run =
+        fn();
 
-        assert_eq!(activation_sources.len(), 85);
-        assert_eq!(activation_rows.len(), 340);
-        assert_eq!(
-            fri06_c08_matrix_digest(activation_rows),
-            "2df58c8127c8567a93b21cec2713e1b7ebb7541d8dce19df6d401bf442ae4375"
-        );
-        assert_eq!(
-            fri06_c08_source_set_digest(
-                &root,
-                &activation_sources
+    struct Fri06C08ExistingEntryReportReconstructsExactActivationAndBaselineMatricesPhaseL7621;
+
+    impl Fri06C08ExistingEntryReportReconstructsExactActivationAndBaselineMatricesPhaseL7621 {
+        const RUN:
+            Fri06C08ExistingEntryReportReconstructsExactActivationAndBaselineMatricesPhaseL7621Run =
+            || {
+                let root =
+                    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+                let report = fri06_c08_cycle_entry_report();
+
+                let unsupported = report["unsupported"].as_array().expect("unsupported rows");
+                let activation = unsupported
                     .iter()
-                    .map(|source| (*source).to_string())
-                    .collect()
-            ),
-            "529b6ca00751afa1e9090b03f1381dd497a3033bc75dbda9a1ba8a24a6e500a3"
-        );
-        for (reason, expected_rows) in [
-            (FRI06_C08_EXISTING_REASONS[0], 100),
-            (FRI06_C08_EXISTING_REASONS[1], 144),
-            (FRI06_C08_EXISTING_REASONS[2], 96),
-        ] {
-            assert_eq!(
-                activation
+                    .filter(|row| {
+                        row["reason"]
+                            .as_str()
+                            .is_some_and(|reason| FRI06_C08_EXISTING_REASONS.contains(&reason))
+                    })
+                    .collect::<Vec<_>>();
+                let activation_sources = activation
                     .iter()
-                    .filter(|row| row["reason"].as_str() == Some(reason))
-                    .count(),
-                expected_rows,
-                "{reason}"
-            );
-        }
+                    .map(|row| row["source"].as_str().expect("source"))
+                    .collect::<BTreeSet<_>>();
+                let activation_rows = activation
+                    .iter()
+                    .map(|row| {
+                        format!(
+                            "{}\t{}",
+                            row["source"].as_str().expect("source"),
+                            row["variant"].as_str().expect("variant")
+                        )
+                    })
+                    .collect::<Vec<_>>();
 
-        let baseline_rows = FRI06_C08_BASELINE_SOURCES
-            .iter()
-            .flat_map(|source| {
-                fixture_cases()
+                assert_eq!(activation_sources.len(), 85);
+                assert_eq!(activation_rows.len(), 340);
+                assert_eq!(
+                    fri06_c08_matrix_digest(activation_rows),
+                    "2df58c8127c8567a93b21cec2713e1b7ebb7541d8dce19df6d401bf442ae4375"
+                );
+                assert_eq!(
+                    fri06_c08_source_set_digest(
+                        &root,
+                        &activation_sources
+                            .iter()
+                            .map(|source| (*source).to_string())
+                            .collect()
+                    ),
+                    "529b6ca00751afa1e9090b03f1381dd497a3033bc75dbda9a1ba8a24a6e500a3"
+                );
+                for (reason, expected_rows) in [
+                    (FRI06_C08_EXISTING_REASONS[0], 100),
+                    (FRI06_C08_EXISTING_REASONS[1], 144),
+                    (FRI06_C08_EXISTING_REASONS[2], 96),
+                ] {
+                    assert_eq!(
+                        activation
+                            .iter()
+                            .filter(|row| row["reason"].as_str() == Some(reason))
+                            .count(),
+                        expected_rows,
+                        "{reason}"
+                    );
+                }
+
+                let baseline_rows = FRI06_C08_BASELINE_SOURCES
+                    .iter()
+                    .flat_map(|source| {
+                        fixture_cases()
+                            .into_iter()
+                            .map(move |(variant, _)| format!("{source}\t{variant}"))
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(baseline_rows.len(), 16);
+                assert_eq!(
+                    fri06_c08_matrix_digest(baseline_rows),
+                    "f9ac335e450b4ffd014ae91ef211e699b513676711f70e2c27414fb64f7455a3"
+                );
+
+                for source in activation_sources {
+                    let raw = fs::read_to_string(root.join(source)).expect("activation source");
+                    assert!(
+                        raw.contains("data-surgeist-layout-ready-inline=\"true\""),
+                        "{source} must explicitly opt in to layout-ready inline facts"
+                    );
+                }
+
+                let opted_in_sources = collect_relative_html(&root.join("html"))
+                    .expect("HTML inventory")
                     .into_iter()
-                    .map(move |(variant, _)| format!("{source}\t{variant}"))
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(baseline_rows.len(), 16);
-        assert_eq!(
-            fri06_c08_matrix_digest(baseline_rows),
-            "f9ac335e450b4ffd014ae91ef211e699b513676711f70e2c27414fb64f7455a3"
-        );
+                    .filter_map(|source| {
+                        let raw = fs::read_to_string(root.join("html").join(&source)).ok()?;
+                        raw.contains("data-surgeist-layout-ready-inline=\"true\"")
+                            .then(|| format!("html/{}", source.to_string_lossy()))
+                    })
+                    .collect::<BTreeSet<_>>();
+                let new_sources = FRI06_C08_NEW_CASES
+                    .iter()
+                    .map(|(_, source)| format!("html/{source}"))
+                    .collect::<BTreeSet<_>>();
+                let new_layout_ready_inline_sources = FRI06_C08_NEW_LAYOUT_READY_INLINE_SOURCES
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect::<BTreeSet<_>>();
+                assert_eq!(new_layout_ready_inline_sources.len(), 9);
+                assert!(new_layout_ready_inline_sources.is_subset(&new_sources));
 
-        for source in activation_sources {
-            let raw = fs::read_to_string(root.join(source)).expect("activation source");
-            assert!(
-                raw.contains("data-surgeist-layout-ready-inline=\"true\""),
-                "{source} must explicitly opt in to layout-ready inline facts"
-            );
-        }
+                let existing_activation_sources = activation
+                    .iter()
+                    .map(|row| row["source"].as_str().expect("source").to_string())
+                    .collect::<BTreeSet<_>>();
+                assert!(existing_activation_sources.is_disjoint(&new_layout_ready_inline_sources));
+                let expected_opted_in_sources = existing_activation_sources
+                    .union(&new_layout_ready_inline_sources)
+                    .cloned()
+                    .collect::<BTreeSet<_>>();
+                assert_eq!(opted_in_sources, expected_opted_in_sources);
 
-        let opted_in_sources = collect_relative_html(&root.join("html"))
-            .expect("HTML inventory")
-            .into_iter()
-            .filter_map(|source| {
-                let raw = fs::read_to_string(root.join("html").join(&source)).ok()?;
-                raw.contains("data-surgeist-layout-ready-inline=\"true\"")
-                    .then(|| format!("html/{}", source.to_string_lossy()))
-            })
-            .collect::<BTreeSet<_>>();
-        let new_sources = FRI06_C08_NEW_CASES
-            .iter()
-            .map(|(_, source)| format!("html/{source}"))
-            .collect::<BTreeSet<_>>();
-        let new_layout_ready_inline_sources = FRI06_C08_NEW_LAYOUT_READY_INLINE_SOURCES
-            .into_iter()
-            .map(str::to_string)
-            .collect::<BTreeSet<_>>();
-        assert_eq!(new_layout_ready_inline_sources.len(), 9);
-        assert!(new_layout_ready_inline_sources.is_subset(&new_sources));
+                let missing_root = unsupported
+                    .iter()
+                    .filter(|row| {
+                        row["reason"].as_str()
+                            == Some("Unsupported missing #test-root fixture root")
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(missing_root.len(), 16);
+                assert_eq!(
+                    missing_root
+                        .iter()
+                        .map(|row| row["source"].as_str().expect("source"))
+                        .collect::<BTreeSet<_>>()
+                        .len(),
+                    4
+                );
+                for row in missing_root {
+                    let source = row["source"].as_str().expect("source");
+                    let raw = fs::read_to_string(root.join(source)).expect("missing-root source");
+                    assert!(
+                        !raw.contains("data-surgeist-layout-ready-inline"),
+                        "{source}"
+                    );
+                }
 
-        let existing_activation_sources = activation
-            .iter()
-            .map(|row| row["source"].as_str().expect("source").to_string())
-            .collect::<BTreeSet<_>>();
-        assert!(existing_activation_sources.is_disjoint(&new_layout_ready_inline_sources));
-        let expected_opted_in_sources = existing_activation_sources
-            .union(&new_layout_ready_inline_sources)
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        assert_eq!(opted_in_sources, expected_opted_in_sources);
+                let generated_rows = report["generated"]
+                    .as_array()
+                    .expect("generated rows")
+                    .iter()
+                    .map(|row| {
+                        format!(
+                            "{}\t{}\t{}",
+                            row["source"].as_str().expect("source"),
+                            row["variant"].as_str().expect("variant"),
+                            row["output"].as_str().expect("output")
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(generated_rows.len(), 5_324);
+                assert_eq!(
+                    fri06_c08_matrix_digest(generated_rows),
+                    "3381162173bc2c09bbbae736391d9420c5e96c375083fb9fd0b337bcec12cffb"
+                );
+                assert_eq!(
+                    sha256_file(&root.join("scripts/gentest/test_base_style.css"))
+                        .expect("base style"),
+                    "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6"
+                );
 
-        let missing_root = unsupported
-            .iter()
-            .filter(|row| {
-                row["reason"].as_str() == Some("Unsupported missing #test-root fixture root")
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(missing_root.len(), 16);
-        assert_eq!(
-            missing_root
-                .iter()
-                .map(|row| row["source"].as_str().expect("source"))
-                .collect::<BTreeSet<_>>()
-                .len(),
-            4
-        );
-        for row in missing_root {
-            let source = row["source"].as_str().expect("source");
-            let raw = fs::read_to_string(root.join(source)).expect("missing-root source");
-            assert!(
-                !raw.contains("data-surgeist-layout-ready-inline"),
-                "{source}"
-            );
-        }
-
-        let generated_rows = report["generated"]
-            .as_array()
-            .expect("generated rows")
-            .iter()
-            .map(|row| {
-                format!(
-                    "{}\t{}\t{}",
-                    row["source"].as_str().expect("source"),
-                    row["variant"].as_str().expect("variant"),
-                    row["output"].as_str().expect("output")
-                )
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(generated_rows.len(), 5_324);
-        assert_eq!(
-            fri06_c08_matrix_digest(generated_rows),
-            "3381162173bc2c09bbbae736391d9420c5e96c375083fb9fd0b337bcec12cffb"
-        );
-        assert_eq!(
-            sha256_file(&root.join("scripts/gentest/test_base_style.css")).expect("base style"),
-            "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6"
-        );
-
-        let census =
-            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
-        let input_rows = census
-            .lines()
-            .filter(|line| !line.starts_with('#'))
-            .skip(1)
-            .filter_map(|line| {
-                let fields = line.split('\t').collect::<Vec<_>>();
-                (fields[0] != "FRI-06.11 new source" && fri06_c08_input_category(fields[4]))
-                    .then(|| format!("{}\t{}", fields[1], fields[2]))
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(input_rows.len(), 288);
-        assert_eq!(
-            fri06_c08_matrix_digest(input_rows),
-            "ef4e44f6805f10d04fe9de0943c375fc6e90fb3aa031213083809222a687eef4"
-        );
+                let census = include_str!(
+                    "../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv"
+                );
+                let input_rows = census
+                    .lines()
+                    .filter(|line| !line.starts_with('#'))
+                    .skip(1)
+                    .filter_map(|line| {
+                        let fields = line.split('\t').collect::<Vec<_>>();
+                        (fields[0] != "FRI-06.11 new source" && fri06_c08_input_category(fields[4]))
+                            .then(|| format!("{}\t{}", fields[1], fields[2]))
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(input_rows.len(), 288);
+                assert_eq!(
+                    fri06_c08_matrix_digest(input_rows),
+                    "ef4e44f6805f10d04fe9de0943c375fc6e90fb3aa031213083809222a687eef4"
+                );
+            };
     }
 
     #[test]
@@ -8414,123 +8502,136 @@ for (const [name, element, style] of [
 
     #[test]
     fn fri06_c08_recovery_inputs_block_br_used_size_round_trips_as_an_ordinary_box() {
-        let cases = [
-            ("horizontal", "horizontal-tb", 0.0, 10.0),
-            ("vertical", "vertical-rl", 10.0, 0.0),
-            ("unequal-flex", "horizontal-tb", 0.0, 19.0),
-        ];
+        (Fri06C08RecoveryInputsBlockBrUsedSizeRoundTripsAsAnOrdinaryBoxPhaseL8416::RUN)()
+    }
 
-        for (label, writing_mode, width, height) in cases {
-            let root_display = if label == "unequal-flex" {
-                "flex"
-            } else {
-                "block"
-            };
-            let node = json!({
-                "tagName": "div",
-                "useRounding": false,
-                "viewport": {
-                    "width": {"unit": "px", "value": 100},
-                    "height": {"unit": "px", "value": 100},
-                },
-                "style": {
-                    "display": root_display,
-                    "direction": "ltr",
-                    "writingMode": writing_mode,
-                    "size": {
-                        "width": {"unit": "px", "value": 100},
-                        "height": {"unit": "px", "value": 100},
+    type Fri06C08RecoveryInputsBlockBrUsedSizeRoundTripsAsAnOrdinaryBoxPhaseL8416Run = fn();
+
+    struct Fri06C08RecoveryInputsBlockBrUsedSizeRoundTripsAsAnOrdinaryBoxPhaseL8416;
+
+    impl Fri06C08RecoveryInputsBlockBrUsedSizeRoundTripsAsAnOrdinaryBoxPhaseL8416 {
+        const RUN: Fri06C08RecoveryInputsBlockBrUsedSizeRoundTripsAsAnOrdinaryBoxPhaseL8416Run =
+            || {
+                let cases = [
+                    ("horizontal", "horizontal-tb", 0.0, 10.0),
+                    ("vertical", "vertical-rl", 10.0, 0.0),
+                    ("unequal-flex", "horizontal-tb", 0.0, 19.0),
+                ];
+
+                for (label, writing_mode, width, height) in cases {
+                    let root_display = if label == "unequal-flex" {
+                        "flex"
+                    } else {
+                        "block"
+                    };
+                    let node = json!({
+                        "tagName": "div",
+                        "useRounding": false,
+                        "viewport": {
+                            "width": {"unit": "px", "value": 100},
+                            "height": {"unit": "px", "value": 100},
+                        },
+                        "style": {
+                            "display": root_display,
+                            "direction": "ltr",
+                            "writingMode": writing_mode,
+                            "size": {
+                                "width": {"unit": "px", "value": 100},
+                                "height": {"unit": "px", "value": 100},
+                            },
+                        },
+                        "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 100},
+                        "children": [{
+                            "tagName": "br",
+                            "style": {
+                                "display": "block",
+                                "direction": "ltr",
+                                "writingMode": writing_mode,
+                                "inlineBaseline": "8px",
+                                "inlineLineHeight": "10px",
+                            },
+                            "unroundedLayout": {
+                                "x": 0,
+                                "y": 0,
+                                "width": width,
+                                "height": height,
+                            },
+                            "children": [],
+                        }],
+                    });
+
+                    let xml = generate_xml(&format!("fri06_c08_recovery_inputs_br_{label}"), &node);
+                    let golden =
+                        browser_parity_support::Golden::parse(&xml).unwrap_or_else(|error| {
+                            panic!("{label} serialized fixture must parse: {error}\n{xml}")
+                        });
+                    keep_imported_browser_parity_support_reachable(&golden);
+                    let child = &golden.root.children[0];
+                    assert_eq!(child.style.get("source-tag"), Some("br"), "{label}");
+                    assert_eq!(
+                        child.style.get("display"),
+                        Some("block"),
+                        "{label} computed role"
+                    );
+                    assert_eq!(
+                        child.style.get("width"),
+                        Some(format!("{width}px").as_str()),
+                        "{label} used width"
+                    );
+                    assert_eq!(
+                        child.style.get("height"),
+                        Some(format!("{height}px").as_str()),
+                        "{label} used height"
+                    );
+
+                    let input = xml
+                        .split_once("<input>")
+                        .and_then(|(_, rest)| rest.split_once("</input>"))
+                        .map(|(input, _)| input)
+                        .expect("serialized input section");
+                    for prohibited in [
+                        "line-control=",
+                        "inline-baseline=",
+                        "inline-line-height=",
+                        "<browser-control",
+                        "<atomic-placeholder",
+                    ] {
+                        assert!(
+                            !input.contains(prohibited),
+                            "{label} block BR emitted prohibited {prohibited:?}\n{xml}"
+                        );
+                    }
+                }
+
+                let node = json!({
+                    "tagName": "div",
+                    "useRounding": false,
+                    "viewport": {
+                        "width": {"unit": "px", "value": 20},
+                        "height": {"unit": "px", "value": 10},
                     },
-                },
-                "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 100},
-                "children": [{
-                    "tagName": "br",
                     "style": {
                         "display": "block",
-                        "direction": "ltr",
-                        "writingMode": writing_mode,
-                        "inlineBaseline": "8px",
-                        "inlineLineHeight": "10px",
+                        "size": {
+                            "width": {"unit": "px", "value": 20},
+                            "height": {"unit": "px", "value": 10},
+                        },
                     },
-                    "unroundedLayout": {
-                        "x": 0,
-                        "y": 0,
-                        "width": width,
-                        "height": height,
-                    },
-                    "children": [],
-                }],
-            });
-
-            let xml = generate_xml(&format!("fri06_c08_recovery_inputs_br_{label}"), &node);
-            let golden = browser_parity_support::Golden::parse(&xml).unwrap_or_else(|error| {
-                panic!("{label} serialized fixture must parse: {error}\n{xml}")
-            });
-            keep_imported_browser_parity_support_reachable(&golden);
-            let child = &golden.root.children[0];
-            assert_eq!(child.style.get("source-tag"), Some("br"), "{label}");
-            assert_eq!(
-                child.style.get("display"),
-                Some("block"),
-                "{label} computed role"
-            );
-            assert_eq!(
-                child.style.get("width"),
-                Some(format!("{width}px").as_str()),
-                "{label} used width"
-            );
-            assert_eq!(
-                child.style.get("height"),
-                Some(format!("{height}px").as_str()),
-                "{label} used height"
-            );
-
-            let input = xml
-                .split_once("<input>")
-                .and_then(|(_, rest)| rest.split_once("</input>"))
-                .map(|(input, _)| input)
-                .expect("serialized input section");
-            for prohibited in [
-                "line-control=",
-                "inline-baseline=",
-                "inline-line-height=",
-                "<browser-control",
-                "<atomic-placeholder",
-            ] {
-                assert!(
-                    !input.contains(prohibited),
-                    "{label} block BR emitted prohibited {prohibited:?}\n{xml}"
-                );
-            }
-        }
-
-        let node = json!({
-            "tagName": "div",
-            "useRounding": false,
-            "viewport": {
-                "width": {"unit": "px", "value": 20},
-                "height": {"unit": "px", "value": 10},
-            },
-            "style": {
-                "display": "block",
-                "size": {
-                    "width": {"unit": "px", "value": 20},
-                    "height": {"unit": "px", "value": 10},
-                },
-            },
-            "unroundedLayout": {"x": 0, "y": 0, "width": 20, "height": 10},
-            "children": [{
-                "tagName": "br",
-                "style": {"display": "block"},
-                "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 10},
-                "children": [],
-            }],
-        });
-        let xml = generate_xml("fri06_c08_recovery_inputs_zero_width_br", &node);
-        let golden = browser_parity_support::Golden::parse(&xml).expect("serialized block BR");
-        browser_parity_support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+                    "unroundedLayout": {"x": 0, "y": 0, "width": 20, "height": 10},
+                    "children": [{
+                        "tagName": "br",
+                        "style": {"display": "block"},
+                        "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 10},
+                        "children": [],
+                    }],
+                });
+                let xml = generate_xml("fri06_c08_recovery_inputs_zero_width_br", &node);
+                let golden =
+                    browser_parity_support::Golden::parse(&xml).expect("serialized block BR");
+                browser_parity_support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
             panic!("used 0x10 block BR must survive the real parser/layout path: {error}\n{xml}")
         });
+            };
     }
 
     #[test]
@@ -8700,7 +8801,19 @@ console.log(JSON.stringify({
 
     #[test]
     fn fri06_c08_recovery_inputs_range_registry_reuses_resets_and_rejects_invalid_identity() {
-        let script = [
+        (Fri06C08RecoveryInputsRangeRegistryReusesResetsAndRejectsInvalidIdentityPhaseL8702::RUN)()
+    }
+
+    type Fri06C08RecoveryInputsRangeRegistryReusesResetsAndRejectsInvalidIdentityPhaseL8702Run =
+        fn();
+
+    struct Fri06C08RecoveryInputsRangeRegistryReusesResetsAndRejectsInvalidIdentityPhaseL8702;
+
+    impl Fri06C08RecoveryInputsRangeRegistryReusesResetsAndRejectsInvalidIdentityPhaseL8702 {
+        const RUN:
+            Fri06C08RecoveryInputsRangeRegistryReusesResetsAndRejectsInvalidIdentityPhaseL8702Run =
+            || {
+                let script = [
             r#"
 const window = {};
 const CSSRule = { STYLE_RULE: 1 };
@@ -8807,20 +8920,30 @@ mustReject(
         ]
         .concat();
 
-        run_bundled_helper_script("fri06-c08-recovery-range-controls", script);
+                run_bundled_helper_script("fri06-c08-recovery-range-controls", script);
+            };
     }
 
     #[test]
     fn fri06_c08_recovery_inputs_shape_break_round_trips_before_42px_atomic() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
-        let relative = "html/float/fri06_float_shape_exclusion.html";
-        let raw = fs::read_to_string(root.join(relative)).expect(relative);
-        let (_, authored_breaks) = fri06_c08_direct_test_root(&raw, relative);
-        let authored_breaks = serde_json::to_string(&authored_breaks.unwrap_or(Value::Null))
-            .expect("authored shape breaks JSON");
+        (Fri06C08RecoveryInputsShapeBreakRoundTripsBefore42pxAtomicPhaseL8814::RUN)()
+    }
 
-        let mut script = String::from(
-            r#"
+    type Fri06C08RecoveryInputsShapeBreakRoundTripsBefore42pxAtomicPhaseL8814Run = fn();
+
+    struct Fri06C08RecoveryInputsShapeBreakRoundTripsBefore42pxAtomicPhaseL8814;
+
+    impl Fri06C08RecoveryInputsShapeBreakRoundTripsBefore42pxAtomicPhaseL8814 {
+        const RUN: Fri06C08RecoveryInputsShapeBreakRoundTripsBefore42pxAtomicPhaseL8814Run = || {
+            let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+            let relative = "html/float/fri06_float_shape_exclusion.html";
+            let raw = fs::read_to_string(root.join(relative)).expect(relative);
+            let (_, authored_breaks) = fri06_c08_direct_test_root(&raw, relative);
+            let authored_breaks = serde_json::to_string(&authored_breaks.unwrap_or(Value::Null))
+                .expect("authored shape breaks JSON");
+
+            let mut script = String::from(
+                r#"
 const window = {};
 const CSSRule = { STYLE_RULE: 1 };
 const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
@@ -8842,9 +8965,9 @@ const atomics = [
   { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", display: "inline-block", width: 46, height: 16, x: 86, y: 21.2 },
 ];
 "#,
-        );
-        script.push_str(&format!("const authoredBreaks = {authored_breaks};\n"));
-        script.push_str(
+            );
+            script.push_str(&format!("const authoredBreaks = {authored_breaks};\n"));
+            script.push_str(
             r#"
 const parentRect = { x: 0, y: 0, left: 0, top: 0, right: 180, bottom: 60, width: 180, height: 60 };
 const parent = {
@@ -8866,9 +8989,9 @@ function getComputedStyle(element) {
 }
 "#,
         );
-        script.push_str(TEST_HELPER_SOURCE);
-        script.push_str(
-            r#"
+            script.push_str(TEST_HELPER_SOURCE);
+            script.push_str(
+                r#"
 describeElement = function(element) {
   const described = {
     tagName: "span",
@@ -8910,28 +9033,30 @@ console.log(JSON.stringify({
   children,
 }));
 "#,
-        );
+            );
 
-        let node = run_bundled_helper_json("fri06-c08-recovery-shape-break", script);
-        let xml = generate_xml("fri06_float_shape_exclusion__border_box_ltr", &node);
-        let golden = browser_parity_support::Golden::parse(&xml).expect("serialized shape fixture");
-        let layout = browser_parity_support::assert_surgeist_matches(&golden);
-        assert!(
-            layout.is_ok(),
-            "the 38px atomic must carry the allowed break before 42px through helper, serializer, parser, and public layout; result={layout:?}\n{xml}"
-        );
-        for expected in [
-            r#"<atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>"#,
-            r#"<atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>"#,
-            r#"<atomic-placeholder child-index="4" bidi-level="0" following-break="prohibited"/>"#,
-            r#"<atomic-placeholder child-index="5" bidi-level="0" following-break="prohibited"/>"#,
-        ] {
-            assert!(xml.contains(expected), "missing {expected:?}\n{xml}");
-        }
-        assert_eq!(
-            serde_json::from_str::<Value>(&authored_breaks).expect("authored break value"),
-            json!([{"sourceIndex": 4, "followingBreak": "allowed"}])
-        );
+            let node = run_bundled_helper_json("fri06-c08-recovery-shape-break", script);
+            let xml = generate_xml("fri06_float_shape_exclusion__border_box_ltr", &node);
+            let golden =
+                browser_parity_support::Golden::parse(&xml).expect("serialized shape fixture");
+            let layout = browser_parity_support::assert_surgeist_matches(&golden);
+            assert!(
+                layout.is_ok(),
+                "the 38px atomic must carry the allowed break before 42px through helper, serializer, parser, and public layout; result={layout:?}\n{xml}"
+            );
+            for expected in [
+                r#"<atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>"#,
+                r#"<atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>"#,
+                r#"<atomic-placeholder child-index="4" bidi-level="0" following-break="prohibited"/>"#,
+                r#"<atomic-placeholder child-index="5" bidi-level="0" following-break="prohibited"/>"#,
+            ] {
+                assert!(xml.contains(expected), "missing {expected:?}\n{xml}");
+            }
+            assert_eq!(
+                serde_json::from_str::<Value>(&authored_breaks).expect("authored break value"),
+                json!([{"sourceIndex": 4, "followingBreak": "allowed"}])
+            );
+        };
     }
 
     #[test]
@@ -9394,275 +9519,298 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
 
     #[test]
     fn fri06_c08_browser_control_serializer_emits_only_source_slot_and_neighbor_lines() {
-        let node = json!({
-            "tagName": "div",
-            "useRounding": true,
-            "viewport": {
-                "width": {"unit": "px", "value": 140},
-                "height": {"unit": "max-content"},
-            },
-            "style": {
-                "display": "block",
-                "direction": "ltr",
-                "writingMode": "horizontal-tb",
-            },
-            "smartRoundedLayout": {"x": 0, "y": 0, "width": 140, "height": 72},
-            "unroundedLayout": {"x": 0, "y": 0, "width": 140, "height": 72},
-            "children": [
-                {
-                    "tagName": "span",
-                    "style": {"display": "inline-block"},
-                    "smartRoundedLayout": {"x": 0, "y": 5, "width": 32, "height": 12},
-                    "unroundedLayout": {"x": 0, "y": 5, "width": 32, "height": 12},
-                    "children": [],
-                },
-                {
-                    "tagName": "br",
-                    "lineControlParticipation": {"kind": "forced-break"},
-                    "style": {"display": "inline"},
-                    "smartRoundedLayout": {"x": 32, "y": 2, "width": 0, "height": 19},
-                    "unroundedLayout": {"x": 32, "y": 2, "width": 0, "height": 19},
-                    "children": [],
-                },
-                {
-                    "tagName": "br",
-                    "lineControlParticipation": {"kind": "forced-break"},
-                    "style": {"display": "inline"},
-                    "smartRoundedLayout": {"x": 0, "y": 26, "width": 0, "height": 19},
-                    "unroundedLayout": {"x": 0, "y": 26, "width": 0, "height": 19},
-                    "children": [],
-                },
-                {
-                    "tagName": "span",
-                    "style": {"display": "inline-block"},
-                    "smartRoundedLayout": {"x": 0, "y": 53, "width": 48, "height": 12},
-                    "unroundedLayout": {"x": 0, "y": 53, "width": 48, "height": 12},
-                    "children": [],
-                },
-            ],
-        });
+        (Fri06C08BrowserControlSerializerEmitsOnlySourceSlotAndNeighborLinesPhaseL9396::RUN)()
+    }
 
-        let xml = generate_xml("fri06_c08_browser_control_serializer", &node);
-        for expected in [
-            r#"<browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later"/>"#,
-            r#"<browser-control source_index="2" terminal_visual_slot="0" previous_line="earlier" next_line="later"/>"#,
-        ] {
-            assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
-        }
-        assert!(
-            !xml.contains(r#"<node x="32" y="2" width="0" height="19""#)
-                && !xml.contains(r#"<node x="0" y="26" width="0" height="19""#),
-            "browser BR ink rectangles must not serialize as model control geometry\n{xml}"
-        );
+    type Fri06C08BrowserControlSerializerEmitsOnlySourceSlotAndNeighborLinesPhaseL9396Run = fn();
 
-        let unobserved = json!({
-            "tagName": "div",
-            "useRounding": false,
-            "viewport": {
-                "width": {"unit": "px", "value": 100},
-                "height": {"unit": "max-content"},
-            },
-            "style": {
-                "display": "block",
-                "direction": "ltr",
-                "writingMode": "horizontal-tb",
-            },
-            "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
-            "children": [
-                {
-                    "layoutInput": "inline-text",
-                    "inlineSegments": [{
-                        "id": 0,
-                        "inlineExtent": 10,
-                        "inlineBaseline": 8,
-                        "inlineLineHeight": 10,
-                        "bidiLevel": 0,
-                        "whitespaceEdge": "preserve",
-                        "followingBreak": "prohibited",
-                    }],
-                    "rangeInks": [{
-                        "sourceSegmentId": 0,
-                        "lineIndex": 0,
-                        "physicalStartEdge": "left",
-                        "start": 0,
-                        "advance": 10,
-                    }],
-                    "children": [],
-                },
-                {
-                    "tagName": "br",
-                    "lineControlParticipation": {"kind": "forced-break"},
-                    "style": {"display": "inline"},
-                    "unroundedLayout": {"x": 10, "y": 0, "width": 0, "height": 10},
-                    "children": [],
-                },
-            ],
-        });
-        let xml = generate_xml("fri06_c08_unobserved_control_neighbor", &unobserved);
-        assert!(
+    struct Fri06C08BrowserControlSerializerEmitsOnlySourceSlotAndNeighborLinesPhaseL9396;
+
+    impl Fri06C08BrowserControlSerializerEmitsOnlySourceSlotAndNeighborLinesPhaseL9396 {
+        const RUN:
+            Fri06C08BrowserControlSerializerEmitsOnlySourceSlotAndNeighborLinesPhaseL9396Run =
+            || {
+                let node = json!({
+                    "tagName": "div",
+                    "useRounding": true,
+                    "viewport": {
+                        "width": {"unit": "px", "value": 140},
+                        "height": {"unit": "max-content"},
+                    },
+                    "style": {
+                        "display": "block",
+                        "direction": "ltr",
+                        "writingMode": "horizontal-tb",
+                    },
+                    "smartRoundedLayout": {"x": 0, "y": 0, "width": 140, "height": 72},
+                    "unroundedLayout": {"x": 0, "y": 0, "width": 140, "height": 72},
+                    "children": [
+                        {
+                            "tagName": "span",
+                            "style": {"display": "inline-block"},
+                            "smartRoundedLayout": {"x": 0, "y": 5, "width": 32, "height": 12},
+                            "unroundedLayout": {"x": 0, "y": 5, "width": 32, "height": 12},
+                            "children": [],
+                        },
+                        {
+                            "tagName": "br",
+                            "lineControlParticipation": {"kind": "forced-break"},
+                            "style": {"display": "inline"},
+                            "smartRoundedLayout": {"x": 32, "y": 2, "width": 0, "height": 19},
+                            "unroundedLayout": {"x": 32, "y": 2, "width": 0, "height": 19},
+                            "children": [],
+                        },
+                        {
+                            "tagName": "br",
+                            "lineControlParticipation": {"kind": "forced-break"},
+                            "style": {"display": "inline"},
+                            "smartRoundedLayout": {"x": 0, "y": 26, "width": 0, "height": 19},
+                            "unroundedLayout": {"x": 0, "y": 26, "width": 0, "height": 19},
+                            "children": [],
+                        },
+                        {
+                            "tagName": "span",
+                            "style": {"display": "inline-block"},
+                            "smartRoundedLayout": {"x": 0, "y": 53, "width": 48, "height": 12},
+                            "unroundedLayout": {"x": 0, "y": 53, "width": 48, "height": 12},
+                            "children": [],
+                        },
+                    ],
+                });
+
+                let xml = generate_xml("fri06_c08_browser_control_serializer", &node);
+                for expected in [
+                    r#"<browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later"/>"#,
+                    r#"<browser-control source_index="2" terminal_visual_slot="0" previous_line="earlier" next_line="later"/>"#,
+                ] {
+                    assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
+                }
+                assert!(
+                    !xml.contains(r#"<node x="32" y="2" width="0" height="19""#)
+                        && !xml.contains(r#"<node x="0" y="26" width="0" height="19""#),
+                    "browser BR ink rectangles must not serialize as model control geometry\n{xml}"
+                );
+
+                let unobserved = json!({
+                    "tagName": "div",
+                    "useRounding": false,
+                    "viewport": {
+                        "width": {"unit": "px", "value": 100},
+                        "height": {"unit": "max-content"},
+                    },
+                    "style": {
+                        "display": "block",
+                        "direction": "ltr",
+                        "writingMode": "horizontal-tb",
+                    },
+                    "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+                    "children": [
+                        {
+                            "layoutInput": "inline-text",
+                            "inlineSegments": [{
+                                "id": 0,
+                                "inlineExtent": 10,
+                                "inlineBaseline": 8,
+                                "inlineLineHeight": 10,
+                                "bidiLevel": 0,
+                                "whitespaceEdge": "preserve",
+                                "followingBreak": "prohibited",
+                            }],
+                            "rangeInks": [{
+                                "sourceSegmentId": 0,
+                                "lineIndex": 0,
+                                "physicalStartEdge": "left",
+                                "start": 0,
+                                "advance": 10,
+                            }],
+                            "children": [],
+                        },
+                        {
+                            "tagName": "br",
+                            "lineControlParticipation": {"kind": "forced-break"},
+                            "style": {"display": "inline"},
+                            "unroundedLayout": {"x": 10, "y": 0, "width": 0, "height": 10},
+                            "children": [],
+                        },
+                    ],
+                });
+                let xml = generate_xml("fri06_c08_unobserved_control_neighbor", &unobserved);
+                assert!(
             xml.contains(
                 r#"<browser-control source_index="1" terminal_visual_slot="unobserved" previous_line="unobserved" next_line="absent"/>"#
             ),
             "missing finite unobserved control category in\n{xml}"
         );
+            };
     }
 
     #[test]
     fn fri06_c08_range_ink_serializer_rejects_every_ordinary_metric_and_scroll_state() {
-        let incompatible_states = [
-            (
-                "unroundedLayout",
-                json!({
-                    "unroundedLayout": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 9,
-                        "height": 20,
-                        "scrollWidth": 9,
-                        "scrollHeight": 20,
-                    },
-                }),
-            ),
-            (
-                "smartRoundedLayout",
-                json!({
-                    "smartRoundedLayout": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 9,
-                        "height": 20,
-                        "scrollWidth": 9,
-                        "scrollHeight": 20,
-                    },
-                }),
-            ),
-            (
-                "naivelyRoundedLayout",
-                json!({
-                    "naivelyRoundedLayout": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 9,
-                        "height": 20,
-                        "scrollWidth": 9,
-                        "scrollHeight": 20,
-                        "clientWidth": 9,
-                        "clientHeight": 20,
-                    },
-                }),
-            ),
-            (
-                "style.overflowX",
-                json!({"style": {"overflowX": "visible"}}),
-            ),
-            ("style.overflowY", json!({"style": {"overflowY": "clip"}})),
-            (
-                "style.overflowClipMargin",
-                json!({"style": {"overflowClipMargin": "0px"}}),
-            ),
-            (
-                "style.scrollbarWidth",
-                json!({"style": {"scrollbarWidth": 0}}),
-            ),
-            (
-                "style.scrollbarGutter",
-                json!({"style": {"scrollbarGutter": "auto"}}),
-            ),
-            (
-                "style.scrollPaddingTop",
-                json!({"style": {"scrollPaddingTop": "auto"}}),
-            ),
-            (
-                "style.scrollPaddingRight",
-                json!({"style": {"scrollPaddingRight": "auto"}}),
-            ),
-            (
-                "style.scrollPaddingBottom",
-                json!({"style": {"scrollPaddingBottom": "auto"}}),
-            ),
-            (
-                "style.scrollPaddingLeft",
-                json!({"style": {"scrollPaddingLeft": "auto"}}),
-            ),
-            (
-                "style.scrollMarginTop",
-                json!({"style": {"scrollMarginTop": "0px"}}),
-            ),
-            (
-                "style.scrollMarginRight",
-                json!({"style": {"scrollMarginRight": "0px"}}),
-            ),
-            (
-                "style.scrollMarginBottom",
-                json!({"style": {"scrollMarginBottom": "0px"}}),
-            ),
-            (
-                "style.scrollMarginLeft",
-                json!({"style": {"scrollMarginLeft": "0px"}}),
-            ),
-            (
-                "style.scrollSnapType",
-                json!({"style": {"scrollSnapType": "none"}}),
-            ),
-            (
-                "style.scrollSnapAlign",
-                json!({"style": {"scrollSnapAlign": "none"}}),
-            ),
-            (
-                "style.scrollSnapStop",
-                json!({"style": {"scrollSnapStop": "normal"}}),
-            ),
-        ];
+        (Fri06C08RangeInkSerializerRejectsEveryOrdinaryMetricAndScrollStatePhaseL9511::RUN)()
+    }
 
-        for (label, incompatible_state) in incompatible_states {
-            let mut node = json!({
-                "tagName": "div",
-                "useRounding": false,
-                "viewport": {
-                    "width": {"unit": "px", "value": 100},
-                    "height": {"unit": "max-content"},
-                },
-                "style": {"display": "block"},
-                "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
-                "children": [{
-                    "layoutInput": "inline-text",
-                    "inlineSegments": [{
-                        "id": 7,
-                        "inlineExtent": 9,
-                        "inlineBaseline": 14.8,
-                        "inlineLineHeight": 20,
-                        "bidiLevel": 0,
-                        "whitespaceEdge": "preserve",
-                        "followingBreak": "prohibited",
-                    }],
-                    "rangeInks": [{
-                        "sourceSegmentId": 7,
-                        "lineIndex": 0,
-                        "physicalStartEdge": "left",
-                        "start": 15,
-                        "advance": 9,
-                    }],
-                    "children": [],
-                }],
-            });
-            node["children"][0]
-                .as_object_mut()
-                .expect("Range-backed text node should be an object")
-                .extend(
-                    incompatible_state
-                        .as_object()
-                        .expect("incompatible state should be an object")
-                        .clone(),
-                );
+    type Fri06C08RangeInkSerializerRejectsEveryOrdinaryMetricAndScrollStatePhaseL9511Run = fn();
 
-            let result = std::panic::catch_unwind(|| {
-                generate_xml("fri06_c08_range_ink_serializer_rejection", &node)
-            });
-            assert!(
-                result.is_err(),
-                "Range ink serializer accepted incompatible state {label}"
-            );
-        }
+    struct Fri06C08RangeInkSerializerRejectsEveryOrdinaryMetricAndScrollStatePhaseL9511;
+
+    impl Fri06C08RangeInkSerializerRejectsEveryOrdinaryMetricAndScrollStatePhaseL9511 {
+        const RUN: Fri06C08RangeInkSerializerRejectsEveryOrdinaryMetricAndScrollStatePhaseL9511Run =
+            || {
+                let incompatible_states = [
+                    (
+                        "unroundedLayout",
+                        json!({
+                            "unroundedLayout": {
+                                "x": 0,
+                                "y": 0,
+                                "width": 9,
+                                "height": 20,
+                                "scrollWidth": 9,
+                                "scrollHeight": 20,
+                            },
+                        }),
+                    ),
+                    (
+                        "smartRoundedLayout",
+                        json!({
+                            "smartRoundedLayout": {
+                                "x": 0,
+                                "y": 0,
+                                "width": 9,
+                                "height": 20,
+                                "scrollWidth": 9,
+                                "scrollHeight": 20,
+                            },
+                        }),
+                    ),
+                    (
+                        "naivelyRoundedLayout",
+                        json!({
+                            "naivelyRoundedLayout": {
+                                "x": 0,
+                                "y": 0,
+                                "width": 9,
+                                "height": 20,
+                                "scrollWidth": 9,
+                                "scrollHeight": 20,
+                                "clientWidth": 9,
+                                "clientHeight": 20,
+                            },
+                        }),
+                    ),
+                    (
+                        "style.overflowX",
+                        json!({"style": {"overflowX": "visible"}}),
+                    ),
+                    ("style.overflowY", json!({"style": {"overflowY": "clip"}})),
+                    (
+                        "style.overflowClipMargin",
+                        json!({"style": {"overflowClipMargin": "0px"}}),
+                    ),
+                    (
+                        "style.scrollbarWidth",
+                        json!({"style": {"scrollbarWidth": 0}}),
+                    ),
+                    (
+                        "style.scrollbarGutter",
+                        json!({"style": {"scrollbarGutter": "auto"}}),
+                    ),
+                    (
+                        "style.scrollPaddingTop",
+                        json!({"style": {"scrollPaddingTop": "auto"}}),
+                    ),
+                    (
+                        "style.scrollPaddingRight",
+                        json!({"style": {"scrollPaddingRight": "auto"}}),
+                    ),
+                    (
+                        "style.scrollPaddingBottom",
+                        json!({"style": {"scrollPaddingBottom": "auto"}}),
+                    ),
+                    (
+                        "style.scrollPaddingLeft",
+                        json!({"style": {"scrollPaddingLeft": "auto"}}),
+                    ),
+                    (
+                        "style.scrollMarginTop",
+                        json!({"style": {"scrollMarginTop": "0px"}}),
+                    ),
+                    (
+                        "style.scrollMarginRight",
+                        json!({"style": {"scrollMarginRight": "0px"}}),
+                    ),
+                    (
+                        "style.scrollMarginBottom",
+                        json!({"style": {"scrollMarginBottom": "0px"}}),
+                    ),
+                    (
+                        "style.scrollMarginLeft",
+                        json!({"style": {"scrollMarginLeft": "0px"}}),
+                    ),
+                    (
+                        "style.scrollSnapType",
+                        json!({"style": {"scrollSnapType": "none"}}),
+                    ),
+                    (
+                        "style.scrollSnapAlign",
+                        json!({"style": {"scrollSnapAlign": "none"}}),
+                    ),
+                    (
+                        "style.scrollSnapStop",
+                        json!({"style": {"scrollSnapStop": "normal"}}),
+                    ),
+                ];
+
+                for (label, incompatible_state) in incompatible_states {
+                    let mut node = json!({
+                        "tagName": "div",
+                        "useRounding": false,
+                        "viewport": {
+                            "width": {"unit": "px", "value": 100},
+                            "height": {"unit": "max-content"},
+                        },
+                        "style": {"display": "block"},
+                        "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+                        "children": [{
+                            "layoutInput": "inline-text",
+                            "inlineSegments": [{
+                                "id": 7,
+                                "inlineExtent": 9,
+                                "inlineBaseline": 14.8,
+                                "inlineLineHeight": 20,
+                                "bidiLevel": 0,
+                                "whitespaceEdge": "preserve",
+                                "followingBreak": "prohibited",
+                            }],
+                            "rangeInks": [{
+                                "sourceSegmentId": 7,
+                                "lineIndex": 0,
+                                "physicalStartEdge": "left",
+                                "start": 15,
+                                "advance": 9,
+                            }],
+                            "children": [],
+                        }],
+                    });
+                    node["children"][0]
+                        .as_object_mut()
+                        .expect("Range-backed text node should be an object")
+                        .extend(
+                            incompatible_state
+                                .as_object()
+                                .expect("incompatible state should be an object")
+                                .clone(),
+                        );
+
+                    let result = std::panic::catch_unwind(|| {
+                        generate_xml("fri06_c08_range_ink_serializer_rejection", &node)
+                    });
+                    assert!(
+                        result.is_err(),
+                        "Range ink serializer accepted incompatible state {label}"
+                    );
+                }
+            };
     }
 
     #[test]
@@ -9798,133 +9946,145 @@ if ("y" in rangeInk || "height" in rangeInk || "baselineX" in rangeInk || "basel
 
     #[test]
     fn fri05_c06_fixture_sources_have_exact_owned_inventory_and_behavior_contract() {
-        let html_root =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
-        let expected = [
-            (
-                "block/fri05_overflow_auto_cross_axis.html",
-                [
-                    "display: block",
-                    "overflow: auto",
-                    "width: 100px; height: 50px",
-                ],
-            ),
-            (
-                "flex/fri05_overflow_auto_cross_axis.html",
-                [
-                    "display: flex",
-                    "overflow: auto",
-                    "width: 100px; height: 50px",
-                ],
-            ),
-            (
-                "grid/fri05_overflow_auto_cross_axis.html",
-                [
-                    "display: grid",
-                    "overflow: auto",
-                    "width: 100px; height: 50px",
-                ],
-            ),
-            (
-                "grid/fri05_hidden_auto_minimum.html",
-                [
-                    "display: grid",
-                    "grid-template-columns: 1fr",
-                    "overflow: hidden",
-                ],
-            ),
-            (
-                "grid-lanes/fri05_hidden_auto_minimum.html",
-                [
-                    "display: grid-lanes",
-                    "grid-template-columns: 1fr",
-                    "overflow: hidden",
-                ],
-            ),
-            (
-                "block/fri05_mixed_axis_clip_margin.html",
-                [
-                    "overflow-x: clip",
-                    "overflow-y: visible",
-                    "overflow-clip-margin: content-box 10px",
-                ],
-            ),
-            (
-                "block/fri05_scrollbar_gutter_stable_both_edges.html",
-                [
-                    "overflow: auto",
-                    "scrollbar-gutter: stable both-edges",
-                    "height: 200px",
-                ],
-            ),
-            (
-                "flex/fri05_nested_zero_axis_overflow.html",
-                [
-                    "display: flex; overflow: auto",
-                    "width: 0px; height: 0px",
-                    "width: 0px; height: 200px",
-                ],
-            ),
-            (
-                "grid/fri05_nested_zero_axis_overflow.html",
-                [
-                    "display: grid; overflow: auto",
-                    "width: 0px; height: 0px",
-                    "width: 0px; height: 200px",
-                ],
-            ),
-            (
-                "grid/fri05_scroll_extent_area_origin.html",
-                [
-                    "grid-template-columns: 50px 50px",
-                    "grid-column: 2",
-                    "width: 80px",
-                ],
-            ),
-            (
-                "block/fri05_scroll_target_geometry.html",
-                [
-                    "scroll-padding: 1px 2px 3px 4px",
-                    "scroll-margin: -5px 6px 7px -8px",
-                    "scroll-snap-align: start center",
-                ],
-            ),
-        ];
+        (Fri05C06FixtureSourcesHaveExactOwnedInventoryAndBehaviorContractPhaseL9800::RUN)()
+    }
 
-        let discovered = collect_html(&html_root, None)
-            .expect("HTML fixture inventory should be readable")
-            .into_iter()
-            .filter(|path| {
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with("fri05_"))
-            })
-            .map(|path| {
-                path.strip_prefix(&html_root)
-                    .expect("fixture should remain under HTML root")
-                    .to_path_buf()
-            })
-            .collect::<BTreeSet<_>>();
-        let expected_paths = expected
-            .iter()
-            .map(|(path, _)| PathBuf::from(path))
-            .collect::<BTreeSet<_>>();
-        assert_eq!(discovered, expected_paths);
+    type Fri05C06FixtureSourcesHaveExactOwnedInventoryAndBehaviorContractPhaseL9800Run = fn();
 
-        for (relative, required_fragments) in expected {
-            let source = html_root.join(relative);
-            let raw = fs::read_to_string(&source)
-                .unwrap_or_else(|error| panic!("{} should read: {error}", source.display()));
-            assert_eq!(raw.matches("id=\"test-root\"").count(), 1, "{relative}");
-            assert_eq!(raw.matches("test_helper.js").count(), 1, "{relative}");
-            assert_eq!(raw.matches("test_base_style.css").count(), 1, "{relative}");
-            for fragment in required_fragments {
-                assert!(
-                    raw.contains(fragment),
-                    "{relative} must contain behavior fragment {fragment:?}"
-                );
-            }
-        }
+    struct Fri05C06FixtureSourcesHaveExactOwnedInventoryAndBehaviorContractPhaseL9800;
+
+    impl Fri05C06FixtureSourcesHaveExactOwnedInventoryAndBehaviorContractPhaseL9800 {
+        const RUN: Fri05C06FixtureSourcesHaveExactOwnedInventoryAndBehaviorContractPhaseL9800Run =
+            || {
+                let html_root =
+                    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+                let expected = [
+                    (
+                        "block/fri05_overflow_auto_cross_axis.html",
+                        [
+                            "display: block",
+                            "overflow: auto",
+                            "width: 100px; height: 50px",
+                        ],
+                    ),
+                    (
+                        "flex/fri05_overflow_auto_cross_axis.html",
+                        [
+                            "display: flex",
+                            "overflow: auto",
+                            "width: 100px; height: 50px",
+                        ],
+                    ),
+                    (
+                        "grid/fri05_overflow_auto_cross_axis.html",
+                        [
+                            "display: grid",
+                            "overflow: auto",
+                            "width: 100px; height: 50px",
+                        ],
+                    ),
+                    (
+                        "grid/fri05_hidden_auto_minimum.html",
+                        [
+                            "display: grid",
+                            "grid-template-columns: 1fr",
+                            "overflow: hidden",
+                        ],
+                    ),
+                    (
+                        "grid-lanes/fri05_hidden_auto_minimum.html",
+                        [
+                            "display: grid-lanes",
+                            "grid-template-columns: 1fr",
+                            "overflow: hidden",
+                        ],
+                    ),
+                    (
+                        "block/fri05_mixed_axis_clip_margin.html",
+                        [
+                            "overflow-x: clip",
+                            "overflow-y: visible",
+                            "overflow-clip-margin: content-box 10px",
+                        ],
+                    ),
+                    (
+                        "block/fri05_scrollbar_gutter_stable_both_edges.html",
+                        [
+                            "overflow: auto",
+                            "scrollbar-gutter: stable both-edges",
+                            "height: 200px",
+                        ],
+                    ),
+                    (
+                        "flex/fri05_nested_zero_axis_overflow.html",
+                        [
+                            "display: flex; overflow: auto",
+                            "width: 0px; height: 0px",
+                            "width: 0px; height: 200px",
+                        ],
+                    ),
+                    (
+                        "grid/fri05_nested_zero_axis_overflow.html",
+                        [
+                            "display: grid; overflow: auto",
+                            "width: 0px; height: 0px",
+                            "width: 0px; height: 200px",
+                        ],
+                    ),
+                    (
+                        "grid/fri05_scroll_extent_area_origin.html",
+                        [
+                            "grid-template-columns: 50px 50px",
+                            "grid-column: 2",
+                            "width: 80px",
+                        ],
+                    ),
+                    (
+                        "block/fri05_scroll_target_geometry.html",
+                        [
+                            "scroll-padding: 1px 2px 3px 4px",
+                            "scroll-margin: -5px 6px 7px -8px",
+                            "scroll-snap-align: start center",
+                        ],
+                    ),
+                ];
+
+                let discovered = collect_html(&html_root, None)
+                    .expect("HTML fixture inventory should be readable")
+                    .into_iter()
+                    .filter(|path| {
+                        path.file_name()
+                            .and_then(|name| name.to_str())
+                            .is_some_and(|name| name.starts_with("fri05_"))
+                    })
+                    .map(|path| {
+                        path.strip_prefix(&html_root)
+                            .expect("fixture should remain under HTML root")
+                            .to_path_buf()
+                    })
+                    .collect::<BTreeSet<_>>();
+                let expected_paths = expected
+                    .iter()
+                    .map(|(path, _)| PathBuf::from(path))
+                    .collect::<BTreeSet<_>>();
+                assert_eq!(discovered, expected_paths);
+
+                for (relative, required_fragments) in expected {
+                    let source = html_root.join(relative);
+                    let raw = fs::read_to_string(&source).unwrap_or_else(|error| {
+                        panic!("{} should read: {error}", source.display())
+                    });
+                    assert_eq!(raw.matches("id=\"test-root\"").count(), 1, "{relative}");
+                    assert_eq!(raw.matches("test_helper.js").count(), 1, "{relative}");
+                    assert_eq!(raw.matches("test_base_style.css").count(), 1, "{relative}");
+                    for fragment in required_fragments {
+                        assert!(
+                            raw.contains(fragment),
+                            "{relative} must contain behavior fragment {fragment:?}"
+                        );
+                    }
+                }
+            };
     }
 
     #[test]
@@ -10626,14 +10786,23 @@ if (actual !== expected) {{
 
     #[test]
     fn bundled_helper_preserves_authored_percentage_margin_values() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-percentage-margin-capture-{}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&root).expect("temp dir");
-        let script_path = root.join("percentage-margin-capture.js");
-        let script = format!(
-            r##"
+        (BundledHelperPreservesAuthoredPercentageMarginValuesPhaseL10628::RUN)()
+    }
+
+    type BundledHelperPreservesAuthoredPercentageMarginValuesPhaseL10628Run = fn();
+
+    struct BundledHelperPreservesAuthoredPercentageMarginValuesPhaseL10628;
+
+    impl BundledHelperPreservesAuthoredPercentageMarginValuesPhaseL10628 {
+        const RUN: BundledHelperPreservesAuthoredPercentageMarginValuesPhaseL10628Run = || {
+            let root = std::env::temp_dir().join(format!(
+                "surgeist-layout-percentage-margin-capture-{}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&root).expect("temp dir");
+            let script_path = root.join("percentage-margin-capture.js");
+            let script = format!(
+                r##"
 const window = {{}};
 const CSSRule = {{ STYLE_RULE: 1 }};
 function styleDeclaration(entries) {{
@@ -10793,21 +10962,22 @@ assertMargin("defeated stylesheet percent falls back to computed", elementFor(["
   left: {{ unit: "px", value: 10 }},
 }});
 "##
-        );
-        fs::write(&script_path, script).expect("script");
+            );
+            fs::write(&script_path, script).expect("script");
 
-        let output = Command::new("node")
-            .arg(&script_path)
-            .output()
-            .expect("node should run percentage margin capture smoke test");
+            let output = Command::new("node")
+                .arg(&script_path)
+                .output()
+                .expect("node should run percentage margin capture smoke test");
 
-        assert!(
-            output.status.success(),
-            "node percentage margin capture smoke failed\nstdout:\n{}\nstderr:\n{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        fs::remove_dir_all(root).ok();
+            assert!(
+                output.status.success(),
+                "node percentage margin capture smoke failed\nstdout:\n{}\nstderr:\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            fs::remove_dir_all(root).ok();
+        };
     }
 
     #[test]
@@ -11036,14 +11206,23 @@ if (actual !== expected) {{
 
     #[test]
     fn bundled_helper_does_not_preserve_stylesheet_scanned_calc_lengths() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-stylesheet-calc-capture-{}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&root).expect("temp dir");
-        let script_path = root.join("stylesheet-calc-capture.js");
-        let script = format!(
-            r##"
+        (BundledHelperDoesNotPreserveStylesheetScannedCalcLengthsPhaseL11038::RUN)()
+    }
+
+    type BundledHelperDoesNotPreserveStylesheetScannedCalcLengthsPhaseL11038Run = fn();
+
+    struct BundledHelperDoesNotPreserveStylesheetScannedCalcLengthsPhaseL11038;
+
+    impl BundledHelperDoesNotPreserveStylesheetScannedCalcLengthsPhaseL11038 {
+        const RUN: BundledHelperDoesNotPreserveStylesheetScannedCalcLengthsPhaseL11038Run = || {
+            let root = std::env::temp_dir().join(format!(
+                "surgeist-layout-stylesheet-calc-capture-{}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&root).expect("temp dir");
+            let script_path = root.join("stylesheet-calc-capture.js");
+            let script = format!(
+                r##"
 const window = {{ innerWidth: 800 }};
 const Node = {{ ELEMENT_NODE: 1, TEXT_NODE: 3 }};
 const CSSRule = {{ STYLE_RULE: 1 }};
@@ -11163,21 +11342,22 @@ if (data.style.gridTemplateColumns !== undefined) {{
   throw new Error(`stylesheet compound calc should not be preserved; got ${{JSON.stringify(data.style.gridTemplateColumns)}}`);
 }}
 "##
-        );
-        fs::write(&script_path, script).expect("script");
+            );
+            fs::write(&script_path, script).expect("script");
 
-        let output = Command::new("node")
-            .arg(&script_path)
-            .output()
-            .expect("node should run stylesheet calc capture smoke test");
+            let output = Command::new("node")
+                .arg(&script_path)
+                .output()
+                .expect("node should run stylesheet calc capture smoke test");
 
-        assert!(
-            output.status.success(),
-            "node stylesheet calc capture smoke failed\nstdout:\n{}\nstderr:\n{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        fs::remove_dir_all(root).ok();
+            assert!(
+                output.status.success(),
+                "node stylesheet calc capture smoke failed\nstdout:\n{}\nstderr:\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            fs::remove_dir_all(root).ok();
+        };
     }
 
     #[test]
@@ -11345,8 +11525,17 @@ if (actual !== expected) {{
 
     #[test]
     fn bundled_helper_captures_exact_order_and_flex_parent_axes() {
-        let script = format!(
-            r#"
+        (BundledHelperCapturesExactOrderAndFlexParentAxesPhaseL11347::RUN)()
+    }
+
+    type BundledHelperCapturesExactOrderAndFlexParentAxesPhaseL11347Run = fn();
+
+    struct BundledHelperCapturesExactOrderAndFlexParentAxesPhaseL11347;
+
+    impl BundledHelperCapturesExactOrderAndFlexParentAxesPhaseL11347 {
+        const RUN: BundledHelperCapturesExactOrderAndFlexParentAxesPhaseL11347Run = || {
+            let script = format!(
+                r#"
 const window = {{ innerWidth: 800 }};
 const document = {{
   styleSheets: [],
@@ -11450,9 +11639,10 @@ for (const testCase of [
   }}
 }}
 "#
-        );
+            );
 
-        run_bundled_helper_script("exact-order-and-flex-parent-axes", script);
+            run_bundled_helper_script("exact-order-and-flex-parent-axes", script);
+        };
     }
 
     #[test]
@@ -12204,24 +12394,35 @@ for (const [writingMode, direction, start, end, width, height] of [
 
     #[test]
     fn import_taffy_clears_stale_managed_files_and_preserves_surgeist_owned_fixtures() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-taffy-import-{}",
-            std::process::id()
-        ));
-        let source_root = root.join("source");
-        let source_fixtures = source_root.join(TAFFY_SOURCE_DIR);
-        let corpus_root = root.join("corpus");
-        let html_root = corpus_root.join("html");
-        fs::create_dir_all(source_fixtures.join("block")).expect("source block dir");
-        fs::create_dir_all(source_fixtures.join("flex")).expect("source flex dir");
-        fs::create_dir_all(source_fixtures.join("subgrid")).expect("source subgrid dir");
-        fs::create_dir_all(html_root.join("block")).expect("target block dir");
-        fs::create_dir_all(html_root.join("grid")).expect("target grid dir");
-        fs::create_dir_all(html_root.join("subgrid")).expect("target subgrid dir");
-        fs::write(
-            corpus_root.join("corpus.toml"),
-            test_schema_two_manifest(
-                r#"[[cases]]
+        (ImportTaffyClearsStaleManagedFilesAndPreservesSurgeistOwnedFixturesPhaseL12206::RUN)()
+    }
+
+    type ImportTaffyClearsStaleManagedFilesAndPreservesSurgeistOwnedFixturesPhaseL12206Run = fn();
+
+    struct ImportTaffyClearsStaleManagedFilesAndPreservesSurgeistOwnedFixturesPhaseL12206;
+
+    impl ImportTaffyClearsStaleManagedFilesAndPreservesSurgeistOwnedFixturesPhaseL12206 {
+        const RUN:
+            ImportTaffyClearsStaleManagedFilesAndPreservesSurgeistOwnedFixturesPhaseL12206Run =
+            || {
+                let root = std::env::temp_dir().join(format!(
+                    "surgeist-layout-taffy-import-{}",
+                    std::process::id()
+                ));
+                let source_root = root.join("source");
+                let source_fixtures = source_root.join(TAFFY_SOURCE_DIR);
+                let corpus_root = root.join("corpus");
+                let html_root = corpus_root.join("html");
+                fs::create_dir_all(source_fixtures.join("block")).expect("source block dir");
+                fs::create_dir_all(source_fixtures.join("flex")).expect("source flex dir");
+                fs::create_dir_all(source_fixtures.join("subgrid")).expect("source subgrid dir");
+                fs::create_dir_all(html_root.join("block")).expect("target block dir");
+                fs::create_dir_all(html_root.join("grid")).expect("target grid dir");
+                fs::create_dir_all(html_root.join("subgrid")).expect("target subgrid dir");
+                fs::write(
+                    corpus_root.join("corpus.toml"),
+                    test_schema_two_manifest(
+                        r#"[[cases]]
 id = "grid/grid_named_repeated_line_names"
 source_root = "surgeist"
 source = "grid/grid_named_repeated_line_names.html"
@@ -12235,87 +12436,90 @@ source = "subgrid/local.html"
 generator = "constrained-html"
 status = "active"
 "#,
-            ),
-        )
-        .expect("corpus manifest");
-        fs::write(
-            source_fixtures.join("block/basic.html"),
-            "<!doctype html><p>basic</p>",
-        )
-        .expect("source basic");
-        fs::write(
-            source_fixtures.join("flex/keep.html"),
-            "<!doctype html><p>keep</p>",
-        )
-        .expect("source keep");
-        fs::write(
-            source_fixtures.join("subgrid/upstream.html"),
-            "<!doctype html><p>excluded source</p>",
-        )
-        .expect("source excluded");
-        fs::write(
-            html_root.join("block/stale.html"),
-            "<!doctype html><p>stale</p>",
-        )
-        .expect("stale");
-        fs::write(
-            html_root.join("grid/grid_named_repeated_line_names.html"),
-            "<!doctype html><p>surgeist extra</p>",
-        )
-        .expect("surgeist extra");
-        fs::write(
-            html_root.join("subgrid/local.html"),
-            "<!doctype html><p>local subgrid</p>",
-        )
-        .expect("local subgrid");
-        let config = Config {
-            root: corpus_root,
-            html_root: html_root.clone(),
-            xml_root: root.join("corpus/xml"),
-        };
+                    ),
+                )
+                .expect("corpus manifest");
+                fs::write(
+                    source_fixtures.join("block/basic.html"),
+                    "<!doctype html><p>basic</p>",
+                )
+                .expect("source basic");
+                fs::write(
+                    source_fixtures.join("flex/keep.html"),
+                    "<!doctype html><p>keep</p>",
+                )
+                .expect("source keep");
+                fs::write(
+                    source_fixtures.join("subgrid/upstream.html"),
+                    "<!doctype html><p>excluded source</p>",
+                )
+                .expect("source excluded");
+                fs::write(
+                    html_root.join("block/stale.html"),
+                    "<!doctype html><p>stale</p>",
+                )
+                .expect("stale");
+                fs::write(
+                    html_root.join("grid/grid_named_repeated_line_names.html"),
+                    "<!doctype html><p>surgeist extra</p>",
+                )
+                .expect("surgeist extra");
+                fs::write(
+                    html_root.join("subgrid/local.html"),
+                    "<!doctype html><p>local subgrid</p>",
+                )
+                .expect("local subgrid");
+                let config = Config {
+                    root: corpus_root,
+                    html_root: html_root.clone(),
+                    xml_root: root.join("corpus/xml"),
+                };
 
-        let plan =
-            prepare_taffy_import_with_expected_count(&source_root, 3).expect("Taffy import plan");
-        let expected_files = plan
-            .fixtures
-            .iter()
-            .map(|(rel, _)| rel.clone())
-            .collect::<BTreeSet<_>>();
-        clear_taffy_import_outputs(&config, &expected_files).expect("clear stale Taffy files");
-        for (rel, raw) in plan.fixtures {
-            let target = html_root.join(rel);
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).expect("target parent");
-            }
-            fs::write(target, raw).expect("write fixture");
-        }
+                let plan = prepare_taffy_import_with_expected_count(&source_root, 3)
+                    .expect("Taffy import plan");
+                let expected_files = plan
+                    .fixtures
+                    .iter()
+                    .map(|(rel, _)| rel.clone())
+                    .collect::<BTreeSet<_>>();
+                clear_taffy_import_outputs(&config, &expected_files)
+                    .expect("clear stale Taffy files");
+                for (rel, raw) in plan.fixtures {
+                    let target = html_root.join(rel);
+                    if let Some(parent) = target.parent() {
+                        fs::create_dir_all(parent).expect("target parent");
+                    }
+                    fs::write(target, raw).expect("write fixture");
+                }
 
-        assert!(
-            !html_root.join("block/stale.html").exists(),
-            "stale managed baseline fixture should be removed"
-        );
-        assert_eq!(
-            fs::read_to_string(html_root.join("block/basic.html")).expect("basic"),
-            "<!doctype html><p>basic</p>"
-        );
-        assert_eq!(
-            fs::read_to_string(html_root.join("flex/keep.html")).expect("keep"),
-            "<!doctype html><p>keep</p>"
-        );
-        assert_eq!(
-            fs::read_to_string(html_root.join("grid/grid_named_repeated_line_names.html"))
-                .expect("surgeist extra"),
-            "<!doctype html><p>surgeist extra</p>"
-        );
-        assert_eq!(
-            fs::read_to_string(html_root.join("subgrid/local.html")).expect("local subgrid"),
-            "<!doctype html><p>local subgrid</p>"
-        );
-        assert!(
-            !html_root.join("subgrid/upstream.html").exists(),
-            "excluded Taffy domains should not be imported over Surgeist-owned suites"
-        );
-        fs::remove_dir_all(root).ok();
+                assert!(
+                    !html_root.join("block/stale.html").exists(),
+                    "stale managed baseline fixture should be removed"
+                );
+                assert_eq!(
+                    fs::read_to_string(html_root.join("block/basic.html")).expect("basic"),
+                    "<!doctype html><p>basic</p>"
+                );
+                assert_eq!(
+                    fs::read_to_string(html_root.join("flex/keep.html")).expect("keep"),
+                    "<!doctype html><p>keep</p>"
+                );
+                assert_eq!(
+                    fs::read_to_string(html_root.join("grid/grid_named_repeated_line_names.html"))
+                        .expect("surgeist extra"),
+                    "<!doctype html><p>surgeist extra</p>"
+                );
+                assert_eq!(
+                    fs::read_to_string(html_root.join("subgrid/local.html"))
+                        .expect("local subgrid"),
+                    "<!doctype html><p>local subgrid</p>"
+                );
+                assert!(
+                    !html_root.join("subgrid/upstream.html").exists(),
+                    "excluded Taffy domains should not be imported over Surgeist-owned suites"
+                );
+                fs::remove_dir_all(root).ok();
+            };
     }
 
     #[test]
@@ -13005,69 +13209,118 @@ status = "active"
     }
     #[test]
     fn diagnostic_filter_is_report_free_and_manifest_independent() {
-        let root = test_browser_root("report-free-diagnostic-filter");
-        let corpus = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-        };
-        let fixture = corpus.html_root.join("grid/matched.html");
-        let unsupported_fixture = corpus.html_root.join("grid/unsupported.html");
-        let quarantined_fixture = corpus.html_root.join("grid/quarantined.html");
-        let matching_xml = corpus.xml_root.join("grid/matched__border_box_ltr.xml");
-        let unsupported_xml = corpus.xml_root.join("grid/unsupported__border_box_ltr.xml");
-        let quarantined_xml = corpus.xml_root.join("grid/quarantined__border_box_ltr.xml");
-        let stale_xml = corpus.xml_root.join("stale.xml");
-        let report_dir = corpus.xml_root.join("generation-reports");
-        let full_report = report_dir.join("all.json");
-        let stale_report = report_dir.join("stale.json");
-        fs::create_dir_all(fixture.parent().unwrap()).expect("fixture directory");
-        fs::create_dir_all(matching_xml.parent().unwrap()).expect("XML directory");
-        fs::create_dir_all(&report_dir).expect("report directory");
-        fs::write(&fixture, "<!doctype html>").expect("fixture");
-        fs::write(&unsupported_fixture, "<!doctype html>").expect("unsupported fixture");
-        fs::write(&quarantined_fixture, "<!doctype html>").expect("quarantined fixture");
-        fs::write(&matching_xml, "matching XML\n").expect("matching XML");
-        fs::write(&unsupported_xml, "unsupported XML\n").expect("unsupported XML");
-        fs::write(&quarantined_xml, "quarantined XML\n").expect("quarantined XML");
-        fs::write(&stale_xml, "stale XML\n").expect("stale XML");
-        fs::write(&full_report, "retained full report\n").expect("full report");
-        fs::write(&stale_report, "retained stale report\n").expect("stale report");
-        fs::write(root.join("corpus.toml"), test_schema_two_manifest("")).expect("corpus manifest");
+        (DiagnosticFilterIsReportFreeAndManifestIndependentPhaseL13007::RUN)()
+    }
 
-        let mut manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
-        manifest.generation_reports.scoped.clear();
-        manifest.cases = vec![
-            CorpusCase {
-                id: "grid/unsupported".to_string(),
-                source_root: CorpusSourceRoot::Surgeist,
-                source: "grid/unsupported.html".to_string(),
-                generator: CorpusGenerator::ConstrainedHtml,
-                status: CorpusStatus::Unsupported,
-                reason: Some("unsupported diagnostic case".to_string()),
-            },
-            CorpusCase {
-                id: "grid/quarantined".to_string(),
-                source_root: CorpusSourceRoot::Surgeist,
-                source: "grid/quarantined.html".to_string(),
-                generator: CorpusGenerator::ConstrainedHtml,
-                status: CorpusStatus::Quarantined,
-                reason: Some("quarantined diagnostic case".to_string()),
-            },
-        ];
-        for (filter, expected_status, retained_xml) in [
-            (
-                "grid/unsupported.html",
-                CorpusStatus::Unsupported,
-                &unsupported_xml,
-            ),
-            (
-                "grid/quarantined.html",
-                CorpusStatus::Quarantined,
-                &quarantined_xml,
-            ),
-        ] {
-            let status_config = GenerationConfig::new(
+    type DiagnosticFilterIsReportFreeAndManifestIndependentPhaseL13007Run = fn();
+
+    struct DiagnosticFilterIsReportFreeAndManifestIndependentPhaseL13007;
+
+    impl DiagnosticFilterIsReportFreeAndManifestIndependentPhaseL13007 {
+        const RUN: DiagnosticFilterIsReportFreeAndManifestIndependentPhaseL13007Run = || {
+            let root = test_browser_root("report-free-diagnostic-filter");
+            let corpus = Config {
+                root: root.clone(),
+                html_root: root.join("html"),
+                xml_root: root.join("xml"),
+            };
+            let fixture = corpus.html_root.join("grid/matched.html");
+            let unsupported_fixture = corpus.html_root.join("grid/unsupported.html");
+            let quarantined_fixture = corpus.html_root.join("grid/quarantined.html");
+            let matching_xml = corpus.xml_root.join("grid/matched__border_box_ltr.xml");
+            let unsupported_xml = corpus.xml_root.join("grid/unsupported__border_box_ltr.xml");
+            let quarantined_xml = corpus.xml_root.join("grid/quarantined__border_box_ltr.xml");
+            let stale_xml = corpus.xml_root.join("stale.xml");
+            let report_dir = corpus.xml_root.join("generation-reports");
+            let full_report = report_dir.join("all.json");
+            let stale_report = report_dir.join("stale.json");
+            fs::create_dir_all(fixture.parent().unwrap()).expect("fixture directory");
+            fs::create_dir_all(matching_xml.parent().unwrap()).expect("XML directory");
+            fs::create_dir_all(&report_dir).expect("report directory");
+            fs::write(&fixture, "<!doctype html>").expect("fixture");
+            fs::write(&unsupported_fixture, "<!doctype html>").expect("unsupported fixture");
+            fs::write(&quarantined_fixture, "<!doctype html>").expect("quarantined fixture");
+            fs::write(&matching_xml, "matching XML\n").expect("matching XML");
+            fs::write(&unsupported_xml, "unsupported XML\n").expect("unsupported XML");
+            fs::write(&quarantined_xml, "quarantined XML\n").expect("quarantined XML");
+            fs::write(&stale_xml, "stale XML\n").expect("stale XML");
+            fs::write(&full_report, "retained full report\n").expect("full report");
+            fs::write(&stale_report, "retained stale report\n").expect("stale report");
+            fs::write(root.join("corpus.toml"), test_schema_two_manifest(""))
+                .expect("corpus manifest");
+
+            let mut manifest =
+                parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+            manifest.generation_reports.scoped.clear();
+            manifest.cases = vec![
+                CorpusCase {
+                    id: "grid/unsupported".to_string(),
+                    source_root: CorpusSourceRoot::Surgeist,
+                    source: "grid/unsupported.html".to_string(),
+                    generator: CorpusGenerator::ConstrainedHtml,
+                    status: CorpusStatus::Unsupported,
+                    reason: Some("unsupported diagnostic case".to_string()),
+                },
+                CorpusCase {
+                    id: "grid/quarantined".to_string(),
+                    source_root: CorpusSourceRoot::Surgeist,
+                    source: "grid/quarantined.html".to_string(),
+                    generator: CorpusGenerator::ConstrainedHtml,
+                    status: CorpusStatus::Quarantined,
+                    reason: Some("quarantined diagnostic case".to_string()),
+                },
+            ];
+            for (filter, expected_status, retained_xml) in [
+                (
+                    "grid/unsupported.html",
+                    CorpusStatus::Unsupported,
+                    &unsupported_xml,
+                ),
+                (
+                    "grid/quarantined.html",
+                    CorpusStatus::Quarantined,
+                    &quarantined_xml,
+                ),
+            ] {
+                let status_config = GenerationConfig::new(
+                    corpus.clone(),
+                    manifest.clone(),
+                    BrowserResolutionMode::ExistingPinned,
+                    GenerationEnvironment {
+                        browser_path: Some("target/surgeist-browser/browser".to_string()),
+                        browser_cache_set: false,
+                        browser_version_set: false,
+                        filter: Some(filter.to_string()),
+                    },
+                )
+                .expect("matched status diagnostic filter");
+                let mut status_report = GenerationReport {
+                    filter: status_config.filter.clone(),
+                    ..GenerationReport::default()
+                };
+
+                let status_fixtures =
+                    collect_constrained_fixtures_for_generation(&status_config, &mut status_report)
+                        .expect("filtered status collection");
+
+                assert!(status_fixtures.is_empty(), "status case must be excluded");
+                match expected_status {
+                    CorpusStatus::Unsupported => {
+                        assert_eq!(status_report.summary.unsupported, 1);
+                        assert_eq!(status_report.unsupported[0].name, "grid/unsupported");
+                    }
+                    CorpusStatus::Quarantined => {
+                        assert_eq!(status_report.summary.quarantined, 1);
+                        assert_eq!(status_report.quarantined[0].name, "grid/quarantined");
+                    }
+                    _ => unreachable!("test covers excluded statuses only"),
+                }
+                assert!(
+                    retained_xml.is_file(),
+                    "filtered status diagnostics must retain pre-existing XML"
+                );
+            }
+            let config = GenerationConfig::new(
                 corpus.clone(),
                 manifest.clone(),
                 BrowserResolutionMode::ExistingPinned,
@@ -13075,115 +13328,78 @@ status = "active"
                     browser_path: Some("target/surgeist-browser/browser".to_string()),
                     browser_cache_set: false,
                     browser_version_set: false,
-                    filter: Some(filter.to_string()),
+                    filter: Some("grid/matched.html".to_string()),
                 },
             )
-            .expect("matched status diagnostic filter");
-            let mut status_report = GenerationReport {
-                filter: status_config.filter.clone(),
+            .expect("matched diagnostic filter independent of report manifest");
+            assert_eq!(config.filter.as_deref(), Some("grid/matched.html"));
+
+            let mut filtered_report = GenerationReport {
+                filter: config.filter.clone(),
                 ..GenerationReport::default()
             };
-
-            let status_fixtures =
-                collect_constrained_fixtures_for_generation(&status_config, &mut status_report)
-                    .expect("filtered status collection");
-
-            assert!(status_fixtures.is_empty(), "status case must be excluded");
-            match expected_status {
-                CorpusStatus::Unsupported => {
-                    assert_eq!(status_report.summary.unsupported, 1);
-                    assert_eq!(status_report.unsupported[0].name, "grid/unsupported");
-                }
-                CorpusStatus::Quarantined => {
-                    assert_eq!(status_report.summary.quarantined, 1);
-                    assert_eq!(status_report.quarantined[0].name, "grid/quarantined");
-                }
-                _ => unreachable!("test covers excluded statuses only"),
-            }
-            assert!(
-                retained_xml.is_file(),
-                "filtered status diagnostics must retain pre-existing XML"
+            filtered_report.record_generated(
+                "matched".to_string(),
+                "html/grid/matched.html".to_string(),
+                "xml/grid/matched__border_box_ltr.xml".to_string(),
+                "border_box_ltr".to_string(),
             );
-        }
-        let config = GenerationConfig::new(
-            corpus.clone(),
-            manifest.clone(),
-            BrowserResolutionMode::ExistingPinned,
-            GenerationEnvironment {
-                browser_path: Some("target/surgeist-browser/browser".to_string()),
-                browser_cache_set: false,
-                browser_version_set: false,
-                filter: Some("grid/matched.html".to_string()),
-            },
-        )
-        .expect("matched diagnostic filter independent of report manifest");
-        assert_eq!(config.filter.as_deref(), Some("grid/matched.html"));
+            finish_generation(&config, &filtered_report).expect("filtered diagnostic completion");
+            assert_eq!(
+                fs::read_to_string(&full_report).unwrap(),
+                "retained full report\n"
+            );
+            assert_eq!(
+                fs::read_to_string(&stale_report).unwrap(),
+                "retained stale report\n"
+            );
+            assert!(
+                stale_xml.is_file(),
+                "filtered diagnostics must not prune XML"
+            );
+            let mut failed_filtered_report = GenerationReport {
+                filter: config.filter.clone(),
+                ..GenerationReport::default()
+            };
+            failed_filtered_report.record_failed_to_generate(
+                "matched".to_string(),
+                "html/grid/matched.html".to_string(),
+                "injected diagnostic failure".to_string(),
+            );
+            let error = finish_generation(&config, &failed_filtered_report)
+                .expect_err("filtered diagnostic failure");
+            assert!(error.contains("1 filtered generation job(s) failed"));
+            assert_eq!(
+                fs::read_to_string(&full_report).unwrap(),
+                "retained full report\n"
+            );
+            assert_eq!(
+                fs::read_to_string(&stale_report).unwrap(),
+                "retained stale report\n"
+            );
 
-        let mut filtered_report = GenerationReport {
-            filter: config.filter.clone(),
-            ..GenerationReport::default()
+            let mut full_config = test_generation_config(corpus);
+            full_config.manifest = manifest;
+            let mut full_generation_report = GenerationReport::default();
+            full_generation_report.record_generated(
+                "matched".to_string(),
+                "html/grid/matched.html".to_string(),
+                "xml/grid/matched__border_box_ltr.xml".to_string(),
+                "border_box_ltr".to_string(),
+            );
+            finish_generation(&full_config, &full_generation_report).expect("full completion");
+            assert_ne!(
+                fs::read_to_string(&full_report).unwrap(),
+                "retained full report\n"
+            );
+            assert!(
+                !stale_report.exists(),
+                "full generation must prune stale reports"
+            );
+            assert!(!stale_xml.exists(), "full generation must prune stale XML");
+            assert!(matching_xml.is_file());
+            fs::remove_dir_all(root).ok();
         };
-        filtered_report.record_generated(
-            "matched".to_string(),
-            "html/grid/matched.html".to_string(),
-            "xml/grid/matched__border_box_ltr.xml".to_string(),
-            "border_box_ltr".to_string(),
-        );
-        finish_generation(&config, &filtered_report).expect("filtered diagnostic completion");
-        assert_eq!(
-            fs::read_to_string(&full_report).unwrap(),
-            "retained full report\n"
-        );
-        assert_eq!(
-            fs::read_to_string(&stale_report).unwrap(),
-            "retained stale report\n"
-        );
-        assert!(
-            stale_xml.is_file(),
-            "filtered diagnostics must not prune XML"
-        );
-        let mut failed_filtered_report = GenerationReport {
-            filter: config.filter.clone(),
-            ..GenerationReport::default()
-        };
-        failed_filtered_report.record_failed_to_generate(
-            "matched".to_string(),
-            "html/grid/matched.html".to_string(),
-            "injected diagnostic failure".to_string(),
-        );
-        let error = finish_generation(&config, &failed_filtered_report)
-            .expect_err("filtered diagnostic failure");
-        assert!(error.contains("1 filtered generation job(s) failed"));
-        assert_eq!(
-            fs::read_to_string(&full_report).unwrap(),
-            "retained full report\n"
-        );
-        assert_eq!(
-            fs::read_to_string(&stale_report).unwrap(),
-            "retained stale report\n"
-        );
-
-        let mut full_config = test_generation_config(corpus);
-        full_config.manifest = manifest;
-        let mut full_generation_report = GenerationReport::default();
-        full_generation_report.record_generated(
-            "matched".to_string(),
-            "html/grid/matched.html".to_string(),
-            "xml/grid/matched__border_box_ltr.xml".to_string(),
-            "border_box_ltr".to_string(),
-        );
-        finish_generation(&full_config, &full_generation_report).expect("full completion");
-        assert_ne!(
-            fs::read_to_string(&full_report).unwrap(),
-            "retained full report\n"
-        );
-        assert!(
-            !stale_report.exists(),
-            "full generation must prune stale reports"
-        );
-        assert!(!stale_xml.exists(), "full generation must prune stale XML");
-        assert!(matching_xml.is_file());
-        fs::remove_dir_all(root).ok();
     }
 
     #[test]
@@ -13819,7 +14035,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         let parser = fri06_c08r_source_slice(&support, "fn parse_node(", "fn parse_expectation(");
         assert_eq!(
             sha256_bytes(parser.as_bytes()),
-            "2c9c96fa64a7c6a2df073bcdc02a3eb11cd12653905fcae0eaaa83a0acbfb897"
+            "442d3657375b81c149d3bd507f8943d80a8527620e3aab537a726587639f864a"
         );
 
         let generator = fs::read_to_string(file!()).expect("generator source");
@@ -13830,7 +14046,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         );
         assert_eq!(
             sha256_bytes(serializer.as_bytes()),
-            "2a004418512b19a7e49eeae42cf01b2759aeda93cab4d6acc393e149ca06a710"
+            "45b2acc4a87591d1d5f293edbd0459a829ab954bee8f598279aaf699082fb83e"
         );
     }
 

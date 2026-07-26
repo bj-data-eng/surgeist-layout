@@ -1038,160 +1038,170 @@ mod tests {
 
     #[test]
     fn flow_axes_cover_the_normative_ten_row_mapping() {
-        let rows = [
-            (
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-                PhysicalAxis::Horizontal,
-                PhysicalAxis::Vertical,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-                PhysicalSide::Top,
-                PhysicalSide::Bottom,
-                PhysicalSide::Top,
-                PhysicalSide::Bottom,
-            ),
-            (
-                WritingMode::HorizontalTb,
-                Direction::Rtl,
-                PhysicalAxis::Horizontal,
-                PhysicalAxis::Vertical,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-                PhysicalSide::Top,
-                PhysicalSide::Bottom,
-                PhysicalSide::Top,
-                PhysicalSide::Bottom,
-            ),
-            (
-                WritingMode::VerticalRl,
-                Direction::Ltr,
-                PhysicalAxis::Vertical,
-                PhysicalAxis::Horizontal,
-                PhysicalSide::Top,
-                PhysicalSide::Bottom,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-            ),
-            (
-                WritingMode::VerticalRl,
-                Direction::Rtl,
-                PhysicalAxis::Vertical,
-                PhysicalAxis::Horizontal,
-                PhysicalSide::Bottom,
-                PhysicalSide::Top,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-            ),
-            (
-                WritingMode::VerticalLr,
-                Direction::Ltr,
-                PhysicalAxis::Vertical,
-                PhysicalAxis::Horizontal,
-                PhysicalSide::Top,
-                PhysicalSide::Bottom,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-            ),
-            (
-                WritingMode::VerticalLr,
-                Direction::Rtl,
-                PhysicalAxis::Vertical,
-                PhysicalAxis::Horizontal,
-                PhysicalSide::Bottom,
-                PhysicalSide::Top,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-            ),
-            (
-                WritingMode::SidewaysRl,
-                Direction::Ltr,
-                PhysicalAxis::Vertical,
-                PhysicalAxis::Horizontal,
-                PhysicalSide::Top,
-                PhysicalSide::Bottom,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-            ),
-            (
-                WritingMode::SidewaysRl,
-                Direction::Rtl,
-                PhysicalAxis::Vertical,
-                PhysicalAxis::Horizontal,
-                PhysicalSide::Bottom,
-                PhysicalSide::Top,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-            ),
-            (
-                WritingMode::SidewaysLr,
-                Direction::Ltr,
-                PhysicalAxis::Vertical,
-                PhysicalAxis::Horizontal,
-                PhysicalSide::Bottom,
-                PhysicalSide::Top,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-            ),
-            (
-                WritingMode::SidewaysLr,
-                Direction::Rtl,
-                PhysicalAxis::Vertical,
-                PhysicalAxis::Horizontal,
-                PhysicalSide::Top,
-                PhysicalSide::Bottom,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-                PhysicalSide::Left,
-                PhysicalSide::Right,
-            ),
-        ];
+        (FlowAxesCoverTheNormativeTenRowMappingPhaseL1040::RUN)()
+    }
 
-        for (
-            writing_mode,
-            direction,
-            inline_axis,
-            block_axis,
-            inline_start,
-            inline_end,
-            block_start,
-            block_end,
-            line_over,
-            line_under,
-        ) in rows
-        {
-            let axes = FlowAxes::new(writing_mode, direction);
-            assert_eq!(axes.writing_mode(), writing_mode);
-            assert_eq!(axes.direction(), direction);
-            assert_eq!(axes.inline_axis(), inline_axis);
-            assert_eq!(axes.block_axis(), block_axis);
-            assert_eq!(axes.inline_start(), inline_start);
-            assert_eq!(axes.inline_end(), inline_end);
-            assert_eq!(axes.block_start(), block_start);
-            assert_eq!(axes.block_end(), block_end);
-            assert_eq!(axes.line_over(), line_over);
-            assert_eq!(axes.line_under(), line_under);
-            assert_eq!(axes.inline_start().axis(), axes.inline_axis());
-            assert_eq!(axes.inline_end().axis(), axes.inline_axis());
-            assert_eq!(axes.block_start().axis(), axes.block_axis());
-            assert_eq!(axes.block_end().axis(), axes.block_axis());
-            assert_eq!(axes.line_over().axis(), axes.block_axis());
-            assert_eq!(axes.line_under().axis(), axes.block_axis());
-        }
+    type FlowAxesCoverTheNormativeTenRowMappingPhaseL1040Run = fn();
+
+    struct FlowAxesCoverTheNormativeTenRowMappingPhaseL1040;
+
+    impl FlowAxesCoverTheNormativeTenRowMappingPhaseL1040 {
+        const RUN: FlowAxesCoverTheNormativeTenRowMappingPhaseL1040Run = || {
+            let rows = [
+                (
+                    WritingMode::HorizontalTb,
+                    Direction::Ltr,
+                    PhysicalAxis::Horizontal,
+                    PhysicalAxis::Vertical,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                    PhysicalSide::Top,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Top,
+                    PhysicalSide::Bottom,
+                ),
+                (
+                    WritingMode::HorizontalTb,
+                    Direction::Rtl,
+                    PhysicalAxis::Horizontal,
+                    PhysicalAxis::Vertical,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                    PhysicalSide::Top,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Top,
+                    PhysicalSide::Bottom,
+                ),
+                (
+                    WritingMode::VerticalRl,
+                    Direction::Ltr,
+                    PhysicalAxis::Vertical,
+                    PhysicalAxis::Horizontal,
+                    PhysicalSide::Top,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                ),
+                (
+                    WritingMode::VerticalRl,
+                    Direction::Rtl,
+                    PhysicalAxis::Vertical,
+                    PhysicalAxis::Horizontal,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Top,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                ),
+                (
+                    WritingMode::VerticalLr,
+                    Direction::Ltr,
+                    PhysicalAxis::Vertical,
+                    PhysicalAxis::Horizontal,
+                    PhysicalSide::Top,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                ),
+                (
+                    WritingMode::VerticalLr,
+                    Direction::Rtl,
+                    PhysicalAxis::Vertical,
+                    PhysicalAxis::Horizontal,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Top,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                ),
+                (
+                    WritingMode::SidewaysRl,
+                    Direction::Ltr,
+                    PhysicalAxis::Vertical,
+                    PhysicalAxis::Horizontal,
+                    PhysicalSide::Top,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                ),
+                (
+                    WritingMode::SidewaysRl,
+                    Direction::Rtl,
+                    PhysicalAxis::Vertical,
+                    PhysicalAxis::Horizontal,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Top,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                ),
+                (
+                    WritingMode::SidewaysLr,
+                    Direction::Ltr,
+                    PhysicalAxis::Vertical,
+                    PhysicalAxis::Horizontal,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Top,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                ),
+                (
+                    WritingMode::SidewaysLr,
+                    Direction::Rtl,
+                    PhysicalAxis::Vertical,
+                    PhysicalAxis::Horizontal,
+                    PhysicalSide::Top,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                    PhysicalSide::Left,
+                    PhysicalSide::Right,
+                ),
+            ];
+
+            for (
+                writing_mode,
+                direction,
+                inline_axis,
+                block_axis,
+                inline_start,
+                inline_end,
+                block_start,
+                block_end,
+                line_over,
+                line_under,
+            ) in rows
+            {
+                let axes = FlowAxes::new(writing_mode, direction);
+                assert_eq!(axes.writing_mode(), writing_mode);
+                assert_eq!(axes.direction(), direction);
+                assert_eq!(axes.inline_axis(), inline_axis);
+                assert_eq!(axes.block_axis(), block_axis);
+                assert_eq!(axes.inline_start(), inline_start);
+                assert_eq!(axes.inline_end(), inline_end);
+                assert_eq!(axes.block_start(), block_start);
+                assert_eq!(axes.block_end(), block_end);
+                assert_eq!(axes.line_over(), line_over);
+                assert_eq!(axes.line_under(), line_under);
+                assert_eq!(axes.inline_start().axis(), axes.inline_axis());
+                assert_eq!(axes.inline_end().axis(), axes.inline_axis());
+                assert_eq!(axes.block_start().axis(), axes.block_axis());
+                assert_eq!(axes.block_end().axis(), axes.block_axis());
+                assert_eq!(axes.line_over().axis(), axes.block_axis());
+                assert_eq!(axes.line_under().axis(), axes.block_axis());
+            }
+        };
     }
 
     fn assert_flow_axes_round_trip<S: LayoutScalar>(

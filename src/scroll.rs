@@ -3484,237 +3484,247 @@ mod fri05_c02_box_clip_gutter_tests {
     }
 
     fn assert_scalar_flow_matrix<S: LayoutScalar>() {
-        let width = scalar::<S>(7.0);
-        for flow_axes in flow_axes() {
-            let none = SettledAutoScrollbarState { x: false, y: false };
-            let common = (
-                Size::new(scalar(100.0), scalar(80.0)),
-                Edges::ZERO,
-                Edges::ZERO,
-                ClipMarginSourceOf::default(),
-                OptimalRegionInsetsOf::default(),
-            );
+        (AssertScalarFlowMatrixPhaseL3486::<S>::RUN)()
+    }
 
-            let hidden_auto = derive_case!(
-                flow_axes,
-                Overflow::Hidden,
-                Overflow::Hidden,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::Auto,
-                width,
-                none,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(hidden_auto, &[], width);
+    type AssertScalarFlowMatrixPhaseL3486Run = fn();
 
-            let hidden_stable = derive_case!(
-                flow_axes,
-                Overflow::Hidden,
-                Overflow::Hidden,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::Stable,
-                width,
-                none,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(hidden_stable, &[flow_axes.inline_end()], width);
+    struct AssertScalarFlowMatrixPhaseL3486<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
 
-            let hidden_both = derive_case!(
-                flow_axes,
-                Overflow::Hidden,
-                Overflow::Hidden,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::StableBothEdges,
-                width,
-                none,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(
-                hidden_both,
-                &[flow_axes.inline_start(), flow_axes.inline_end()],
-                width,
-            );
+    impl<S: LayoutScalar> AssertScalarFlowMatrixPhaseL3486<S> {
+        const RUN: AssertScalarFlowMatrixPhaseL3486Run = || {
+            let width = scalar::<S>(7.0);
+            for flow_axes in flow_axes() {
+                let none = SettledAutoScrollbarState { x: false, y: false };
+                let common = (
+                    Size::new(scalar(100.0), scalar(80.0)),
+                    Edges::ZERO,
+                    Edges::ZERO,
+                    ClipMarginSourceOf::default(),
+                    OptimalRegionInsetsOf::default(),
+                );
 
-            let forced = derive_case!(
-                flow_axes,
-                Overflow::Hidden,
-                Overflow::Scroll,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::Auto,
-                width,
-                none,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(forced, &[flow_axes.inline_end()], width);
-
-            let settled_block = settled_physical_bits(flow_axes, false, true);
-            let conditional_block = derive_case!(
-                flow_axes,
-                Overflow::Auto,
-                Overflow::Auto,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::Auto,
-                width,
-                settled_block,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(conditional_block, &[flow_axes.inline_end()], width);
-
-            let settled_inline = settled_physical_bits(flow_axes, true, false);
-            let conditional_inline = derive_case!(
-                flow_axes,
-                Overflow::Auto,
-                Overflow::Auto,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::Auto,
-                width,
-                settled_inline,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(conditional_inline, &[flow_axes.block_end()], width);
-
-            let auto_stable = derive_case!(
-                flow_axes,
-                Overflow::Auto,
-                Overflow::Auto,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::Stable,
-                width,
-                none,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(auto_stable, &[flow_axes.inline_end()], width);
-
-            let auto_stable_with_inline = derive_case!(
-                flow_axes,
-                Overflow::Auto,
-                Overflow::Auto,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::Stable,
-                width,
-                settled_inline,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(
-                auto_stable_with_inline,
-                &[flow_axes.inline_end(), flow_axes.block_end()],
-                width,
-            );
-
-            let auto_both = derive_case!(
-                flow_axes,
-                Overflow::Auto,
-                Overflow::Auto,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::StableBothEdges,
-                width,
-                none,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(
-                auto_both,
-                &[flow_axes.inline_start(), flow_axes.inline_end()],
-                width,
-            );
-
-            let forced_both = derive_case!(
-                flow_axes,
-                Overflow::Scroll,
-                Overflow::Scroll,
-                false,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::StableBothEdges,
-                width,
-                none,
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(
-                forced_both,
-                &[
-                    flow_axes.inline_start(),
-                    flow_axes.inline_end(),
-                    flow_axes.block_end(),
-                ],
-                width,
-            );
-
-            for gutter in [
-                ScrollbarGutter::Auto,
-                ScrollbarGutter::Stable,
-                ScrollbarGutter::StableBothEdges,
-            ] {
-                let visible_clip = derive_case!(
+                let hidden_auto = derive_case!(
                     flow_axes,
-                    Overflow::Visible,
-                    Overflow::Clip,
+                    Overflow::Hidden,
+                    Overflow::Hidden,
                     false,
                     common.0,
                     common.1,
                     common.2,
-                    gutter,
+                    ScrollbarGutter::Auto,
+                    width,
+                    none,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(hidden_auto, &[], width);
+
+                let hidden_stable = derive_case!(
+                    flow_axes,
+                    Overflow::Hidden,
+                    Overflow::Hidden,
+                    false,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::Stable,
+                    width,
+                    none,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(hidden_stable, &[flow_axes.inline_end()], width);
+
+                let hidden_both = derive_case!(
+                    flow_axes,
+                    Overflow::Hidden,
+                    Overflow::Hidden,
+                    false,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::StableBothEdges,
+                    width,
+                    none,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(
+                    hidden_both,
+                    &[flow_axes.inline_start(), flow_axes.inline_end()],
+                    width,
+                );
+
+                let forced = derive_case!(
+                    flow_axes,
+                    Overflow::Hidden,
+                    Overflow::Scroll,
+                    false,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::Auto,
+                    width,
+                    none,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(forced, &[flow_axes.inline_end()], width);
+
+                let settled_block = settled_physical_bits(flow_axes, false, true);
+                let conditional_block = derive_case!(
+                    flow_axes,
+                    Overflow::Auto,
+                    Overflow::Auto,
+                    false,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::Auto,
+                    width,
+                    settled_block,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(conditional_block, &[flow_axes.inline_end()], width);
+
+                let settled_inline = settled_physical_bits(flow_axes, true, false);
+                let conditional_inline = derive_case!(
+                    flow_axes,
+                    Overflow::Auto,
+                    Overflow::Auto,
+                    false,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::Auto,
+                    width,
+                    settled_inline,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(conditional_inline, &[flow_axes.block_end()], width);
+
+                let auto_stable = derive_case!(
+                    flow_axes,
+                    Overflow::Auto,
+                    Overflow::Auto,
+                    false,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::Stable,
+                    width,
+                    none,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(auto_stable, &[flow_axes.inline_end()], width);
+
+                let auto_stable_with_inline = derive_case!(
+                    flow_axes,
+                    Overflow::Auto,
+                    Overflow::Auto,
+                    false,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::Stable,
+                    width,
+                    settled_inline,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(
+                    auto_stable_with_inline,
+                    &[flow_axes.inline_end(), flow_axes.block_end()],
+                    width,
+                );
+
+                let auto_both = derive_case!(
+                    flow_axes,
+                    Overflow::Auto,
+                    Overflow::Auto,
+                    false,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::StableBothEdges,
+                    width,
+                    none,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(
+                    auto_both,
+                    &[flow_axes.inline_start(), flow_axes.inline_end()],
+                    width,
+                );
+
+                let forced_both = derive_case!(
+                    flow_axes,
+                    Overflow::Scroll,
+                    Overflow::Scroll,
+                    false,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::StableBothEdges,
+                    width,
+                    none,
+                    common.3,
+                    common.4,
+                );
+                assert_gutter_sides(
+                    forced_both,
+                    &[
+                        flow_axes.inline_start(),
+                        flow_axes.inline_end(),
+                        flow_axes.block_end(),
+                    ],
+                    width,
+                );
+
+                for gutter in [
+                    ScrollbarGutter::Auto,
+                    ScrollbarGutter::Stable,
+                    ScrollbarGutter::StableBothEdges,
+                ] {
+                    let visible_clip = derive_case!(
+                        flow_axes,
+                        Overflow::Visible,
+                        Overflow::Clip,
+                        false,
+                        common.0,
+                        common.1,
+                        common.2,
+                        gutter,
+                        width,
+                        settled_physical_bits(flow_axes, true, true),
+                        common.3,
+                        common.4,
+                    );
+                    assert_gutter_sides(visible_clip, &[], width);
+                }
+
+                let replaced_hidden = derive_case!(
+                    flow_axes,
+                    Overflow::Hidden,
+                    Overflow::Hidden,
+                    true,
+                    common.0,
+                    common.1,
+                    common.2,
+                    ScrollbarGutter::StableBothEdges,
                     width,
                     settled_physical_bits(flow_axes, true, true),
                     common.3,
                     common.4,
                 );
-                assert_gutter_sides(visible_clip, &[], width);
+                assert_gutter_sides(replaced_hidden, &[], width);
             }
-
-            let replaced_hidden = derive_case!(
-                flow_axes,
-                Overflow::Hidden,
-                Overflow::Hidden,
-                true,
-                common.0,
-                common.1,
-                common.2,
-                ScrollbarGutter::StableBothEdges,
-                width,
-                settled_physical_bits(flow_axes, true, true),
-                common.3,
-                common.4,
-            );
-            assert_gutter_sides(replaced_hidden, &[], width);
-        }
+        };
     }
 
     #[test]
@@ -3724,111 +3734,121 @@ mod fri05_c02_box_clip_gutter_tests {
     }
 
     fn assert_scalar_gutter_saturation<S: LayoutScalar>() {
-        let axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
-        let none = SettledAutoScrollbarState { x: false, y: false };
-        let defaults = (
-            Edges::ZERO,
-            Edges::ZERO,
-            ClipMarginSourceOf::default(),
-            OptimalRegionInsetsOf::default(),
-        );
+        (AssertScalarGutterSaturationPhaseL3726::<S>::RUN)()
+    }
 
-        let one_sided = derive_case!(
-            axes,
-            Overflow::Hidden,
-            Overflow::Scroll,
-            false,
-            Size::new(scalar(2.0), scalar(40.0)),
-            defaults.0,
-            defaults.1,
-            ScrollbarGutter::Auto,
-            scalar(15.0),
-            none,
-            defaults.2,
-            defaults.3,
-        );
-        assert_eq!(one_sided.scrollport, rect(0.0, 0.0, 0.0, 40.0));
-        assert_eq!(one_sided.content_box, one_sided.scrollport);
-        assert_eq!(
-            one_sided.aggregate_reservation,
-            Size::new(scalar(2.0), S::ZERO)
-        );
-        assert_eq!(
-            gutter_at(one_sided, PhysicalSide::Right),
-            Some(rect(0.0, 0.0, 2.0, 40.0))
-        );
+    type AssertScalarGutterSaturationPhaseL3726Run = fn();
 
-        let symmetric = derive_case!(
-            axes,
-            Overflow::Hidden,
-            Overflow::Hidden,
-            false,
-            Size::new(scalar(20.0), scalar(40.0)),
-            defaults.0,
-            defaults.1,
-            ScrollbarGutter::StableBothEdges,
-            scalar(15.0),
-            none,
-            defaults.2,
-            defaults.3,
-        );
-        assert_eq!(
-            symmetric.aggregate_reservation,
-            Size::new(scalar(20.0), S::ZERO)
-        );
-        assert_eq!(symmetric.scrollport, rect(10.0, 0.0, 0.0, 40.0));
-        assert_eq!(
-            gutter_at(symmetric, PhysicalSide::Left),
-            Some(rect(0.0, 0.0, 10.0, 40.0))
-        );
-        assert_eq!(
-            gutter_at(symmetric, PhysicalSide::Right),
-            Some(rect(10.0, 0.0, 10.0, 40.0))
-        );
+    struct AssertScalarGutterSaturationPhaseL3726<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
 
-        let unsaturated = derive_case!(
-            axes,
-            Overflow::Hidden,
-            Overflow::Hidden,
-            false,
-            Size::new(scalar(40.0), scalar(40.0)),
-            defaults.0,
-            defaults.1,
-            ScrollbarGutter::StableBothEdges,
-            scalar(15.0),
-            none,
-            defaults.2,
-            defaults.3,
-        );
-        assert_eq!(
-            unsaturated.aggregate_reservation,
-            Size::new(scalar(30.0), S::ZERO)
-        );
-        assert_eq!(unsaturated.scrollport, rect(15.0, 0.0, 10.0, 40.0));
+    impl<S: LayoutScalar> AssertScalarGutterSaturationPhaseL3726<S> {
+        const RUN: AssertScalarGutterSaturationPhaseL3726Run = || {
+            let axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+            let none = SettledAutoScrollbarState { x: false, y: false };
+            let defaults = (
+                Edges::ZERO,
+                Edges::ZERO,
+                ClipMarginSourceOf::default(),
+                OptimalRegionInsetsOf::default(),
+            );
 
-        let independent_axes = derive_case!(
-            axes,
-            Overflow::Scroll,
-            Overflow::Scroll,
-            false,
-            Size::new(scalar(2.0), scalar(100.0)),
-            defaults.0,
-            defaults.1,
-            ScrollbarGutter::Auto,
-            scalar(15.0),
-            none,
-            defaults.2,
-            defaults.3,
-        );
-        assert_eq!(
-            independent_axes.aggregate_reservation,
-            Size::new(scalar(2.0), scalar(15.0))
-        );
-        assert_eq!(independent_axes.scrollport, rect(0.0, 0.0, 0.0, 85.0));
-        assert_eq!(
-            gutter_at(independent_axes, PhysicalSide::Bottom),
-            Some(rect(0.0, 85.0, 0.0, 15.0))
-        );
+            let one_sided = derive_case!(
+                axes,
+                Overflow::Hidden,
+                Overflow::Scroll,
+                false,
+                Size::new(scalar(2.0), scalar(40.0)),
+                defaults.0,
+                defaults.1,
+                ScrollbarGutter::Auto,
+                scalar(15.0),
+                none,
+                defaults.2,
+                defaults.3,
+            );
+            assert_eq!(one_sided.scrollport, rect(0.0, 0.0, 0.0, 40.0));
+            assert_eq!(one_sided.content_box, one_sided.scrollport);
+            assert_eq!(
+                one_sided.aggregate_reservation,
+                Size::new(scalar(2.0), S::ZERO)
+            );
+            assert_eq!(
+                gutter_at(one_sided, PhysicalSide::Right),
+                Some(rect(0.0, 0.0, 2.0, 40.0))
+            );
+
+            let symmetric = derive_case!(
+                axes,
+                Overflow::Hidden,
+                Overflow::Hidden,
+                false,
+                Size::new(scalar(20.0), scalar(40.0)),
+                defaults.0,
+                defaults.1,
+                ScrollbarGutter::StableBothEdges,
+                scalar(15.0),
+                none,
+                defaults.2,
+                defaults.3,
+            );
+            assert_eq!(
+                symmetric.aggregate_reservation,
+                Size::new(scalar(20.0), S::ZERO)
+            );
+            assert_eq!(symmetric.scrollport, rect(10.0, 0.0, 0.0, 40.0));
+            assert_eq!(
+                gutter_at(symmetric, PhysicalSide::Left),
+                Some(rect(0.0, 0.0, 10.0, 40.0))
+            );
+            assert_eq!(
+                gutter_at(symmetric, PhysicalSide::Right),
+                Some(rect(10.0, 0.0, 10.0, 40.0))
+            );
+
+            let unsaturated = derive_case!(
+                axes,
+                Overflow::Hidden,
+                Overflow::Hidden,
+                false,
+                Size::new(scalar(40.0), scalar(40.0)),
+                defaults.0,
+                defaults.1,
+                ScrollbarGutter::StableBothEdges,
+                scalar(15.0),
+                none,
+                defaults.2,
+                defaults.3,
+            );
+            assert_eq!(
+                unsaturated.aggregate_reservation,
+                Size::new(scalar(30.0), S::ZERO)
+            );
+            assert_eq!(unsaturated.scrollport, rect(15.0, 0.0, 10.0, 40.0));
+
+            let independent_axes = derive_case!(
+                axes,
+                Overflow::Scroll,
+                Overflow::Scroll,
+                false,
+                Size::new(scalar(2.0), scalar(100.0)),
+                defaults.0,
+                defaults.1,
+                ScrollbarGutter::Auto,
+                scalar(15.0),
+                none,
+                defaults.2,
+                defaults.3,
+            );
+            assert_eq!(
+                independent_axes.aggregate_reservation,
+                Size::new(scalar(2.0), scalar(15.0))
+            );
+            assert_eq!(independent_axes.scrollport, rect(0.0, 0.0, 0.0, 85.0));
+            assert_eq!(
+                gutter_at(independent_axes, PhysicalSide::Bottom),
+                Some(rect(0.0, 85.0, 0.0, 15.0))
+            );
+        };
     }
 
     #[test]
@@ -4640,120 +4660,137 @@ mod fri05_c02_contribution_range_tests {
     }
 
     fn assert_scalar_all_origin_and_flow_mappings<S: LayoutScalar>() {
-        let scrollport: ScrollRectOf<S> = rect(100.0, 300.0, 100.0, 100.0);
-        let inline_end: S = scalar(31.0);
-        let inline_start: S = scalar(11.0);
-        let block_end: S = scalar(47.0);
-        let block_start: S = scalar(13.0);
+        (AssertScalarAllOriginAndFlowMappingsPhaseL4642::<S>::RUN)()
+    }
 
-        for flow_axes in all_flow_axes() {
-            for inline_progression in [
-                ScrollOriginProgression::FlowEndward,
-                ScrollOriginProgression::FlowStartward,
-            ] {
-                for block_progression in [
+    type AssertScalarAllOriginAndFlowMappingsPhaseL4642Run = fn();
+
+    struct AssertScalarAllOriginAndFlowMappingsPhaseL4642<S: LayoutScalar>(
+        core::marker::PhantomData<(S,)>,
+    );
+
+    impl<S: LayoutScalar> AssertScalarAllOriginAndFlowMappingsPhaseL4642<S> {
+        const RUN: AssertScalarAllOriginAndFlowMappingsPhaseL4642Run = || {
+            let scrollport: ScrollRectOf<S> = rect(100.0, 300.0, 100.0, 100.0);
+            let inline_end: S = scalar(31.0);
+            let inline_start: S = scalar(11.0);
+            let block_end: S = scalar(47.0);
+            let block_start: S = scalar(13.0);
+
+            for flow_axes in all_flow_axes() {
+                for inline_progression in [
                     ScrollOriginProgression::FlowEndward,
                     ScrollOriginProgression::FlowStartward,
                 ] {
-                    let inline_source = axis_range_source(
-                        if matches!(flow_axes.inline_axis(), PhysicalAxis::Horizontal) {
-                            scalar(100.0)
-                        } else {
-                            scalar(300.0)
-                        },
-                        if matches!(flow_axes.inline_axis(), PhysicalAxis::Horizontal) {
-                            scalar(200.0)
-                        } else {
-                            scalar(400.0)
-                        },
-                        inline_end,
-                        inline_start,
-                        origin_is_decreasing(flow_axes, LogicalAxis::Inline, inline_progression),
-                    );
-                    let block_source = axis_range_source(
-                        if matches!(flow_axes.block_axis(), PhysicalAxis::Horizontal) {
-                            scalar(100.0)
-                        } else {
-                            scalar(300.0)
-                        },
-                        if matches!(flow_axes.block_axis(), PhysicalAxis::Horizontal) {
-                            scalar(200.0)
-                        } else {
-                            scalar(400.0)
-                        },
-                        block_end,
-                        block_start,
-                        origin_is_decreasing(flow_axes, LogicalAxis::Block, block_progression),
-                    );
-                    let (x_source, y_source) = match flow_axes.inline_axis() {
-                        PhysicalAxis::Horizontal => (inline_source, block_source),
-                        PhysicalAxis::Vertical => (block_source, inline_source),
-                    };
-                    let overflow = ScrollRectOf::try_new(
-                        Point::new(x_source.overflow_minimum, y_source.overflow_minimum),
-                        Size::new(
-                            x_source.overflow_maximum - x_source.overflow_minimum,
-                            y_source.overflow_maximum - y_source.overflow_minimum,
-                        ),
-                    )
-                    .unwrap();
-                    let subject = ScrollRectOf::try_new(
-                        Point::new(x_source.subject_minimum, y_source.subject_minimum),
-                        Size::new(
-                            x_source.subject_maximum - x_source.subject_minimum,
-                            y_source.subject_maximum - y_source.subject_minimum,
-                        ),
-                    )
-                    .unwrap();
-                    let mut accumulator = ScrollContributionAccumulatorOf::new(overflow);
-                    accumulator.set_active_alignment_subject(PhysicalAxis::Horizontal, subject);
-                    accumulator.set_active_alignment_subject(PhysicalAxis::Vertical, subject);
-                    let complete_before = accumulator.complete_overflow();
-                    let origin_axes = ScrollOriginAxes::new(inline_progression, block_progression);
+                    for block_progression in [
+                        ScrollOriginProgression::FlowEndward,
+                        ScrollOriginProgression::FlowStartward,
+                    ] {
+                        let inline_source = axis_range_source(
+                            if matches!(flow_axes.inline_axis(), PhysicalAxis::Horizontal) {
+                                scalar(100.0)
+                            } else {
+                                scalar(300.0)
+                            },
+                            if matches!(flow_axes.inline_axis(), PhysicalAxis::Horizontal) {
+                                scalar(200.0)
+                            } else {
+                                scalar(400.0)
+                            },
+                            inline_end,
+                            inline_start,
+                            origin_is_decreasing(
+                                flow_axes,
+                                LogicalAxis::Inline,
+                                inline_progression,
+                            ),
+                        );
+                        let block_source = axis_range_source(
+                            if matches!(flow_axes.block_axis(), PhysicalAxis::Horizontal) {
+                                scalar(100.0)
+                            } else {
+                                scalar(300.0)
+                            },
+                            if matches!(flow_axes.block_axis(), PhysicalAxis::Horizontal) {
+                                scalar(200.0)
+                            } else {
+                                scalar(400.0)
+                            },
+                            block_end,
+                            block_start,
+                            origin_is_decreasing(flow_axes, LogicalAxis::Block, block_progression),
+                        );
+                        let (x_source, y_source) = match flow_axes.inline_axis() {
+                            PhysicalAxis::Horizontal => (inline_source, block_source),
+                            PhysicalAxis::Vertical => (block_source, inline_source),
+                        };
+                        let overflow = ScrollRectOf::try_new(
+                            Point::new(x_source.overflow_minimum, y_source.overflow_minimum),
+                            Size::new(
+                                x_source.overflow_maximum - x_source.overflow_minimum,
+                                y_source.overflow_maximum - y_source.overflow_minimum,
+                            ),
+                        )
+                        .unwrap();
+                        let subject = ScrollRectOf::try_new(
+                            Point::new(x_source.subject_minimum, y_source.subject_minimum),
+                            Size::new(
+                                x_source.subject_maximum - x_source.subject_minimum,
+                                y_source.subject_maximum - y_source.subject_minimum,
+                            ),
+                        )
+                        .unwrap();
+                        let mut accumulator = ScrollContributionAccumulatorOf::new(overflow);
+                        accumulator.set_active_alignment_subject(PhysicalAxis::Horizontal, subject);
+                        accumulator.set_active_alignment_subject(PhysicalAxis::Vertical, subject);
+                        let complete_before = accumulator.complete_overflow();
+                        let origin_axes =
+                            ScrollOriginAxes::new(inline_progression, block_progression);
 
-                    let physical = derive_origin_aware_scroll_range(
-                        flow_axes,
-                        origin_axes,
-                        used_overflow(Overflow::Scroll, Overflow::Scroll),
-                        scrollport,
-                        &accumulator,
-                    )
-                    .unwrap();
-                    assert_eq!(accumulator.complete_overflow(), complete_before);
+                        let physical = derive_origin_aware_scroll_range(
+                            flow_axes,
+                            origin_axes,
+                            used_overflow(Overflow::Scroll, Overflow::Scroll),
+                            scrollport,
+                            &accumulator,
+                        )
+                        .unwrap();
+                        assert_eq!(accumulator.complete_overflow(), complete_before);
 
-                    let flow_relative = flow_axes.flow_relative_scroll_range(physical);
-                    let inline_expected =
-                        expected_flow_bounds(inline_progression, inline_end, inline_start);
-                    let block_expected =
-                        expected_flow_bounds(block_progression, block_end, block_start);
-                    assert_eq!(flow_relative.inline().minimum(), inline_expected.0);
-                    assert_eq!(flow_relative.inline().maximum(), inline_expected.1);
-                    assert_eq!(flow_relative.block().minimum(), block_expected.0);
-                    assert_eq!(flow_relative.block().maximum(), block_expected.1);
+                        let flow_relative = flow_axes.flow_relative_scroll_range(physical);
+                        let inline_expected =
+                            expected_flow_bounds(inline_progression, inline_end, inline_start);
+                        let block_expected =
+                            expected_flow_bounds(block_progression, block_end, block_start);
+                        assert_eq!(flow_relative.inline().minimum(), inline_expected.0);
+                        assert_eq!(flow_relative.inline().maximum(), inline_expected.1);
+                        assert_eq!(flow_relative.block().minimum(), block_expected.0);
+                        assert_eq!(flow_relative.block().maximum(), block_expected.1);
 
-                    let inline_physical = expected_physical_bounds(
-                        flow_axes
-                            .logical_axis_progression(LogicalAxis::Inline)
-                            .is_decreasing(),
-                        inline_expected,
-                    );
-                    let block_physical = expected_physical_bounds(
-                        flow_axes
-                            .logical_axis_progression(LogicalAxis::Block)
-                            .is_decreasing(),
-                        block_expected,
-                    );
-                    let (x_expected, y_expected) = match flow_axes.inline_axis() {
-                        PhysicalAxis::Horizontal => (inline_physical, block_physical),
-                        PhysicalAxis::Vertical => (block_physical, inline_physical),
-                    };
-                    assert_eq!(physical.x().minimum(), x_expected.0);
-                    assert_eq!(physical.x().maximum(), x_expected.1);
-                    assert_eq!(physical.y().minimum(), y_expected.0);
-                    assert_eq!(physical.y().maximum(), y_expected.1);
+                        let inline_physical = expected_physical_bounds(
+                            flow_axes
+                                .logical_axis_progression(LogicalAxis::Inline)
+                                .is_decreasing(),
+                            inline_expected,
+                        );
+                        let block_physical = expected_physical_bounds(
+                            flow_axes
+                                .logical_axis_progression(LogicalAxis::Block)
+                                .is_decreasing(),
+                            block_expected,
+                        );
+                        let (x_expected, y_expected) = match flow_axes.inline_axis() {
+                            PhysicalAxis::Horizontal => (inline_physical, block_physical),
+                            PhysicalAxis::Vertical => (block_physical, inline_physical),
+                        };
+                        assert_eq!(physical.x().minimum(), x_expected.0);
+                        assert_eq!(physical.x().maximum(), x_expected.1);
+                        assert_eq!(physical.y().minimum(), y_expected.0);
+                        assert_eq!(physical.y().maximum(), y_expected.1);
+                    }
                 }
             }
-        }
+        };
     }
 
     #[test]
@@ -5069,156 +5106,167 @@ mod fri05_c02_factory_rounding_tests {
     }
 
     fn assert_canonical_coherence<S: LayoutScalar>(geometry: ScrollGeometryOf<S>) {
-        for rect in [
-            geometry.border_box,
-            geometry.padding_box,
-            geometry.content_box,
-            geometry.scrollport,
-            geometry.scrollable_overflow,
-            geometry.optimal_viewing_region,
-            geometry.target.border_box(),
-        ] {
-            assert_finite_rect(rect);
-        }
-        assert_rect_contains(geometry.border_box, geometry.padding_box);
-        assert_rect_contains(geometry.padding_box, geometry.scrollport);
-        assert_rect_contains(geometry.scrollport, geometry.content_box);
-        assert_rect_contains(geometry.scrollport, geometry.optimal_viewing_region);
+        (AssertCanonicalCoherencePhaseL5071::<S>::RUN)(geometry)
+    }
 
-        let padding_origin = geometry.padding_box.origin();
-        let padding_size = geometry.padding_box.size();
-        let scrollport_origin = geometry.scrollport.origin();
-        let scrollport_size = geometry.scrollport.size();
-        if let Some(top) = geometry.gutters.top {
-            assert_eq!(top.origin().y, padding_origin.y);
-            assert_eq!(top.origin().x, scrollport_origin.x);
-            assert_eq!(top.size().width, scrollport_size.width);
-            assert_eq!(top.origin().y + top.size().height, scrollport_origin.y);
-        }
-        if let Some(right) = geometry.gutters.right {
-            assert_eq!(
-                right.origin().x,
-                scrollport_origin.x + scrollport_size.width
-            );
-            assert_eq!(right.origin().y, scrollport_origin.y);
-            assert_eq!(right.size().height, scrollport_size.height);
-            assert_eq!(
-                right.origin().x + right.size().width,
-                padding_origin.x + padding_size.width
-            );
-        }
-        if let Some(bottom) = geometry.gutters.bottom {
-            assert_eq!(bottom.origin().x, scrollport_origin.x);
-            assert_eq!(
-                bottom.origin().y,
-                scrollport_origin.y + scrollport_size.height
-            );
-            assert_eq!(bottom.size().width, scrollport_size.width);
-            assert_eq!(
-                bottom.origin().y + bottom.size().height,
-                padding_origin.y + padding_size.height
-            );
-        }
-        if let Some(left) = geometry.gutters.left {
-            assert_eq!(left.origin().x, padding_origin.x);
-            assert_eq!(left.origin().y, scrollport_origin.y);
-            assert_eq!(left.size().height, scrollport_size.height);
-            assert_eq!(left.origin().x + left.size().width, scrollport_origin.x);
-        }
-        assert!(geometry.aggregate_reservation.width <= padding_size.width);
-        assert!(geometry.aggregate_reservation.height <= padding_size.height);
+    type AssertCanonicalCoherencePhaseL5071Run<S> = fn(ScrollGeometryOf<S>);
 
-        for clip in [geometry.overflow_clip.x(), geometry.overflow_clip.y()]
-            .into_iter()
-            .flatten()
-        {
-            assert!(clip.minimum().is_finite());
-            assert!(clip.maximum().is_finite());
-            assert!(clip.minimum() <= clip.maximum());
-        }
-        for (used, clip, range) in [
-            (
-                geometry.used_overflow.x(),
-                geometry.overflow_clip.x(),
-                geometry.physical_range.x(),
-            ),
-            (
-                geometry.used_overflow.y(),
-                geometry.overflow_clip.y(),
-                geometry.physical_range.y(),
-            ),
-        ] {
-            assert!(range.minimum().is_finite());
-            assert!(range.maximum().is_finite());
-            assert!(range.minimum() <= S::ZERO && range.maximum() >= S::ZERO);
-            match used.value() {
-                Overflow::Visible => {
-                    assert_eq!(clip, None);
-                    assert_eq!((range.minimum(), range.maximum()), (S::ZERO, S::ZERO));
-                }
-                Overflow::Clip => {
-                    assert!(clip.is_some());
-                    assert_eq!((range.minimum(), range.maximum()), (S::ZERO, S::ZERO));
-                }
-                Overflow::Hidden | Overflow::Scroll | Overflow::Auto => {
-                    assert!(clip.is_some());
+    struct AssertCanonicalCoherencePhaseL5071<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
+
+    impl<S: LayoutScalar> AssertCanonicalCoherencePhaseL5071<S> {
+        const RUN: AssertCanonicalCoherencePhaseL5071Run<S> = |geometry: ScrollGeometryOf<S>| {
+            for rect in [
+                geometry.border_box,
+                geometry.padding_box,
+                geometry.content_box,
+                geometry.scrollport,
+                geometry.scrollable_overflow,
+                geometry.optimal_viewing_region,
+                geometry.target.border_box(),
+            ] {
+                assert_finite_rect(rect);
+            }
+            assert_rect_contains(geometry.border_box, geometry.padding_box);
+            assert_rect_contains(geometry.padding_box, geometry.scrollport);
+            assert_rect_contains(geometry.scrollport, geometry.content_box);
+            assert_rect_contains(geometry.scrollport, geometry.optimal_viewing_region);
+
+            let padding_origin = geometry.padding_box.origin();
+            let padding_size = geometry.padding_box.size();
+            let scrollport_origin = geometry.scrollport.origin();
+            let scrollport_size = geometry.scrollport.size();
+            if let Some(top) = geometry.gutters.top {
+                assert_eq!(top.origin().y, padding_origin.y);
+                assert_eq!(top.origin().x, scrollport_origin.x);
+                assert_eq!(top.size().width, scrollport_size.width);
+                assert_eq!(top.origin().y + top.size().height, scrollport_origin.y);
+            }
+            if let Some(right) = geometry.gutters.right {
+                assert_eq!(
+                    right.origin().x,
+                    scrollport_origin.x + scrollport_size.width
+                );
+                assert_eq!(right.origin().y, scrollport_origin.y);
+                assert_eq!(right.size().height, scrollport_size.height);
+                assert_eq!(
+                    right.origin().x + right.size().width,
+                    padding_origin.x + padding_size.width
+                );
+            }
+            if let Some(bottom) = geometry.gutters.bottom {
+                assert_eq!(bottom.origin().x, scrollport_origin.x);
+                assert_eq!(
+                    bottom.origin().y,
+                    scrollport_origin.y + scrollport_size.height
+                );
+                assert_eq!(bottom.size().width, scrollport_size.width);
+                assert_eq!(
+                    bottom.origin().y + bottom.size().height,
+                    padding_origin.y + padding_size.height
+                );
+            }
+            if let Some(left) = geometry.gutters.left {
+                assert_eq!(left.origin().x, padding_origin.x);
+                assert_eq!(left.origin().y, scrollport_origin.y);
+                assert_eq!(left.size().height, scrollport_size.height);
+                assert_eq!(left.origin().x + left.size().width, scrollport_origin.x);
+            }
+            assert!(geometry.aggregate_reservation.width <= padding_size.width);
+            assert!(geometry.aggregate_reservation.height <= padding_size.height);
+
+            for clip in [geometry.overflow_clip.x(), geometry.overflow_clip.y()]
+                .into_iter()
+                .flatten()
+            {
+                assert!(clip.minimum().is_finite());
+                assert!(clip.maximum().is_finite());
+                assert!(clip.minimum() <= clip.maximum());
+            }
+            for (used, clip, range) in [
+                (
+                    geometry.used_overflow.x(),
+                    geometry.overflow_clip.x(),
+                    geometry.physical_range.x(),
+                ),
+                (
+                    geometry.used_overflow.y(),
+                    geometry.overflow_clip.y(),
+                    geometry.physical_range.y(),
+                ),
+            ] {
+                assert!(range.minimum().is_finite());
+                assert!(range.maximum().is_finite());
+                assert!(range.minimum() <= S::ZERO && range.maximum() >= S::ZERO);
+                match used.value() {
+                    Overflow::Visible => {
+                        assert_eq!(clip, None);
+                        assert_eq!((range.minimum(), range.maximum()), (S::ZERO, S::ZERO));
+                    }
+                    Overflow::Clip => {
+                        assert!(clip.is_some());
+                        assert_eq!((range.minimum(), range.maximum()), (S::ZERO, S::ZERO));
+                    }
+                    Overflow::Hidden | Overflow::Scroll | Overflow::Auto => {
+                        assert!(clip.is_some());
+                    }
                 }
             }
-        }
 
-        assert_eq!(geometry.flow_axes, geometry.source.flow_axes);
-        assert_eq!(
-            geometry.used_overflow,
-            UsedOverflow::from_computed(
-                geometry.source.computed_overflow,
-                geometry.source.item_is_replaced,
-            )
-        );
-        assert_eq!(
-            geometry.physical_range,
-            derive_origin_aware_scroll_range(
-                geometry.flow_axes,
-                geometry.source.origin_axes,
+            assert_eq!(geometry.flow_axes, geometry.source.flow_axes);
+            assert_eq!(
                 geometry.used_overflow,
-                geometry.scrollport,
-                &geometry.source.contributions,
-            )
-            .unwrap()
-        );
-        let complete = geometry.source.contributions.complete_overflow();
-        assert_eq!(
-            geometry.scrollable_overflow.origin().x,
-            complete.x().minimum()
-        );
-        assert_eq!(
-            geometry.scrollable_overflow.origin().y,
-            complete.y().minimum()
-        );
-        assert_eq!(
-            geometry.scrollable_overflow.origin().x + geometry.scrollable_overflow.size().width,
-            complete.x().maximum()
-        );
-        assert_eq!(
-            geometry.scrollable_overflow.origin().y + geometry.scrollable_overflow.size().height,
-            complete.y().maximum()
-        );
-        assert_eq!(geometry.scroll_snap_type, geometry.source.scroll_snap_type);
-        assert_eq!(
-            geometry.target.scroll_margin(),
-            geometry.source.target_scroll_margin
-        );
-        assert_eq!(
-            geometry.target.flow_axes(),
-            geometry.source.target_flow_axes
-        );
-        assert_eq!(
-            geometry.target.snap_align(),
-            geometry.source.target_snap_align
-        );
-        assert_eq!(
-            geometry.target.snap_stop(),
-            geometry.source.target_snap_stop
-        );
+                UsedOverflow::from_computed(
+                    geometry.source.computed_overflow,
+                    geometry.source.item_is_replaced,
+                )
+            );
+            assert_eq!(
+                geometry.physical_range,
+                derive_origin_aware_scroll_range(
+                    geometry.flow_axes,
+                    geometry.source.origin_axes,
+                    geometry.used_overflow,
+                    geometry.scrollport,
+                    &geometry.source.contributions,
+                )
+                .unwrap()
+            );
+            let complete = geometry.source.contributions.complete_overflow();
+            assert_eq!(
+                geometry.scrollable_overflow.origin().x,
+                complete.x().minimum()
+            );
+            assert_eq!(
+                geometry.scrollable_overflow.origin().y,
+                complete.y().minimum()
+            );
+            assert_eq!(
+                geometry.scrollable_overflow.origin().x + geometry.scrollable_overflow.size().width,
+                complete.x().maximum()
+            );
+            assert_eq!(
+                geometry.scrollable_overflow.origin().y
+                    + geometry.scrollable_overflow.size().height,
+                complete.y().maximum()
+            );
+            assert_eq!(geometry.scroll_snap_type, geometry.source.scroll_snap_type);
+            assert_eq!(
+                geometry.target.scroll_margin(),
+                geometry.source.target_scroll_margin
+            );
+            assert_eq!(
+                geometry.target.flow_axes(),
+                geometry.source.target_flow_axes
+            );
+            assert_eq!(
+                geometry.target.snap_align(),
+                geometry.source.target_snap_align
+            );
+            assert_eq!(
+                geometry.target.snap_stop(),
+                geometry.source.target_snap_stop
+            );
+        };
     }
 
     fn assert_factory_contract<S: LayoutScalar>() {
@@ -5701,145 +5749,161 @@ mod fri05_c02_factory_rounding_tests {
     }
 
     fn assert_mismatched_border_box_rebuild_retains_terminal_padding<S: LayoutScalar>() {
-        for (flow_axes, padding, final_ends, overflow, range) in [
-            (
-                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                [0.0, 3.0, 4.0, 0.0],
-                [30.0, 20.0],
-                [0.0, 0.0, 33.0, 24.0],
-                [0.0, 23.0, 0.0, 14.0],
-            ),
-            (
-                FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
-                [0.0, 0.0, 4.0, 3.0],
-                [0.0, 20.0],
-                [-3.0, 0.0, 33.0, 24.0],
-                [-3.0, 0.0, 0.0, 14.0],
-            ),
-            (
-                FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
-                [0.0, 0.0, 3.0, 4.0],
-                [20.0, 0.0],
-                [-4.0, 0.0, 34.0, 23.0],
-                [-4.0, 0.0, 0.0, 13.0],
-            ),
-        ] {
-            let padding = Edges::new(
-                scalar(padding[0]),
-                scalar(padding[1]),
-                scalar(padding[2]),
-                scalar(padding[3]),
-            );
-            let mut contributions = ScrollContributionAccumulatorOf::new(rect(0.0, 0.0, 8.0, 8.0));
-            contributions.include_direct_line(rect(0.0, 0.0, 30.0, 20.0));
-            for (axis, coordinate) in [LogicalAxis::Inline, LogicalAxis::Block]
-                .into_iter()
-                .zip(final_ends)
-            {
-                contributions
-                    .record_final_in_flow_end(flow_axes, axis, scalar(coordinate))
-                    .unwrap();
-            }
-            contributions.include_terminal_padding(padding).unwrap();
+        (AssertMismatchedBorderBoxRebuildRetainsTerminalPaddingPhaseL5703::<S>::RUN)()
+    }
 
-            let source = CanonicalScrollGeometrySourceOf {
-                flow_axes,
-                computed_overflow: ComputedOverflow::try_new(Overflow::Hidden, Overflow::Hidden)
-                    .unwrap(),
-                border_box_size: Size::splat(scalar(8.0)),
-                border: Edges::ZERO,
-                padding,
-                scrollbar_gutter: ScrollbarGutter::Auto,
-                scrollbar_width: ScrollbarWidthOf::try_new(S::ZERO).unwrap(),
-                settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
-                clip_margin: ClipMarginSourceOf::default(),
-                scroll_padding: OptimalRegionInsetsOf::default(),
-                contributions,
-                origin_axes: ScrollOriginAxes::new(
-                    ScrollOriginProgression::FlowEndward,
-                    ScrollOriginProgression::FlowEndward,
-                ),
-                scroll_snap_type: ScrollSnapType::default(),
-                target_border_box: rect(0.0, 0.0, 8.0, 8.0),
-                target_flow_axes: flow_axes,
-                ..factory_source(flow_axes)
-            };
-            let original = canonical_scroll_geometry_from_source(source).unwrap();
-            let original_target = original.target();
-            let rebuilt_size = Size::splat(scalar(10.0));
-            let rebuilt = rebuild_canonical_scroll_geometry_for_border_box(
-                original,
-                rebuilt_size,
-                Edges::ZERO,
-                padding,
-            )
-            .unwrap();
-            let expected_overflow = rect(overflow[0], overflow[1], overflow[2], overflow[3]);
+    type AssertMismatchedBorderBoxRebuildRetainsTerminalPaddingPhaseL5703Run = fn();
 
-            assert_eq!(
-                rebuilt.scrollable_overflow(),
-                expected_overflow,
-                "{flow_axes:?}"
-            );
-            assert_eq!(
+    struct AssertMismatchedBorderBoxRebuildRetainsTerminalPaddingPhaseL5703<S: LayoutScalar>(
+        core::marker::PhantomData<(S,)>,
+    );
+
+    impl<S: LayoutScalar> AssertMismatchedBorderBoxRebuildRetainsTerminalPaddingPhaseL5703<S> {
+        const RUN: AssertMismatchedBorderBoxRebuildRetainsTerminalPaddingPhaseL5703Run = || {
+            for (flow_axes, padding, final_ends, overflow, range) in [
                 (
-                    rebuilt.physical_range().x().minimum(),
-                    rebuilt.physical_range().x().maximum(),
-                    rebuilt.physical_range().y().minimum(),
-                    rebuilt.physical_range().y().maximum(),
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    [0.0, 3.0, 4.0, 0.0],
+                    [30.0, 20.0],
+                    [0.0, 0.0, 33.0, 24.0],
+                    [0.0, 23.0, 0.0, 14.0],
                 ),
-                range.map(scalar::<S>).into(),
-                "{flow_axes:?}"
-            );
-            assert_eq!(
-                rebuilt
-                    .source
-                    .contributions
-                    .content_size_from_anchor(rebuilt.content_box().origin())
-                    .unwrap(),
-                expected_overflow.size(),
-                "{flow_axes:?}"
-            );
-            assert_eq!(
-                rebuilt.source.contributions.propagatable_descendants,
-                OptionalPhysicalContributionIntervalsOf {
-                    x: Some(PhysicalContributionIntervalOf {
-                        minimum: S::ZERO,
-                        maximum: scalar(30.0),
-                    }),
-                    y: Some(PhysicalContributionIntervalOf {
-                        minimum: S::ZERO,
-                        maximum: scalar(20.0),
-                    }),
-                },
-                "direct content remains one interval per axis for {flow_axes:?}"
-            );
-            assert_canonical_coherence(rebuilt);
+                (
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+                    [0.0, 0.0, 4.0, 3.0],
+                    [0.0, 20.0],
+                    [-3.0, 0.0, 33.0, 24.0],
+                    [-3.0, 0.0, 0.0, 14.0],
+                ),
+                (
+                    FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+                    [0.0, 0.0, 3.0, 4.0],
+                    [20.0, 0.0],
+                    [-4.0, 0.0, 34.0, 23.0],
+                    [-4.0, 0.0, 0.0, 13.0],
+                ),
+            ] {
+                let padding = Edges::new(
+                    scalar(padding[0]),
+                    scalar(padding[1]),
+                    scalar(padding[2]),
+                    scalar(padding[3]),
+                );
+                let mut contributions =
+                    ScrollContributionAccumulatorOf::new(rect(0.0, 0.0, 8.0, 8.0));
+                contributions.include_direct_line(rect(0.0, 0.0, 30.0, 20.0));
+                for (axis, coordinate) in [LogicalAxis::Inline, LogicalAxis::Block]
+                    .into_iter()
+                    .zip(final_ends)
+                {
+                    contributions
+                        .record_final_in_flow_end(flow_axes, axis, scalar(coordinate))
+                        .unwrap();
+                }
+                contributions.include_terminal_padding(padding).unwrap();
 
-            let output = crate::NodeOutputOf::<S>::new().with_scroll_geometry(Some(rebuilt));
-            assert_eq!(
-                output.content_box_size(),
-                rebuilt.content_box().size(),
-                "{flow_axes:?}"
-            );
-            assert_eq!(
-                output.scrollbar_size(),
-                rebuilt.scrollbar_size(),
-                "{flow_axes:?}"
-            );
-            assert_eq!(
-                rebuilt.target().border_box(),
-                rebuilt.border_box(),
-                "{flow_axes:?}"
-            );
-            assert_eq!(
-                rebuilt.target().scroll_margin(),
-                original_target.scroll_margin()
-            );
-            assert_eq!(rebuilt.target().flow_axes(), original_target.flow_axes());
-            assert_eq!(rebuilt.target().snap_align(), original_target.snap_align());
-            assert_eq!(rebuilt.target().snap_stop(), original_target.snap_stop());
-        }
+                let source = CanonicalScrollGeometrySourceOf {
+                    flow_axes,
+                    computed_overflow: ComputedOverflow::try_new(
+                        Overflow::Hidden,
+                        Overflow::Hidden,
+                    )
+                    .unwrap(),
+                    border_box_size: Size::splat(scalar(8.0)),
+                    border: Edges::ZERO,
+                    padding,
+                    scrollbar_gutter: ScrollbarGutter::Auto,
+                    scrollbar_width: ScrollbarWidthOf::try_new(S::ZERO).unwrap(),
+                    settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
+                    clip_margin: ClipMarginSourceOf::default(),
+                    scroll_padding: OptimalRegionInsetsOf::default(),
+                    contributions,
+                    origin_axes: ScrollOriginAxes::new(
+                        ScrollOriginProgression::FlowEndward,
+                        ScrollOriginProgression::FlowEndward,
+                    ),
+                    scroll_snap_type: ScrollSnapType::default(),
+                    target_border_box: rect(0.0, 0.0, 8.0, 8.0),
+                    target_flow_axes: flow_axes,
+                    ..factory_source(flow_axes)
+                };
+                let original = canonical_scroll_geometry_from_source(source).unwrap();
+                let original_target = original.target();
+                let rebuilt_size = Size::splat(scalar(10.0));
+                let rebuilt = rebuild_canonical_scroll_geometry_for_border_box(
+                    original,
+                    rebuilt_size,
+                    Edges::ZERO,
+                    padding,
+                )
+                .unwrap();
+                let expected_overflow = rect(overflow[0], overflow[1], overflow[2], overflow[3]);
+
+                assert_eq!(
+                    rebuilt.scrollable_overflow(),
+                    expected_overflow,
+                    "{flow_axes:?}"
+                );
+                assert_eq!(
+                    (
+                        rebuilt.physical_range().x().minimum(),
+                        rebuilt.physical_range().x().maximum(),
+                        rebuilt.physical_range().y().minimum(),
+                        rebuilt.physical_range().y().maximum(),
+                    ),
+                    range.map(scalar::<S>).into(),
+                    "{flow_axes:?}"
+                );
+                assert_eq!(
+                    rebuilt
+                        .source
+                        .contributions
+                        .content_size_from_anchor(rebuilt.content_box().origin())
+                        .unwrap(),
+                    expected_overflow.size(),
+                    "{flow_axes:?}"
+                );
+                assert_eq!(
+                    rebuilt.source.contributions.propagatable_descendants,
+                    OptionalPhysicalContributionIntervalsOf {
+                        x: Some(PhysicalContributionIntervalOf {
+                            minimum: S::ZERO,
+                            maximum: scalar(30.0),
+                        }),
+                        y: Some(PhysicalContributionIntervalOf {
+                            minimum: S::ZERO,
+                            maximum: scalar(20.0),
+                        }),
+                    },
+                    "direct content remains one interval per axis for {flow_axes:?}"
+                );
+                assert_canonical_coherence(rebuilt);
+
+                let output = crate::NodeOutputOf::<S>::new().with_scroll_geometry(Some(rebuilt));
+                assert_eq!(
+                    output.content_box_size(),
+                    rebuilt.content_box().size(),
+                    "{flow_axes:?}"
+                );
+                assert_eq!(
+                    output.scrollbar_size(),
+                    rebuilt.scrollbar_size(),
+                    "{flow_axes:?}"
+                );
+                assert_eq!(
+                    rebuilt.target().border_box(),
+                    rebuilt.border_box(),
+                    "{flow_axes:?}"
+                );
+                assert_eq!(
+                    rebuilt.target().scroll_margin(),
+                    original_target.scroll_margin()
+                );
+                assert_eq!(rebuilt.target().flow_axes(), original_target.flow_axes());
+                assert_eq!(rebuilt.target().snap_align(), original_target.snap_align());
+                assert_eq!(rebuilt.target().snap_stop(), original_target.snap_stop());
+            }
+        };
     }
 
     #[test]

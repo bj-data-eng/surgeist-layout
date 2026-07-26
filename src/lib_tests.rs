@@ -470,6 +470,10 @@ fn fri05_c03_legacy_surface_rect_has_only_the_typed_public_constructor() {
 
 #[test]
 fn fri05_c03_public_geometry_surface_has_exact_read_only_accessors() {
+    (FRI05_C03_PUBLIC_GEOMETRY_SURFACE_HAS_EXACT_READ_ONLY_ACCESSORS_PHASE)();
+}
+
+const FRI05_C03_PUBLIC_GEOMETRY_SURFACE_HAS_EXACT_READ_ONLY_ACCESSORS_PHASE: fn() = || {
     let scroll = include_str!("scroll.rs");
     let public_front_door = include_str!("lib.rs");
 
@@ -606,7 +610,7 @@ fn fri05_c03_public_geometry_surface_has_exact_read_only_accessors() {
             "{public_name} is reexported"
         );
     }
-}
+};
 
 #[test]
 fn fri05_c03_legacy_surface_is_absent_from_public_source() {
@@ -878,593 +882,605 @@ struct LegacySourceToken {
 }
 
 fn fri05_c05_lex_production_tokens(source: &str) -> Result<Vec<LegacySourceToken>, String> {
-    fn quoted_end(bytes: &[u8], start: usize) -> Result<usize, String> {
-        let mut index = start + 1;
-        while index < bytes.len() {
-            match bytes[index] {
-                b'\\' => index += 2,
-                b'"' => return Ok(index + 1),
-                _ => index += 1,
+    (Fri05C05LexProductionTokensPhaseL884::RUN)(source)
+}
+
+type Fri05C05LexProductionTokensPhaseL884Run = fn(&str) -> Result<Vec<LegacySourceToken>, String>;
+
+struct Fri05C05LexProductionTokensPhaseL884;
+
+impl Fri05C05LexProductionTokensPhaseL884 {
+    const RUN: Fri05C05LexProductionTokensPhaseL884Run = |source: &str| {
+        fn quoted_end(bytes: &[u8], start: usize) -> Result<usize, String> {
+            let mut index = start + 1;
+            while index < bytes.len() {
+                match bytes[index] {
+                    b'\\' => index += 2,
+                    b'"' => return Ok(index + 1),
+                    _ => index += 1,
+                }
             }
-        }
-        Err(format!("unterminated quoted literal at byte {start}"))
-    }
-
-    fn identifier_start(character: char) -> bool {
-        character == '_' || character.is_alphabetic()
-    }
-
-    fn identifier_continue(character: char) -> bool {
-        identifier_start(character)
-            || character.is_numeric()
-            || matches!(
-                character,
-                '\u{0300}'..='\u{036f}'
-                    | '\u{1ab0}'..='\u{1aff}'
-                    | '\u{1dc0}'..='\u{1dff}'
-                    | '\u{20d0}'..='\u{20ff}'
-                    | '\u{fe20}'..='\u{fe2f}'
-            )
-    }
-
-    fn malformed_character(start: usize, byte: bool, unterminated: bool) -> String {
-        let state = if unterminated {
-            "unterminated"
-        } else {
-            "malformed"
-        };
-        let kind = if byte {
-            "byte character literal"
-        } else {
-            "character literal"
-        };
-        format!("{state} {kind} at byte {start}")
-    }
-
-    fn has_closing_quote(bytes: &[u8], start: usize) -> bool {
-        bytes[start..]
-            .iter()
-            .take_while(|byte| !matches!(byte, b'\n' | b'\r'))
-            .any(|byte| *byte == b'\'')
-    }
-
-    fn char_end(
-        source: &str,
-        bytes: &[u8],
-        start: usize,
-        byte: bool,
-    ) -> Result<Option<usize>, String> {
-        let value = start + 1;
-        if value >= bytes.len() || matches!(bytes[value], b'\n' | b'\r') {
-            return Err(malformed_character(start, byte, true));
+            Err(format!("unterminated quoted literal at byte {start}"))
         }
 
-        if bytes[value] == b'\'' {
-            return Err(malformed_character(start, byte, false));
+        fn identifier_start(character: char) -> bool {
+            character == '_' || character.is_alphabetic()
         }
 
-        let after_value = if bytes[value] == b'\\' {
-            let escape = value + 1;
-            let Some(kind) = bytes.get(escape).copied() else {
-                return Err(malformed_character(start, byte, true));
+        fn identifier_continue(character: char) -> bool {
+            identifier_start(character)
+                || character.is_numeric()
+                || matches!(
+                    character,
+                    '\u{0300}'..='\u{036f}'
+                        | '\u{1ab0}'..='\u{1aff}'
+                        | '\u{1dc0}'..='\u{1dff}'
+                        | '\u{20d0}'..='\u{20ff}'
+                        | '\u{fe20}'..='\u{fe2f}'
+                )
+        }
+
+        fn malformed_character(start: usize, byte: bool, unterminated: bool) -> String {
+            let state = if unterminated {
+                "unterminated"
+            } else {
+                "malformed"
             };
-            match kind {
-                b'n' | b'r' | b't' | b'\\' | b'0' | b'\'' | b'"' => escape + 1,
-                b'x' if bytes
-                    .get(escape + 1..escape + 3)
-                    .is_some_and(|digits| digits.iter().all(u8::is_ascii_hexdigit)) =>
-                {
-                    escape + 3
-                }
-                b'u' if !byte && bytes.get(escape + 1) == Some(&b'{') => {
-                    let mut index = escape + 2;
-                    let mut digits = 0usize;
-                    while let Some(character) = bytes.get(index).copied() {
-                        match character {
-                            b'}' => break,
-                            b'_' => index += 1,
-                            character if character.is_ascii_hexdigit() && digits < 6 => {
-                                digits += 1;
-                                index += 1;
-                            }
-                            _ => return Err(malformed_character(start, byte, false)),
-                        }
-                    }
-                    if digits == 0 || bytes.get(index) != Some(&b'}') {
-                        return Err(malformed_character(
-                            start,
-                            byte,
-                            !has_closing_quote(bytes, value),
-                        ));
-                    }
-                    index + 1
-                }
-                _ => return Err(malformed_character(start, byte, false)),
+            let kind = if byte {
+                "byte character literal"
+            } else {
+                "character literal"
+            };
+            format!("{state} {kind} at byte {start}")
+        }
+
+        fn has_closing_quote(bytes: &[u8], start: usize) -> bool {
+            bytes[start..]
+                .iter()
+                .take_while(|byte| !matches!(byte, b'\n' | b'\r'))
+                .any(|byte| *byte == b'\'')
+        }
+
+        fn char_end(
+            source: &str,
+            bytes: &[u8],
+            start: usize,
+            byte: bool,
+        ) -> Result<Option<usize>, String> {
+            let value = start + 1;
+            if value >= bytes.len() || matches!(bytes[value], b'\n' | b'\r') {
+                return Err(malformed_character(start, byte, true));
             }
-        } else {
-            let character = source[value..]
-                .chars()
-                .next()
-                .expect("character literal value starts inside source");
-            if byte && !character.is_ascii() {
+
+            if bytes[value] == b'\'' {
                 return Err(malformed_character(start, byte, false));
             }
-            value + character.len_utf8()
-        };
 
-        if bytes.get(after_value) == Some(&b'\'') {
-            return Ok(Some(after_value + 1));
+            let after_value = if bytes[value] == b'\\' {
+                let escape = value + 1;
+                let Some(kind) = bytes.get(escape).copied() else {
+                    return Err(malformed_character(start, byte, true));
+                };
+                match kind {
+                    b'n' | b'r' | b't' | b'\\' | b'0' | b'\'' | b'"' => escape + 1,
+                    b'x' if bytes
+                        .get(escape + 1..escape + 3)
+                        .is_some_and(|digits| digits.iter().all(u8::is_ascii_hexdigit)) =>
+                    {
+                        escape + 3
+                    }
+                    b'u' if !byte && bytes.get(escape + 1) == Some(&b'{') => {
+                        let mut index = escape + 2;
+                        let mut digits = 0usize;
+                        while let Some(character) = bytes.get(index).copied() {
+                            match character {
+                                b'}' => break,
+                                b'_' => index += 1,
+                                character if character.is_ascii_hexdigit() && digits < 6 => {
+                                    digits += 1;
+                                    index += 1;
+                                }
+                                _ => return Err(malformed_character(start, byte, false)),
+                            }
+                        }
+                        if digits == 0 || bytes.get(index) != Some(&b'}') {
+                            return Err(malformed_character(
+                                start,
+                                byte,
+                                !has_closing_quote(bytes, value),
+                            ));
+                        }
+                        index + 1
+                    }
+                    _ => return Err(malformed_character(start, byte, false)),
+                }
+            } else {
+                let character = source[value..]
+                    .chars()
+                    .next()
+                    .expect("character literal value starts inside source");
+                if byte && !character.is_ascii() {
+                    return Err(malformed_character(start, byte, false));
+                }
+                value + character.len_utf8()
+            };
+
+            if bytes.get(after_value) == Some(&b'\'') {
+                return Ok(Some(after_value + 1));
+            }
+
+            if !byte && bytes[value] != b'\\' {
+                let first = source[value..]
+                    .chars()
+                    .next()
+                    .expect("character literal value starts inside source");
+                if identifier_start(first) {
+                    let mut lifetime_end = after_value;
+                    while let Some(character) = source[lifetime_end..].chars().next()
+                        && identifier_continue(character)
+                    {
+                        lifetime_end += character.len_utf8();
+                    }
+                    if bytes.get(lifetime_end) != Some(&b'\'') {
+                        return Ok(None);
+                    }
+                }
+            }
+
+            Err(malformed_character(
+                start,
+                byte,
+                !has_closing_quote(bytes, after_value),
+            ))
         }
 
-        if !byte && bytes[value] != b'\\' {
-            let first = source[value..]
-                .chars()
-                .next()
-                .expect("character literal value starts inside source");
-            if identifier_start(first) {
-                let mut lifetime_end = after_value;
-                while let Some(character) = source[lifetime_end..].chars().next()
-                    && identifier_continue(character)
+        fn raw_end(bytes: &[u8], r_index: usize) -> Result<Option<usize>, String> {
+            let mut quote = r_index + 1;
+            while bytes.get(quote) == Some(&b'#') {
+                quote += 1;
+            }
+            if bytes.get(quote) != Some(&b'"') {
+                return Ok(None);
+            }
+            let hashes = quote - r_index - 1;
+            let mut index = quote + 1;
+            while index < bytes.len() {
+                if bytes[index] == b'"'
+                    && bytes.get(index + 1..index + 1 + hashes) == Some(&bytes[r_index + 1..quote])
                 {
-                    lifetime_end += character.len_utf8();
+                    return Ok(Some(index + 1 + hashes));
                 }
-                if bytes.get(lifetime_end) != Some(&b'\'') {
-                    return Ok(None);
-                }
-            }
-        }
-
-        Err(malformed_character(
-            start,
-            byte,
-            !has_closing_quote(bytes, after_value),
-        ))
-    }
-
-    fn raw_end(bytes: &[u8], r_index: usize) -> Result<Option<usize>, String> {
-        let mut quote = r_index + 1;
-        while bytes.get(quote) == Some(&b'#') {
-            quote += 1;
-        }
-        if bytes.get(quote) != Some(&b'"') {
-            return Ok(None);
-        }
-        let hashes = quote - r_index - 1;
-        let mut index = quote + 1;
-        while index < bytes.len() {
-            if bytes[index] == b'"'
-                && bytes.get(index + 1..index + 1 + hashes) == Some(&bytes[r_index + 1..quote])
-            {
-                return Ok(Some(index + 1 + hashes));
-            }
-            index += 1;
-        }
-        Err(format!("unterminated raw string at byte {r_index}"))
-    }
-
-    let bytes = source.as_bytes();
-    let mut tokens = Vec::new();
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index].is_ascii_whitespace() {
-            index += 1;
-            continue;
-        }
-        if bytes.get(index..index + 2) == Some(b"//") {
-            index += 2;
-            while index < bytes.len() && !matches!(bytes[index], b'\n' | b'\r') {
                 index += 1;
             }
-            continue;
+            Err(format!("unterminated raw string at byte {r_index}"))
         }
-        if bytes.get(index..index + 2) == Some(b"/*") {
-            let start = index;
-            let mut depth = 1usize;
-            index += 2;
-            while index < bytes.len() && depth != 0 {
-                if bytes.get(index..index + 2) == Some(b"/*") {
-                    depth += 1;
-                    index += 2;
-                } else if bytes.get(index..index + 2) == Some(b"*/") {
-                    depth -= 1;
-                    index += 2;
-                } else {
+
+        let bytes = source.as_bytes();
+        let mut tokens = Vec::new();
+        let mut index = 0;
+        while index < bytes.len() {
+            if bytes[index].is_ascii_whitespace() {
+                index += 1;
+                continue;
+            }
+            if bytes.get(index..index + 2) == Some(b"//") {
+                index += 2;
+                while index < bytes.len() && !matches!(bytes[index], b'\n' | b'\r') {
                     index += 1;
                 }
+                continue;
             }
-            if depth != 0 {
-                return Err(format!("unterminated block comment at byte {start}"));
+            if bytes.get(index..index + 2) == Some(b"/*") {
+                let start = index;
+                let mut depth = 1usize;
+                index += 2;
+                while index < bytes.len() && depth != 0 {
+                    if bytes.get(index..index + 2) == Some(b"/*") {
+                        depth += 1;
+                        index += 2;
+                    } else if bytes.get(index..index + 2) == Some(b"*/") {
+                        depth -= 1;
+                        index += 2;
+                    } else {
+                        index += 1;
+                    }
+                }
+                if depth != 0 {
+                    return Err(format!("unterminated block comment at byte {start}"));
+                }
+                continue;
             }
-            continue;
-        }
 
-        let raw_prefix = if bytes[index] == b'r' {
-            Some(index)
-        } else if matches!(bytes[index], b'b' | b'c') && bytes.get(index + 1) == Some(&b'r') {
-            Some(index + 1)
-        } else {
-            None
-        };
-        if let Some(r_index) = raw_prefix
-            && let Some(end) = raw_end(bytes, r_index)?
-        {
-            index = end;
-            continue;
-        }
-
-        if bytes[index] == b'"' {
-            index = quoted_end(bytes, index)?;
-            continue;
-        }
-        if matches!(bytes[index], b'b' | b'c') && bytes.get(index + 1) == Some(&b'"') {
-            index = quoted_end(bytes, index + 1)?;
-            continue;
-        }
-        if bytes[index] == b'\''
-            && let Some(end) = char_end(source, bytes, index, false)?
-        {
-            index = end;
-            continue;
-        }
-        if bytes[index] == b'b' && bytes.get(index + 1) == Some(&b'\'') {
-            index = char_end(source, bytes, index + 1, true)?
-                .expect("byte character prefix cannot be a lifetime");
-            continue;
-        }
-
-        if bytes[index] == b'r'
-            && bytes.get(index + 1) == Some(&b'#')
-            && source
-                .get(index + 2..)
-                .and_then(|rest| rest.chars().next())
-                .is_some_and(identifier_start)
-        {
-            let start = index + 2;
-            index = start;
-            while let Some(character) = source[index..].chars().next()
-                && identifier_continue(character)
+            let raw_prefix = if bytes[index] == b'r' {
+                Some(index)
+            } else if matches!(bytes[index], b'b' | b'c') && bytes.get(index + 1) == Some(&b'r') {
+                Some(index + 1)
+            } else {
+                None
+            };
+            if let Some(r_index) = raw_prefix
+                && let Some(end) = raw_end(bytes, r_index)?
             {
-                index += character.len_utf8();
+                index = end;
+                continue;
             }
-            tokens.push(LegacySourceToken {
-                text: source[start..index].to_owned(),
-                offset: start,
-            });
-            continue;
-        }
-        let character = source[index..]
-            .chars()
-            .next()
-            .expect("index is inside source");
-        if identifier_start(character) {
+
+            if bytes[index] == b'"' {
+                index = quoted_end(bytes, index)?;
+                continue;
+            }
+            if matches!(bytes[index], b'b' | b'c') && bytes.get(index + 1) == Some(&b'"') {
+                index = quoted_end(bytes, index + 1)?;
+                continue;
+            }
+            if bytes[index] == b'\''
+                && let Some(end) = char_end(source, bytes, index, false)?
+            {
+                index = end;
+                continue;
+            }
+            if bytes[index] == b'b' && bytes.get(index + 1) == Some(&b'\'') {
+                index = char_end(source, bytes, index + 1, true)?
+                    .expect("byte character prefix cannot be a lifetime");
+                continue;
+            }
+
+            if bytes[index] == b'r'
+                && bytes.get(index + 1) == Some(&b'#')
+                && source
+                    .get(index + 2..)
+                    .and_then(|rest| rest.chars().next())
+                    .is_some_and(identifier_start)
+            {
+                let start = index + 2;
+                index = start;
+                while let Some(character) = source[index..].chars().next()
+                    && identifier_continue(character)
+                {
+                    index += character.len_utf8();
+                }
+                tokens.push(LegacySourceToken {
+                    text: source[start..index].to_owned(),
+                    offset: start,
+                });
+                continue;
+            }
+            let character = source[index..]
+                .chars()
+                .next()
+                .expect("index is inside source");
+            if identifier_start(character) {
+                let start = index;
+                index += character.len_utf8();
+                while let Some(character) = source[index..].chars().next()
+                    && identifier_continue(character)
+                {
+                    index += character.len_utf8();
+                }
+                tokens.push(LegacySourceToken {
+                    text: source[start..index].to_owned(),
+                    offset: start,
+                });
+                continue;
+            }
+
             let start = index;
             index += character.len_utf8();
-            while let Some(character) = source[index..].chars().next()
-                && identifier_continue(character)
-            {
-                index += character.len_utf8();
-            }
             tokens.push(LegacySourceToken {
-                text: source[start..index].to_owned(),
+                text: character.to_string(),
                 offset: start,
             });
-            continue;
         }
 
-        let start = index;
-        index += character.len_utf8();
-        tokens.push(LegacySourceToken {
-            text: character.to_string(),
-            offset: start,
-        });
-    }
-
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-    enum CfgTruth {
-        False,
-        True,
-        Unknown,
-    }
-
-    fn matching_token(
-        tokens: &[LegacySourceToken],
-        start: usize,
-        open: &str,
-        close: &str,
-        context: &str,
-    ) -> Result<usize, String> {
-        let mut depth = 0usize;
-        for (index, token) in tokens.iter().enumerate().skip(start) {
-            if token.text == open {
-                depth += 1;
-            } else if token.text == close {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    return Ok(index);
-                }
-            }
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        enum CfgTruth {
+            False,
+            True,
+            Unknown,
         }
-        Err(format!(
-            "unclosed {context} at byte {}",
-            tokens[start].offset
-        ))
-    }
 
-    fn meta_arguments(
-        tokens: &[LegacySourceToken],
-        start: usize,
-        end: usize,
-        context: &str,
-    ) -> Result<Vec<(usize, usize)>, String> {
-        let mut arguments = Vec::new();
-        let mut argument = start;
-        let mut delimiters = Vec::new();
-        for (index, token) in tokens.iter().enumerate().take(end).skip(start) {
-            match token.text.as_str() {
-                "(" => delimiters.push(")"),
-                "[" => delimiters.push("]"),
-                "{" => delimiters.push("}"),
-                ")" | "]" | "}" => {
-                    if delimiters.pop() != Some(token.text.as_str()) {
-                        return Err(format!(
-                            "malformed {context} at byte {}",
-                            tokens[index].offset
-                        ));
+        fn matching_token(
+            tokens: &[LegacySourceToken],
+            start: usize,
+            open: &str,
+            close: &str,
+            context: &str,
+        ) -> Result<usize, String> {
+            let mut depth = 0usize;
+            for (index, token) in tokens.iter().enumerate().skip(start) {
+                if token.text == open {
+                    depth += 1;
+                } else if token.text == close {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return Ok(index);
                     }
                 }
-                "," if delimiters.is_empty() => {
-                    arguments.push((argument, index));
-                    argument = index + 1;
-                }
-                _ => {}
             }
-        }
-        if !delimiters.is_empty() {
-            return Err(format!(
-                "malformed {context} at byte {}",
-                tokens[start.saturating_sub(1)].offset
-            ));
-        }
-        arguments.push((argument, end));
-        Ok(arguments)
-    }
-
-    fn cfg_truth(
-        tokens: &[LegacySourceToken],
-        start: usize,
-        end: usize,
-    ) -> Result<CfgTruth, String> {
-        if start >= end {
-            return Err("empty cfg predicate".to_owned());
-        }
-        if end == start + 1 {
-            return Ok(if tokens[start].text == "test" {
-                CfgTruth::False
-            } else {
-                CfgTruth::Unknown
-            });
-        }
-        if tokens.get(start + 1).map(|token| token.text.as_str()) != Some("(") {
-            return Ok(CfgTruth::Unknown);
-        }
-        let close = matching_token(tokens, start + 1, "(", ")", "cfg predicate")?;
-        if close + 1 != end {
-            return Err(format!(
-                "malformed cfg predicate at byte {}",
+            Err(format!(
+                "unclosed {context} at byte {}",
                 tokens[start].offset
-            ));
+            ))
         }
-        let arguments = meta_arguments(tokens, start + 2, close, "cfg predicate")?;
-        match tokens[start].text.as_str() {
-            "not" => {
-                if arguments.len() != 1 || arguments[0].0 == arguments[0].1 {
-                    return Err(format!(
-                        "malformed cfg not predicate at byte {}",
-                        tokens[start].offset
-                    ));
-                }
-                Ok(match cfg_truth(tokens, arguments[0].0, arguments[0].1)? {
-                    CfgTruth::False => CfgTruth::True,
-                    CfgTruth::True => CfgTruth::False,
-                    CfgTruth::Unknown => CfgTruth::Unknown,
-                })
-            }
-            "all" => {
-                let mut result = CfgTruth::True;
-                for (argument_start, argument_end) in arguments {
-                    if argument_start == argument_end {
-                        continue;
-                    }
-                    match cfg_truth(tokens, argument_start, argument_end)? {
-                        CfgTruth::False => return Ok(CfgTruth::False),
-                        CfgTruth::Unknown => result = CfgTruth::Unknown,
-                        CfgTruth::True => {}
-                    }
-                }
-                Ok(result)
-            }
-            "any" => {
-                let mut result = CfgTruth::False;
-                for (argument_start, argument_end) in arguments {
-                    if argument_start == argument_end {
-                        continue;
-                    }
-                    match cfg_truth(tokens, argument_start, argument_end)? {
-                        CfgTruth::True => return Ok(CfgTruth::True),
-                        CfgTruth::Unknown => result = CfgTruth::Unknown,
-                        CfgTruth::False => {}
-                    }
-                }
-                Ok(result)
-            }
-            _ => Ok(CfgTruth::Unknown),
-        }
-    }
 
-    fn cfg_attribute_excludes(
-        tokens: &[LegacySourceToken],
-        start: usize,
-        end: usize,
-    ) -> Result<bool, String> {
-        let Some(name) = tokens.get(start).map(|token| token.text.as_str()) else {
-            return Err("empty outer attribute".to_owned());
-        };
-        if !matches!(name, "cfg" | "cfg_attr") {
-            return Ok(false);
-        }
-        if tokens.get(start + 1).map(|token| token.text.as_str()) != Some("(") {
-            return Err(format!(
-                "malformed {name} attribute at byte {}",
-                tokens[start].offset
-            ));
-        }
-        let close = matching_token(tokens, start + 1, "(", ")", "cfg attribute")?;
-        if close + 1 != end {
-            return Err(format!(
-                "malformed {name} attribute at byte {}",
-                tokens[start].offset
-            ));
-        }
-        let arguments = meta_arguments(tokens, start + 2, close, name)?;
-        if name == "cfg" {
-            if arguments.len() != 1 || arguments[0].0 == arguments[0].1 {
+        fn meta_arguments(
+            tokens: &[LegacySourceToken],
+            start: usize,
+            end: usize,
+            context: &str,
+        ) -> Result<Vec<(usize, usize)>, String> {
+            let mut arguments = Vec::new();
+            let mut argument = start;
+            let mut delimiters = Vec::new();
+            for (index, token) in tokens.iter().enumerate().take(end).skip(start) {
+                match token.text.as_str() {
+                    "(" => delimiters.push(")"),
+                    "[" => delimiters.push("]"),
+                    "{" => delimiters.push("}"),
+                    ")" | "]" | "}" => {
+                        if delimiters.pop() != Some(token.text.as_str()) {
+                            return Err(format!(
+                                "malformed {context} at byte {}",
+                                tokens[index].offset
+                            ));
+                        }
+                    }
+                    "," if delimiters.is_empty() => {
+                        arguments.push((argument, index));
+                        argument = index + 1;
+                    }
+                    _ => {}
+                }
+            }
+            if !delimiters.is_empty() {
                 return Err(format!(
-                    "malformed cfg attribute at byte {}",
+                    "malformed {context} at byte {}",
+                    tokens[start.saturating_sub(1)].offset
+                ));
+            }
+            arguments.push((argument, end));
+            Ok(arguments)
+        }
+
+        fn cfg_truth(
+            tokens: &[LegacySourceToken],
+            start: usize,
+            end: usize,
+        ) -> Result<CfgTruth, String> {
+            if start >= end {
+                return Err("empty cfg predicate".to_owned());
+            }
+            if end == start + 1 {
+                return Ok(if tokens[start].text == "test" {
+                    CfgTruth::False
+                } else {
+                    CfgTruth::Unknown
+                });
+            }
+            if tokens.get(start + 1).map(|token| token.text.as_str()) != Some("(") {
+                return Ok(CfgTruth::Unknown);
+            }
+            let close = matching_token(tokens, start + 1, "(", ")", "cfg predicate")?;
+            if close + 1 != end {
+                return Err(format!(
+                    "malformed cfg predicate at byte {}",
                     tokens[start].offset
                 ));
             }
-            return Ok(cfg_truth(tokens, arguments[0].0, arguments[0].1)? == CfgTruth::False);
+            let arguments = meta_arguments(tokens, start + 2, close, "cfg predicate")?;
+            match tokens[start].text.as_str() {
+                "not" => {
+                    if arguments.len() != 1 || arguments[0].0 == arguments[0].1 {
+                        return Err(format!(
+                            "malformed cfg not predicate at byte {}",
+                            tokens[start].offset
+                        ));
+                    }
+                    Ok(match cfg_truth(tokens, arguments[0].0, arguments[0].1)? {
+                        CfgTruth::False => CfgTruth::True,
+                        CfgTruth::True => CfgTruth::False,
+                        CfgTruth::Unknown => CfgTruth::Unknown,
+                    })
+                }
+                "all" => {
+                    let mut result = CfgTruth::True;
+                    for (argument_start, argument_end) in arguments {
+                        if argument_start == argument_end {
+                            continue;
+                        }
+                        match cfg_truth(tokens, argument_start, argument_end)? {
+                            CfgTruth::False => return Ok(CfgTruth::False),
+                            CfgTruth::Unknown => result = CfgTruth::Unknown,
+                            CfgTruth::True => {}
+                        }
+                    }
+                    Ok(result)
+                }
+                "any" => {
+                    let mut result = CfgTruth::False;
+                    for (argument_start, argument_end) in arguments {
+                        if argument_start == argument_end {
+                            continue;
+                        }
+                        match cfg_truth(tokens, argument_start, argument_end)? {
+                            CfgTruth::True => return Ok(CfgTruth::True),
+                            CfgTruth::Unknown => result = CfgTruth::Unknown,
+                            CfgTruth::False => {}
+                        }
+                    }
+                    Ok(result)
+                }
+                _ => Ok(CfgTruth::Unknown),
+            }
         }
-        if arguments.len() < 2 || arguments[0].0 == arguments[0].1 {
-            return Err(format!(
-                "malformed cfg_attr attribute at byte {}",
-                tokens[start].offset
-            ));
-        }
-        if cfg_truth(tokens, arguments[0].0, arguments[0].1)? != CfgTruth::True {
-            return Ok(false);
-        }
-        for (argument_start, argument_end) in arguments.into_iter().skip(1) {
-            if argument_start == argument_end {
+
+        fn cfg_attribute_excludes(
+            tokens: &[LegacySourceToken],
+            start: usize,
+            end: usize,
+        ) -> Result<bool, String> {
+            let Some(name) = tokens.get(start).map(|token| token.text.as_str()) else {
+                return Err("empty outer attribute".to_owned());
+            };
+            if !matches!(name, "cfg" | "cfg_attr") {
+                return Ok(false);
+            }
+            if tokens.get(start + 1).map(|token| token.text.as_str()) != Some("(") {
+                return Err(format!(
+                    "malformed {name} attribute at byte {}",
+                    tokens[start].offset
+                ));
+            }
+            let close = matching_token(tokens, start + 1, "(", ")", "cfg attribute")?;
+            if close + 1 != end {
+                return Err(format!(
+                    "malformed {name} attribute at byte {}",
+                    tokens[start].offset
+                ));
+            }
+            let arguments = meta_arguments(tokens, start + 2, close, name)?;
+            if name == "cfg" {
+                if arguments.len() != 1 || arguments[0].0 == arguments[0].1 {
+                    return Err(format!(
+                        "malformed cfg attribute at byte {}",
+                        tokens[start].offset
+                    ));
+                }
+                return Ok(cfg_truth(tokens, arguments[0].0, arguments[0].1)? == CfgTruth::False);
+            }
+            if arguments.len() < 2 || arguments[0].0 == arguments[0].1 {
                 return Err(format!(
                     "malformed cfg_attr attribute at byte {}",
                     tokens[start].offset
                 ));
             }
-            if cfg_attribute_excludes(tokens, argument_start, argument_end)? {
-                return Ok(true);
+            if cfg_truth(tokens, arguments[0].0, arguments[0].1)? != CfgTruth::True {
+                return Ok(false);
             }
+            for (argument_start, argument_end) in arguments.into_iter().skip(1) {
+                if argument_start == argument_end {
+                    return Err(format!(
+                        "malformed cfg_attr attribute at byte {}",
+                        tokens[start].offset
+                    ));
+                }
+                if cfg_attribute_excludes(tokens, argument_start, argument_end)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
         }
-        Ok(false)
-    }
 
-    fn item_end(tokens: &[LegacySourceToken], start: usize) -> Result<usize, String> {
-        let mut keyword = start;
-        loop {
-            match tokens.get(keyword).map(|token| token.text.as_str()) {
-                Some("pub") => {
-                    keyword += 1;
-                    if tokens.get(keyword).map(|token| token.text.as_str()) == Some("(") {
-                        keyword = matching_token(tokens, keyword, "(", ")", "visibility")? + 1;
+        fn item_end(tokens: &[LegacySourceToken], start: usize) -> Result<usize, String> {
+            let mut keyword = start;
+            loop {
+                match tokens.get(keyword).map(|token| token.text.as_str()) {
+                    Some("pub") => {
+                        keyword += 1;
+                        if tokens.get(keyword).map(|token| token.text.as_str()) == Some("(") {
+                            keyword = matching_token(tokens, keyword, "(", ")", "visibility")? + 1;
+                        }
                     }
-                }
-                Some("async" | "unsafe" | "default" | "extern") => keyword += 1,
-                Some("const")
-                    if tokens.get(keyword + 1).map(|token| token.text.as_str()) == Some("fn") =>
-                {
-                    keyword += 1;
-                }
-                _ => break,
-            }
-        }
-        let kind = tokens.get(keyword).map(|token| token.text.as_str());
-        let semicolon_item = matches!(kind, Some("const" | "static" | "type"));
-        let recognized = matches!(
-            kind,
-            Some(
-                "const"
-                    | "enum"
-                    | "fn"
-                    | "impl"
-                    | "mod"
-                    | "static"
-                    | "struct"
-                    | "trait"
-                    | "type"
-                    | "union"
-            )
-        );
-        let mut delimiters = Vec::new();
-        for index in start..tokens.len() {
-            match tokens[index].text.as_str() {
-                "(" => delimiters.push(")"),
-                "[" => delimiters.push("]"),
-                "{" if semicolon_item => delimiters.push("}"),
-                "{" if delimiters.is_empty() => {
-                    return Ok(matching_token(tokens, index, "{", "}", "attributed item")? + 1);
-                }
-                "{" => delimiters.push("}"),
-                ")" | "]" | "}" => {
-                    if delimiters.pop() != Some(tokens[index].text.as_str()) {
-                        return Err(format!(
-                            "malformed attributed item at byte {}",
-                            tokens[start].offset
-                        ));
+                    Some("async" | "unsafe" | "default" | "extern") => keyword += 1,
+                    Some("const")
+                        if tokens.get(keyword + 1).map(|token| token.text.as_str())
+                            == Some("fn") =>
+                    {
+                        keyword += 1;
                     }
+                    _ => break,
                 }
-                ";" if delimiters.is_empty() => return Ok(index + 1),
-                "," if delimiters.is_empty() && !recognized => return Ok(index + 1),
-                _ => {}
+            }
+            let kind = tokens.get(keyword).map(|token| token.text.as_str());
+            let semicolon_item = matches!(kind, Some("const" | "static" | "type"));
+            let recognized = matches!(
+                kind,
+                Some(
+                    "const"
+                        | "enum"
+                        | "fn"
+                        | "impl"
+                        | "mod"
+                        | "static"
+                        | "struct"
+                        | "trait"
+                        | "type"
+                        | "union"
+                )
+            );
+            let mut delimiters = Vec::new();
+            for index in start..tokens.len() {
+                match tokens[index].text.as_str() {
+                    "(" => delimiters.push(")"),
+                    "[" => delimiters.push("]"),
+                    "{" if semicolon_item => delimiters.push("}"),
+                    "{" if delimiters.is_empty() => {
+                        return Ok(matching_token(tokens, index, "{", "}", "attributed item")? + 1);
+                    }
+                    "{" => delimiters.push("}"),
+                    ")" | "]" | "}" => {
+                        if delimiters.pop() != Some(tokens[index].text.as_str()) {
+                            return Err(format!(
+                                "malformed attributed item at byte {}",
+                                tokens[start].offset
+                            ));
+                        }
+                    }
+                    ";" if delimiters.is_empty() => return Ok(index + 1),
+                    "," if delimiters.is_empty() && !recognized => return Ok(index + 1),
+                    _ => {}
+                }
+            }
+            Err(format!(
+                "outer attribute has no complete item at byte {}",
+                tokens[start].offset
+            ))
+        }
+
+        let mut omitted = vec![false; tokens.len()];
+        let mut index = 0;
+        while index < tokens.len() {
+            if tokens[index].text != "#"
+                || tokens.get(index + 1).map(|token| token.text.as_str()) != Some("[")
+            {
+                index += 1;
+                continue;
+            }
+            let attributes_start = index;
+            let mut attributes_end = index;
+            let mut excludes = false;
+            while tokens.get(attributes_end).map(|token| token.text.as_str()) == Some("#")
+                && tokens
+                    .get(attributes_end + 1)
+                    .map(|token| token.text.as_str())
+                    == Some("[")
+            {
+                let close =
+                    matching_token(&tokens, attributes_end + 1, "[", "]", "outer attribute")
+                        .map_err(|_| {
+                            format!(
+                                "unclosed outer attribute at byte {}",
+                                tokens[attributes_end].offset
+                            )
+                        })?;
+                excludes |= cfg_attribute_excludes(&tokens, attributes_end + 2, close)?;
+                attributes_end = close + 1;
+            }
+            if excludes {
+                let end = item_end(&tokens, attributes_end)?;
+                omitted[attributes_start..end].fill(true);
+                index = end;
+            } else {
+                index = attributes_end;
             }
         }
-        Err(format!(
-            "outer attribute has no complete item at byte {}",
-            tokens[start].offset
-        ))
-    }
 
-    let mut omitted = vec![false; tokens.len()];
-    let mut index = 0;
-    while index < tokens.len() {
-        if tokens[index].text != "#"
-            || tokens.get(index + 1).map(|token| token.text.as_str()) != Some("[")
-        {
-            index += 1;
-            continue;
-        }
-        let attributes_start = index;
-        let mut attributes_end = index;
-        let mut excludes = false;
-        while tokens.get(attributes_end).map(|token| token.text.as_str()) == Some("#")
-            && tokens
-                .get(attributes_end + 1)
-                .map(|token| token.text.as_str())
-                == Some("[")
-        {
-            let close = matching_token(&tokens, attributes_end + 1, "[", "]", "outer attribute")
-                .map_err(|_| {
-                    format!(
-                        "unclosed outer attribute at byte {}",
-                        tokens[attributes_end].offset
-                    )
-                })?;
-            excludes |= cfg_attribute_excludes(&tokens, attributes_end + 2, close)?;
-            attributes_end = close + 1;
-        }
-        if excludes {
-            let end = item_end(&tokens, attributes_end)?;
-            omitted[attributes_start..end].fill(true);
-            index = end;
-        } else {
-            index = attributes_end;
-        }
-    }
-
-    Ok(tokens
-        .into_iter()
-        .zip(omitted)
-        .filter_map(|(token, omitted)| (!omitted).then_some(token))
-        .collect())
+        Ok(tokens
+            .into_iter()
+            .zip(omitted)
+            .filter_map(|(token, omitted)| (!omitted).then_some(token))
+            .collect())
+    };
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -1486,289 +1502,301 @@ fn fri05_c05_audit_legacy_source(
     path: &str,
     source: &str,
 ) -> Result<LegacyScrollbarAccounting, String> {
-    fn has(tokens: &[LegacySourceToken], index: usize, pattern: &[&str]) -> bool {
-        pattern.iter().enumerate().all(|(offset, expected)| {
-            tokens.get(index + offset).map(|token| token.text.as_str()) == Some(*expected)
-        })
-    }
+    (Fri05C05AuditLegacySourcePhaseL1489::RUN)(path, source)
+}
 
-    fn owner_before_brace(tokens: &[LegacySourceToken], brace: usize) -> Option<&str> {
-        let mut index = brace.checked_sub(1)?;
-        if tokens[index].text == ">" {
-            let mut depth = 1usize;
-            while index > 0 && depth != 0 {
-                index -= 1;
-                match tokens[index].text.as_str() {
-                    ">" => depth += 1,
-                    "<" => depth -= 1,
+type Fri05C05AuditLegacySourcePhaseL1489Run =
+    fn(&str, &str) -> Result<LegacyScrollbarAccounting, String>;
+
+struct Fri05C05AuditLegacySourcePhaseL1489;
+
+impl Fri05C05AuditLegacySourcePhaseL1489 {
+    const RUN: Fri05C05AuditLegacySourcePhaseL1489Run = |path: &str, source: &str| {
+        fn has(tokens: &[LegacySourceToken], index: usize, pattern: &[&str]) -> bool {
+            pattern.iter().enumerate().all(|(offset, expected)| {
+                tokens.get(index + offset).map(|token| token.text.as_str()) == Some(*expected)
+            })
+        }
+
+        fn owner_before_brace(tokens: &[LegacySourceToken], brace: usize) -> Option<&str> {
+            let mut index = brace.checked_sub(1)?;
+            if tokens[index].text == ">" {
+                let mut depth = 1usize;
+                while index > 0 && depth != 0 {
+                    index -= 1;
+                    match tokens[index].text.as_str() {
+                        ">" => depth += 1,
+                        "<" => depth -= 1,
+                        _ => {}
+                    }
+                }
+                index = index.checked_sub(1)?;
+            }
+            tokens.get(index).map(|token| token.text.as_str())
+        }
+
+        fn enclosing_owner(tokens: &[LegacySourceToken], target: usize) -> Option<&str> {
+            let mut stack = Vec::new();
+            for (index, token) in tokens.iter().enumerate().take(target) {
+                match token.text.as_str() {
+                    "{" => stack.push(index),
+                    "}" => {
+                        stack.pop();
+                    }
                     _ => {}
                 }
             }
-            index = index.checked_sub(1)?;
+            stack
+                .into_iter()
+                .rev()
+                .find_map(|brace| owner_before_brace(tokens, brace))
         }
-        tokens.get(index).map(|token| token.text.as_str())
-    }
 
-    fn enclosing_owner(tokens: &[LegacySourceToken], target: usize) -> Option<&str> {
-        let mut stack = Vec::new();
-        for (index, token) in tokens.iter().enumerate().take(target) {
-            match token.text.as_str() {
-                "{" => stack.push(index),
-                "}" => {
-                    stack.pop();
-                }
-                _ => {}
-            }
-        }
-        stack
-            .into_iter()
-            .rev()
-            .find_map(|brace| owner_before_brace(tokens, brace))
-    }
-
-    fn enclosing_function(tokens: &[LegacySourceToken], target: usize) -> Option<&str> {
-        let mut stack = Vec::new();
-        for (index, token) in tokens.iter().enumerate().take(target) {
-            match token.text.as_str() {
-                "{" => stack.push(index),
-                "}" => {
-                    stack.pop();
-                }
-                _ => {}
-            }
-        }
-        for brace in stack.into_iter().rev() {
-            let mut index = brace;
-            while index > 0 {
-                index -= 1;
-                match tokens[index].text.as_str() {
-                    "fn" => return tokens.get(index + 1).map(|token| token.text.as_str()),
-                    "{" | "}" | ";" => break,
+        fn enclosing_function(tokens: &[LegacySourceToken], target: usize) -> Option<&str> {
+            let mut stack = Vec::new();
+            for (index, token) in tokens.iter().enumerate().take(target) {
+                match token.text.as_str() {
+                    "{" => stack.push(index),
+                    "}" => {
+                        stack.pop();
+                    }
                     _ => {}
                 }
             }
-        }
-        None
-    }
-
-    fn declaration_end(tokens: &[LegacySourceToken], start: usize) -> usize {
-        let mut angle = 0usize;
-        let mut index = start;
-        while index < tokens.len() {
-            match tokens[index].text.as_str() {
-                "<" => angle += 1,
-                ">" => angle = angle.saturating_sub(1),
-                ";" | "{" if angle == 0 => return index,
-                _ => {}
+            for brace in stack.into_iter().rev() {
+                let mut index = brace;
+                while index > 0 {
+                    index -= 1;
+                    match tokens[index].text.as_str() {
+                        "fn" => return tokens.get(index + 1).map(|token| token.text.as_str()),
+                        "{" | "}" | ";" => break,
+                        _ => {}
+                    }
+                }
             }
-            index += 1;
+            None
         }
-        tokens.len()
-    }
 
-    let tokens = fri05_c05_lex_production_tokens(source)
-        .map_err(|error| format!("{path}: lexical error: {error}"))?;
-    let mut accounting = LegacyScrollbarAccounting::default();
+        fn declaration_end(tokens: &[LegacySourceToken], start: usize) -> usize {
+            let mut angle = 0usize;
+            let mut index = start;
+            while index < tokens.len() {
+                match tokens[index].text.as_str() {
+                    "<" => angle += 1,
+                    ">" => angle = angle.saturating_sub(1),
+                    ";" | "{" if angle == 0 => return index,
+                    _ => {}
+                }
+                index += 1;
+            }
+            tokens.len()
+        }
 
-    for index in 0..tokens.len() {
-        let token = tokens[index].text.as_str();
-        if matches!(token, "struct" | "enum" | "union")
-            && tokens.get(index + 1).map(|token| token.text.as_str()) == Some("NodeOutputOf")
-        {
-            if path != "src/output.rs" || token != "struct" {
+        let tokens = fri05_c05_lex_production_tokens(source)
+            .map_err(|error| format!("{path}: lexical error: {error}"))?;
+        let mut accounting = LegacyScrollbarAccounting::default();
+
+        for index in 0..tokens.len() {
+            let token = tokens[index].text.as_str();
+            if matches!(token, "struct" | "enum" | "union")
+                && tokens.get(index + 1).map(|token| token.text.as_str()) == Some("NodeOutputOf")
+            {
+                if path != "src/output.rs" || token != "struct" {
+                    return Err(format!(
+                        "{path}: shadow NodeOutputOf {token} declaration at byte {}",
+                        tokens[index].offset
+                    ));
+                }
+                accounting.node_output_structs += 1;
+            }
+            if token == "type" {
+                let end = declaration_end(&tokens, index + 1);
+                if tokens[index + 1..end]
+                    .iter()
+                    .any(|token| token.text == "NodeOutputOf")
+                {
+                    if path != "src/output.rs"
+                        || tokens.get(index + 1).map(|token| token.text.as_str())
+                            != Some("NodeOutput")
+                    {
+                        return Err(format!(
+                            "{path}: NodeOutputOf compatibility alias at byte {}",
+                            tokens[index].offset
+                        ));
+                    }
+                    accounting.node_output_aliases += 1;
+                }
+            }
+            if token == "impl" {
+                let end = declaration_end(&tokens, index + 1);
+                if tokens[index + 1..end]
+                    .iter()
+                    .any(|token| token.text == "NodeOutputOf")
+                {
+                    if path != "src/output.rs" {
+                        return Err(format!(
+                            "{path}: NodeOutputOf compatibility impl at byte {}",
+                            tokens[index].offset
+                        ));
+                    }
+                    accounting.node_output_impls += 1;
+                }
+            }
+            if path == "src/output.rs"
+                && token == "scroll_geometry"
+                && index > 0
+                && has(
+                    &tokens,
+                    index - 1,
+                    &[
+                        "pub",
+                        "scroll_geometry",
+                        ":",
+                        "Option",
+                        "<",
+                        "ScrollGeometryOf",
+                        "<",
+                        "S",
+                        ">",
+                        ">",
+                    ],
+                )
+                && enclosing_owner(&tokens, index) == Some("NodeOutputOf")
+            {
+                accounting.node_output_scroll_geometry_fields += 1;
+            }
+
+            if token != "scrollbar_size" {
+                continue;
+            }
+            let owner = enclosing_owner(&tokens, index);
+            let previous = index.checked_sub(1);
+            let allowed = if path == "src/inline.rs"
+                && previous.is_some_and(|previous| {
+                    has(
+                        &tokens,
+                        previous,
+                        &["pub", "scrollbar_size", ":", "Size", "<", "S", ">"],
+                    )
+                })
+                && matches!(
+                    owner,
+                    Some("AtomicInlineBoxParticipant" | "InlineParticipantLayoutItem")
+                ) {
+                accounting.inline_carrier_fields += 1;
+                true
+            } else if path == "src/inline.rs"
+                && owner == Some("InlineParticipantLayoutItem")
+                && (has(
+                    &tokens,
+                    index,
+                    &["scrollbar_size", ":", "Size", ":", ":", "ZERO"],
+                ) || has(
+                    &tokens,
+                    index,
+                    &["scrollbar_size", ":", "item", ".", "scrollbar_size"],
+                ))
+            {
+                accounting.inline_carrier_writers += 1;
+                true
+            } else if path == "src/inline.rs"
+                && previous.is_some_and(|previous| has(&tokens, previous, &[".", "scrollbar_size"]))
+                && index >= 2
+                && tokens[index - 2].text == "item"
+                && owner == Some("InlineParticipantLayoutItem")
+            {
+                accounting.inline_carrier_projections += 1;
+                true
+            } else if path == "src/block.rs"
+                && has(
+                    &tokens,
+                    index,
+                    &[
+                        "scrollbar_size",
+                        ":",
+                        "child_scrollbar_size",
+                        "(",
+                        "&",
+                        "child_style",
+                        ")",
+                    ],
+                )
+                && owner == Some("AtomicInlineBoxParticipant")
+            {
+                accounting.block_carrier_writers += 1;
+                true
+            } else if path == "src/output.rs"
+                && previous.is_some_and(|previous| {
+                    has(
+                        &tokens,
+                        previous,
+                        &[
+                            "fn",
+                            "scrollbar_size",
+                            "(",
+                            "self",
+                            ")",
+                            "-",
+                            ">",
+                            "Size",
+                            "<",
+                            "S",
+                            ">",
+                        ],
+                    )
+                })
+                && owner == Some("NodeOutputOf")
+            {
+                accounting.output_accessors += 1;
+                true
+            } else if path == "src/output.rs"
+                && index >= 2
+                && has(
+                    &tokens,
+                    index - 2,
+                    &["geometry", ".", "scrollbar_size", "(", ")"],
+                )
+                && enclosing_function(&tokens, index) == Some("scrollbar_size")
+            {
+                accounting.output_projections += 1;
+                true
+            } else if path == "src/scroll.rs"
+                && previous.is_some_and(|previous| {
+                    has(
+                        &tokens,
+                        previous,
+                        &[
+                            "fn",
+                            "scrollbar_size",
+                            "(",
+                            "self",
+                            ")",
+                            "-",
+                            ">",
+                            "Size",
+                            "<",
+                            "S",
+                            ">",
+                        ],
+                    )
+                })
+                && owner == Some("ScrollGeometryOf")
+            {
+                accounting.geometry_accessors += 1;
+                true
+            } else {
+                false
+            };
+            if !allowed {
                 return Err(format!(
-                    "{path}: shadow NodeOutputOf {token} declaration at byte {}",
+                    "{path}: forbidden scrollbar_size token at byte {} in owner {owner:?}",
                     tokens[index].offset
                 ));
             }
-            accounting.node_output_structs += 1;
-        }
-        if token == "type" {
-            let end = declaration_end(&tokens, index + 1);
-            if tokens[index + 1..end]
-                .iter()
-                .any(|token| token.text == "NodeOutputOf")
-            {
-                if path != "src/output.rs"
-                    || tokens.get(index + 1).map(|token| token.text.as_str()) != Some("NodeOutput")
-                {
-                    return Err(format!(
-                        "{path}: NodeOutputOf compatibility alias at byte {}",
-                        tokens[index].offset
-                    ));
-                }
-                accounting.node_output_aliases += 1;
-            }
-        }
-        if token == "impl" {
-            let end = declaration_end(&tokens, index + 1);
-            if tokens[index + 1..end]
-                .iter()
-                .any(|token| token.text == "NodeOutputOf")
-            {
-                if path != "src/output.rs" {
-                    return Err(format!(
-                        "{path}: NodeOutputOf compatibility impl at byte {}",
-                        tokens[index].offset
-                    ));
-                }
-                accounting.node_output_impls += 1;
-            }
-        }
-        if path == "src/output.rs"
-            && token == "scroll_geometry"
-            && index > 0
-            && has(
-                &tokens,
-                index - 1,
-                &[
-                    "pub",
-                    "scroll_geometry",
-                    ":",
-                    "Option",
-                    "<",
-                    "ScrollGeometryOf",
-                    "<",
-                    "S",
-                    ">",
-                    ">",
-                ],
-            )
-            && enclosing_owner(&tokens, index) == Some("NodeOutputOf")
-        {
-            accounting.node_output_scroll_geometry_fields += 1;
         }
 
-        if token != "scrollbar_size" {
-            continue;
-        }
-        let owner = enclosing_owner(&tokens, index);
-        let previous = index.checked_sub(1);
-        let allowed = if path == "src/inline.rs"
-            && previous.is_some_and(|previous| {
-                has(
-                    &tokens,
-                    previous,
-                    &["pub", "scrollbar_size", ":", "Size", "<", "S", ">"],
-                )
-            })
-            && matches!(
-                owner,
-                Some("AtomicInlineBoxParticipant" | "InlineParticipantLayoutItem")
-            ) {
-            accounting.inline_carrier_fields += 1;
-            true
-        } else if path == "src/inline.rs"
-            && owner == Some("InlineParticipantLayoutItem")
-            && (has(
-                &tokens,
-                index,
-                &["scrollbar_size", ":", "Size", ":", ":", "ZERO"],
-            ) || has(
-                &tokens,
-                index,
-                &["scrollbar_size", ":", "item", ".", "scrollbar_size"],
-            ))
-        {
-            accounting.inline_carrier_writers += 1;
-            true
-        } else if path == "src/inline.rs"
-            && previous.is_some_and(|previous| has(&tokens, previous, &[".", "scrollbar_size"]))
-            && index >= 2
-            && tokens[index - 2].text == "item"
-            && owner == Some("InlineParticipantLayoutItem")
-        {
-            accounting.inline_carrier_projections += 1;
-            true
-        } else if path == "src/block.rs"
-            && has(
-                &tokens,
-                index,
-                &[
-                    "scrollbar_size",
-                    ":",
-                    "child_scrollbar_size",
-                    "(",
-                    "&",
-                    "child_style",
-                    ")",
-                ],
-            )
-            && owner == Some("AtomicInlineBoxParticipant")
-        {
-            accounting.block_carrier_writers += 1;
-            true
-        } else if path == "src/output.rs"
-            && previous.is_some_and(|previous| {
-                has(
-                    &tokens,
-                    previous,
-                    &[
-                        "fn",
-                        "scrollbar_size",
-                        "(",
-                        "self",
-                        ")",
-                        "-",
-                        ">",
-                        "Size",
-                        "<",
-                        "S",
-                        ">",
-                    ],
-                )
-            })
-            && owner == Some("NodeOutputOf")
-        {
-            accounting.output_accessors += 1;
-            true
-        } else if path == "src/output.rs"
-            && index >= 2
-            && has(
-                &tokens,
-                index - 2,
-                &["geometry", ".", "scrollbar_size", "(", ")"],
-            )
-            && enclosing_function(&tokens, index) == Some("scrollbar_size")
-        {
-            accounting.output_projections += 1;
-            true
-        } else if path == "src/scroll.rs"
-            && previous.is_some_and(|previous| {
-                has(
-                    &tokens,
-                    previous,
-                    &[
-                        "fn",
-                        "scrollbar_size",
-                        "(",
-                        "self",
-                        ")",
-                        "-",
-                        ">",
-                        "Size",
-                        "<",
-                        "S",
-                        ">",
-                    ],
-                )
-            })
-            && owner == Some("ScrollGeometryOf")
-        {
-            accounting.geometry_accessors += 1;
-            true
-        } else {
-            false
-        };
-        if !allowed {
-            return Err(format!(
-                "{path}: forbidden scrollbar_size token at byte {} in owner {owner:?}",
-                tokens[index].offset
-            ));
-        }
-    }
-
-    Ok(accounting)
+        Ok(accounting)
+    };
 }
 
 #[test]
@@ -1897,6 +1925,10 @@ fn fri05_c05_grid_legacy_absence_cfg_attr_omits_exactly_one_test_only_item() {
 
 #[test]
 fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
+    (FRI05_C05_GRID_LEGACY_ABSENCE_INVENTORIES_EVERY_PRODUCTION_SOURCE_PHASE)();
+}
+
+const FRI05_C05_GRID_LEGACY_ABSENCE_INVENTORIES_EVERY_PRODUCTION_SOURCE_PHASE: fn() = || {
     for ignored in [
         "// scrollbar_size\nfn clean() {}",
         "/* outer scrollbar_size /* nested scrollbar_size */ still ignored */ fn clean() {}",
@@ -2051,195 +2083,200 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ],
         "only the exact private carriers and canonical geometry projections are allowed"
     );
-}
+};
 
 #[test]
 fn fri05_c07_public_surface_default_and_f64_input_error_output_contracts_compose() {
-    fn checked_input<S: crate::LayoutScalar>() -> crate::NodeInputOf<S> {
-        let overflow =
-            crate::ComputedOverflow::try_new(crate::Overflow::Auto, crate::Overflow::Scroll)
-                .expect("canonical computed overflow pair");
-        let clip_margin: Result<
-            crate::OverflowClipMarginOf<S>,
-            crate::NonNegativeFiniteScalarErrorOf<S>,
-        > = crate::OverflowClipMarginOf::try_new(crate::OverflowClipBox::PaddingBox, S::ZERO);
-        let scrollbar_width: Result<
-            crate::ScrollbarWidthOf<S>,
-            crate::NonNegativeFiniteScalarErrorOf<S>,
-        > = crate::ScrollbarWidthOf::try_new(S::ZERO);
-        let scroll_margin: Result<crate::ScrollMarginOf<S>, crate::ScrollMarginErrorOf<S>> =
-            crate::ScrollMarginOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
-        let scroll_padding = crate::ScrollPaddingOf::new(
-            crate::ScrollPaddingValueOf::AUTO,
-            crate::ScrollPaddingValueOf::auto(),
-            crate::ScrollPaddingValueOf::default(),
-            crate::ScrollPaddingValueOf::value(crate::LengthPercentageOf::ZERO),
-        );
-        crate::NodeInputOf::<S> {
-            overflow,
-            overflow_clip_margin: clip_margin.expect("finite clip margin"),
-            scrollbar_gutter: crate::ScrollbarGutter::StableBothEdges,
-            scrollbar_width: scrollbar_width.expect("finite scrollbar width"),
-            scroll_padding,
-            scroll_margin: scroll_margin.expect("finite scroll margin"),
-            scroll_snap_type: crate::ScrollSnapType::Enabled {
-                axis: crate::ScrollSnapAxis::Block,
-                strictness: crate::ScrollSnapStrictness::Proximity,
-            },
-            scroll_snap_align: crate::ScrollSnapAlign::new(
-                crate::ScrollSnapAlignValue::Start,
-                crate::ScrollSnapAlignValue::Center,
-            ),
-            scroll_snap_stop: crate::ScrollSnapStop::Always,
-            ..crate::NodeInputOf::<S>::default()
-        }
-    }
-
-    fn inspect_read_only_output<S: crate::LayoutScalar>(
-        output: crate::NodeOutputOf<S>,
-        geometry: Option<crate::ScrollGeometryOf<S>>,
-        clip_axis: Option<crate::PhysicalClipAxisOf<S>>,
-        clip: Option<crate::OverflowClipOf<S>>,
-        gutters: Option<crate::ScrollbarGutterRectsOf<S>>,
-        target: Option<crate::ScrollTargetGeometryOf<S>>,
-    ) {
-        let _ = (output.content_box_size(), output.scrollbar_size());
-        if let Some(axis) = clip_axis {
-            let _ = (axis.minimum(), axis.maximum());
-        }
-        if let Some(clip) = clip {
-            let _ = (clip.x(), clip.y());
-        }
-        if let Some(gutters) = gutters {
-            let _ = (
-                gutters.top(),
-                gutters.right(),
-                gutters.bottom(),
-                gutters.left(),
-            );
-        }
-        if let Some(target) = target {
-            let _ = (
-                target.border_box(),
-                target.scroll_margin(),
-                target.flow_axes(),
-                target.snap_align(),
-                target.snap_stop(),
-            );
-        }
-        if let Some(geometry) = geometry {
-            let range = geometry.physical_range();
-            let _ = (
-                geometry.flow_axes(),
-                geometry.used_overflow_x(),
-                geometry.used_overflow_y(),
-                geometry.border_box(),
-                geometry.padding_box(),
-                geometry.content_box(),
-                geometry.scrollport(),
-                geometry.overflow_clip(),
-                geometry.scrollable_overflow(),
-                range.x().minimum(),
-                range.x().maximum(),
-                range.y().minimum(),
-                range.y().maximum(),
-                geometry.gutters(),
-                geometry.scrollbar_size(),
-                geometry.resolved_scroll_padding(),
-                geometry.optimal_viewing_region(),
-                geometry.scroll_snap_type(),
-                geometry.target(),
-            );
-        }
-    }
-
-    fn checked_coordinates<S: crate::LayoutScalar>() {
-        let physical_offset: Result<
-            crate::PhysicalScrollOffsetOf<S>,
-            crate::ScrollCoordinateErrorOf<S>,
-        > = crate::PhysicalScrollOffsetOf::try_new(S::ZERO, S::ZERO);
-        let flow_offset: Result<
-            crate::FlowRelativeScrollOffsetOf<S>,
-            crate::ScrollCoordinateErrorOf<S>,
-        > = crate::FlowRelativeScrollOffsetOf::try_new(S::ZERO, S::ZERO);
-        let physical_range: Result<
-            crate::PhysicalScrollRangeOf<S>,
-            crate::ScrollCoordinateErrorOf<S>,
-        > = crate::PhysicalScrollRangeOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
-        let flow_range: Result<
-            crate::FlowRelativeScrollRangeOf<S>,
-            crate::ScrollCoordinateErrorOf<S>,
-        > = crate::FlowRelativeScrollRangeOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
-        let rect: Result<crate::ScrollRectOf<S>, crate::ScrollRectErrorOf<S>> =
-            crate::ScrollRectOf::try_new(crate::Point::ZERO, crate::Size::ZERO);
-
-        let physical_offset = physical_offset.expect("finite physical offset");
-        let flow_offset = flow_offset.expect("finite flow-relative offset");
-        let physical_range = physical_range.expect("finite ordered physical range");
-        let flow_range = flow_range.expect("finite ordered flow-relative range");
-        assert_eq!(physical_range.clamp(physical_offset), physical_offset);
-        assert_eq!(flow_range.clamp(flow_offset), flow_offset);
-        assert_eq!(rect.expect("finite rectangle").size(), crate::Size::ZERO);
-
-        let _: Option<crate::PhysicalScrollAxisRangeOf<S>> = Some(physical_range.x());
-        let _: Option<crate::FlowRelativeScrollAxisRangeOf<S>> = Some(flow_range.inline());
-    }
-
-    let default = checked_input::<f32>();
-    let generic = checked_input::<f64>();
-    assert_eq!(default.overflow.x(), crate::Overflow::Auto);
-    assert_eq!(generic.overflow.y(), crate::Overflow::Scroll);
-    let _: crate::OverflowClipMargin = default.overflow_clip_margin;
-    let _: crate::ScrollbarGutter = default.scrollbar_gutter;
-    let _: crate::ScrollbarWidth = default.scrollbar_width;
-    let _: crate::ScrollPadding = default.scroll_padding;
-    let _: crate::ScrollPaddingValue = default.scroll_padding.top();
-    let _: crate::ScrollMargin = default.scroll_margin;
-    let _: crate::ScrollSnapType = default.scroll_snap_type;
-    let _: crate::ScrollSnapAlign = default.scroll_snap_align;
-    let _: crate::ScrollSnapStop = default.scroll_snap_stop;
-    let _: crate::OverflowClipMarginOf<f64> = generic.overflow_clip_margin;
-    let _: crate::ScrollbarWidthOf<f64> = generic.scrollbar_width;
-    let _: crate::ScrollPaddingOf<f64> = generic.scroll_padding;
-    let _: crate::ScrollPaddingValueOf<f64> = generic.scroll_padding.top();
-    let _: crate::ScrollMarginOf<f64> = generic.scroll_margin;
-    checked_coordinates::<f32>();
-    checked_coordinates::<f64>();
-
-    let _: crate::NodeInput = default;
-    let _: crate::ComputedOverflowError =
-        crate::ComputedOverflow::try_new(crate::Overflow::Visible, crate::Overflow::Auto)
-            .expect_err("noncanonical pair");
-    let _: crate::ScrollMarginError =
-        crate::ScrollMargin::try_new(f32::NAN, 0.0, 0.0, 0.0).expect_err("non-finite margin");
-    let _: crate::ScrollRectError =
-        crate::ScrollRect::try_new(crate::Point::new(f32::NAN, 0.0), crate::Size::ZERO)
-            .expect_err("non-finite rectangle");
-    let _: crate::ScrollCoordinateError =
-        crate::PhysicalScrollRange::try_new(1.0, 0.0, 0.0, 0.0).expect_err("inverted range");
-
-    let _: Option<crate::PhysicalScrollOffset> = None;
-    let _: Option<crate::FlowRelativeScrollOffset> = None;
-    let _: Option<crate::PhysicalScrollAxisRange> = None;
-    let _: Option<crate::FlowRelativeScrollAxisRange> = None;
-    let _: Option<crate::PhysicalScrollRange> = None;
-    let _: Option<crate::FlowRelativeScrollRange> = None;
-    let _: Option<crate::ScrollRect> = None;
-    let _: Option<crate::PhysicalClipAxis> = None;
-    let _: Option<crate::OverflowClip> = None;
-    let _: Option<crate::ScrollbarGutterRects> = None;
-    let _: Option<crate::ScrollTargetGeometry> = None;
-    let _: Option<crate::ScrollGeometry> = None;
-    inspect_read_only_output(crate::NodeOutput::default(), None, None, None, None, None);
-    inspect_read_only_output(
-        crate::NodeOutputOf::<f64>::default(),
-        None,
-        None,
-        None,
-        None,
-        None,
-    );
+    (FRI05_C07_PUBLIC_SURFACE_DEFAULT_AND_F64_INPUT_ERROR_OUTPUT_CONTRACTS_COMPOSE_PHASE)();
 }
+
+const FRI05_C07_PUBLIC_SURFACE_DEFAULT_AND_F64_INPUT_ERROR_OUTPUT_CONTRACTS_COMPOSE_PHASE: fn() =
+    || {
+        fn checked_input<S: crate::LayoutScalar>() -> crate::NodeInputOf<S> {
+            let overflow =
+                crate::ComputedOverflow::try_new(crate::Overflow::Auto, crate::Overflow::Scroll)
+                    .expect("canonical computed overflow pair");
+            let clip_margin: Result<
+                crate::OverflowClipMarginOf<S>,
+                crate::NonNegativeFiniteScalarErrorOf<S>,
+            > = crate::OverflowClipMarginOf::try_new(crate::OverflowClipBox::PaddingBox, S::ZERO);
+            let scrollbar_width: Result<
+                crate::ScrollbarWidthOf<S>,
+                crate::NonNegativeFiniteScalarErrorOf<S>,
+            > = crate::ScrollbarWidthOf::try_new(S::ZERO);
+            let scroll_margin: Result<crate::ScrollMarginOf<S>, crate::ScrollMarginErrorOf<S>> =
+                crate::ScrollMarginOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+            let scroll_padding = crate::ScrollPaddingOf::new(
+                crate::ScrollPaddingValueOf::AUTO,
+                crate::ScrollPaddingValueOf::auto(),
+                crate::ScrollPaddingValueOf::default(),
+                crate::ScrollPaddingValueOf::value(crate::LengthPercentageOf::ZERO),
+            );
+            crate::NodeInputOf::<S> {
+                overflow,
+                overflow_clip_margin: clip_margin.expect("finite clip margin"),
+                scrollbar_gutter: crate::ScrollbarGutter::StableBothEdges,
+                scrollbar_width: scrollbar_width.expect("finite scrollbar width"),
+                scroll_padding,
+                scroll_margin: scroll_margin.expect("finite scroll margin"),
+                scroll_snap_type: crate::ScrollSnapType::Enabled {
+                    axis: crate::ScrollSnapAxis::Block,
+                    strictness: crate::ScrollSnapStrictness::Proximity,
+                },
+                scroll_snap_align: crate::ScrollSnapAlign::new(
+                    crate::ScrollSnapAlignValue::Start,
+                    crate::ScrollSnapAlignValue::Center,
+                ),
+                scroll_snap_stop: crate::ScrollSnapStop::Always,
+                ..crate::NodeInputOf::<S>::default()
+            }
+        }
+
+        fn inspect_read_only_output<S: crate::LayoutScalar>(
+            output: crate::NodeOutputOf<S>,
+            geometry: Option<crate::ScrollGeometryOf<S>>,
+            clip_axis: Option<crate::PhysicalClipAxisOf<S>>,
+            clip: Option<crate::OverflowClipOf<S>>,
+            gutters: Option<crate::ScrollbarGutterRectsOf<S>>,
+            target: Option<crate::ScrollTargetGeometryOf<S>>,
+        ) {
+            let _ = (output.content_box_size(), output.scrollbar_size());
+            if let Some(axis) = clip_axis {
+                let _ = (axis.minimum(), axis.maximum());
+            }
+            if let Some(clip) = clip {
+                let _ = (clip.x(), clip.y());
+            }
+            if let Some(gutters) = gutters {
+                let _ = (
+                    gutters.top(),
+                    gutters.right(),
+                    gutters.bottom(),
+                    gutters.left(),
+                );
+            }
+            if let Some(target) = target {
+                let _ = (
+                    target.border_box(),
+                    target.scroll_margin(),
+                    target.flow_axes(),
+                    target.snap_align(),
+                    target.snap_stop(),
+                );
+            }
+            if let Some(geometry) = geometry {
+                let range = geometry.physical_range();
+                let _ = (
+                    geometry.flow_axes(),
+                    geometry.used_overflow_x(),
+                    geometry.used_overflow_y(),
+                    geometry.border_box(),
+                    geometry.padding_box(),
+                    geometry.content_box(),
+                    geometry.scrollport(),
+                    geometry.overflow_clip(),
+                    geometry.scrollable_overflow(),
+                    range.x().minimum(),
+                    range.x().maximum(),
+                    range.y().minimum(),
+                    range.y().maximum(),
+                    geometry.gutters(),
+                    geometry.scrollbar_size(),
+                    geometry.resolved_scroll_padding(),
+                    geometry.optimal_viewing_region(),
+                    geometry.scroll_snap_type(),
+                    geometry.target(),
+                );
+            }
+        }
+
+        fn checked_coordinates<S: crate::LayoutScalar>() {
+            let physical_offset: Result<
+                crate::PhysicalScrollOffsetOf<S>,
+                crate::ScrollCoordinateErrorOf<S>,
+            > = crate::PhysicalScrollOffsetOf::try_new(S::ZERO, S::ZERO);
+            let flow_offset: Result<
+                crate::FlowRelativeScrollOffsetOf<S>,
+                crate::ScrollCoordinateErrorOf<S>,
+            > = crate::FlowRelativeScrollOffsetOf::try_new(S::ZERO, S::ZERO);
+            let physical_range: Result<
+                crate::PhysicalScrollRangeOf<S>,
+                crate::ScrollCoordinateErrorOf<S>,
+            > = crate::PhysicalScrollRangeOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+            let flow_range: Result<
+                crate::FlowRelativeScrollRangeOf<S>,
+                crate::ScrollCoordinateErrorOf<S>,
+            > = crate::FlowRelativeScrollRangeOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+            let rect: Result<crate::ScrollRectOf<S>, crate::ScrollRectErrorOf<S>> =
+                crate::ScrollRectOf::try_new(crate::Point::ZERO, crate::Size::ZERO);
+
+            let physical_offset = physical_offset.expect("finite physical offset");
+            let flow_offset = flow_offset.expect("finite flow-relative offset");
+            let physical_range = physical_range.expect("finite ordered physical range");
+            let flow_range = flow_range.expect("finite ordered flow-relative range");
+            assert_eq!(physical_range.clamp(physical_offset), physical_offset);
+            assert_eq!(flow_range.clamp(flow_offset), flow_offset);
+            assert_eq!(rect.expect("finite rectangle").size(), crate::Size::ZERO);
+
+            let _: Option<crate::PhysicalScrollAxisRangeOf<S>> = Some(physical_range.x());
+            let _: Option<crate::FlowRelativeScrollAxisRangeOf<S>> = Some(flow_range.inline());
+        }
+
+        let default = checked_input::<f32>();
+        let generic = checked_input::<f64>();
+        assert_eq!(default.overflow.x(), crate::Overflow::Auto);
+        assert_eq!(generic.overflow.y(), crate::Overflow::Scroll);
+        let _: crate::OverflowClipMargin = default.overflow_clip_margin;
+        let _: crate::ScrollbarGutter = default.scrollbar_gutter;
+        let _: crate::ScrollbarWidth = default.scrollbar_width;
+        let _: crate::ScrollPadding = default.scroll_padding;
+        let _: crate::ScrollPaddingValue = default.scroll_padding.top();
+        let _: crate::ScrollMargin = default.scroll_margin;
+        let _: crate::ScrollSnapType = default.scroll_snap_type;
+        let _: crate::ScrollSnapAlign = default.scroll_snap_align;
+        let _: crate::ScrollSnapStop = default.scroll_snap_stop;
+        let _: crate::OverflowClipMarginOf<f64> = generic.overflow_clip_margin;
+        let _: crate::ScrollbarWidthOf<f64> = generic.scrollbar_width;
+        let _: crate::ScrollPaddingOf<f64> = generic.scroll_padding;
+        let _: crate::ScrollPaddingValueOf<f64> = generic.scroll_padding.top();
+        let _: crate::ScrollMarginOf<f64> = generic.scroll_margin;
+        checked_coordinates::<f32>();
+        checked_coordinates::<f64>();
+
+        let _: crate::NodeInput = default;
+        let _: crate::ComputedOverflowError =
+            crate::ComputedOverflow::try_new(crate::Overflow::Visible, crate::Overflow::Auto)
+                .expect_err("noncanonical pair");
+        let _: crate::ScrollMarginError =
+            crate::ScrollMargin::try_new(f32::NAN, 0.0, 0.0, 0.0).expect_err("non-finite margin");
+        let _: crate::ScrollRectError =
+            crate::ScrollRect::try_new(crate::Point::new(f32::NAN, 0.0), crate::Size::ZERO)
+                .expect_err("non-finite rectangle");
+        let _: crate::ScrollCoordinateError =
+            crate::PhysicalScrollRange::try_new(1.0, 0.0, 0.0, 0.0).expect_err("inverted range");
+
+        let _: Option<crate::PhysicalScrollOffset> = None;
+        let _: Option<crate::FlowRelativeScrollOffset> = None;
+        let _: Option<crate::PhysicalScrollAxisRange> = None;
+        let _: Option<crate::FlowRelativeScrollAxisRange> = None;
+        let _: Option<crate::PhysicalScrollRange> = None;
+        let _: Option<crate::FlowRelativeScrollRange> = None;
+        let _: Option<crate::ScrollRect> = None;
+        let _: Option<crate::PhysicalClipAxis> = None;
+        let _: Option<crate::OverflowClip> = None;
+        let _: Option<crate::ScrollbarGutterRects> = None;
+        let _: Option<crate::ScrollTargetGeometry> = None;
+        let _: Option<crate::ScrollGeometry> = None;
+        inspect_read_only_output(crate::NodeOutput::default(), None, None, None, None, None);
+        inspect_read_only_output(
+            crate::NodeOutputOf::<f64>::default(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+    };
 
 #[test]
 fn fri05_c07_public_surface_removed_phase_unsafe_contracts_fail_closed() {
@@ -2356,6 +2393,10 @@ fn fri04_c04_dispatch_public_descriptor_front_door_has_closed_copy_hash_contract
 
 #[test]
 fn fri04_c06_public_surface_default_and_f64_checked_reexports_compose() {
+    (FRI04_C06_PUBLIC_SURFACE_DEFAULT_AND_F64_CHECKED_REEXPORTS_COMPOSE_PHASE)();
+}
+
+const FRI04_C06_PUBLIC_SURFACE_DEFAULT_AND_F64_CHECKED_REEXPORTS_COMPOSE_PHASE: fn() = || {
     use crate::{
         CalcSizeBehaviorBasis, CalcSizeCalculation, CalcSizeCalculationErrorOf,
         CalcSizeCalculationOf, CalcSizeConstructionError, FlexBasis, FlexBasisCalcBasis,
@@ -2557,7 +2598,7 @@ fn fri04_c06_public_surface_default_and_f64_checked_reexports_compose() {
         SizingBehavior::CalcSize(CalcSizeBehaviorBasis::Content)
     );
     assert_eq!(capability, LayoutUnsupportedCapability::LaterFriBehavior);
-}
+};
 
 fn assert_physical_block_margin_collapse_maps_all_flow_axes<S: LayoutScalar>() {
     let none = PhysicalBlockMarginCollapseOf::<S>::NONE;

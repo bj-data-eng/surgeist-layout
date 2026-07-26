@@ -104,7 +104,20 @@ fn fri06_mr02_inline_linear_empty_strut_and_forced_clear_preserve_metrics_both_s
 
 #[test]
 fn fri06_mr02_inline_linear_discard_break_replacement_and_overwide_progress_both_scalars() {
+    (FRI06_MR02_INLINE_LINEAR_DISCARD_BREAK_REPLACEMENT_AND_OVERWIDE_PROGRESS_BOTH_SCALARS_PHASE)();
+}
+
+const FRI06_MR02_INLINE_LINEAR_DISCARD_BREAK_REPLACEMENT_AND_OVERWIDE_PROGRESS_BOTH_SCALARS_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>() {
+    (AssertLanePhaseL111::<S>::RUN)()
+}
+
+type AssertLanePhaseL111Run = fn();
+
+struct AssertLanePhaseL111<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
+
+impl<S: LayoutScalar> AssertLanePhaseL111<S> {
+    const RUN: AssertLanePhaseL111Run = || {
         let discarded = layout_mixed_inline_run(mr02_input(
             AvailableOf::definite(S::from_f64(15.0)),
             vec![
@@ -215,11 +228,12 @@ fn fri06_mr02_inline_linear_discard_break_replacement_and_overwide_progress_both
         assert_eq!(endpoint_breaks.line_bands.len(), 3);
         assert_eq!(endpoint_breaks.first_baseline, Some(S::from_f64(8.0)));
         assert_eq!(endpoint_breaks.last_baseline, Some(S::from_f64(28.0)));
-    }
+    };
+}
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-}
+};
 
 #[test]
 fn fri06_mr02_inline_linear_bidi_mixed_sources_preserve_visual_order_and_baselines_both_scalars() {

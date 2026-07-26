@@ -946,278 +946,310 @@ where
 fn layout_mixed_inline_run_from_available<S, BandSource, ClearSource>(
     input: MixedInlineRunInputOf<S>,
     available: S,
-    mut band_source: BandSource,
-    mut clear_source: ClearSource,
+    band_source: BandSource,
+    clear_source: ClearSource,
 ) -> MixedInlineRunReportOf<S>
 where
     S: LayoutScalar,
     BandSource: FnMut(S, S) -> LogicalLineBandQueryResultOf<S>,
     ClearSource: FnMut(S, PostLineClearIntent) -> S,
 {
-    let wraps = !matches!(input.available_inline_extent, AvailableOf::MaxContent);
-    let mut selected_lines = Vec::new();
-    let mut source_cursor = 0;
-    let mut pending_strut = None;
-    let mut block_cursor = S::ZERO;
-    let mut float_strut = None;
-    let mut continuation_inline_cursor = None;
-    let mut advanced_phase_transition = false;
-    let mut resolved_terminal_block_extent = S::ZERO;
-    let mut float_edge_phase = None;
-
-    while let Some(mut provisional) = select_next_inline_line(
-        &input.participants,
-        source_cursor,
+    (LayoutMixedInlineRunFromAvailablePhaseL946::<S, BandSource, ClearSource>::RUN)(
+        input,
         available,
-        wraps,
-        pending_strut,
-        input.flow_axes,
-    ) {
-        if float_strut.is_some() {
-            resolve_float_strut_phase(&mut provisional.line, float_strut, input.flow_axes);
-        }
-        let provisional_block_end =
-            block_cursor + provisional.line.baseline + provisional.line.after_baseline;
-        let queried_band = band_source(block_cursor, provisional_block_end);
-        let band_inline_end = queried_band.inline_end.max(queried_band.inline_start);
-        let band_available = band_inline_end - queried_band.inline_start;
-        let has_float_transition = queried_band.next_transition.is_some();
+        band_source,
+        clear_source,
+    )
+}
 
-        if band_available == S::ZERO
-            && provisional.line.used_inline_extent > S::ZERO
-            && let Some(next_transition) = queried_band
-                .next_transition
-                .filter(|transition| transition.is_finite() && *transition > block_cursor)
-        {
-            block_cursor = next_transition;
-            continue;
-        }
+type LayoutMixedInlineRunFromAvailablePhaseL946Run<S, BandSource, ClearSource> =
+    fn(MixedInlineRunInputOf<S>, S, BandSource, ClearSource) -> MixedInlineRunReportOf<S>;
 
-        let use_containing_band = band_available == S::ZERO
-            && provisional.line.used_inline_extent > S::ZERO
-            && queried_band.next_transition.is_none();
-        let (band_inline_start, band_inline_end, mut selected) = if use_containing_band {
-            (S::ZERO, available, provisional)
-        } else {
-            let selected = select_next_inline_line(
+struct LayoutMixedInlineRunFromAvailablePhaseL946<S, BandSource, ClearSource>(
+    core::marker::PhantomData<(S, BandSource, ClearSource)>,
+);
+
+impl<S, BandSource, ClearSource>
+    LayoutMixedInlineRunFromAvailablePhaseL946<S, BandSource, ClearSource>
+where
+    S: LayoutScalar,
+    BandSource: FnMut(S, S) -> LogicalLineBandQueryResultOf<S>,
+    ClearSource: FnMut(S, PostLineClearIntent) -> S,
+{
+    const RUN: LayoutMixedInlineRunFromAvailablePhaseL946Run<S, BandSource, ClearSource> =
+        |input: MixedInlineRunInputOf<S>,
+         available: S,
+         mut band_source: BandSource,
+         mut clear_source: ClearSource| {
+            let wraps = !matches!(input.available_inline_extent, AvailableOf::MaxContent);
+            let mut selected_lines = Vec::new();
+            let mut source_cursor = 0;
+            let mut pending_strut = None;
+            let mut block_cursor = S::ZERO;
+            let mut float_strut = None;
+            let mut continuation_inline_cursor = None;
+            let mut advanced_phase_transition = false;
+            let mut resolved_terminal_block_extent = S::ZERO;
+            let mut float_edge_phase = None;
+
+            while let Some(mut provisional) = select_next_inline_line(
                 &input.participants,
                 source_cursor,
-                band_available,
+                available,
                 wraps,
                 pending_strut,
                 input.flow_axes,
-            )
-            .expect("a provisional line remains selectable against its queried band");
-            (queried_band.inline_start, band_inline_end, selected)
-        };
-        let next_float_strut = if float_strut.is_some()
-            || (has_float_transition && starts_inline_strut_phase(&selected.line))
-        {
-            resolve_float_strut_phase(&mut selected.line, float_strut, input.flow_axes)
-        } else {
-            float_strut
-        };
-        let selected_block_end =
-            block_cursor + selected.line.baseline + selected.line.after_baseline;
-        let continuation_overflows = continuation_inline_cursor
-            .is_some_and(|cursor| cursor + selected.line.used_inline_extent > band_inline_end);
-        if !advanced_phase_transition
-            && float_strut.is_some()
-            && continuation_overflows
-            && let Some(next_transition) = queried_band.next_transition.filter(|transition| {
-                transition.is_finite()
-                    && *transition > block_cursor
-                    && *transition < selected_block_end
-            })
-        {
-            block_cursor = next_transition;
-            advanced_phase_transition = true;
-            continue;
-        }
+            ) {
+                if float_strut.is_some() {
+                    resolve_float_strut_phase(&mut provisional.line, float_strut, input.flow_axes);
+                }
+                let provisional_block_end =
+                    block_cursor + provisional.line.baseline + provisional.line.after_baseline;
+                let queried_band = band_source(block_cursor, provisional_block_end);
+                let band_inline_end = queried_band.inline_end.max(queried_band.inline_start);
+                let band_available = band_inline_end - queried_band.inline_start;
+                let has_float_transition = queried_band.next_transition.is_some();
 
-        let mut line = selected.line;
-        if advanced_phase_transition && continuation_inline_cursor.is_some() {
-            line.inline_start_override = Some(
-                if input
-                    .flow_axes
-                    .logical_axis_progression(crate::LogicalAxis::Inline)
-                    .is_decreasing()
+                if band_available == S::ZERO
+                    && provisional.line.used_inline_extent > S::ZERO
+                    && let Some(next_transition) = queried_band
+                        .next_transition
+                        .filter(|transition| transition.is_finite() && *transition > block_cursor)
                 {
-                    band_inline_start
-                } else {
-                    band_inline_end - line.used_inline_extent
-                },
-            );
-        }
-        line.band = LogicalLineBandOf {
-            inline_start: band_inline_start,
-            inline_end: band_inline_end,
-            block_start: block_cursor,
-            block_end: selected_block_end,
-        };
-        line.float_band_slots_decrease = has_float_transition
-            && input
-                .flow_axes
-                .logical_axis_progression(crate::LogicalAxis::Inline)
-                .is_decreasing();
-        source_cursor = selected.next_source_cursor;
-        pending_strut = selected.pending_strut;
-        let line_block_end = block_cursor + line.baseline + line.after_baseline;
-        let line_inline_start =
-            selected_line_inline_start(&line, input.flow_axes, input.text_align);
-        let line_inline_end = line_inline_start + line.used_inline_extent;
-        if has_float_transition && line.split_baseline_edge_phase.is_some() {
-            float_edge_phase = line.split_baseline_edge_phase;
-        }
-        resolved_terminal_block_extent = resolved_float_terminal_block_extent(
-            &line,
-            float_strut,
-            queried_band.next_transition,
-            input.flow_axes,
-            line_inline_start,
-            line_inline_end,
-        );
-        continuation_inline_cursor = float_strut.is_some().then_some(line_inline_end);
-        float_strut = next_float_strut;
-        advanced_phase_transition = false;
-        block_cursor =
-            clear_source(line_block_end, line.post_line_clear_intent).max(line_block_end);
-        selected_lines.push(line);
-    }
+                    block_cursor = next_transition;
+                    continue;
+                }
 
-    let mut inline_extent = S::ZERO;
-    let mut first_baseline = None;
-    let mut last_baseline = None;
-    let mut fragments = Vec::new();
-    let mut anchors = Vec::new();
-    let mut atomics = Vec::new();
-    let mut controls = Vec::new();
-    let mut post_line_clear_intents = Vec::new();
-    let mut line_bands = Vec::new();
-    for (line_index, line) in selected_lines.into_iter().enumerate() {
-        let block_start = line.band.block_start;
-        let line_baseline = block_start + line.baseline;
-        first_baseline.get_or_insert(line_baseline);
-        last_baseline = Some(line_baseline);
-        let (line_inline_start, visual_indices, inline_starts) =
-            resolved_inline_unit_slots(&line, input.flow_axes, input.text_align);
-        inline_extent = inline_extent.max(line_inline_start + line.used_inline_extent);
-        post_line_clear_intents.push(line.post_line_clear_intent);
-        line_bands.push(line.band);
-        for (source_index, selected) in line.units.into_iter().enumerate() {
-            let inline_start = inline_starts[source_index];
-            match selected.participant {
-                MixedInlineParticipantOf::ShapedText(participant) => {
-                    anchors.push(ShapedTextAnchorOf {
-                        source_index: participant.source_index,
-                        inline_start,
-                        block_start,
-                        baseline: line_baseline,
-                    });
-                    if selected.discarded {
-                        continue;
-                    }
-                    let metrics = participant.segment.metrics();
-                    fragments.push(ShapedTextFragmentSourceOf {
-                        source_index: participant.source_index,
-                        segment_id: participant.segment.segment_id(),
-                        inline_start,
-                        block_start: line_baseline - metrics.baseline(),
-                        inline_extent: participant.segment.inline_extent(),
-                        block_extent: metrics.line_extent(),
-                        baseline: line_baseline,
-                        line_index,
-                        visual_index: visual_indices[source_index],
-                        replacement_inline_extent: selected.replacement_inline_extent,
-                    });
+                let use_containing_band = band_available == S::ZERO
+                    && provisional.line.used_inline_extent > S::ZERO
+                    && queried_band.next_transition.is_none();
+                let (band_inline_start, band_inline_end, mut selected) = if use_containing_band {
+                    (S::ZERO, available, provisional)
+                } else {
+                    let selected = select_next_inline_line(
+                        &input.participants,
+                        source_cursor,
+                        band_available,
+                        wraps,
+                        pending_strut,
+                        input.flow_axes,
+                    )
+                    .expect("a provisional line remains selectable against its queried band");
+                    (queried_band.inline_start, band_inline_end, selected)
+                };
+                let next_float_strut = if float_strut.is_some()
+                    || (has_float_transition && starts_inline_strut_phase(&selected.line))
+                {
+                    resolve_float_strut_phase(&mut selected.line, float_strut, input.flow_axes)
+                } else {
+                    float_strut
+                };
+                let selected_block_end =
+                    block_cursor + selected.line.baseline + selected.line.after_baseline;
+                let continuation_overflows = continuation_inline_cursor.is_some_and(|cursor| {
+                    cursor + selected.line.used_inline_extent > band_inline_end
+                });
+                if !advanced_phase_transition
+                    && float_strut.is_some()
+                    && continuation_overflows
+                    && let Some(next_transition) =
+                        queried_band.next_transition.filter(|transition| {
+                            transition.is_finite()
+                                && *transition > block_cursor
+                                && *transition < selected_block_end
+                        })
+                {
+                    block_cursor = next_transition;
+                    advanced_phase_transition = true;
+                    continue;
                 }
-                MixedInlineParticipantOf::Atomic { item, .. } => {
-                    let logical_margin = input.flow_axes.logical_edges(item.margin);
-                    let logical_size = input.flow_axes.logical_size(item.size);
-                    let line_block_extent = line.baseline + line.after_baseline;
-                    let item_block_start = match item.alignment {
-                        InlineControlAlignment::Baseline => line
-                            .fallback_line_band
-                            .and_then(|band| {
-                                item.fallback_block_start_in_band(input.flow_axes, band)
-                            })
-                            .map_or_else(
-                                || line_baseline - item.baseline_offset(input.flow_axes),
-                                |offset| block_start + offset,
-                            ),
-                        InlineControlAlignment::Top => block_start - logical_margin.block_start,
-                        InlineControlAlignment::Bottom => {
-                            block_start + line_block_extent
-                                - logical_margin.block_end
-                                - logical_size.block
+
+                let mut line = selected.line;
+                if advanced_phase_transition && continuation_inline_cursor.is_some() {
+                    line.inline_start_override = Some(
+                        if input
+                            .flow_axes
+                            .logical_axis_progression(crate::LogicalAxis::Inline)
+                            .is_decreasing()
+                        {
+                            band_inline_start
+                        } else {
+                            band_inline_end - line.used_inline_extent
+                        },
+                    );
+                }
+                line.band = LogicalLineBandOf {
+                    inline_start: band_inline_start,
+                    inline_end: band_inline_end,
+                    block_start: block_cursor,
+                    block_end: selected_block_end,
+                };
+                line.float_band_slots_decrease = has_float_transition
+                    && input
+                        .flow_axes
+                        .logical_axis_progression(crate::LogicalAxis::Inline)
+                        .is_decreasing();
+                source_cursor = selected.next_source_cursor;
+                pending_strut = selected.pending_strut;
+                let line_block_end = block_cursor + line.baseline + line.after_baseline;
+                let line_inline_start =
+                    selected_line_inline_start(&line, input.flow_axes, input.text_align);
+                let line_inline_end = line_inline_start + line.used_inline_extent;
+                if has_float_transition && line.split_baseline_edge_phase.is_some() {
+                    float_edge_phase = line.split_baseline_edge_phase;
+                }
+                resolved_terminal_block_extent = resolved_float_terminal_block_extent(
+                    &line,
+                    float_strut,
+                    queried_band.next_transition,
+                    input.flow_axes,
+                    line_inline_start,
+                    line_inline_end,
+                );
+                continuation_inline_cursor = float_strut.is_some().then_some(line_inline_end);
+                float_strut = next_float_strut;
+                advanced_phase_transition = false;
+                block_cursor =
+                    clear_source(line_block_end, line.post_line_clear_intent).max(line_block_end);
+                selected_lines.push(line);
+            }
+
+            let mut inline_extent = S::ZERO;
+            let mut first_baseline = None;
+            let mut last_baseline = None;
+            let mut fragments = Vec::new();
+            let mut anchors = Vec::new();
+            let mut atomics = Vec::new();
+            let mut controls = Vec::new();
+            let mut post_line_clear_intents = Vec::new();
+            let mut line_bands = Vec::new();
+            for (line_index, line) in selected_lines.into_iter().enumerate() {
+                let block_start = line.band.block_start;
+                let line_baseline = block_start + line.baseline;
+                first_baseline.get_or_insert(line_baseline);
+                last_baseline = Some(line_baseline);
+                let (line_inline_start, visual_indices, inline_starts) =
+                    resolved_inline_unit_slots(&line, input.flow_axes, input.text_align);
+                inline_extent = inline_extent.max(line_inline_start + line.used_inline_extent);
+                post_line_clear_intents.push(line.post_line_clear_intent);
+                line_bands.push(line.band);
+                for (source_index, selected) in line.units.into_iter().enumerate() {
+                    let inline_start = inline_starts[source_index];
+                    match selected.participant {
+                        MixedInlineParticipantOf::ShapedText(participant) => {
+                            anchors.push(ShapedTextAnchorOf {
+                                source_index: participant.source_index,
+                                inline_start,
+                                block_start,
+                                baseline: line_baseline,
+                            });
+                            if selected.discarded {
+                                continue;
+                            }
+                            let metrics = participant.segment.metrics();
+                            fragments.push(ShapedTextFragmentSourceOf {
+                                source_index: participant.source_index,
+                                segment_id: participant.segment.segment_id(),
+                                inline_start,
+                                block_start: line_baseline - metrics.baseline(),
+                                inline_extent: participant.segment.inline_extent(),
+                                block_extent: metrics.line_extent(),
+                                baseline: line_baseline,
+                                line_index,
+                                visual_index: visual_indices[source_index],
+                                replacement_inline_extent: selected.replacement_inline_extent,
+                            });
                         }
-                    };
-                    atomics.push(AtomicInlineSourceOf {
-                        item,
-                        inline_start: inline_start + logical_margin.inline_start,
-                        block_start: item_block_start,
-                        line_index,
-                        visual_index: visual_indices[source_index],
-                    });
+                        MixedInlineParticipantOf::Atomic { item, .. } => {
+                            let logical_margin = input.flow_axes.logical_edges(item.margin);
+                            let logical_size = input.flow_axes.logical_size(item.size);
+                            let line_block_extent = line.baseline + line.after_baseline;
+                            let item_block_start = match item.alignment {
+                                InlineControlAlignment::Baseline => line
+                                    .fallback_line_band
+                                    .and_then(|band| {
+                                        item.fallback_block_start_in_band(input.flow_axes, band)
+                                    })
+                                    .map_or_else(
+                                        || line_baseline - item.baseline_offset(input.flow_axes),
+                                        |offset| block_start + offset,
+                                    ),
+                                InlineControlAlignment::Top => {
+                                    block_start - logical_margin.block_start
+                                }
+                                InlineControlAlignment::Bottom => {
+                                    block_start + line_block_extent
+                                        - logical_margin.block_end
+                                        - logical_size.block
+                                }
+                            };
+                            atomics.push(AtomicInlineSourceOf {
+                                item,
+                                inline_start: inline_start + logical_margin.inline_start,
+                                block_start: item_block_start,
+                                line_index,
+                                visual_index: visual_indices[source_index],
+                            });
+                        }
+                        MixedInlineParticipantOf::Boundary(control) => {
+                            let control_block = if line.uses_float_strut_phase {
+                                block_start + control.metrics().baseline()
+                            } else {
+                                control_block_position(
+                                    control.alignment(),
+                                    control.metrics(),
+                                    block_start,
+                                    line_baseline,
+                                    line.baseline + line.after_baseline,
+                                )
+                            };
+                            controls.push(InlineControlSourceOf {
+                                kind: inline_boundary_layout_kind(control.kind()),
+                                source_index: control.source_index(),
+                                inline_start,
+                                block_start: control_block,
+                                line_index,
+                                visual_index: Some(visual_indices[source_index]),
+                            });
+                        }
+                        MixedInlineParticipantOf::ForcedLineBreak(_) => {
+                            unreachable!("visible line breaks commit before line reordering")
+                        }
+                    }
                 }
-                MixedInlineParticipantOf::Boundary(control) => {
-                    let control_block = if line.uses_float_strut_phase {
-                        block_start + control.metrics().baseline()
-                    } else {
-                        control_block_position(
-                            control.alignment(),
-                            control.metrics(),
-                            block_start,
-                            line_baseline,
-                            line.baseline + line.after_baseline,
-                        )
-                    };
+                if let Some(control) = line.line_break {
+                    let control_block = control_block_position(
+                        control.alignment(),
+                        control.metrics(),
+                        block_start,
+                        line_baseline,
+                        line.baseline + line.after_baseline,
+                    );
                     controls.push(InlineControlSourceOf {
-                        kind: inline_boundary_layout_kind(control.kind()),
+                        kind: InlineParticipantLayoutKind::ForcedLineBreak,
                         source_index: control.source_index(),
-                        inline_start,
+                        inline_start: line_inline_start + line.used_inline_extent,
                         block_start: control_block,
                         line_index,
-                        visual_index: Some(visual_indices[source_index]),
+                        visual_index: None,
                     });
                 }
-                MixedInlineParticipantOf::ForcedLineBreak(_) => {
-                    unreachable!("visible line breaks commit before line reordering")
-                }
             }
-        }
-        if let Some(control) = line.line_break {
-            let control_block = control_block_position(
-                control.alignment(),
-                control.metrics(),
-                block_start,
-                line_baseline,
-                line.baseline + line.after_baseline,
-            );
-            controls.push(InlineControlSourceOf {
-                kind: InlineParticipantLayoutKind::ForcedLineBreak,
-                source_index: control.source_index(),
-                inline_start: line_inline_start + line.used_inline_extent,
-                block_start: control_block,
-                line_index,
-                visual_index: None,
-            });
-        }
-    }
 
-    MixedInlineRunReportOf {
-        inline_extent,
-        block_extent: block_cursor.max(resolved_terminal_block_extent),
-        float_edge_phase,
-        first_baseline,
-        last_baseline,
-        fragments,
-        anchors,
-        atomics,
-        controls,
-        post_line_clear_intents,
-        line_bands,
-    }
+            MixedInlineRunReportOf {
+                inline_extent,
+                block_extent: block_cursor.max(resolved_terminal_block_extent),
+                float_edge_phase,
+                first_baseline,
+                last_baseline,
+                fragments,
+                anchors,
+                atomics,
+                controls,
+                post_line_clear_intents,
+                line_bands,
+            }
+        };
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

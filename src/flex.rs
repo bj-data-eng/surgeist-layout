@@ -139,137 +139,161 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    let style = tree.node_input(node).clone();
-    let constants = Constants::new::<Tree, M>(tree, node, &style, input)?;
-    if input.run_mode() == RunMode::ComputeSize
-        && let Size {
-            width: Some(width),
-            height: Some(height),
-        } = constants.node_outer_size
-    {
-        return Ok(ComputeOutputOf::<S>::from_outer_size(Size::new(
-            width, height,
-        )));
-    }
+    (ComputeFlexInnerPhaseL133::<Tree, S, M>::RUN)(tree, node, input)
+}
 
-    let collected_items = collect_items(tree, node, &constants, input.run_mode())?;
-    let permutation = item_order_permutation(
-        &collected_items
-            .iter()
-            .map(|item| {
-                (
-                    tree.node_input(item.node).item_order,
-                    crate::SourceIndex::new(item.source_index),
+type ComputeFlexInnerPhaseL133Run<Tree, S, M> =
+    fn(
+        &mut Tree,
+        <Tree as Traverse>::Node,
+        ComputeInputOf<S>,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<S>, S, M>;
+
+struct ComputeFlexInnerPhaseL133<Tree, S, M>(core::marker::PhantomData<(Tree, S, M)>);
+
+impl<Tree, S, M> ComputeFlexInnerPhaseL133<Tree, S, M>
+where
+    Tree: Compute<M, Scalar = S>,
+    S: LayoutScalar,
+{
+    const RUN: ComputeFlexInnerPhaseL133Run<Tree, S, M> =
+        |tree: &mut Tree, node: <Tree as Traverse>::Node, input: ComputeInputOf<S>| {
+            let style = tree.node_input(node).clone();
+            let constants = Constants::new::<Tree, M>(tree, node, &style, input)?;
+            if input.run_mode() == RunMode::ComputeSize
+                && let Size {
+                    width: Some(width),
+                    height: Some(height),
+                } = constants.node_outer_size
+            {
+                return Ok(ComputeOutputOf::<S>::from_outer_size(Size::new(
+                    width, height,
+                )));
+            }
+
+            let collected_items = collect_items(tree, node, &constants, input.run_mode())?;
+            let permutation = item_order_permutation(
+                &collected_items
+                    .iter()
+                    .map(|item| {
+                        (
+                            tree.node_input(item.node).item_order,
+                            crate::SourceIndex::new(item.source_index),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            let mut items_by_source = collected_items
+                .into_iter()
+                .map(|item| (crate::SourceIndex::new(item.source_index), item))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            let mut collected_items = permutation
+                .into_iter()
+                .map(|source_index| {
+                    items_by_source
+                        .remove(&source_index)
+                        .expect("the flex order permutation contains every collected source index")
+                })
+                .collect::<Vec<_>>();
+            let mut lines = collect_flex_lines(&collected_items, &constants);
+
+            let mut layout_constants = resolved_layout_constants(
+                tree,
+                node,
+                input,
+                &style,
+                &constants,
+                &mut collected_items,
+                &lines,
+            )?;
+            let mut resolved_items =
+                resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
+            let cross_layout_constants = resolved_cross_layout_constants(&layout_constants, &lines);
+            if cross_layout_constants.node_inner_size != layout_constants.node_inner_size {
+                layout_constants = cross_layout_constants;
+                resolved_items =
+                    resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
+            } else {
+                layout_constants = cross_layout_constants;
+            }
+            let container_sizes =
+                container_sizes(input, &layout_constants, &resolved_items, &lines);
+            let final_scroll_box = if input.run_mode().is_perform_layout() {
+                Some(flex_container_scroll_box::<_, S, M>(
+                    node,
+                    input.run_mode(),
+                    &style,
+                    &layout_constants,
+                    container_sizes.output,
+                )?)
+            } else {
+                None
+            };
+            let (absolute_contributions, final_items) = if input.run_mode().is_perform_layout() {
+                let final_items = final_layout(tree, node, &resolved_items, &layout_constants)?;
+                let absolute_contributions = layout_absolute_children(
+                    tree,
+                    node,
+                    &layout_constants,
+                    final_scroll_box
+                        .expect("performed flex layout derives its final canonical box"),
+                )?;
+                layout_hidden_children(
+                    tree,
+                    node,
+                    layout_constants.axes.flow_axes(),
+                    layout_constants.settled_auto_scrollbars,
+                )?;
+                (absolute_contributions, Some(final_items))
+            } else {
+                (Vec::new(), None)
+            };
+
+            let mut final_geometry_and_content_size = None;
+            if input.run_mode().is_perform_layout() {
+                let final_items = final_items
+                    .as_deref()
+                    .expect("performed flex layout retains its final in-flow items");
+                let scroll_box = final_scroll_box
+                    .expect("performed flex layout retains its final canonical box");
+                let mut contributions = flex_scroll_contributions(
+                    final_items,
+                    &absolute_contributions,
+                    &resolved_items,
+                    &lines,
+                    &layout_constants,
+                    scroll_box,
                 )
-            })
-            .collect::<Vec<_>>(),
-    );
-    let mut items_by_source = collected_items
-        .into_iter()
-        .map(|item| (crate::SourceIndex::new(item.source_index), item))
-        .collect::<std::collections::BTreeMap<_, _>>();
-    let mut collected_items = permutation
-        .into_iter()
-        .map(|source_index| {
-            items_by_source
-                .remove(&source_index)
-                .expect("the flex order permutation contains every collected source index")
-        })
-        .collect::<Vec<_>>();
-    let mut lines = collect_flex_lines(&collected_items, &constants);
-
-    let mut layout_constants = resolved_layout_constants(
-        tree,
-        node,
-        input,
-        &style,
-        &constants,
-        &mut collected_items,
-        &lines,
-    )?;
-    let mut resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
-    let cross_layout_constants = resolved_cross_layout_constants(&layout_constants, &lines);
-    if cross_layout_constants.node_inner_size != layout_constants.node_inner_size {
-        layout_constants = cross_layout_constants;
-        resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
-    } else {
-        layout_constants = cross_layout_constants;
-    }
-    let container_sizes = container_sizes(input, &layout_constants, &resolved_items, &lines);
-    let final_scroll_box = if input.run_mode().is_perform_layout() {
-        Some(flex_container_scroll_box::<_, S, M>(
-            node,
-            input.run_mode(),
-            &style,
-            &layout_constants,
-            container_sizes.output,
-        )?)
-    } else {
-        None
-    };
-    let (absolute_contributions, final_items) = if input.run_mode().is_perform_layout() {
-        let final_items = final_layout(tree, node, &resolved_items, &layout_constants)?;
-        let absolute_contributions = layout_absolute_children(
-            tree,
-            node,
-            &layout_constants,
-            final_scroll_box.expect("performed flex layout derives its final canonical box"),
-        )?;
-        layout_hidden_children(
-            tree,
-            node,
-            layout_constants.axes.flow_axes(),
-            layout_constants.settled_auto_scrollbars,
-        )?;
-        (absolute_contributions, Some(final_items))
-    } else {
-        (Vec::new(), None)
-    };
-
-    let mut final_geometry_and_content_size = None;
-    if input.run_mode().is_perform_layout() {
-        let final_items = final_items
-            .as_deref()
-            .expect("performed flex layout retains its final in-flow items");
-        let scroll_box =
-            final_scroll_box.expect("performed flex layout retains its final canonical box");
-        let mut contributions = flex_scroll_contributions(
-            final_items,
-            &absolute_contributions,
-            &resolved_items,
-            &lines,
-            &layout_constants,
-            scroll_box,
-        )
-        .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
-        contributions.exclude_reserved_gutter_from_range();
-        let scroll_geometry = flex_container_scroll_geometry::<_, S, M>(
-            node,
-            input.run_mode(),
-            &style,
-            &layout_constants,
-            scroll_box,
-            contributions,
-        )?;
-        let content_size = contributions
-            .content_size_from_anchor(scroll_geometry.content_box().origin())
-            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
-        final_geometry_and_content_size = Some((scroll_geometry, content_size));
-    }
-    let output = container_output(
-        input,
-        &layout_constants,
-        &resolved_items,
-        final_items.as_deref(),
-        &lines,
-        final_geometry_and_content_size.map(|(_, content_size)| content_size),
-        container_sizes,
-    );
-    Ok(
-        final_geometry_and_content_size.map_or(output, |(scroll_geometry, _)| {
-            retain_flex_scroll_geometry(output, scroll_geometry)
-        }),
-    )
+                .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
+                contributions.exclude_reserved_gutter_from_range();
+                let scroll_geometry = flex_container_scroll_geometry::<_, S, M>(
+                    node,
+                    input.run_mode(),
+                    &style,
+                    &layout_constants,
+                    scroll_box,
+                    contributions,
+                )?;
+                let content_size = contributions
+                    .content_size_from_anchor(scroll_geometry.content_box().origin())
+                    .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
+                final_geometry_and_content_size = Some((scroll_geometry, content_size));
+            }
+            let output = container_output(
+                input,
+                &layout_constants,
+                &resolved_items,
+                final_items.as_deref(),
+                &lines,
+                final_geometry_and_content_size.map(|(_, content_size)| content_size),
+                container_sizes,
+            );
+            Ok(
+                final_geometry_and_content_size.map_or(output, |(scroll_geometry, _)| {
+                    retain_flex_scroll_geometry(output, scroll_geometry)
+                }),
+            )
+        };
 }
 
 fn retain_flex_scroll_geometry<S: LayoutScalar>(
@@ -309,6 +333,156 @@ struct Constants<S: LayoutScalar> {
     available_main: AvailableOf<S>,
 }
 
+type FlexConstantsNewPhaseRun<S, Tree, M> =
+    fn(
+        &Tree,
+        <Tree as Traverse>::Node,
+        &NodeInputOf<S>,
+        ComputeInputOf<S>,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Constants<S>, S, M>;
+
+struct FlexConstantsNewPhase<S, Tree, M>(core::marker::PhantomData<(S, Tree, M)>);
+
+impl<S, Tree, M> FlexConstantsNewPhase<S, Tree, M>
+where
+    S: LayoutScalar,
+    Tree: Compute<M, Scalar = S>,
+{
+    const RUN: FlexConstantsNewPhaseRun<S, Tree, M> =
+        |tree: &Tree,
+         node: <Tree as Traverse>::Node,
+         style: &NodeInputOf<S>,
+         input: ComputeInputOf<S>| {
+            let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+            let axes = FlexAxes::new(flow_axes, style.flex_direction, style.flex_wrap);
+            let padding = input
+                .containing_flow_axes()
+                .zip_physical_edges_with_inline_extent(
+                    style.padding,
+                    input.parent(),
+                    |length, basis| resolve_length_or_zero(length, basis),
+                )
+                .transpose_with_node(tree, node)?;
+            let border = input
+                .containing_flow_axes()
+                .zip_physical_edges_with_inline_extent(
+                    style.border,
+                    input.parent(),
+                    |length, basis| resolve_length_or_zero(length, basis),
+                )
+                .transpose_with_node(tree, node)?;
+            let padding_border = (padding + border).sum_axes();
+            let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
+                padding_border
+            } else {
+                Size::<S>::ZERO
+            };
+
+            let (style_size, min_size, max_size) = match input.sizing_mode() {
+                SizingMode::ContentSize => (Size::NONE, Size::NONE, Size::NONE),
+                SizingMode::InherentSize => {
+                    let style_size = resolve_preferred_size::<_, _, M>(
+                        node,
+                        &style.size,
+                        input.parent(),
+                        SizingAlgorithm::Flex,
+                    )?
+                    .apply_aspect_ratio(style.aspect_ratio)
+                    .add_optional(box_sizing_adjustment);
+                    let min_size = resolve_minimum_size::<_, _, M>(
+                        node,
+                        &style.min_size,
+                        input.parent(),
+                        SizingAlgorithm::Flex,
+                    )?
+                    .apply_aspect_ratio(style.aspect_ratio)
+                    .add_optional(box_sizing_adjustment);
+                    let max_size = resolve_maximum_size::<_, _, M>(
+                        node,
+                        &style.max_size,
+                        input.parent(),
+                        SizingAlgorithm::Flex,
+                    )?
+                    .apply_aspect_ratio(style.aspect_ratio)
+                    .add_optional(box_sizing_adjustment);
+                    (style_size, min_size, max_size)
+                }
+            };
+            let min_max_definite_size = min_size.zip_map(max_size, |min, max| match (min, max) {
+                (Some(min), Some(max)) if max <= min => Some(min),
+                _ => None,
+            });
+            let node_outer_size = input
+                .known()
+                .or(min_max_definite_size.or(style_size.clamp_optional(min_size, max_size)))
+                .max_optional(padding_border.map(Some));
+            let unconstrained_scroll_box_size = padding_border
+                + Size::splat(style.scrollbar_width.get() + style.scrollbar_width.get());
+            let scroll_box_size = node_outer_size
+                .or(input.available().map(AvailableOf::into_option))
+                .or(max_size)
+                .unwrap_or(unconstrained_scroll_box_size)
+                .zip_map(padding_border, |size, minimum| size.max(minimum));
+            let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+                flow_axes,
+                computed_overflow: style.overflow,
+                item_is_replaced: style.item_is_replaced,
+                border_box_size: scroll_box_size,
+                border,
+                padding,
+                scrollbar_gutter: style.scrollbar_gutter,
+                scrollbar_width: style.scrollbar_width,
+                settled_auto_scrollbars: input.settled_auto_scrollbars(),
+            })
+            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
+            let scrollport_inset = scroll_box.effective_border() + scroll_box.effective_gutter();
+            let non_gutter_box_inset =
+                scroll_box.effective_border() + scroll_box.effective_padding();
+            let content_box_inset = scroll_box.content_box_inset();
+            let content_box_inset_size = content_box_inset.sum_axes();
+            let node_inner_size = node_outer_size
+                .sub_optional(content_box_inset_size)
+                .max_optional(Size::<S>::ZERO.map(Some));
+            let max_inner_size = max_size
+                .sub_optional(content_box_inset_size)
+                .max_optional(Size::<S>::ZERO.map(Some));
+            let gap = style
+                .gap
+                .zip_map(node_inner_size, |length, basis| {
+                    resolve_length_or_zero(length, basis)
+                })
+                .transpose_with_node(tree, node)?;
+
+            Ok(Constants::<S> {
+                flow_axes,
+                axes,
+                node_outer_size,
+                node_inner_size,
+                min_outer_size: min_size,
+                max_outer_size: max_size,
+                max_inner_size,
+                border,
+                padding,
+                padding_border_size: padding_border,
+                scrollport_inset,
+                non_gutter_box_inset,
+                content_box_inset,
+                settled_auto_scrollbars: input.settled_auto_scrollbars(),
+                gap,
+                align_items: style.align_items.unwrap_or(AlignItems::Stretch),
+                authored_align_content: style.align_content,
+                align_content: style.align_content.unwrap_or(AlignContent::Stretch),
+                authored_justify_content: style.justify_content,
+                justify_content: style.justify_content.unwrap_or(AlignContent::FlexStart),
+                wraps: matches!(
+                    style.flex_wrap,
+                    super::FlexWrap::Wrap | super::FlexWrap::WrapReverse
+                ),
+                available: input.available(),
+                available_main: axes.main_size(input.available()),
+            })
+        };
+}
 impl<S: LayoutScalar> Constants<S> {
     fn new<Tree, M>(
         tree: &Tree,
@@ -319,131 +493,7 @@ impl<S: LayoutScalar> Constants<S> {
     where
         Tree: Compute<M, Scalar = S>,
     {
-        let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
-        let axes = FlexAxes::new(flow_axes, style.flex_direction, style.flex_wrap);
-        let padding = input
-            .containing_flow_axes()
-            .zip_physical_edges_with_inline_extent(
-                style.padding,
-                input.parent(),
-                |length, basis| resolve_length_or_zero(length, basis),
-            )
-            .transpose_with_node(tree, node)?;
-        let border = input
-            .containing_flow_axes()
-            .zip_physical_edges_with_inline_extent(style.border, input.parent(), |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
-            .transpose_with_node(tree, node)?;
-        let padding_border = (padding + border).sum_axes();
-        let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
-            padding_border
-        } else {
-            Size::<S>::ZERO
-        };
-
-        let (style_size, min_size, max_size) = match input.sizing_mode() {
-            SizingMode::ContentSize => (Size::NONE, Size::NONE, Size::NONE),
-            SizingMode::InherentSize => {
-                let style_size = resolve_preferred_size::<_, _, M>(
-                    node,
-                    &style.size,
-                    input.parent(),
-                    SizingAlgorithm::Flex,
-                )?
-                .apply_aspect_ratio(style.aspect_ratio)
-                .add_optional(box_sizing_adjustment);
-                let min_size = resolve_minimum_size::<_, _, M>(
-                    node,
-                    &style.min_size,
-                    input.parent(),
-                    SizingAlgorithm::Flex,
-                )?
-                .apply_aspect_ratio(style.aspect_ratio)
-                .add_optional(box_sizing_adjustment);
-                let max_size = resolve_maximum_size::<_, _, M>(
-                    node,
-                    &style.max_size,
-                    input.parent(),
-                    SizingAlgorithm::Flex,
-                )?
-                .apply_aspect_ratio(style.aspect_ratio)
-                .add_optional(box_sizing_adjustment);
-                (style_size, min_size, max_size)
-            }
-        };
-        let min_max_definite_size = min_size.zip_map(max_size, |min, max| match (min, max) {
-            (Some(min), Some(max)) if max <= min => Some(min),
-            _ => None,
-        });
-        let node_outer_size = input
-            .known()
-            .or(min_max_definite_size.or(style_size.clamp_optional(min_size, max_size)))
-            .max_optional(padding_border.map(Some));
-        let unconstrained_scroll_box_size =
-            padding_border + Size::splat(style.scrollbar_width.get() + style.scrollbar_width.get());
-        let scroll_box_size = node_outer_size
-            .or(input.available().map(AvailableOf::into_option))
-            .or(max_size)
-            .unwrap_or(unconstrained_scroll_box_size)
-            .zip_map(padding_border, |size, minimum| size.max(minimum));
-        let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
-            flow_axes,
-            computed_overflow: style.overflow,
-            item_is_replaced: style.item_is_replaced,
-            border_box_size: scroll_box_size,
-            border,
-            padding,
-            scrollbar_gutter: style.scrollbar_gutter,
-            scrollbar_width: style.scrollbar_width,
-            settled_auto_scrollbars: input.settled_auto_scrollbars(),
-        })
-        .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
-        let scrollport_inset = scroll_box.effective_border() + scroll_box.effective_gutter();
-        let non_gutter_box_inset = scroll_box.effective_border() + scroll_box.effective_padding();
-        let content_box_inset = scroll_box.content_box_inset();
-        let content_box_inset_size = content_box_inset.sum_axes();
-        let node_inner_size = node_outer_size
-            .sub_optional(content_box_inset_size)
-            .max_optional(Size::<S>::ZERO.map(Some));
-        let max_inner_size = max_size
-            .sub_optional(content_box_inset_size)
-            .max_optional(Size::<S>::ZERO.map(Some));
-        let gap = style
-            .gap
-            .zip_map(node_inner_size, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
-            .transpose_with_node(tree, node)?;
-
-        Ok(Self {
-            flow_axes,
-            axes,
-            node_outer_size,
-            node_inner_size,
-            min_outer_size: min_size,
-            max_outer_size: max_size,
-            max_inner_size,
-            border,
-            padding,
-            padding_border_size: padding_border,
-            scrollport_inset,
-            non_gutter_box_inset,
-            content_box_inset,
-            settled_auto_scrollbars: input.settled_auto_scrollbars(),
-            gap,
-            align_items: style.align_items.unwrap_or(AlignItems::Stretch),
-            authored_align_content: style.align_content,
-            align_content: style.align_content.unwrap_or(AlignContent::Stretch),
-            authored_justify_content: style.justify_content,
-            justify_content: style.justify_content.unwrap_or(AlignContent::FlexStart),
-            wraps: matches!(
-                style.flex_wrap,
-                super::FlexWrap::Wrap | super::FlexWrap::WrapReverse
-            ),
-            available: input.available(),
-            available_main: axes.main_size(input.available()),
-        })
+        (FlexConstantsNewPhase::<S, Tree, M>::RUN)(tree, node, style, input)
     }
 
     fn with_final_scroll_box(mut self, scroll_box: CanonicalScrollBoxOf<S>) -> Self {
@@ -1146,318 +1196,356 @@ fn build_item<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let padding = constants
-        .flow_axes
-        .zip_physical_edges_with_inline_extent(
-            style.padding,
-            constants.node_inner_size,
-            resolve_length_or_zero,
-        )
-        .transpose_with_node(tree, node)?;
-    let border = constants
-        .flow_axes
-        .zip_physical_edges_with_inline_extent(
-            style.border,
-            constants.node_inner_size,
-            resolve_length_or_zero,
-        )
-        .transpose_with_node(tree, node)?;
-    let margin = constants
-        .flow_axes
-        .zip_physical_edges_with_inline_extent(
-            style.margin,
-            constants.node_inner_size,
-            resolve_auto_or_zero,
-        )
-        .transpose_with_node(tree, node)?;
-    let margin_is_auto = style.margin.map(LengthAutoOf::is_auto);
-    let inset = style
-        .inset
-        .zip_size(constants.node_inner_size, |length, basis| {
-            resolve_auto_optional(length, basis)
-        })
-        .transpose_with_node(tree, node)?;
-    let padding_border = padding + border;
-    let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
-        padding_border.sum_axes()
-    } else {
-        Size::ZERO
-    };
-    let authored_size = resolve_preferred_size::<_, _, M>(
-        node,
-        &style.size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?
-    .apply_aspect_ratio(style.aspect_ratio)
-    .add_optional(box_sizing_adjustment);
-    let flex_basis_resolution = resolve_flex_basis(
-        &style.flex_basis,
-        constants.axes.main_physical_axis(),
-        constants.axes.main_size(constants.node_inner_size),
-    )
-    .map_err(|error| sizing_resolution_error(node, error))?;
-    let flex_basis_uses_content = match flex_basis_resolution {
-        ResolvedFlexBasis::Auto => constants.axes.main_size(authored_size).is_none(),
-        ResolvedFlexBasis::Content => true,
-        ResolvedFlexBasis::Definite(_) => false,
-    };
-    let resolved_flex_basis = match flex_basis_resolution {
-        ResolvedFlexBasis::Auto => constants.axes.main_size(authored_size),
-        ResolvedFlexBasis::Content => None,
-        ResolvedFlexBasis::Definite(flex_basis) => Some({
-            let padding_border = constants.axes.main_size(padding_border.sum_axes());
-            if style.box_sizing == BoxSizing::ContentBox {
-                flex_basis + padding_border
+    (BuildItemPhaseL1133::<Tree, M>::RUN)(tree, node, source_index, style, constants, run_mode)
+}
+
+type BuildItemPhaseL1133Run<Tree, M> = fn(
+    &mut Tree,
+    <Tree as Traverse>::Node,
+    usize,
+    &NodeInputOf<<Tree as Traverse>::Scalar>,
+    &Constants<<Tree as Traverse>::Scalar>,
+    RunMode,
+) -> LayoutResultOf<
+    <Tree as Traverse>::Node,
+    CollectedFlexItem<<Tree as Traverse>::Node, <Tree as Traverse>::Scalar>,
+    <Tree as Traverse>::Scalar,
+    M,
+>;
+
+struct BuildItemPhaseL1133<Tree, M>(core::marker::PhantomData<(Tree, M)>);
+
+impl<Tree, M> BuildItemPhaseL1133<Tree, M>
+where
+    Tree: Compute<M>,
+{
+    const RUN: BuildItemPhaseL1133Run<Tree, M> =
+        |tree: &mut Tree,
+         node: <Tree as Traverse>::Node,
+         source_index: usize,
+         style: &NodeInputOf<Tree::Scalar>,
+         constants: &Constants<Tree::Scalar>,
+         run_mode: RunMode| {
+            let padding = constants
+                .flow_axes
+                .zip_physical_edges_with_inline_extent(
+                    style.padding,
+                    constants.node_inner_size,
+                    resolve_length_or_zero,
+                )
+                .transpose_with_node(tree, node)?;
+            let border = constants
+                .flow_axes
+                .zip_physical_edges_with_inline_extent(
+                    style.border,
+                    constants.node_inner_size,
+                    resolve_length_or_zero,
+                )
+                .transpose_with_node(tree, node)?;
+            let margin = constants
+                .flow_axes
+                .zip_physical_edges_with_inline_extent(
+                    style.margin,
+                    constants.node_inner_size,
+                    resolve_auto_or_zero,
+                )
+                .transpose_with_node(tree, node)?;
+            let margin_is_auto = style.margin.map(LengthAutoOf::is_auto);
+            let inset = style
+                .inset
+                .zip_size(constants.node_inner_size, |length, basis| {
+                    resolve_auto_optional(length, basis)
+                })
+                .transpose_with_node(tree, node)?;
+            let padding_border = padding + border;
+            let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
+                padding_border.sum_axes()
             } else {
-                flex_basis.max(padding_border)
+                Size::ZERO
+            };
+            let authored_size = resolve_preferred_size::<_, _, M>(
+                node,
+                &style.size,
+                constants.node_inner_size,
+                SizingAlgorithm::Flex,
+            )?
+            .apply_aspect_ratio(style.aspect_ratio)
+            .add_optional(box_sizing_adjustment);
+            let flex_basis_resolution = resolve_flex_basis(
+                &style.flex_basis,
+                constants.axes.main_physical_axis(),
+                constants.axes.main_size(constants.node_inner_size),
+            )
+            .map_err(|error| sizing_resolution_error(node, error))?;
+            let flex_basis_uses_content = match flex_basis_resolution {
+                ResolvedFlexBasis::Auto => constants.axes.main_size(authored_size).is_none(),
+                ResolvedFlexBasis::Content => true,
+                ResolvedFlexBasis::Definite(_) => false,
+            };
+            let resolved_flex_basis = match flex_basis_resolution {
+                ResolvedFlexBasis::Auto => constants.axes.main_size(authored_size),
+                ResolvedFlexBasis::Content => None,
+                ResolvedFlexBasis::Definite(flex_basis) => Some({
+                    let padding_border = constants.axes.main_size(padding_border.sum_axes());
+                    if style.box_sizing == BoxSizing::ContentBox {
+                        flex_basis + padding_border
+                    } else {
+                        flex_basis.max(padding_border)
+                    }
+                }),
+            };
+            let size = if flex_basis_uses_content {
+                constants.axes.with_main_size(authored_size, None)
+            } else {
+                match resolved_flex_basis {
+                    Some(flex_basis) => constants
+                        .axes
+                        .with_main_size(authored_size, Some(flex_basis)),
+                    None => authored_size,
+                }
+            };
+            let raw_min_size = resolve_minimum_size::<_, _, M>(
+                node,
+                &style.min_size,
+                constants.node_inner_size,
+                SizingAlgorithm::Flex,
+            )?;
+            let raw_max_size = resolve_maximum_size::<_, _, M>(
+                node,
+                &style.max_size,
+                constants.node_inner_size,
+                SizingAlgorithm::Flex,
+            )?;
+            let min_size = raw_min_size
+                .apply_aspect_ratio(style.aspect_ratio)
+                .add_optional(box_sizing_adjustment);
+            let max_size = raw_max_size
+                .apply_aspect_ratio(style.aspect_ratio)
+                .add_optional(box_sizing_adjustment);
+            let align_self = style.align_self.unwrap_or(constants.align_items);
+            let cross_size_is_auto = constants.axes.cross_size(style.size.clone()).is_auto();
+            let available_inner_size = constants.node_inner_size.or(constants.max_inner_size);
+            let available = Size::new(
+                constants
+                    .node_inner_size
+                    .width
+                    .map(AvailableOf::definite)
+                    .or_else(|| constants.max_inner_size.width.map(AvailableOf::definite))
+                    .unwrap_or(constants.available.width),
+                constants
+                    .node_inner_size
+                    .height
+                    .map(AvailableOf::definite)
+                    .or_else(|| constants.max_inner_size.height.map(AvailableOf::definite))
+                    .unwrap_or(constants.available.height),
+            );
+            let available = constants.axes.with_cross_size(
+                available,
+                clamp_available(
+                    constants.axes.cross_size(available),
+                    constants.axes.cross_size(min_size),
+                    constants.axes.cross_size(max_size),
+                ),
+            );
+            let use_content_sizing_for_base =
+                flex_basis_uses_content && style.display == super::Display::Block;
+            let mut child_known = size;
+            if !constants.wraps
+                && use_content_sizing_for_base
+                && align_self == AlignItems::Stretch
+                && cross_size_is_auto
+                && !constants.axes.cross_start_edge(margin_is_auto)
+                && !constants.axes.cross_end_edge(margin_is_auto)
+                && let Some(cross_size) = constants.axes.cross_size(available).into_option()
+            {
+                child_known = constants.axes.with_cross_size(
+                    child_known,
+                    Some(
+                        (cross_size - constants.axes.cross_edge_sum(margin))
+                            .max(Tree::Scalar::ZERO),
+                    ),
+                );
             }
-        }),
-    };
-    let size = if flex_basis_uses_content {
-        constants.axes.with_main_size(authored_size, None)
-    } else {
-        match resolved_flex_basis {
-            Some(flex_basis) => constants
-                .axes
-                .with_main_size(authored_size, Some(flex_basis)),
-            None => authored_size,
-        }
-    };
-    let raw_min_size = resolve_minimum_size::<_, _, M>(
-        node,
-        &style.min_size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?;
-    let raw_max_size = resolve_maximum_size::<_, _, M>(
-        node,
-        &style.max_size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?;
-    let min_size = raw_min_size
-        .apply_aspect_ratio(style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
-    let max_size = raw_max_size
-        .apply_aspect_ratio(style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
-    let align_self = style.align_self.unwrap_or(constants.align_items);
-    let cross_size_is_auto = constants.axes.cross_size(style.size.clone()).is_auto();
-    let available_inner_size = constants.node_inner_size.or(constants.max_inner_size);
-    let available = Size::new(
-        constants
-            .node_inner_size
-            .width
-            .map(AvailableOf::definite)
-            .or_else(|| constants.max_inner_size.width.map(AvailableOf::definite))
-            .unwrap_or(constants.available.width),
-        constants
-            .node_inner_size
-            .height
-            .map(AvailableOf::definite)
-            .or_else(|| constants.max_inner_size.height.map(AvailableOf::definite))
-            .unwrap_or(constants.available.height),
-    );
-    let available = constants.axes.with_cross_size(
-        available,
-        clamp_available(
-            constants.axes.cross_size(available),
-            constants.axes.cross_size(min_size),
-            constants.axes.cross_size(max_size),
-        ),
-    );
-    let use_content_sizing_for_base =
-        flex_basis_uses_content && style.display == super::Display::Block;
-    let mut child_known = size;
-    if !constants.wraps
-        && use_content_sizing_for_base
-        && align_self == AlignItems::Stretch
-        && cross_size_is_auto
-        && !constants.axes.cross_start_edge(margin_is_auto)
-        && !constants.axes.cross_end_edge(margin_is_auto)
-        && let Some(cross_size) = constants.axes.cross_size(available).into_option()
-    {
-        child_known = constants.axes.with_cross_size(
-            child_known,
-            Some((cross_size - constants.axes.cross_edge_sum(margin)).max(Tree::Scalar::ZERO)),
-        );
-    }
-    let mut child_known_for_base = flex_base_known_size(
-        constants.axes.with_main_size(size, None),
-        constants.axes.cross_size(available),
-        style,
-        constants,
-        margin,
-        margin_is_auto,
-        align_self,
-    );
-    let padding_border_main = constants.axes.main_size(padding_border.sum_axes());
-    let flex_basis_floor_may_override_content = padding_border_main > Tree::Scalar::ZERO
-        || (tree.child_count(node) == 0 && constants.axes.main_size(authored_size).is_some());
-    if let Some(flex_basis) = resolved_flex_basis
-        && flex_basis <= padding_border_main
-        && flex_basis_floor_may_override_content
-    {
-        child_known_for_base = constants
-            .axes
-            .with_main_size(child_known_for_base, Some(flex_basis));
-    }
-    let child_available = if use_content_sizing_for_base {
-        constants.axes.with_main_size(
-            available,
-            if constants.available_main == AvailableOf::MIN_CONTENT {
-                AvailableOf::MIN_CONTENT
+            let mut child_known_for_base = flex_base_known_size(
+                constants.axes.with_main_size(size, None),
+                constants.axes.cross_size(available),
+                style,
+                constants,
+                margin,
+                margin_is_auto,
+                align_self,
+            );
+            let padding_border_main = constants.axes.main_size(padding_border.sum_axes());
+            let flex_basis_floor_may_override_content = padding_border_main > Tree::Scalar::ZERO
+                || (tree.child_count(node) == 0
+                    && constants.axes.main_size(authored_size).is_some());
+            if let Some(flex_basis) = resolved_flex_basis
+                && flex_basis <= padding_border_main
+                && flex_basis_floor_may_override_content
+            {
+                child_known_for_base = constants
+                    .axes
+                    .with_main_size(child_known_for_base, Some(flex_basis));
+            }
+            let child_available = if use_content_sizing_for_base {
+                constants.axes.with_main_size(
+                    available,
+                    if constants.available_main == AvailableOf::MIN_CONTENT {
+                        AvailableOf::MIN_CONTENT
+                    } else {
+                        AvailableOf::MAX_CONTENT
+                    },
+                )
             } else {
-                AvailableOf::MAX_CONTENT
-            },
-        )
-    } else {
-        available
-    };
-    let output = tree.compute_child(
-        node,
-        ComputeInputOf::for_child(
-            run_mode,
-            if use_content_sizing_for_base {
-                SizingMode::ContentSize
-            } else {
-                SizingMode::InherentSize
-            },
-            RequestedAxis::Both,
-            child_known,
-            available_inner_size,
-            ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
-            child_available,
-        )
-        .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
-    )?;
-    let automatic_min_main_size = automatic_min_main_size(
-        tree,
-        node,
-        style,
-        constants,
-        box_sizing_adjustment,
-        child_known_for_base,
-    )?;
-    let flex_basis = if let Some(flex_basis) = resolved_flex_basis {
-        flex_basis
-    } else if let Some(ratio) = style.aspect_ratio {
-        if let Some(cross) = constants.axes.cross_size(child_known_for_base) {
-            constants.axes.main_size_from_cross_aspect(cross, ratio)
-        } else {
-            constants.axes.main_size(output.size)
-        }
-    } else {
-        constants.axes.main_size(
-            tree.compute_child(
+                available
+            };
+            let output = tree.compute_child(
                 node,
                 ComputeInputOf::for_child(
-                    RunMode::ComputeSize,
-                    SizingMode::ContentSize,
-                    constants.axes.main_requested_axis(),
-                    child_known_for_base,
-                    constants.axes.with_main_size(available_inner_size, None),
+                    run_mode,
+                    if use_content_sizing_for_base {
+                        SizingMode::ContentSize
+                    } else {
+                        SizingMode::InherentSize
+                    },
+                    RequestedAxis::Both,
+                    child_known,
+                    available_inner_size,
                     ContainingLayoutContext::new(
                         constants.flow_axes,
                         ParentFormattingContext::Flex,
                     ),
-                    constants
-                        .axes
-                        .with_main_size(child_available, AvailableOf::MAX_CONTENT),
+                    child_available,
                 )
                 .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
-            )?
-            .size,
-        )
-    };
-    let hypothetical_main_size = clamp_main_size_axes(
-        flex_basis,
-        automatic_min_main_size,
-        constants.axes.main_size(min_size),
-        constants.axes.main_size(max_size),
-    );
-    let authored_main_size = constants.axes.main_size(authored_size);
-    let flex_basis_uses_padding_floor = resolved_flex_basis.is_some()
-        && flex_basis <= padding_border_main
-        && style.flex_grow.get() == Tree::Scalar::ZERO
-        && (tree.child_count(node) > 0
-            || constants.axes.main_size(output.content_size) <= flex_basis);
-    let intrinsic_main_size = if flex_basis_uses_padding_floor {
-        flex_basis
-    } else if style.flex_basis.is_auto() && authored_main_size.is_some() {
-        authored_main_size.unwrap_or(Tree::Scalar::ZERO)
-    } else if flex_basis_uses_content {
-        constants.axes.main_size(output.content_size)
-    } else {
-        constants
-            .axes
-            .main_size(output.content_size)
-            .max(authored_main_size.unwrap_or(Tree::Scalar::ZERO))
-    };
-    let max_content_main_size = intrinsic_main_size
-        .clamp_optional(
-            constants.axes.main_size(min_size),
-            constants.axes.main_size(max_size),
-        )
-        .max(padding_border_main);
-    let mut target_size = constants
-        .axes
-        .with_main_size(output.size, hypothetical_main_size);
-    if align_self != AlignItems::Stretch
-        && cross_size_is_auto
-        && let Some(ratio) = style.aspect_ratio
-    {
-        let transferred_cross = match constants.axes.main_physical_axis() {
-            PhysicalAxis::Horizontal => hypothetical_main_size / ratio.get(),
-            PhysicalAxis::Vertical => hypothetical_main_size * ratio.get(),
-        };
-        target_size = constants
-            .axes
-            .with_cross_size(target_size, transferred_cross);
-    }
-    target_size = constants.axes.with_cross_size(
-        target_size,
-        constants
-            .axes
-            .cross_size(target_size)
-            .clamp_optional(
-                constants.axes.cross_size(raw_min_size),
-                constants.axes.cross_size(raw_max_size),
-            )
-            .max(constants.axes.cross_size(padding_border.sum_axes())),
-    );
-    let child_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
-    let baseline = FlexItemBaseline::from_output(output, child_flow_axes);
+            )?;
+            let automatic_min_main_size = automatic_min_main_size(
+                tree,
+                node,
+                style,
+                constants,
+                box_sizing_adjustment,
+                child_known_for_base,
+            )?;
+            let flex_basis = if let Some(flex_basis) = resolved_flex_basis {
+                flex_basis
+            } else if let Some(ratio) = style.aspect_ratio {
+                if let Some(cross) = constants.axes.cross_size(child_known_for_base) {
+                    constants.axes.main_size_from_cross_aspect(cross, ratio)
+                } else {
+                    constants.axes.main_size(output.size)
+                }
+            } else {
+                constants.axes.main_size(
+                    tree.compute_child(
+                        node,
+                        ComputeInputOf::for_child(
+                            RunMode::ComputeSize,
+                            SizingMode::ContentSize,
+                            constants.axes.main_requested_axis(),
+                            child_known_for_base,
+                            constants.axes.with_main_size(available_inner_size, None),
+                            ContainingLayoutContext::new(
+                                constants.flow_axes,
+                                ParentFormattingContext::Flex,
+                            ),
+                            constants
+                                .axes
+                                .with_main_size(child_available, AvailableOf::MAX_CONTENT),
+                        )
+                        .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
+                    )?
+                    .size,
+                )
+            };
+            let hypothetical_main_size = clamp_main_size_axes(
+                flex_basis,
+                automatic_min_main_size,
+                constants.axes.main_size(min_size),
+                constants.axes.main_size(max_size),
+            );
+            let authored_main_size = constants.axes.main_size(authored_size);
+            let flex_basis_uses_padding_floor = resolved_flex_basis.is_some()
+                && flex_basis <= padding_border_main
+                && style.flex_grow.get() == Tree::Scalar::ZERO
+                && (tree.child_count(node) > 0
+                    || constants.axes.main_size(output.content_size) <= flex_basis);
+            let intrinsic_main_size = if flex_basis_uses_padding_floor {
+                flex_basis
+            } else if style.flex_basis.is_auto() && authored_main_size.is_some() {
+                authored_main_size.unwrap_or(Tree::Scalar::ZERO)
+            } else if flex_basis_uses_content {
+                constants.axes.main_size(output.content_size)
+            } else {
+                constants
+                    .axes
+                    .main_size(output.content_size)
+                    .max(authored_main_size.unwrap_or(Tree::Scalar::ZERO))
+            };
+            let max_content_main_size = intrinsic_main_size
+                .clamp_optional(
+                    constants.axes.main_size(min_size),
+                    constants.axes.main_size(max_size),
+                )
+                .max(padding_border_main);
+            let mut target_size = constants
+                .axes
+                .with_main_size(output.size, hypothetical_main_size);
+            if align_self != AlignItems::Stretch
+                && cross_size_is_auto
+                && let Some(ratio) = style.aspect_ratio
+            {
+                let transferred_cross = match constants.axes.main_physical_axis() {
+                    PhysicalAxis::Horizontal => hypothetical_main_size / ratio.get(),
+                    PhysicalAxis::Vertical => hypothetical_main_size * ratio.get(),
+                };
+                target_size = constants
+                    .axes
+                    .with_cross_size(target_size, transferred_cross);
+            }
+            target_size = constants.axes.with_cross_size(
+                target_size,
+                constants
+                    .axes
+                    .cross_size(target_size)
+                    .clamp_optional(
+                        constants.axes.cross_size(raw_min_size),
+                        constants.axes.cross_size(raw_max_size),
+                    )
+                    .max(constants.axes.cross_size(padding_border.sum_axes())),
+            );
+            let child_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+            let baseline = FlexItemBaseline::from_output(output, child_flow_axes);
 
-    Ok(CollectedFlexItem {
-        node,
-        source_index,
-        size: authored_size,
-        initial_output: output,
-        flex_basis,
-        flex_basis_is_definite: resolved_flex_basis.is_some(),
-        flex_basis_uses_content,
-        hypothetical_main_size,
-        max_content_main_size,
-        hypothetical_size: target_size,
-        cross_size_is_auto,
-        automatic_min_main_size,
-        min_size,
-        max_size,
-        min_cross_size: constants.axes.cross_size(raw_min_size),
-        max_cross_size: constants.axes.cross_size(raw_max_size),
-        margin,
-        margin_is_auto,
-        inset,
-        padding,
-        border,
-        overflow: style.overflow,
-        align_self,
-        initial_baseline: baseline,
-        flex_grow_factor: style.flex_grow.get(),
-        flex_shrink_factor: style.flex_shrink.get(),
-    })
+            Ok(CollectedFlexItem {
+                node,
+                source_index,
+                size: authored_size,
+                initial_output: output,
+                flex_basis,
+                flex_basis_is_definite: resolved_flex_basis.is_some(),
+                flex_basis_uses_content,
+                hypothetical_main_size,
+                max_content_main_size,
+                hypothetical_size: target_size,
+                cross_size_is_auto,
+                automatic_min_main_size,
+                min_size,
+                max_size,
+                min_cross_size: constants.axes.cross_size(raw_min_size),
+                max_cross_size: constants.axes.cross_size(raw_max_size),
+                margin,
+                margin_is_auto,
+                inset,
+                padding,
+                border,
+                overflow: style.overflow,
+                align_self,
+                initial_baseline: baseline,
+                flex_grow_factor: style.flex_grow.get(),
+                flex_shrink_factor: style.flex_shrink.get(),
+            })
+        };
 }
 
 fn automatic_min_main_size<Tree, M>(
@@ -3776,171 +3864,196 @@ fn layout_absolute_children<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let settled_constants = constants.with_final_scroll_box(final_scroll_box);
-    let constants = &settled_constants;
-    let children = tree.children(node).collect::<Vec<_>>();
-    let mut contributions = Vec::new();
-    let inset_relative_size = final_scroll_box.scrollport().size().map(Some);
-    let available = final_scroll_box
-        .scrollport()
-        .size()
-        .map(AvailableOf::definite);
+    (LayoutAbsoluteChildrenPhaseL3770::<Tree, M>::RUN)(tree, node, constants, final_scroll_box)
+}
 
-    for (source_index, child) in children.into_iter().enumerate() {
-        let style = tree.node_input(child).clone();
-        if style.position != Position::Absolute || style.display == super::Display::None {
-            continue;
-        }
-        let padding = constants
-            .flow_axes
-            .zip_physical_edges_with_inline_extent(
-                style.padding,
-                inset_relative_size,
-                resolve_length_or_zero,
-            )
-            .transpose_with_node(tree, child)?;
-        let border = constants
-            .flow_axes
-            .zip_physical_edges_with_inline_extent(
-                style.border,
-                inset_relative_size,
-                resolve_length_or_zero,
-            )
-            .transpose_with_node(tree, child)?;
-        let margin = constants
-            .flow_axes
-            .zip_physical_edges_with_inline_extent(
-                style.margin,
-                inset_relative_size,
-                resolve_auto_optional,
-            )
-            .transpose_with_node(tree, child)?;
-        let non_auto_margin = margin.map(|value| value.unwrap_or(Tree::Scalar::ZERO));
-        let padding_border = padding + border;
-        let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
-            padding_border.sum_axes()
-        } else {
-            Size::<Tree::Scalar>::ZERO
-        };
-        let min_size = resolve_minimum_size::<_, _, M>(
-            child,
-            &style.min_size,
-            inset_relative_size,
-            SizingAlgorithm::Positioned,
-        )?
-        .apply_aspect_ratio(style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
-        let max_size = resolve_maximum_size::<_, _, M>(
-            child,
-            &style.max_size,
-            inset_relative_size,
-            SizingAlgorithm::Positioned,
-        )?
-        .apply_aspect_ratio(style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
-        let mut known_size = resolve_preferred_size::<_, _, M>(
-            child,
-            &style.size,
-            inset_relative_size,
-            SizingAlgorithm::Positioned,
-        )?
-        .apply_aspect_ratio(style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
+type LayoutAbsoluteChildrenPhaseL3770Run<Tree, M> = fn(
+    &mut Tree,
+    <Tree as Traverse>::Node,
+    &Constants<<Tree as Traverse>::Scalar>,
+    CanonicalScrollBoxOf<<Tree as Traverse>::Scalar>,
+) -> FlexChildContributionsResult<Tree, M>;
 
-        let inset = style
-            .inset
-            .zip_size(inset_relative_size, |length, basis| {
-                resolve_auto_optional(length, basis)
-            })
-            .transpose_with_node(tree, child)?;
+struct LayoutAbsoluteChildrenPhaseL3770<Tree, M>(core::marker::PhantomData<(Tree, M)>);
 
-        if known_size.width.is_none()
-            && let (Some(left), Some(right), Some(container_width)) =
-                (inset.left, inset.right, inset_relative_size.width)
-        {
-            known_size.width = Some(
-                (container_width - non_auto_margin.horizontal_sum() - left - right)
-                    .max(Tree::Scalar::ZERO),
-            );
-            known_size = known_size
+impl<Tree, M> LayoutAbsoluteChildrenPhaseL3770<Tree, M>
+where
+    Tree: Compute<M>,
+{
+    const RUN: LayoutAbsoluteChildrenPhaseL3770Run<Tree, M> =
+        |tree: &mut Tree,
+         node: <Tree as Traverse>::Node,
+         constants: &Constants<Tree::Scalar>,
+         final_scroll_box: CanonicalScrollBoxOf<Tree::Scalar>| {
+            let settled_constants = constants.with_final_scroll_box(final_scroll_box);
+            let constants = &settled_constants;
+            let children = tree.children(node).collect::<Vec<_>>();
+            let mut contributions = Vec::new();
+            let inset_relative_size = final_scroll_box.scrollport().size().map(Some);
+            let available = final_scroll_box
+                .scrollport()
+                .size()
+                .map(AvailableOf::definite);
+
+            for (source_index, child) in children.into_iter().enumerate() {
+                let style = tree.node_input(child).clone();
+                if style.position != Position::Absolute || style.display == super::Display::None {
+                    continue;
+                }
+                let padding = constants
+                    .flow_axes
+                    .zip_physical_edges_with_inline_extent(
+                        style.padding,
+                        inset_relative_size,
+                        resolve_length_or_zero,
+                    )
+                    .transpose_with_node(tree, child)?;
+                let border = constants
+                    .flow_axes
+                    .zip_physical_edges_with_inline_extent(
+                        style.border,
+                        inset_relative_size,
+                        resolve_length_or_zero,
+                    )
+                    .transpose_with_node(tree, child)?;
+                let margin = constants
+                    .flow_axes
+                    .zip_physical_edges_with_inline_extent(
+                        style.margin,
+                        inset_relative_size,
+                        resolve_auto_optional,
+                    )
+                    .transpose_with_node(tree, child)?;
+                let non_auto_margin = margin.map(|value| value.unwrap_or(Tree::Scalar::ZERO));
+                let padding_border = padding + border;
+                let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
+                    padding_border.sum_axes()
+                } else {
+                    Size::<Tree::Scalar>::ZERO
+                };
+                let min_size = resolve_minimum_size::<_, _, M>(
+                    child,
+                    &style.min_size,
+                    inset_relative_size,
+                    SizingAlgorithm::Positioned,
+                )?
                 .apply_aspect_ratio(style.aspect_ratio)
-                .clamp_optional(min_size, max_size);
-        }
-        if known_size.height.is_none()
-            && let (Some(top), Some(bottom), Some(container_height)) =
-                (inset.top, inset.bottom, inset_relative_size.height)
-        {
-            known_size.height = Some(
-                (container_height - non_auto_margin.vertical_sum() - top - bottom)
-                    .max(Tree::Scalar::ZERO),
-            );
-            known_size = known_size
+                .add_optional(box_sizing_adjustment);
+                let max_size = resolve_maximum_size::<_, _, M>(
+                    child,
+                    &style.max_size,
+                    inset_relative_size,
+                    SizingAlgorithm::Positioned,
+                )?
                 .apply_aspect_ratio(style.aspect_ratio)
-                .clamp_optional(min_size, max_size);
-        }
-        known_size = known_size
-            .clamp_optional(min_size, max_size)
-            .max_optional(padding_border.sum_axes().map(Some));
+                .add_optional(box_sizing_adjustment);
+                let mut known_size = resolve_preferred_size::<_, _, M>(
+                    child,
+                    &style.size,
+                    inset_relative_size,
+                    SizingAlgorithm::Positioned,
+                )?
+                .apply_aspect_ratio(style.aspect_ratio)
+                .add_optional(box_sizing_adjustment);
 
-        let output = tree.compute_child(
-            child,
-            ComputeInputOf::for_child(
-                RunMode::PerformLayout,
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                known_size,
-                constants.node_inner_size,
-                ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
-                available,
-            )
-            .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
-        )?;
-        let final_size = known_size
-            .unwrap_or(output.size)
-            .clamp_optional(min_size, max_size)
-            .max_optional(padding_border.sum_axes().map(Some));
-        let margin = resolve_absolute_margins(margin, final_size, constants);
-        let location = absolute_location(
-            final_size,
-            margin,
-            inset,
-            style.align_self.unwrap_or(constants.align_items),
-            constants,
-        );
-        let scroll_geometry = retained_flex_child_scroll_geometry(
-            &style,
-            final_size,
-            output.content_size,
-            padding,
-            border,
-            output.scroll_geometry,
-        )
-        .map_err(|error| layout_child_geometry_error(node, child, error))?;
-        let output = retain_flex_scroll_geometry(output, scroll_geometry);
+                let inset = style
+                    .inset
+                    .zip_size(inset_relative_size, |length, basis| {
+                        resolve_auto_optional(length, basis)
+                    })
+                    .transpose_with_node(tree, child)?;
 
-        tree.set_unrounded(
-            child,
-            NodeOutputOf::<Tree::Scalar> {
-                source_index: crate::SourceIndex::new(source_index),
-                location,
-                size: final_size,
-                content_size: output.content_size,
-                border,
-                padding,
-                margin,
-                ..NodeOutputOf::new()
+                if known_size.width.is_none()
+                    && let (Some(left), Some(right), Some(container_width)) =
+                        (inset.left, inset.right, inset_relative_size.width)
+                {
+                    known_size.width = Some(
+                        (container_width - non_auto_margin.horizontal_sum() - left - right)
+                            .max(Tree::Scalar::ZERO),
+                    );
+                    known_size = known_size
+                        .apply_aspect_ratio(style.aspect_ratio)
+                        .clamp_optional(min_size, max_size);
+                }
+                if known_size.height.is_none()
+                    && let (Some(top), Some(bottom), Some(container_height)) =
+                        (inset.top, inset.bottom, inset_relative_size.height)
+                {
+                    known_size.height = Some(
+                        (container_height - non_auto_margin.vertical_sum() - top - bottom)
+                            .max(Tree::Scalar::ZERO),
+                    );
+                    known_size = known_size
+                        .apply_aspect_ratio(style.aspect_ratio)
+                        .clamp_optional(min_size, max_size);
+                }
+                known_size = known_size
+                    .clamp_optional(min_size, max_size)
+                    .max_optional(padding_border.sum_axes().map(Some));
+
+                let output = tree.compute_child(
+                    child,
+                    ComputeInputOf::for_child(
+                        RunMode::PerformLayout,
+                        SizingMode::InherentSize,
+                        RequestedAxis::Both,
+                        known_size,
+                        constants.node_inner_size,
+                        ContainingLayoutContext::new(
+                            constants.flow_axes,
+                            ParentFormattingContext::Flex,
+                        ),
+                        available,
+                    )
+                    .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
+                )?;
+                let final_size = known_size
+                    .unwrap_or(output.size)
+                    .clamp_optional(min_size, max_size)
+                    .max_optional(padding_border.sum_axes().map(Some));
+                let margin = resolve_absolute_margins(margin, final_size, constants);
+                let location = absolute_location(
+                    final_size,
+                    margin,
+                    inset,
+                    style.align_self.unwrap_or(constants.align_items),
+                    constants,
+                );
+                let scroll_geometry = retained_flex_child_scroll_geometry(
+                    &style,
+                    final_size,
+                    output.content_size,
+                    padding,
+                    border,
+                    output.scroll_geometry,
+                )
+                .map_err(|error| layout_child_geometry_error(node, child, error))?;
+                let output = retain_flex_scroll_geometry(output, scroll_geometry);
+
+                tree.set_unrounded(
+                    child,
+                    NodeOutputOf::<Tree::Scalar> {
+                        source_index: crate::SourceIndex::new(source_index),
+                        location,
+                        size: final_size,
+                        content_size: output.content_size,
+                        border,
+                        padding,
+                        margin,
+                        ..NodeOutputOf::new()
+                    }
+                    .with_scroll_geometry(Some(scroll_geometry)),
+                );
+                contributions.push(FlexChildContribution {
+                    source_index: crate::SourceIndex::new(source_index),
+                    location,
+                    margin,
+                    geometry: scroll_geometry,
+                    in_flow: false,
+                });
             }
-            .with_scroll_geometry(Some(scroll_geometry)),
-        );
-        contributions.push(FlexChildContribution {
-            source_index: crate::SourceIndex::new(source_index),
-            location,
-            margin,
-            geometry: scroll_geometry,
-            in_flow: false,
-        });
-    }
-    Ok(contributions)
+            Ok(contributions)
+        };
 }
 
 fn layout_hidden_children<Tree, M>(

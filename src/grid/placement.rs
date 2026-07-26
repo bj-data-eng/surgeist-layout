@@ -273,113 +273,124 @@ pub(super) fn absolute_grid_area<S: LayoutScalar>(
 pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
     input: AbsoluteGridAxisInput<'_, S>,
 ) -> AbsoluteGridAxisArea<S> {
-    let AbsoluteGridAxisInput {
-        placement,
-        tracks,
-        offsets,
-        gap,
-        padding_box_location,
-        padding_box_size,
-        is_reverse,
-        explicit_start,
-        explicit_count,
-    } = input;
-    let padding_box_end = padding_box_location + padding_box_size;
-    if let (Some(start), None, None) = (placement.start(), placement.end(), placement.span())
-        && let Some(line) = grid_line_offset(
-            start.get(),
+    (AbsoluteGridAxisAreaPhaseL273::<S>::RUN)(input)
+}
+
+type AbsoluteGridAxisAreaPhaseL273Run<S> =
+    fn(AbsoluteGridAxisInput<'_, S>) -> AbsoluteGridAxisArea<S>;
+
+struct AbsoluteGridAxisAreaPhaseL273<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
+
+impl<S: LayoutScalar> AbsoluteGridAxisAreaPhaseL273<S> {
+    const RUN: AbsoluteGridAxisAreaPhaseL273Run<S> = |input: AbsoluteGridAxisInput<'_, S>| {
+        let AbsoluteGridAxisInput {
+            placement,
             tracks,
             offsets,
+            gap,
+            padding_box_location,
+            padding_box_size,
             is_reverse,
             explicit_start,
             explicit_count,
-        )
-    {
-        let location = if is_reverse {
-            padding_box_location
-        } else {
-            line
-        };
-        let end = if is_reverse { line } else { padding_box_end };
-        return AbsoluteGridAxisArea {
-            location,
-            size: (end - location).max(S::ZERO),
-        };
-    }
-
-    if let (None, Some(end), None) = (placement.start(), placement.end(), placement.span())
-        && let Some(line) = grid_line_offset(
-            end.get(),
-            tracks,
-            offsets,
-            is_reverse,
-            explicit_start,
-            explicit_count,
-        )
-    {
-        let location = if is_reverse {
-            line
-        } else {
-            padding_box_location
-        };
-        let end = if is_reverse { padding_box_end } else { line };
-        return AbsoluteGridAxisArea {
-            location,
-            size: (end - location).max(S::ZERO),
-        };
-    }
-
-    if let (Some(start_line), Some(end_line), None) =
-        (placement.start(), placement.end(), placement.span())
-        && let (Some(start), Some(end)) = (
-            grid_line_offset(
-                start_line.get(),
+        } = input;
+        let padding_box_end = padding_box_location + padding_box_size;
+        if let (Some(start), None, None) = (placement.start(), placement.end(), placement.span())
+            && let Some(line) = grid_line_offset(
+                start.get(),
                 tracks,
                 offsets,
                 is_reverse,
                 explicit_start,
                 explicit_count,
-            ),
-            grid_line_offset(
-                end_line.get(),
+            )
+        {
+            let location = if is_reverse {
+                padding_box_location
+            } else {
+                line
+            };
+            let end = if is_reverse { line } else { padding_box_end };
+            return AbsoluteGridAxisArea {
+                location,
+                size: (end - location).max(S::ZERO),
+            };
+        }
+
+        if let (None, Some(end), None) = (placement.start(), placement.end(), placement.span())
+            && let Some(line) = grid_line_offset(
+                end.get(),
                 tracks,
                 offsets,
                 is_reverse,
                 explicit_start,
                 explicit_count,
-            ),
-        )
-    {
-        return AbsoluteGridAxisArea {
-            location: start.min(end),
-            size: (start - end).abs(),
+            )
+        {
+            let location = if is_reverse {
+                line
+            } else {
+                padding_box_location
+            };
+            let end = if is_reverse { padding_box_end } else { line };
+            return AbsoluteGridAxisArea {
+                location,
+                size: (end - location).max(S::ZERO),
+            };
+        }
+
+        if let (Some(start_line), Some(end_line), None) =
+            (placement.start(), placement.end(), placement.span())
+            && let (Some(start), Some(end)) = (
+                grid_line_offset(
+                    start_line.get(),
+                    tracks,
+                    offsets,
+                    is_reverse,
+                    explicit_start,
+                    explicit_count,
+                ),
+                grid_line_offset(
+                    end_line.get(),
+                    tracks,
+                    offsets,
+                    is_reverse,
+                    explicit_start,
+                    explicit_count,
+                ),
+            )
+        {
+            return AbsoluteGridAxisArea {
+                location: start.min(end),
+                size: (start - end).abs(),
+            };
+        }
+
+        let Some((start, end)) =
+            placement_range(placement, tracks.len(), explicit_start, explicit_count)
+                .filter(|_| has_definite_line(placement))
+        else {
+            return AbsoluteGridAxisArea {
+                location: padding_box_location,
+                size: padding_box_size,
+            };
         };
-    }
 
-    let Some((start, end)) =
-        placement_range(placement, tracks.len(), explicit_start, explicit_count)
-            .filter(|_| has_definite_line(placement))
-    else {
-        return AbsoluteGridAxisArea {
-            location: padding_box_location,
-            size: padding_box_size,
+        let location = if is_reverse {
+            offsets[start..end]
+                .iter()
+                .copied()
+                .reduce(S::min)
+                .unwrap_or(offsets[start])
+        } else {
+            offsets[start]
         };
-    };
 
-    let location = if is_reverse {
-        offsets[start..end]
-            .iter()
-            .copied()
-            .reduce(S::min)
-            .unwrap_or(offsets[start])
-    } else {
-        offsets[start]
+        AbsoluteGridAxisArea {
+            location,
+            size: track_span_sum(tracks, start, end, gap),
+        }
     };
-
-    AbsoluteGridAxisArea {
-        location,
-        size: track_span_sum(tracks, start, end, gap),
-    }
 }
 
 pub(super) fn grid_line_offset<S: LayoutScalar>(

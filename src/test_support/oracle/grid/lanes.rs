@@ -397,145 +397,160 @@ pub struct LaneIntrinsicSizingReport {
 pub fn lane_intrinsic_sizing(
     input: LaneIntrinsicSizingInput,
 ) -> Result<LaneIntrinsicSizingReport, OracleGridError> {
-    if input.content_sized_tracks.is_empty() || input.tracks.is_empty() {
-        return Err(OracleGridError::EmptyTrackList);
-    }
-    if input
-        .content_sized_tracks
-        .iter()
-        .any(|track_index| *track_index >= input.tracks.len())
-    {
-        return Err(OracleGridError::SpanOutOfRange);
-    }
+    (LaneIntrinsicSizingPhaseL397::RUN)(input)
+}
 
-    let mut definite_items = Vec::new();
-    let mut indefinite_groups: Vec<IndefiniteLaneContributionGroup> = Vec::new();
+type LaneIntrinsicSizingPhaseL397Run =
+    fn(LaneIntrinsicSizingInput) -> Result<LaneIntrinsicSizingReport, OracleGridError>;
 
-    for item in &input.items {
-        match item.kind() {
-            LaneIntrinsicItemKind::Definite { span } => {
-                span.checked_len()?;
-                if span.end > input.tracks.len() + 1 {
-                    return Err(OracleGridError::SpanOutOfRange);
+struct LaneIntrinsicSizingPhaseL397;
+
+impl LaneIntrinsicSizingPhaseL397 {
+    const RUN: LaneIntrinsicSizingPhaseL397Run = |input: LaneIntrinsicSizingInput| {
+        if input.content_sized_tracks.is_empty() || input.tracks.is_empty() {
+            return Err(OracleGridError::EmptyTrackList);
+        }
+        if input
+            .content_sized_tracks
+            .iter()
+            .any(|track_index| *track_index >= input.tracks.len())
+        {
+            return Err(OracleGridError::SpanOutOfRange);
+        }
+
+        let mut definite_items = Vec::new();
+        let mut indefinite_groups: Vec<IndefiniteLaneContributionGroup> = Vec::new();
+
+        for item in &input.items {
+            match item.kind() {
+                LaneIntrinsicItemKind::Definite { span } => {
+                    span.checked_len()?;
+                    if span.end > input.tracks.len() + 1 {
+                        return Err(OracleGridError::SpanOutOfRange);
+                    }
+                    let contribution =
+                        contribution_with_span_area(input.axis, span, item.contribution());
+                    definite_items.push(DefiniteLaneIntrinsicItem {
+                        id: item.id(),
+                        span,
+                        contribution,
+                    });
                 }
-                let contribution =
-                    contribution_with_span_area(input.axis, span, item.contribution());
-                definite_items.push(DefiniteLaneIntrinsicItem {
-                    id: item.id(),
+                LaneIntrinsicItemKind::Indefinite { span } => {
+                    let span = span.get().min(input.tracks.len());
+                    let contributions = item.contribution().contributions();
+                    if let Some(group) = indefinite_groups
+                        .iter_mut()
+                        .find(|group| group.span == span)
+                    {
+                        group.max_min_content =
+                            group.max_min_content.max(contributions.min_content);
+                        group.max_max_content =
+                            group.max_max_content.max(contributions.max_content);
+                        group.max_min_size = group.max_min_size.max(contributions.minimum);
+                        group.item_ids.push(item.id());
+                    } else {
+                        indefinite_groups.push(IndefiniteLaneContributionGroup {
+                            span,
+                            max_min_content: contributions.min_content,
+                            max_max_content: contributions.max_content,
+                            max_min_size: contributions.minimum,
+                            item_ids: vec![item.id()],
+                        });
+                    }
+                }
+                LaneIntrinsicItemKind::NestedIndefiniteSubgrid { .. } => {
+                    return Err(OracleGridError::NestedGridLanesSubgridIndefiniteUnsupported);
+                }
+            }
+        }
+
+        let mut converted_indefinite_items = Vec::new();
+        let mut masonry_sizing_items = Vec::new();
+        for group in &indefinite_groups {
+            for start_index in candidate_starts(input.tracks.len(), group.span) {
+                let span = TrackSpan::new(start_index + 1, start_index + 1 + group.span);
+                let contribution = contribution_with_span_area(
+                    input.axis,
+                    span,
+                    ItemContributionFacts {
+                        area: GridArea::new(1, 1, 1, 1),
+                        min_content: group.max_min_content,
+                        max_content: group.max_max_content,
+                        preferred: ContributionSize::Auto,
+                        min_size: ContributionSize::Definite(group.max_min_size),
+                        max_size: ContributionSize::Infinite,
+                        margin_before: 0.0,
+                        margin_after: 0.0,
+                        automatic_minimum_applies: false,
+                    },
+                );
+                converted_indefinite_items.push(DefiniteLaneIntrinsicItem {
+                    id: "indefinite-group",
                     span,
                     contribution,
                 });
-            }
-            LaneIntrinsicItemKind::Indefinite { span } => {
-                let span = span.get().min(input.tracks.len());
-                let contributions = item.contribution().contributions();
-                if let Some(group) = indefinite_groups
-                    .iter_mut()
-                    .find(|group| group.span == span)
-                {
-                    group.max_min_content = group.max_min_content.max(contributions.min_content);
-                    group.max_max_content = group.max_max_content.max(contributions.max_content);
-                    group.max_min_size = group.max_min_size.max(contributions.minimum);
-                    group.item_ids.push(item.id());
-                } else {
-                    indefinite_groups.push(IndefiniteLaneContributionGroup {
-                        span,
-                        max_min_content: contributions.min_content,
-                        max_max_content: contributions.max_content,
-                        max_min_size: contributions.minimum,
-                        item_ids: vec![item.id()],
-                    });
+
+                let content_spans = content_track_spans_in_span(
+                    &input.content_sized_tracks,
+                    start_index,
+                    group.span,
+                    input.tracks.len(),
+                );
+                let content_track_count = content_spans
+                    .iter()
+                    .map(|span| span.checked_len().expect("span already validated"))
+                    .sum::<usize>();
+                for content_span in content_spans {
+                    masonry_sizing_items.push(masonry_sizing_contribution(
+                        MasonrySizingProjection {
+                            axis: input.axis,
+                            full_span: span,
+                            content_span,
+                            tracks: &input.tracks,
+                            available: input.available,
+                            gap: input.gap,
+                            content_track_count,
+                        },
+                        group,
+                    ));
                 }
             }
-            LaneIntrinsicItemKind::NestedIndefiniteSubgrid { .. } => {
-                return Err(OracleGridError::NestedGridLanesSubgridIndefiniteUnsupported);
+        }
+
+        let mut track_slice = match (input.axis, input.available) {
+            (GridAxis::Column, Some(available)) => {
+                TrackSizingSlice::definite_columns(available, input.gap)
             }
-        }
-    }
-
-    let mut converted_indefinite_items = Vec::new();
-    let mut masonry_sizing_items = Vec::new();
-    for group in &indefinite_groups {
-        for start_index in candidate_starts(input.tracks.len(), group.span) {
-            let span = TrackSpan::new(start_index + 1, start_index + 1 + group.span);
-            let contribution = contribution_with_span_area(
-                input.axis,
-                span,
-                ItemContributionFacts {
-                    area: GridArea::new(1, 1, 1, 1),
-                    min_content: group.max_min_content,
-                    max_content: group.max_max_content,
-                    preferred: ContributionSize::Auto,
-                    min_size: ContributionSize::Definite(group.max_min_size),
-                    max_size: ContributionSize::Infinite,
-                    margin_before: 0.0,
-                    margin_after: 0.0,
-                    automatic_minimum_applies: false,
-                },
-            );
-            converted_indefinite_items.push(DefiniteLaneIntrinsicItem {
-                id: "indefinite-group",
-                span,
-                contribution,
-            });
-
-            let content_spans = content_track_spans_in_span(
-                &input.content_sized_tracks,
-                start_index,
-                group.span,
-                input.tracks.len(),
-            );
-            let content_track_count = content_spans
-                .iter()
-                .map(|span| span.checked_len().expect("span already validated"))
-                .sum::<usize>();
-            for content_span in content_spans {
-                masonry_sizing_items.push(masonry_sizing_contribution(
-                    MasonrySizingProjection {
-                        axis: input.axis,
-                        full_span: span,
-                        content_span,
-                        tracks: &input.tracks,
-                        available: input.available,
-                        gap: input.gap,
-                        content_track_count,
-                    },
-                    group,
-                ));
+            (GridAxis::Row, Some(available)) => {
+                TrackSizingSlice::definite_rows(available, input.gap)
             }
+            (GridAxis::Column, None) => TrackSizingSlice::indefinite_columns(input.gap),
+            (GridAxis::Row, None) => TrackSizingSlice::indefinite_rows(input.gap),
+        };
+        for track in input.tracks {
+            track_slice = track_slice.track(track);
         }
-    }
+        for item in definite_items
+            .iter()
+            .filter(|item| span_overlaps_content_tracks(item.span, &input.content_sized_tracks))
+        {
+            track_slice = track_slice.item(item.contribution);
+        }
+        for item in masonry_sizing_items {
+            track_slice = track_slice.item(item);
+        }
+        let final_track_report = track_slice
+            .try_solve()
+            .map_err(|_| OracleGridError::SpanOutOfRange)?;
 
-    let mut track_slice = match (input.axis, input.available) {
-        (GridAxis::Column, Some(available)) => {
-            TrackSizingSlice::definite_columns(available, input.gap)
-        }
-        (GridAxis::Row, Some(available)) => TrackSizingSlice::definite_rows(available, input.gap),
-        (GridAxis::Column, None) => TrackSizingSlice::indefinite_columns(input.gap),
-        (GridAxis::Row, None) => TrackSizingSlice::indefinite_rows(input.gap),
+        Ok(LaneIntrinsicSizingReport {
+            definite_items,
+            indefinite_groups,
+            converted_indefinite_items,
+            final_track_report,
+        })
     };
-    for track in input.tracks {
-        track_slice = track_slice.track(track);
-    }
-    for item in definite_items
-        .iter()
-        .filter(|item| span_overlaps_content_tracks(item.span, &input.content_sized_tracks))
-    {
-        track_slice = track_slice.item(item.contribution);
-    }
-    for item in masonry_sizing_items {
-        track_slice = track_slice.item(item);
-    }
-    let final_track_report = track_slice
-        .try_solve()
-        .map_err(|_| OracleGridError::SpanOutOfRange)?;
-
-    Ok(LaneIntrinsicSizingReport {
-        definite_items,
-        indefinite_groups,
-        converted_indefinite_items,
-        final_track_report,
-    })
 }
 
 fn candidate_starts(track_count: usize, span: usize) -> Vec<usize> {

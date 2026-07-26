@@ -1974,193 +1974,216 @@ mod tests {
     }
 
     fn assert_fri04_c04_dispatch_calc_size_lane<S: LayoutScalar>(large: S) {
-        let definite = PercentageBasisOf::definite(S::from_f64(40.0)).expect("definite basis");
-        let any_calculation =
-            CalcSizeCalculationOf::from_coefficients(S::from_f64(-10.0), S::from_f64(0.5), S::ZERO)
-                .expect("finite coefficients");
-        let full_calculation = CalcSizeCalculationOf::from_coefficients(
-            S::from_f64(-50.0),
-            S::from_f64(0.25),
-            S::from_f64(2.0),
-        )
-        .expect("finite coefficients");
+        (AssertFri04C04DispatchCalcSizeLanePhaseL1976::<S>::RUN)(large)
+    }
 
-        for basis in [definite, PercentageBasisOf::MISSING] {
-            let expected_any = if matches!(basis, PercentageBasisOf::Missing) {
-                S::ZERO
-            } else {
-                S::from_f64(10.0)
-            };
+    type AssertFri04C04DispatchCalcSizeLanePhaseL1976Run<S> = fn(S);
+
+    struct AssertFri04C04DispatchCalcSizeLanePhaseL1976<S: LayoutScalar>(
+        core::marker::PhantomData<(S,)>,
+    );
+
+    impl<S: LayoutScalar> AssertFri04C04DispatchCalcSizeLanePhaseL1976<S> {
+        const RUN: AssertFri04C04DispatchCalcSizeLanePhaseL1976Run<S> = |large: S| {
+            let definite = PercentageBasisOf::definite(S::from_f64(40.0)).expect("definite basis");
+            let any_calculation = CalcSizeCalculationOf::from_coefficients(
+                S::from_f64(-10.0),
+                S::from_f64(0.5),
+                S::ZERO,
+            )
+            .expect("finite coefficients");
+            let full_calculation = CalcSizeCalculationOf::from_coefficients(
+                S::from_f64(-50.0),
+                S::from_f64(0.25),
+                S::from_f64(2.0),
+            )
+            .expect("finite coefficients");
+
+            for basis in [definite, PercentageBasisOf::MISSING] {
+                let expected_any = if matches!(basis, PercentageBasisOf::Missing) {
+                    S::ZERO
+                } else {
+                    S::from_f64(10.0)
+                };
+                assert_fri04_c04_resolved(
+                    dispatch_preferred_size(
+                        &PreferredSizeOf::calc_size(
+                            PreferredSizeCalcBasis::Any,
+                            any_calculation.clone(),
+                        )
+                        .expect("valid Any basis"),
+                        SizingAlgorithm::Leaf,
+                        PhysicalAxis::Horizontal,
+                        basis,
+                    ),
+                    expected_any,
+                );
+                assert_fri04_c04_resolved(
+                    dispatch_minimum_size(
+                        &MinSizeOf::calc_size(MinSizeCalcBasis::Any, any_calculation.clone())
+                            .expect("valid Any basis"),
+                        SizingAlgorithm::Block,
+                        PhysicalAxis::Vertical,
+                        basis,
+                    ),
+                    expected_any,
+                );
+                assert_fri04_c04_resolved(
+                    dispatch_maximum_size(
+                        &MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, any_calculation.clone())
+                            .expect("valid Any basis"),
+                        SizingAlgorithm::Grid,
+                        PhysicalAxis::Horizontal,
+                        basis,
+                    ),
+                    expected_any,
+                );
+                assert_fri04_c04_resolved(
+                    dispatch_flex_basis(
+                        &FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, any_calculation.clone())
+                            .expect("valid Any basis"),
+                        SizingAlgorithm::Flex,
+                        PhysicalAxis::Vertical,
+                        basis,
+                    ),
+                    expected_any,
+                );
+            }
+
             assert_fri04_c04_resolved(
                 dispatch_preferred_size(
                     &PreferredSizeOf::calc_size(
-                        PreferredSizeCalcBasis::Any,
-                        any_calculation.clone(),
+                        PreferredSizeCalcBasis::FullPercentage,
+                        full_calculation.clone(),
                     )
-                    .expect("valid Any basis"),
+                    .expect("valid full-percentage basis"),
                     SizingAlgorithm::Leaf,
                     PhysicalAxis::Horizontal,
-                    basis,
+                    definite,
                 ),
-                expected_any,
+                S::from_f64(40.0),
             );
             assert_fri04_c04_resolved(
                 dispatch_minimum_size(
-                    &MinSizeOf::calc_size(MinSizeCalcBasis::Any, any_calculation.clone())
-                        .expect("valid Any basis"),
+                    &MinSizeOf::calc_size(
+                        MinSizeCalcBasis::FullPercentage,
+                        full_calculation.clone(),
+                    )
+                    .expect("valid full-percentage basis"),
                     SizingAlgorithm::Block,
                     PhysicalAxis::Vertical,
-                    basis,
+                    definite,
                 ),
-                expected_any,
+                S::from_f64(40.0),
             );
             assert_fri04_c04_resolved(
                 dispatch_maximum_size(
-                    &MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, any_calculation.clone())
-                        .expect("valid Any basis"),
+                    &MaxSizeOf::calc_size(
+                        MaxSizeCalcBasis::FullPercentage,
+                        full_calculation.clone(),
+                    )
+                    .expect("valid full-percentage basis"),
                     SizingAlgorithm::Grid,
                     PhysicalAxis::Horizontal,
-                    basis,
+                    definite,
                 ),
-                expected_any,
+                S::from_f64(40.0),
             );
             assert_fri04_c04_resolved(
                 dispatch_flex_basis(
-                    &FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, any_calculation.clone())
-                        .expect("valid Any basis"),
+                    &FlexBasisOf::calc_size(FlexBasisCalcBasis::FullPercentage, full_calculation)
+                        .expect("valid full-percentage basis"),
                     SizingAlgorithm::Flex,
                     PhysicalAxis::Vertical,
-                    basis,
+                    definite,
                 ),
-                expected_any,
+                S::from_f64(40.0),
             );
-        }
 
-        assert_fri04_c04_resolved(
-            dispatch_preferred_size(
-                &PreferredSizeOf::calc_size(
-                    PreferredSizeCalcBasis::FullPercentage,
-                    full_calculation.clone(),
-                )
-                .expect("valid full-percentage basis"),
+            assert!(matches!(
+                dispatch_preferred_size(
+                    &PreferredSizeOf::calc_size(
+                        PreferredSizeCalcBasis::FullPercentage,
+                        CalcSizeCalculationOf::<S>::size(),
+                    )
+                    .expect("valid full-percentage basis"),
+                    SizingAlgorithm::Leaf,
+                    PhysicalAxis::Horizontal,
+                    PercentageBasisOf::MISSING,
+                ),
+                SizingDispatch::Supported(DispatchedSizingRequest::Auto)
+            ));
+            assert!(matches!(
+                dispatch_minimum_size(
+                    &MinSizeOf::calc_size(
+                        MinSizeCalcBasis::FullPercentage,
+                        CalcSizeCalculationOf::<S>::size(),
+                    )
+                    .expect("valid full-percentage basis"),
+                    SizingAlgorithm::Block,
+                    PhysicalAxis::Vertical,
+                    PercentageBasisOf::MISSING,
+                ),
+                SizingDispatch::Supported(DispatchedSizingRequest::Auto)
+            ));
+            assert!(matches!(
+                dispatch_maximum_size(
+                    &MaxSizeOf::calc_size(
+                        MaxSizeCalcBasis::FullPercentage,
+                        CalcSizeCalculationOf::<S>::size(),
+                    )
+                    .expect("valid full-percentage basis"),
+                    SizingAlgorithm::Grid,
+                    PhysicalAxis::Horizontal,
+                    PercentageBasisOf::MISSING,
+                ),
+                SizingDispatch::Supported(DispatchedSizingRequest::None)
+            ));
+            assert!(matches!(
+                dispatch_flex_basis(
+                    &FlexBasisOf::calc_size(
+                        FlexBasisCalcBasis::FullPercentage,
+                        CalcSizeCalculationOf::<S>::size(),
+                    )
+                    .expect("valid full-percentage basis"),
+                    SizingAlgorithm::Flex,
+                    PhysicalAxis::Vertical,
+                    PercentageBasisOf::MISSING,
+                ),
+                SizingDispatch::Supported(DispatchedSizingRequest::Content)
+            ));
+
+            let invalid = CalcSizeCalculationOf::from_coefficients(large, S::ONE, S::ZERO)
+                .expect("finite coefficients");
+            let percentage_basis = PercentageBasisOf::definite(large).expect("definite basis");
+            assert_fri04_c04_invalid(dispatch_preferred_size(
+                &PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, invalid.clone())
+                    .expect("valid Any basis"),
                 SizingAlgorithm::Leaf,
                 PhysicalAxis::Horizontal,
-                definite,
-            ),
-            S::from_f64(40.0),
-        );
-        assert_fri04_c04_resolved(
-            dispatch_minimum_size(
-                &MinSizeOf::calc_size(MinSizeCalcBasis::FullPercentage, full_calculation.clone())
-                    .expect("valid full-percentage basis"),
+                percentage_basis,
+            ));
+            assert_fri04_c04_invalid(dispatch_minimum_size(
+                &MinSizeOf::calc_size(MinSizeCalcBasis::Any, invalid.clone())
+                    .expect("valid Any basis"),
                 SizingAlgorithm::Block,
                 PhysicalAxis::Vertical,
-                definite,
-            ),
-            S::from_f64(40.0),
-        );
-        assert_fri04_c04_resolved(
-            dispatch_maximum_size(
-                &MaxSizeOf::calc_size(MaxSizeCalcBasis::FullPercentage, full_calculation.clone())
-                    .expect("valid full-percentage basis"),
+                percentage_basis,
+            ));
+            assert_fri04_c04_invalid(dispatch_maximum_size(
+                &MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, invalid.clone())
+                    .expect("valid Any basis"),
                 SizingAlgorithm::Grid,
                 PhysicalAxis::Horizontal,
-                definite,
-            ),
-            S::from_f64(40.0),
-        );
-        assert_fri04_c04_resolved(
-            dispatch_flex_basis(
-                &FlexBasisOf::calc_size(FlexBasisCalcBasis::FullPercentage, full_calculation)
-                    .expect("valid full-percentage basis"),
+                percentage_basis,
+            ));
+            assert_fri04_c04_invalid(dispatch_flex_basis(
+                &FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, invalid).expect("valid Any basis"),
                 SizingAlgorithm::Flex,
                 PhysicalAxis::Vertical,
-                definite,
-            ),
-            S::from_f64(40.0),
-        );
-
-        assert!(matches!(
-            dispatch_preferred_size(
-                &PreferredSizeOf::calc_size(
-                    PreferredSizeCalcBasis::FullPercentage,
-                    CalcSizeCalculationOf::<S>::size(),
-                )
-                .expect("valid full-percentage basis"),
-                SizingAlgorithm::Leaf,
-                PhysicalAxis::Horizontal,
-                PercentageBasisOf::MISSING,
-            ),
-            SizingDispatch::Supported(DispatchedSizingRequest::Auto)
-        ));
-        assert!(matches!(
-            dispatch_minimum_size(
-                &MinSizeOf::calc_size(
-                    MinSizeCalcBasis::FullPercentage,
-                    CalcSizeCalculationOf::<S>::size(),
-                )
-                .expect("valid full-percentage basis"),
-                SizingAlgorithm::Block,
-                PhysicalAxis::Vertical,
-                PercentageBasisOf::MISSING,
-            ),
-            SizingDispatch::Supported(DispatchedSizingRequest::Auto)
-        ));
-        assert!(matches!(
-            dispatch_maximum_size(
-                &MaxSizeOf::calc_size(
-                    MaxSizeCalcBasis::FullPercentage,
-                    CalcSizeCalculationOf::<S>::size(),
-                )
-                .expect("valid full-percentage basis"),
-                SizingAlgorithm::Grid,
-                PhysicalAxis::Horizontal,
-                PercentageBasisOf::MISSING,
-            ),
-            SizingDispatch::Supported(DispatchedSizingRequest::None)
-        ));
-        assert!(matches!(
-            dispatch_flex_basis(
-                &FlexBasisOf::calc_size(
-                    FlexBasisCalcBasis::FullPercentage,
-                    CalcSizeCalculationOf::<S>::size(),
-                )
-                .expect("valid full-percentage basis"),
-                SizingAlgorithm::Flex,
-                PhysicalAxis::Vertical,
-                PercentageBasisOf::MISSING,
-            ),
-            SizingDispatch::Supported(DispatchedSizingRequest::Content)
-        ));
-
-        let invalid = CalcSizeCalculationOf::from_coefficients(large, S::ONE, S::ZERO)
-            .expect("finite coefficients");
-        let percentage_basis = PercentageBasisOf::definite(large).expect("definite basis");
-        assert_fri04_c04_invalid(dispatch_preferred_size(
-            &PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, invalid.clone())
-                .expect("valid Any basis"),
-            SizingAlgorithm::Leaf,
-            PhysicalAxis::Horizontal,
-            percentage_basis,
-        ));
-        assert_fri04_c04_invalid(dispatch_minimum_size(
-            &MinSizeOf::calc_size(MinSizeCalcBasis::Any, invalid.clone()).expect("valid Any basis"),
-            SizingAlgorithm::Block,
-            PhysicalAxis::Vertical,
-            percentage_basis,
-        ));
-        assert_fri04_c04_invalid(dispatch_maximum_size(
-            &MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, invalid.clone()).expect("valid Any basis"),
-            SizingAlgorithm::Grid,
-            PhysicalAxis::Horizontal,
-            percentage_basis,
-        ));
-        assert_fri04_c04_invalid(dispatch_flex_basis(
-            &FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, invalid).expect("valid Any basis"),
-            SizingAlgorithm::Flex,
-            PhysicalAxis::Vertical,
-            percentage_basis,
-        ));
+                percentage_basis,
+            ));
+        };
     }
 
     #[test]
@@ -2171,325 +2194,60 @@ mod tests {
 
     #[test]
     fn fri04_c04_dispatch_direct_and_keyword_calc_size_payloads_are_exact() {
-        let algorithms = [
-            SizingAlgorithm::Leaf,
-            SizingAlgorithm::Block,
-            SizingAlgorithm::Flex,
-            SizingAlgorithm::Grid,
-            SizingAlgorithm::GridLanes,
-            SizingAlgorithm::Positioned,
-        ];
-        let direct = [
-            (
-                PreferredSizeOf::<f32>::fit_content_function(px_f32(1.0)),
-                SizingBehavior::FitContentFunction,
-            ),
-            (PreferredSizeOf::STRETCH, SizingBehavior::Stretch),
-            (PreferredSizeOf::FIT_CONTENT, SizingBehavior::FitContent),
-            (PreferredSizeOf::CONTAIN, SizingBehavior::Contain),
-        ];
-        for algorithm in algorithms {
-            for (value, behavior) in &direct {
-                let SizingDispatch::Unsupported(capability) = dispatch_preferred_size(
-                    value,
-                    algorithm,
-                    PhysicalAxis::Vertical,
-                    PercentageBasisOf::MISSING,
-                ) else {
-                    panic!("later-owned direct behavior must be unsupported");
-                };
-                assert_eq!(capability.property(), SizingProperty::Preferred);
-                assert_eq!(capability.behavior(), *behavior);
-                assert_eq!(capability.algorithm(), algorithm);
-                assert_eq!(capability.axis(), PhysicalAxis::Vertical);
-            }
-        }
-
-        let calculation = CalcSizeCalculationOf::<f32>::size();
-        let keyword_cases = [
-            (
-                PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Auto, calculation.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::Auto,
-            ),
-            (
-                PreferredSizeOf::calc_size(PreferredSizeCalcBasis::MinContent, calculation.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::MinContent,
-            ),
-            (
-                PreferredSizeOf::calc_size(PreferredSizeCalcBasis::MaxContent, calculation.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::MaxContent,
-            ),
-            (
-                PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Stretch, calculation.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::Stretch,
-            ),
-            (
-                PreferredSizeOf::calc_size(PreferredSizeCalcBasis::FitContent, calculation.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::FitContent,
-            ),
-            (
-                PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Contain, calculation)
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::Contain,
-            ),
-        ];
-        for algorithm in algorithms {
-            for (value, basis) in &keyword_cases {
-                let SizingDispatch::Unsupported(capability) = dispatch_preferred_size(
-                    value,
-                    algorithm,
-                    PhysicalAxis::Horizontal,
-                    PercentageBasisOf::MISSING,
-                ) else {
-                    panic!("keyword calc-size must be unsupported");
-                };
-                assert_eq!(capability.property(), SizingProperty::Preferred);
-                assert_eq!(capability.behavior(), SizingBehavior::CalcSize(*basis));
-                assert_eq!(capability.algorithm(), algorithm);
-                assert_eq!(capability.axis(), PhysicalAxis::Horizontal);
-            }
-        }
-
-        for supported in [
-            dispatch_preferred_size(
-                &PreferredSizeOf::<f32>::AUTO,
-                SizingAlgorithm::Leaf,
-                PhysicalAxis::Horizontal,
-                PercentageBasisOf::MISSING,
-            ),
-            dispatch_minimum_size(
-                &MinSizeOf::<f32>::AUTO,
-                SizingAlgorithm::Block,
-                PhysicalAxis::Horizontal,
-                PercentageBasisOf::MISSING,
-            ),
-            dispatch_maximum_size(
-                &MaxSizeOf::<f32>::NONE,
-                SizingAlgorithm::Grid,
-                PhysicalAxis::Horizontal,
-                PercentageBasisOf::MISSING,
-            ),
-            dispatch_flex_basis(
-                &FlexBasisOf::<f32>::CONTENT,
-                SizingAlgorithm::Flex,
-                PhysicalAxis::Horizontal,
-                PercentageBasisOf::MISSING,
-            ),
-        ] {
-            assert!(matches!(supported, SizingDispatch::Supported(_)));
-        }
+        (Fri04C04DispatchDirectAndKeywordCalcSizePayloadsAreExactPhaseL2173::RUN)()
     }
 
-    #[test]
-    fn fri04_c04_dispatch_exhaustive_direct_and_keyword_tables_match_d06() {
-        let algorithms = [
-            SizingAlgorithm::Leaf,
-            SizingAlgorithm::Block,
-            SizingAlgorithm::Flex,
-            SizingAlgorithm::Grid,
-            SizingAlgorithm::GridLanes,
-            SizingAlgorithm::Positioned,
-        ];
-        let axis = PhysicalAxis::Vertical;
-        let percentage_basis = PercentageBasisOf::MISSING;
-        let calculation = px_f32(2.0);
+    type Fri04C04DispatchDirectAndKeywordCalcSizePayloadsAreExactPhaseL2173Run = fn();
 
-        for algorithm in algorithms {
-            for dispatch in [
-                dispatch_preferred_size(
-                    &PreferredSizeOf::<f32>::AUTO,
-                    algorithm,
-                    axis,
-                    percentage_basis,
-                ),
-                dispatch_preferred_size(
-                    &PreferredSizeOf::value(LengthPercentageOf::ZERO),
-                    algorithm,
-                    axis,
-                    percentage_basis,
-                ),
-                dispatch_preferred_size(
-                    &PreferredSizeOf::calculation(calculation.clone()),
-                    algorithm,
-                    axis,
-                    percentage_basis,
-                ),
-            ] {
-                assert!(matches!(dispatch, SizingDispatch::Supported(_)));
-            }
+    struct Fri04C04DispatchDirectAndKeywordCalcSizePayloadsAreExactPhaseL2173;
 
-            for (value, behavior) in [
-                (PreferredSizeOf::MIN_CONTENT, SizingBehavior::MinContent),
-                (PreferredSizeOf::MAX_CONTENT, SizingBehavior::MaxContent),
-            ] {
-                let dispatch = dispatch_preferred_size(&value, algorithm, axis, percentage_basis);
-                if matches!(
-                    algorithm,
-                    SizingAlgorithm::Leaf
-                        | SizingAlgorithm::Block
-                        | SizingAlgorithm::Grid
-                        | SizingAlgorithm::GridLanes
-                ) {
-                    assert!(matches!(dispatch, SizingDispatch::Supported(_)));
-                } else {
-                    assert_fri04_c04_unsupported(
-                        dispatch,
-                        SizingProperty::Preferred,
-                        behavior,
-                        algorithm,
-                        axis,
-                    );
-                }
-            }
-
-            for (value, behavior) in [
+    impl Fri04C04DispatchDirectAndKeywordCalcSizePayloadsAreExactPhaseL2173 {
+        const RUN: Fri04C04DispatchDirectAndKeywordCalcSizePayloadsAreExactPhaseL2173Run = || {
+            let algorithms = [
+                SizingAlgorithm::Leaf,
+                SizingAlgorithm::Block,
+                SizingAlgorithm::Flex,
+                SizingAlgorithm::Grid,
+                SizingAlgorithm::GridLanes,
+                SizingAlgorithm::Positioned,
+            ];
+            let direct = [
                 (
-                    PreferredSizeOf::fit_content_function(calculation.clone()),
+                    PreferredSizeOf::<f32>::fit_content_function(px_f32(1.0)),
                     SizingBehavior::FitContentFunction,
                 ),
                 (PreferredSizeOf::STRETCH, SizingBehavior::Stretch),
                 (PreferredSizeOf::FIT_CONTENT, SizingBehavior::FitContent),
                 (PreferredSizeOf::CONTAIN, SizingBehavior::Contain),
-            ] {
-                assert_fri04_c04_unsupported(
-                    dispatch_preferred_size(&value, algorithm, axis, percentage_basis),
-                    SizingProperty::Preferred,
-                    behavior,
-                    algorithm,
-                    axis,
-                );
+            ];
+            for algorithm in algorithms {
+                for (value, behavior) in &direct {
+                    let SizingDispatch::Unsupported(capability) = dispatch_preferred_size(
+                        value,
+                        algorithm,
+                        PhysicalAxis::Vertical,
+                        PercentageBasisOf::MISSING,
+                    ) else {
+                        panic!("later-owned direct behavior must be unsupported");
+                    };
+                    assert_eq!(capability.property(), SizingProperty::Preferred);
+                    assert_eq!(capability.behavior(), *behavior);
+                    assert_eq!(capability.algorithm(), algorithm);
+                    assert_eq!(capability.axis(), PhysicalAxis::Vertical);
+                }
             }
 
-            for dispatch in [
-                dispatch_minimum_size(&MinSizeOf::<f32>::AUTO, algorithm, axis, percentage_basis),
-                dispatch_minimum_size(&MinSizeOf::ZERO, algorithm, axis, percentage_basis),
-                dispatch_minimum_size(
-                    &MinSizeOf::calculation(calculation.clone()),
-                    algorithm,
-                    axis,
-                    percentage_basis,
-                ),
-            ] {
-                assert!(matches!(dispatch, SizingDispatch::Supported(_)));
-            }
-            for (value, behavior) in [
-                (MinSizeOf::MIN_CONTENT, SizingBehavior::MinContent),
-                (MinSizeOf::MAX_CONTENT, SizingBehavior::MaxContent),
+            let calculation = CalcSizeCalculationOf::<f32>::size();
+            let keyword_cases = [
                 (
-                    MinSizeOf::fit_content_function(calculation.clone()),
-                    SizingBehavior::FitContentFunction,
-                ),
-                (MinSizeOf::STRETCH, SizingBehavior::Stretch),
-                (MinSizeOf::FIT_CONTENT, SizingBehavior::FitContent),
-                (MinSizeOf::CONTAIN, SizingBehavior::Contain),
-            ] {
-                assert_fri04_c04_unsupported(
-                    dispatch_minimum_size(&value, algorithm, axis, percentage_basis),
-                    SizingProperty::Minimum,
-                    behavior,
-                    algorithm,
-                    axis,
-                );
-            }
-
-            for dispatch in [
-                dispatch_maximum_size(&MaxSizeOf::<f32>::NONE, algorithm, axis, percentage_basis),
-                dispatch_maximum_size(&MaxSizeOf::ZERO, algorithm, axis, percentage_basis),
-                dispatch_maximum_size(
-                    &MaxSizeOf::calculation(calculation.clone()),
-                    algorithm,
-                    axis,
-                    percentage_basis,
-                ),
-            ] {
-                assert!(matches!(dispatch, SizingDispatch::Supported(_)));
-            }
-            for (value, behavior) in [
-                (MaxSizeOf::MIN_CONTENT, SizingBehavior::MinContent),
-                (MaxSizeOf::MAX_CONTENT, SizingBehavior::MaxContent),
-                (
-                    MaxSizeOf::fit_content_function(calculation.clone()),
-                    SizingBehavior::FitContentFunction,
-                ),
-                (MaxSizeOf::STRETCH, SizingBehavior::Stretch),
-                (MaxSizeOf::FIT_CONTENT, SizingBehavior::FitContent),
-                (MaxSizeOf::CONTAIN, SizingBehavior::Contain),
-            ] {
-                assert_fri04_c04_unsupported(
-                    dispatch_maximum_size(&value, algorithm, axis, percentage_basis),
-                    SizingProperty::Maximum,
-                    behavior,
-                    algorithm,
-                    axis,
-                );
-            }
-        }
-
-        for dispatch in [
-            dispatch_flex_basis(
-                &FlexBasisOf::<f32>::AUTO,
-                SizingAlgorithm::Flex,
-                axis,
-                percentage_basis,
-            ),
-            dispatch_flex_basis(
-                &FlexBasisOf::CONTENT,
-                SizingAlgorithm::Flex,
-                axis,
-                percentage_basis,
-            ),
-            dispatch_flex_basis(
-                &FlexBasisOf::ZERO,
-                SizingAlgorithm::Flex,
-                axis,
-                percentage_basis,
-            ),
-            dispatch_flex_basis(
-                &FlexBasisOf::calculation(calculation.clone()),
-                SizingAlgorithm::Flex,
-                axis,
-                percentage_basis,
-            ),
-        ] {
-            assert!(matches!(dispatch, SizingDispatch::Supported(_)));
-        }
-        for (value, behavior) in [
-            (FlexBasisOf::MIN_CONTENT, SizingBehavior::MinContent),
-            (FlexBasisOf::MAX_CONTENT, SizingBehavior::MaxContent),
-            (
-                FlexBasisOf::fit_content_function(calculation.clone()),
-                SizingBehavior::FitContentFunction,
-            ),
-            (FlexBasisOf::STRETCH, SizingBehavior::Stretch),
-            (FlexBasisOf::FIT_CONTENT, SizingBehavior::FitContent),
-            (FlexBasisOf::CONTAIN, SizingBehavior::Contain),
-        ] {
-            assert_fri04_c04_unsupported(
-                dispatch_flex_basis(&value, SizingAlgorithm::Flex, axis, percentage_basis),
-                SizingProperty::FlexBasis,
-                behavior,
-                SizingAlgorithm::Flex,
-                axis,
-            );
-        }
-
-        let calc_size = CalcSizeCalculationOf::<f32>::size();
-        for algorithm in algorithms {
-            for (value, basis) in [
-                (
-                    PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Auto, calc_size.clone())
+                    PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Auto, calculation.clone())
                         .expect("valid basis"),
                     CalcSizeBehaviorBasis::Auto,
                 ),
                 (
                     PreferredSizeOf::calc_size(
                         PreferredSizeCalcBasis::MinContent,
-                        calc_size.clone(),
+                        calculation.clone(),
                     )
                     .expect("valid basis"),
                     CalcSizeBehaviorBasis::MinContent,
@@ -2497,325 +2255,650 @@ mod tests {
                 (
                     PreferredSizeOf::calc_size(
                         PreferredSizeCalcBasis::MaxContent,
-                        calc_size.clone(),
+                        calculation.clone(),
                     )
                     .expect("valid basis"),
                     CalcSizeBehaviorBasis::MaxContent,
                 ),
                 (
-                    PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Stretch, calc_size.clone())
-                        .expect("valid basis"),
+                    PreferredSizeOf::calc_size(
+                        PreferredSizeCalcBasis::Stretch,
+                        calculation.clone(),
+                    )
+                    .expect("valid basis"),
                     CalcSizeBehaviorBasis::Stretch,
                 ),
                 (
                     PreferredSizeOf::calc_size(
                         PreferredSizeCalcBasis::FitContent,
-                        calc_size.clone(),
+                        calculation.clone(),
                     )
                     .expect("valid basis"),
                     CalcSizeBehaviorBasis::FitContent,
                 ),
                 (
-                    PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Contain, calc_size.clone())
+                    PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Contain, calculation)
                         .expect("valid basis"),
                     CalcSizeBehaviorBasis::Contain,
                 ),
+            ];
+            for algorithm in algorithms {
+                for (value, basis) in &keyword_cases {
+                    let SizingDispatch::Unsupported(capability) = dispatch_preferred_size(
+                        value,
+                        algorithm,
+                        PhysicalAxis::Horizontal,
+                        PercentageBasisOf::MISSING,
+                    ) else {
+                        panic!("keyword calc-size must be unsupported");
+                    };
+                    assert_eq!(capability.property(), SizingProperty::Preferred);
+                    assert_eq!(capability.behavior(), SizingBehavior::CalcSize(*basis));
+                    assert_eq!(capability.algorithm(), algorithm);
+                    assert_eq!(capability.axis(), PhysicalAxis::Horizontal);
+                }
+            }
+
+            for supported in [
+                dispatch_preferred_size(
+                    &PreferredSizeOf::<f32>::AUTO,
+                    SizingAlgorithm::Leaf,
+                    PhysicalAxis::Horizontal,
+                    PercentageBasisOf::MISSING,
+                ),
+                dispatch_minimum_size(
+                    &MinSizeOf::<f32>::AUTO,
+                    SizingAlgorithm::Block,
+                    PhysicalAxis::Horizontal,
+                    PercentageBasisOf::MISSING,
+                ),
+                dispatch_maximum_size(
+                    &MaxSizeOf::<f32>::NONE,
+                    SizingAlgorithm::Grid,
+                    PhysicalAxis::Horizontal,
+                    PercentageBasisOf::MISSING,
+                ),
+                dispatch_flex_basis(
+                    &FlexBasisOf::<f32>::CONTENT,
+                    SizingAlgorithm::Flex,
+                    PhysicalAxis::Horizontal,
+                    PercentageBasisOf::MISSING,
+                ),
+            ] {
+                assert!(matches!(supported, SizingDispatch::Supported(_)));
+            }
+        };
+    }
+
+    #[test]
+    fn fri04_c04_dispatch_exhaustive_direct_and_keyword_tables_match_d06() {
+        (Fri04C04DispatchExhaustiveDirectAndKeywordTablesMatchD06PhaseL2289::RUN)()
+    }
+
+    type Fri04C04DispatchExhaustiveDirectAndKeywordTablesMatchD06PhaseL2289Run = fn();
+
+    struct Fri04C04DispatchExhaustiveDirectAndKeywordTablesMatchD06PhaseL2289;
+
+    impl Fri04C04DispatchExhaustiveDirectAndKeywordTablesMatchD06PhaseL2289 {
+        const RUN: Fri04C04DispatchExhaustiveDirectAndKeywordTablesMatchD06PhaseL2289Run = || {
+            let algorithms = [
+                SizingAlgorithm::Leaf,
+                SizingAlgorithm::Block,
+                SizingAlgorithm::Flex,
+                SizingAlgorithm::Grid,
+                SizingAlgorithm::GridLanes,
+                SizingAlgorithm::Positioned,
+            ];
+            let axis = PhysicalAxis::Vertical;
+            let percentage_basis = PercentageBasisOf::MISSING;
+            let calculation = px_f32(2.0);
+
+            for algorithm in algorithms {
+                for dispatch in [
+                    dispatch_preferred_size(
+                        &PreferredSizeOf::<f32>::AUTO,
+                        algorithm,
+                        axis,
+                        percentage_basis,
+                    ),
+                    dispatch_preferred_size(
+                        &PreferredSizeOf::value(LengthPercentageOf::ZERO),
+                        algorithm,
+                        axis,
+                        percentage_basis,
+                    ),
+                    dispatch_preferred_size(
+                        &PreferredSizeOf::calculation(calculation.clone()),
+                        algorithm,
+                        axis,
+                        percentage_basis,
+                    ),
+                ] {
+                    assert!(matches!(dispatch, SizingDispatch::Supported(_)));
+                }
+
+                for (value, behavior) in [
+                    (PreferredSizeOf::MIN_CONTENT, SizingBehavior::MinContent),
+                    (PreferredSizeOf::MAX_CONTENT, SizingBehavior::MaxContent),
+                ] {
+                    let dispatch =
+                        dispatch_preferred_size(&value, algorithm, axis, percentage_basis);
+                    if matches!(
+                        algorithm,
+                        SizingAlgorithm::Leaf
+                            | SizingAlgorithm::Block
+                            | SizingAlgorithm::Grid
+                            | SizingAlgorithm::GridLanes
+                    ) {
+                        assert!(matches!(dispatch, SizingDispatch::Supported(_)));
+                    } else {
+                        assert_fri04_c04_unsupported(
+                            dispatch,
+                            SizingProperty::Preferred,
+                            behavior,
+                            algorithm,
+                            axis,
+                        );
+                    }
+                }
+
+                for (value, behavior) in [
+                    (
+                        PreferredSizeOf::fit_content_function(calculation.clone()),
+                        SizingBehavior::FitContentFunction,
+                    ),
+                    (PreferredSizeOf::STRETCH, SizingBehavior::Stretch),
+                    (PreferredSizeOf::FIT_CONTENT, SizingBehavior::FitContent),
+                    (PreferredSizeOf::CONTAIN, SizingBehavior::Contain),
+                ] {
+                    assert_fri04_c04_unsupported(
+                        dispatch_preferred_size(&value, algorithm, axis, percentage_basis),
+                        SizingProperty::Preferred,
+                        behavior,
+                        algorithm,
+                        axis,
+                    );
+                }
+
+                for dispatch in [
+                    dispatch_minimum_size(
+                        &MinSizeOf::<f32>::AUTO,
+                        algorithm,
+                        axis,
+                        percentage_basis,
+                    ),
+                    dispatch_minimum_size(&MinSizeOf::ZERO, algorithm, axis, percentage_basis),
+                    dispatch_minimum_size(
+                        &MinSizeOf::calculation(calculation.clone()),
+                        algorithm,
+                        axis,
+                        percentage_basis,
+                    ),
+                ] {
+                    assert!(matches!(dispatch, SizingDispatch::Supported(_)));
+                }
+                for (value, behavior) in [
+                    (MinSizeOf::MIN_CONTENT, SizingBehavior::MinContent),
+                    (MinSizeOf::MAX_CONTENT, SizingBehavior::MaxContent),
+                    (
+                        MinSizeOf::fit_content_function(calculation.clone()),
+                        SizingBehavior::FitContentFunction,
+                    ),
+                    (MinSizeOf::STRETCH, SizingBehavior::Stretch),
+                    (MinSizeOf::FIT_CONTENT, SizingBehavior::FitContent),
+                    (MinSizeOf::CONTAIN, SizingBehavior::Contain),
+                ] {
+                    assert_fri04_c04_unsupported(
+                        dispatch_minimum_size(&value, algorithm, axis, percentage_basis),
+                        SizingProperty::Minimum,
+                        behavior,
+                        algorithm,
+                        axis,
+                    );
+                }
+
+                for dispatch in [
+                    dispatch_maximum_size(
+                        &MaxSizeOf::<f32>::NONE,
+                        algorithm,
+                        axis,
+                        percentage_basis,
+                    ),
+                    dispatch_maximum_size(&MaxSizeOf::ZERO, algorithm, axis, percentage_basis),
+                    dispatch_maximum_size(
+                        &MaxSizeOf::calculation(calculation.clone()),
+                        algorithm,
+                        axis,
+                        percentage_basis,
+                    ),
+                ] {
+                    assert!(matches!(dispatch, SizingDispatch::Supported(_)));
+                }
+                for (value, behavior) in [
+                    (MaxSizeOf::MIN_CONTENT, SizingBehavior::MinContent),
+                    (MaxSizeOf::MAX_CONTENT, SizingBehavior::MaxContent),
+                    (
+                        MaxSizeOf::fit_content_function(calculation.clone()),
+                        SizingBehavior::FitContentFunction,
+                    ),
+                    (MaxSizeOf::STRETCH, SizingBehavior::Stretch),
+                    (MaxSizeOf::FIT_CONTENT, SizingBehavior::FitContent),
+                    (MaxSizeOf::CONTAIN, SizingBehavior::Contain),
+                ] {
+                    assert_fri04_c04_unsupported(
+                        dispatch_maximum_size(&value, algorithm, axis, percentage_basis),
+                        SizingProperty::Maximum,
+                        behavior,
+                        algorithm,
+                        axis,
+                    );
+                }
+            }
+
+            for dispatch in [
+                dispatch_flex_basis(
+                    &FlexBasisOf::<f32>::AUTO,
+                    SizingAlgorithm::Flex,
+                    axis,
+                    percentage_basis,
+                ),
+                dispatch_flex_basis(
+                    &FlexBasisOf::CONTENT,
+                    SizingAlgorithm::Flex,
+                    axis,
+                    percentage_basis,
+                ),
+                dispatch_flex_basis(
+                    &FlexBasisOf::ZERO,
+                    SizingAlgorithm::Flex,
+                    axis,
+                    percentage_basis,
+                ),
+                dispatch_flex_basis(
+                    &FlexBasisOf::calculation(calculation.clone()),
+                    SizingAlgorithm::Flex,
+                    axis,
+                    percentage_basis,
+                ),
+            ] {
+                assert!(matches!(dispatch, SizingDispatch::Supported(_)));
+            }
+            for (value, behavior) in [
+                (FlexBasisOf::MIN_CONTENT, SizingBehavior::MinContent),
+                (FlexBasisOf::MAX_CONTENT, SizingBehavior::MaxContent),
+                (
+                    FlexBasisOf::fit_content_function(calculation.clone()),
+                    SizingBehavior::FitContentFunction,
+                ),
+                (FlexBasisOf::STRETCH, SizingBehavior::Stretch),
+                (FlexBasisOf::FIT_CONTENT, SizingBehavior::FitContent),
+                (FlexBasisOf::CONTAIN, SizingBehavior::Contain),
             ] {
                 assert_fri04_c04_unsupported(
-                    dispatch_preferred_size(&value, algorithm, axis, percentage_basis),
-                    SizingProperty::Preferred,
-                    SizingBehavior::CalcSize(basis),
-                    algorithm,
+                    dispatch_flex_basis(&value, SizingAlgorithm::Flex, axis, percentage_basis),
+                    SizingProperty::FlexBasis,
+                    behavior,
+                    SizingAlgorithm::Flex,
                     axis,
                 );
             }
 
+            let calc_size = CalcSizeCalculationOf::<f32>::size();
+            for algorithm in algorithms {
+                for (value, basis) in [
+                    (
+                        PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Auto, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::Auto,
+                    ),
+                    (
+                        PreferredSizeOf::calc_size(
+                            PreferredSizeCalcBasis::MinContent,
+                            calc_size.clone(),
+                        )
+                        .expect("valid basis"),
+                        CalcSizeBehaviorBasis::MinContent,
+                    ),
+                    (
+                        PreferredSizeOf::calc_size(
+                            PreferredSizeCalcBasis::MaxContent,
+                            calc_size.clone(),
+                        )
+                        .expect("valid basis"),
+                        CalcSizeBehaviorBasis::MaxContent,
+                    ),
+                    (
+                        PreferredSizeOf::calc_size(
+                            PreferredSizeCalcBasis::Stretch,
+                            calc_size.clone(),
+                        )
+                        .expect("valid basis"),
+                        CalcSizeBehaviorBasis::Stretch,
+                    ),
+                    (
+                        PreferredSizeOf::calc_size(
+                            PreferredSizeCalcBasis::FitContent,
+                            calc_size.clone(),
+                        )
+                        .expect("valid basis"),
+                        CalcSizeBehaviorBasis::FitContent,
+                    ),
+                    (
+                        PreferredSizeOf::calc_size(
+                            PreferredSizeCalcBasis::Contain,
+                            calc_size.clone(),
+                        )
+                        .expect("valid basis"),
+                        CalcSizeBehaviorBasis::Contain,
+                    ),
+                ] {
+                    assert_fri04_c04_unsupported(
+                        dispatch_preferred_size(&value, algorithm, axis, percentage_basis),
+                        SizingProperty::Preferred,
+                        SizingBehavior::CalcSize(basis),
+                        algorithm,
+                        axis,
+                    );
+                }
+
+                for (value, basis) in [
+                    (
+                        MinSizeOf::calc_size(MinSizeCalcBasis::Auto, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::Auto,
+                    ),
+                    (
+                        MinSizeOf::calc_size(MinSizeCalcBasis::MinContent, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::MinContent,
+                    ),
+                    (
+                        MinSizeOf::calc_size(MinSizeCalcBasis::MaxContent, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::MaxContent,
+                    ),
+                    (
+                        MinSizeOf::calc_size(MinSizeCalcBasis::Stretch, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::Stretch,
+                    ),
+                    (
+                        MinSizeOf::calc_size(MinSizeCalcBasis::FitContent, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::FitContent,
+                    ),
+                    (
+                        MinSizeOf::calc_size(MinSizeCalcBasis::Contain, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::Contain,
+                    ),
+                ] {
+                    assert_fri04_c04_unsupported(
+                        dispatch_minimum_size(&value, algorithm, axis, percentage_basis),
+                        SizingProperty::Minimum,
+                        SizingBehavior::CalcSize(basis),
+                        algorithm,
+                        axis,
+                    );
+                }
+
+                for (value, basis) in [
+                    (
+                        MaxSizeOf::calc_size(MaxSizeCalcBasis::None, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::None,
+                    ),
+                    (
+                        MaxSizeOf::calc_size(MaxSizeCalcBasis::MinContent, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::MinContent,
+                    ),
+                    (
+                        MaxSizeOf::calc_size(MaxSizeCalcBasis::MaxContent, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::MaxContent,
+                    ),
+                    (
+                        MaxSizeOf::calc_size(MaxSizeCalcBasis::Stretch, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::Stretch,
+                    ),
+                    (
+                        MaxSizeOf::calc_size(MaxSizeCalcBasis::FitContent, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::FitContent,
+                    ),
+                    (
+                        MaxSizeOf::calc_size(MaxSizeCalcBasis::Contain, calc_size.clone())
+                            .expect("valid basis"),
+                        CalcSizeBehaviorBasis::Contain,
+                    ),
+                ] {
+                    assert_fri04_c04_unsupported(
+                        dispatch_maximum_size(&value, algorithm, axis, percentage_basis),
+                        SizingProperty::Maximum,
+                        SizingBehavior::CalcSize(basis),
+                        algorithm,
+                        axis,
+                    );
+                }
+            }
+
             for (value, basis) in [
                 (
-                    MinSizeOf::calc_size(MinSizeCalcBasis::Auto, calc_size.clone())
+                    FlexBasisOf::calc_size(FlexBasisCalcBasis::Auto, calc_size.clone())
                         .expect("valid basis"),
                     CalcSizeBehaviorBasis::Auto,
                 ),
                 (
-                    MinSizeOf::calc_size(MinSizeCalcBasis::MinContent, calc_size.clone())
+                    FlexBasisOf::calc_size(FlexBasisCalcBasis::Content, calc_size.clone())
+                        .expect("valid basis"),
+                    CalcSizeBehaviorBasis::Content,
+                ),
+                (
+                    FlexBasisOf::calc_size(FlexBasisCalcBasis::MinContent, calc_size.clone())
                         .expect("valid basis"),
                     CalcSizeBehaviorBasis::MinContent,
                 ),
                 (
-                    MinSizeOf::calc_size(MinSizeCalcBasis::MaxContent, calc_size.clone())
+                    FlexBasisOf::calc_size(FlexBasisCalcBasis::MaxContent, calc_size.clone())
                         .expect("valid basis"),
                     CalcSizeBehaviorBasis::MaxContent,
                 ),
                 (
-                    MinSizeOf::calc_size(MinSizeCalcBasis::Stretch, calc_size.clone())
+                    FlexBasisOf::calc_size(FlexBasisCalcBasis::Stretch, calc_size.clone())
                         .expect("valid basis"),
                     CalcSizeBehaviorBasis::Stretch,
                 ),
                 (
-                    MinSizeOf::calc_size(MinSizeCalcBasis::FitContent, calc_size.clone())
+                    FlexBasisOf::calc_size(FlexBasisCalcBasis::FitContent, calc_size.clone())
                         .expect("valid basis"),
                     CalcSizeBehaviorBasis::FitContent,
                 ),
                 (
-                    MinSizeOf::calc_size(MinSizeCalcBasis::Contain, calc_size.clone())
+                    FlexBasisOf::calc_size(FlexBasisCalcBasis::Contain, calc_size)
                         .expect("valid basis"),
                     CalcSizeBehaviorBasis::Contain,
                 ),
             ] {
                 assert_fri04_c04_unsupported(
-                    dispatch_minimum_size(&value, algorithm, axis, percentage_basis),
-                    SizingProperty::Minimum,
+                    dispatch_flex_basis(&value, SizingAlgorithm::Flex, axis, percentage_basis),
+                    SizingProperty::FlexBasis,
                     SizingBehavior::CalcSize(basis),
-                    algorithm,
+                    SizingAlgorithm::Flex,
                     axis,
                 );
             }
-
-            for (value, basis) in [
-                (
-                    MaxSizeOf::calc_size(MaxSizeCalcBasis::None, calc_size.clone())
-                        .expect("valid basis"),
-                    CalcSizeBehaviorBasis::None,
-                ),
-                (
-                    MaxSizeOf::calc_size(MaxSizeCalcBasis::MinContent, calc_size.clone())
-                        .expect("valid basis"),
-                    CalcSizeBehaviorBasis::MinContent,
-                ),
-                (
-                    MaxSizeOf::calc_size(MaxSizeCalcBasis::MaxContent, calc_size.clone())
-                        .expect("valid basis"),
-                    CalcSizeBehaviorBasis::MaxContent,
-                ),
-                (
-                    MaxSizeOf::calc_size(MaxSizeCalcBasis::Stretch, calc_size.clone())
-                        .expect("valid basis"),
-                    CalcSizeBehaviorBasis::Stretch,
-                ),
-                (
-                    MaxSizeOf::calc_size(MaxSizeCalcBasis::FitContent, calc_size.clone())
-                        .expect("valid basis"),
-                    CalcSizeBehaviorBasis::FitContent,
-                ),
-                (
-                    MaxSizeOf::calc_size(MaxSizeCalcBasis::Contain, calc_size.clone())
-                        .expect("valid basis"),
-                    CalcSizeBehaviorBasis::Contain,
-                ),
-            ] {
-                assert_fri04_c04_unsupported(
-                    dispatch_maximum_size(&value, algorithm, axis, percentage_basis),
-                    SizingProperty::Maximum,
-                    SizingBehavior::CalcSize(basis),
-                    algorithm,
-                    axis,
-                );
-            }
-        }
-
-        for (value, basis) in [
-            (
-                FlexBasisOf::calc_size(FlexBasisCalcBasis::Auto, calc_size.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::Auto,
-            ),
-            (
-                FlexBasisOf::calc_size(FlexBasisCalcBasis::Content, calc_size.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::Content,
-            ),
-            (
-                FlexBasisOf::calc_size(FlexBasisCalcBasis::MinContent, calc_size.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::MinContent,
-            ),
-            (
-                FlexBasisOf::calc_size(FlexBasisCalcBasis::MaxContent, calc_size.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::MaxContent,
-            ),
-            (
-                FlexBasisOf::calc_size(FlexBasisCalcBasis::Stretch, calc_size.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::Stretch,
-            ),
-            (
-                FlexBasisOf::calc_size(FlexBasisCalcBasis::FitContent, calc_size.clone())
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::FitContent,
-            ),
-            (
-                FlexBasisOf::calc_size(FlexBasisCalcBasis::Contain, calc_size)
-                    .expect("valid basis"),
-                CalcSizeBehaviorBasis::Contain,
-            ),
-        ] {
-            assert_fri04_c04_unsupported(
-                dispatch_flex_basis(&value, SizingAlgorithm::Flex, axis, percentage_basis),
-                SizingProperty::FlexBasis,
-                SizingBehavior::CalcSize(basis),
-                SizingAlgorithm::Flex,
-                axis,
-            );
-        }
+        };
     }
 
     fn assert_property_sizing_lane<S: LayoutScalar>() {
-        assert_eq!(PreferredSizeOf::<S>::default(), PreferredSizeOf::AUTO);
-        assert_eq!(MinSizeOf::<S>::default(), MinSizeOf::AUTO);
-        assert_eq!(MaxSizeOf::<S>::default(), MaxSizeOf::NONE);
-        assert_eq!(FlexBasisOf::<S>::default(), FlexBasisOf::AUTO);
-        assert_eq!(
-            [
-                PreferredSizeOf::<S>::AUTO,
-                PreferredSizeOf::MIN_CONTENT,
-                PreferredSizeOf::MAX_CONTENT,
-                PreferredSizeOf::STRETCH,
-                PreferredSizeOf::FIT_CONTENT,
-                PreferredSizeOf::CONTAIN,
-            ]
-            .len(),
-            6
-        );
-        assert_eq!(
-            [
-                MinSizeOf::<S>::AUTO,
-                MinSizeOf::MIN_CONTENT,
-                MinSizeOf::MAX_CONTENT,
-                MinSizeOf::STRETCH,
-                MinSizeOf::FIT_CONTENT,
-                MinSizeOf::CONTAIN,
-                MinSizeOf::ZERO,
-            ]
-            .len(),
-            7
-        );
-        assert_eq!(
-            [
-                MaxSizeOf::<S>::NONE,
-                MaxSizeOf::MIN_CONTENT,
-                MaxSizeOf::MAX_CONTENT,
-                MaxSizeOf::STRETCH,
-                MaxSizeOf::FIT_CONTENT,
-                MaxSizeOf::CONTAIN,
-                MaxSizeOf::ZERO,
-            ]
-            .len(),
-            7
-        );
-        assert_eq!(
-            [
-                FlexBasisOf::<S>::AUTO,
-                FlexBasisOf::CONTENT,
-                FlexBasisOf::MIN_CONTENT,
-                FlexBasisOf::MAX_CONTENT,
-                FlexBasisOf::STRETCH,
-                FlexBasisOf::FIT_CONTENT,
-                FlexBasisOf::CONTAIN,
-                FlexBasisOf::ZERO,
-            ]
-            .len(),
-            8
-        );
+        (AssertPropertySizingLanePhaseL2663::<S>::RUN)()
+    }
 
-        let value = LengthPercentageOf::px(S::ONE).expect("finite px");
-        let calculation = SizingCalculationOf::value(value);
-        for property in [
-            PreferredSizeOf::<S>::value(value),
-            PreferredSizeOf::calculation(calculation.clone()),
-            PreferredSizeOf::fit_content_function(calculation.clone()),
-        ] {
-            assert!(!format!("{property:?}").is_empty());
-            assert_eq!(property, property.clone());
-        }
-        assert_eq!(
-            MinSizeOf::<S>::value(value),
-            MinSizeOf::calculation(calculation.clone())
-        );
-        assert_eq!(
-            MaxSizeOf::<S>::value(value),
-            MaxSizeOf::calculation(calculation.clone())
-        );
-        assert_eq!(
-            FlexBasisOf::<S>::value(value),
-            FlexBasisOf::calculation(calculation.clone())
-        );
-        assert!(MinSizeOf::fit_content_function(calculation.clone()).is_fit_content_function());
-        assert!(MaxSizeOf::fit_content_function(calculation.clone()).is_fit_content_function());
-        assert!(FlexBasisOf::fit_content_function(calculation).is_fit_content_function());
+    type AssertPropertySizingLanePhaseL2663Run = fn();
 
-        let dependent = CalcSizeCalculationOf::<S>::size();
-        let independent = CalcSizeCalculationOf::value(LengthPercentageOf::<S>::ZERO);
-        for basis in [
-            PreferredSizeCalcBasis::FullPercentage,
-            PreferredSizeCalcBasis::Auto,
-            PreferredSizeCalcBasis::MinContent,
-            PreferredSizeCalcBasis::MaxContent,
-            PreferredSizeCalcBasis::Stretch,
-            PreferredSizeCalcBasis::FitContent,
-            PreferredSizeCalcBasis::Contain,
-        ] {
-            assert!(PreferredSizeOf::calc_size(basis, dependent.clone()).is_ok());
-        }
-        assert!(
-            PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, independent.clone()).is_ok()
-        );
-        assert_eq!(
-            PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, dependent.clone()),
-            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
-        );
+    struct AssertPropertySizingLanePhaseL2663<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
 
-        for basis in [
-            MinSizeCalcBasis::FullPercentage,
-            MinSizeCalcBasis::Auto,
-            MinSizeCalcBasis::MinContent,
-            MinSizeCalcBasis::MaxContent,
-            MinSizeCalcBasis::Stretch,
-            MinSizeCalcBasis::FitContent,
-            MinSizeCalcBasis::Contain,
-        ] {
-            assert!(MinSizeOf::calc_size(basis, dependent.clone()).is_ok());
-        }
-        assert!(MinSizeOf::calc_size(MinSizeCalcBasis::Any, independent.clone()).is_ok());
-        assert_eq!(
-            MinSizeOf::calc_size(MinSizeCalcBasis::Any, dependent.clone()),
-            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
-        );
+    impl<S: LayoutScalar> AssertPropertySizingLanePhaseL2663<S> {
+        const RUN: AssertPropertySizingLanePhaseL2663Run = || {
+            assert_eq!(PreferredSizeOf::<S>::default(), PreferredSizeOf::AUTO);
+            assert_eq!(MinSizeOf::<S>::default(), MinSizeOf::AUTO);
+            assert_eq!(MaxSizeOf::<S>::default(), MaxSizeOf::NONE);
+            assert_eq!(FlexBasisOf::<S>::default(), FlexBasisOf::AUTO);
+            assert_eq!(
+                [
+                    PreferredSizeOf::<S>::AUTO,
+                    PreferredSizeOf::MIN_CONTENT,
+                    PreferredSizeOf::MAX_CONTENT,
+                    PreferredSizeOf::STRETCH,
+                    PreferredSizeOf::FIT_CONTENT,
+                    PreferredSizeOf::CONTAIN,
+                ]
+                .len(),
+                6
+            );
+            assert_eq!(
+                [
+                    MinSizeOf::<S>::AUTO,
+                    MinSizeOf::MIN_CONTENT,
+                    MinSizeOf::MAX_CONTENT,
+                    MinSizeOf::STRETCH,
+                    MinSizeOf::FIT_CONTENT,
+                    MinSizeOf::CONTAIN,
+                    MinSizeOf::ZERO,
+                ]
+                .len(),
+                7
+            );
+            assert_eq!(
+                [
+                    MaxSizeOf::<S>::NONE,
+                    MaxSizeOf::MIN_CONTENT,
+                    MaxSizeOf::MAX_CONTENT,
+                    MaxSizeOf::STRETCH,
+                    MaxSizeOf::FIT_CONTENT,
+                    MaxSizeOf::CONTAIN,
+                    MaxSizeOf::ZERO,
+                ]
+                .len(),
+                7
+            );
+            assert_eq!(
+                [
+                    FlexBasisOf::<S>::AUTO,
+                    FlexBasisOf::CONTENT,
+                    FlexBasisOf::MIN_CONTENT,
+                    FlexBasisOf::MAX_CONTENT,
+                    FlexBasisOf::STRETCH,
+                    FlexBasisOf::FIT_CONTENT,
+                    FlexBasisOf::CONTAIN,
+                    FlexBasisOf::ZERO,
+                ]
+                .len(),
+                8
+            );
 
-        for basis in [
-            MaxSizeCalcBasis::FullPercentage,
-            MaxSizeCalcBasis::None,
-            MaxSizeCalcBasis::MinContent,
-            MaxSizeCalcBasis::MaxContent,
-            MaxSizeCalcBasis::Stretch,
-            MaxSizeCalcBasis::FitContent,
-            MaxSizeCalcBasis::Contain,
-        ] {
-            assert!(MaxSizeOf::calc_size(basis, dependent.clone()).is_ok());
-        }
-        assert!(MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, independent.clone()).is_ok());
-        assert_eq!(
-            MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, dependent.clone()),
-            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
-        );
+            let value = LengthPercentageOf::px(S::ONE).expect("finite px");
+            let calculation = SizingCalculationOf::value(value);
+            for property in [
+                PreferredSizeOf::<S>::value(value),
+                PreferredSizeOf::calculation(calculation.clone()),
+                PreferredSizeOf::fit_content_function(calculation.clone()),
+            ] {
+                assert!(!format!("{property:?}").is_empty());
+                assert_eq!(property, property.clone());
+            }
+            assert_eq!(
+                MinSizeOf::<S>::value(value),
+                MinSizeOf::calculation(calculation.clone())
+            );
+            assert_eq!(
+                MaxSizeOf::<S>::value(value),
+                MaxSizeOf::calculation(calculation.clone())
+            );
+            assert_eq!(
+                FlexBasisOf::<S>::value(value),
+                FlexBasisOf::calculation(calculation.clone())
+            );
+            assert!(MinSizeOf::fit_content_function(calculation.clone()).is_fit_content_function());
+            assert!(MaxSizeOf::fit_content_function(calculation.clone()).is_fit_content_function());
+            assert!(FlexBasisOf::fit_content_function(calculation).is_fit_content_function());
 
-        for basis in [
-            FlexBasisCalcBasis::FullPercentage,
-            FlexBasisCalcBasis::Auto,
-            FlexBasisCalcBasis::Content,
-            FlexBasisCalcBasis::MinContent,
-            FlexBasisCalcBasis::MaxContent,
-            FlexBasisCalcBasis::Stretch,
-            FlexBasisCalcBasis::FitContent,
-            FlexBasisCalcBasis::Contain,
-        ] {
-            assert!(FlexBasisOf::calc_size(basis, dependent.clone()).is_ok());
-        }
-        assert!(FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, independent).is_ok());
-        assert_eq!(
-            FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, dependent),
-            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
-        );
+            let dependent = CalcSizeCalculationOf::<S>::size();
+            let independent = CalcSizeCalculationOf::value(LengthPercentageOf::<S>::ZERO);
+            for basis in [
+                PreferredSizeCalcBasis::FullPercentage,
+                PreferredSizeCalcBasis::Auto,
+                PreferredSizeCalcBasis::MinContent,
+                PreferredSizeCalcBasis::MaxContent,
+                PreferredSizeCalcBasis::Stretch,
+                PreferredSizeCalcBasis::FitContent,
+                PreferredSizeCalcBasis::Contain,
+            ] {
+                assert!(PreferredSizeOf::calc_size(basis, dependent.clone()).is_ok());
+            }
+            assert!(
+                PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, independent.clone())
+                    .is_ok()
+            );
+            assert_eq!(
+                PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, dependent.clone()),
+                Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+            );
+
+            for basis in [
+                MinSizeCalcBasis::FullPercentage,
+                MinSizeCalcBasis::Auto,
+                MinSizeCalcBasis::MinContent,
+                MinSizeCalcBasis::MaxContent,
+                MinSizeCalcBasis::Stretch,
+                MinSizeCalcBasis::FitContent,
+                MinSizeCalcBasis::Contain,
+            ] {
+                assert!(MinSizeOf::calc_size(basis, dependent.clone()).is_ok());
+            }
+            assert!(MinSizeOf::calc_size(MinSizeCalcBasis::Any, independent.clone()).is_ok());
+            assert_eq!(
+                MinSizeOf::calc_size(MinSizeCalcBasis::Any, dependent.clone()),
+                Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+            );
+
+            for basis in [
+                MaxSizeCalcBasis::FullPercentage,
+                MaxSizeCalcBasis::None,
+                MaxSizeCalcBasis::MinContent,
+                MaxSizeCalcBasis::MaxContent,
+                MaxSizeCalcBasis::Stretch,
+                MaxSizeCalcBasis::FitContent,
+                MaxSizeCalcBasis::Contain,
+            ] {
+                assert!(MaxSizeOf::calc_size(basis, dependent.clone()).is_ok());
+            }
+            assert!(MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, independent.clone()).is_ok());
+            assert_eq!(
+                MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, dependent.clone()),
+                Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+            );
+
+            for basis in [
+                FlexBasisCalcBasis::FullPercentage,
+                FlexBasisCalcBasis::Auto,
+                FlexBasisCalcBasis::Content,
+                FlexBasisCalcBasis::MinContent,
+                FlexBasisCalcBasis::MaxContent,
+                FlexBasisCalcBasis::Stretch,
+                FlexBasisCalcBasis::FitContent,
+                FlexBasisCalcBasis::Contain,
+            ] {
+                assert!(FlexBasisOf::calc_size(basis, dependent.clone()).is_ok());
+            }
+            assert!(FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, independent).is_ok());
+            assert_eq!(
+                FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, dependent),
+                Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+            );
+        };
     }
 
     #[test]

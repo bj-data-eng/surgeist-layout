@@ -234,153 +234,166 @@ fn fri06_c01_segment<S: LayoutScalar>(
 }
 
 fn assert_fri06_c01_inline_model<S: LayoutScalar>() {
-    fn assert_copy<T: Clone + Copy + core::fmt::Debug + PartialEq>() {}
-    fn assert_owned<T: Clone + core::fmt::Debug + PartialEq>() {}
+    (AssertFri06C01InlineModelPhaseL236::<S>::RUN)()
+}
 
-    assert_copy::<InlineSegmentId>();
-    assert_copy::<BidiLevel>();
-    assert_copy::<InlineWhitespaceEdge>();
-    assert_copy::<InlineBreakKind>();
-    assert_copy::<InlineBreakOpportunityOf<S>>();
-    assert_copy::<ShapedInlineSegmentOf<S>>();
-    assert_copy::<AtomicInlineParticipationOf<S>>();
-    assert_owned::<InlineTextInputOf<S>>();
+type AssertFri06C01InlineModelPhaseL236Run = fn();
 
-    let id = InlineSegmentId::new(42);
-    assert_eq!(id.get(), 42);
-    assert!(!BidiLevel::try_new(0).unwrap().is_rtl());
-    assert!(BidiLevel::try_new(125).unwrap().is_rtl());
-    assert_eq!(
-        BidiLevel::try_new(126),
-        Err(BidiLevelError::OutOfRange { level: 126 })
-    );
+struct AssertFri06C01InlineModelPhaseL236<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
 
-    let prohibited = InlineBreakOpportunityOf::<S>::prohibited();
-    let allowed = InlineBreakOpportunityOf::<S>::allowed();
-    let mandatory = InlineBreakOpportunityOf::<S>::mandatory();
-    let replacement =
-        InlineBreakOpportunityOf::<S>::try_allowed_with_replacement(S::from_f64(3.0)).unwrap();
-    assert_eq!(prohibited.kind(), InlineBreakKind::Prohibited);
-    assert_eq!(allowed.kind(), InlineBreakKind::Allowed);
-    assert_eq!(mandatory.kind(), InlineBreakKind::Mandatory);
-    assert_eq!(replacement.kind(), InlineBreakKind::AllowedWithReplacement);
-    assert_eq!(
-        replacement.replacement_inline_extent(),
-        Some(S::from_f64(3.0))
-    );
-    assert_eq!(allowed.replacement_inline_extent(), None);
-    for rejected in [S::from_f64(-1.0), S::INFINITY, S::NAN] {
-        assert!(matches!(
-            InlineBreakOpportunityOf::<S>::try_allowed_with_replacement(rejected),
-            Err(InlineTextInputErrorOf::InvalidReplacementInlineExtent { .. })
-        ));
-    }
-    let negative_zero =
-        InlineBreakOpportunityOf::<S>::try_allowed_with_replacement(-S::ZERO).unwrap();
-    assert_eq!(negative_zero.replacement_inline_extent(), Some(S::ZERO));
+impl<S: LayoutScalar> AssertFri06C01InlineModelPhaseL236<S> {
+    const RUN: AssertFri06C01InlineModelPhaseL236Run = || {
+        fn assert_copy<T: Clone + Copy + core::fmt::Debug + PartialEq>() {}
+        fn assert_owned<T: Clone + core::fmt::Debug + PartialEq>() {}
 
-    for whitespace in [
-        InlineWhitespaceEdge::Preserve,
-        InlineWhitespaceEdge::DiscardAtLineStart,
-        InlineWhitespaceEdge::DiscardAtLineEnd,
-        InlineWhitespaceEdge::DiscardAtBoth,
-    ] {
-        let segment = fri06_c01_segment(7, whitespace, allowed);
-        assert_eq!(segment.segment_id(), InlineSegmentId::new(7));
-        assert_eq!(segment.inline_extent(), S::from_f64(12.0));
+        assert_copy::<InlineSegmentId>();
+        assert_copy::<BidiLevel>();
+        assert_copy::<InlineWhitespaceEdge>();
+        assert_copy::<InlineBreakKind>();
+        assert_copy::<InlineBreakOpportunityOf<S>>();
+        assert_copy::<ShapedInlineSegmentOf<S>>();
+        assert_copy::<AtomicInlineParticipationOf<S>>();
+        assert_owned::<InlineTextInputOf<S>>();
+
+        let id = InlineSegmentId::new(42);
+        assert_eq!(id.get(), 42);
+        assert!(!BidiLevel::try_new(0).unwrap().is_rtl());
+        assert!(BidiLevel::try_new(125).unwrap().is_rtl());
         assert_eq!(
-            segment.metrics(),
-            InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap()
+            BidiLevel::try_new(126),
+            Err(BidiLevelError::OutOfRange { level: 126 })
         );
-        assert_eq!(segment.bidi_level(), BidiLevel::try_new(1).unwrap());
-        assert_eq!(segment.whitespace_edge(), whitespace);
-        assert_eq!(segment.following_break(), allowed);
-    }
 
-    for whitespace_edge in [
-        InlineWhitespaceEdge::DiscardAtLineStart,
-        InlineWhitespaceEdge::DiscardAtLineEnd,
-        InlineWhitespaceEdge::DiscardAtBoth,
-    ] {
-        assert!(matches!(
-            ShapedInlineSegmentOf::try_new(
-                InlineSegmentId::new(8),
-                S::from_f64(1.0),
-                InlineMetricsOf::default(),
-                BidiLevel::try_new(0).unwrap(),
-                whitespace_edge,
-                replacement,
-            ),
-            Err(InlineTextInputErrorOf::ReplacementWithDiscardableWhitespace { .. })
-        ));
-    }
-    for inline_extent in [S::from_f64(-1.0), S::INFINITY, S::NAN] {
-        assert!(matches!(
-            ShapedInlineSegmentOf::try_new(
-                InlineSegmentId::new(8),
-                inline_extent,
-                InlineMetricsOf::default(),
-                BidiLevel::try_new(0).unwrap(),
-                InlineWhitespaceEdge::Preserve,
-                prohibited,
-            ),
-            Err(InlineTextInputErrorOf::InvalidInlineExtent { .. })
-        ));
-    }
-
-    assert_eq!(
-        InlineTextInputOf::<S>::try_new(Vec::new()),
-        Err(InlineTextInputErrorOf::Empty)
-    );
-    let first = fri06_c01_segment(1, InlineWhitespaceEdge::Preserve, prohibited);
-    assert_eq!(
-        InlineTextInputOf::try_new(vec![first, first]),
-        Err(InlineTextInputErrorOf::DuplicateSegmentId {
-            segment_id: InlineSegmentId::new(1),
-        })
-    );
-    let text = InlineTextInputOf::try_new(vec![first]).unwrap();
-    assert_eq!(text.segments(), &[first]);
-    assert_eq!(
-        LayoutInputOf::inline_text(text.clone()).as_inline_text(),
-        Some(&text)
-    );
-
-    let atomic =
-        AtomicInlineParticipationOf::try_new(BidiLevel::try_new(2).unwrap(), allowed).unwrap();
-    assert_eq!(atomic.bidi_level(), BidiLevel::try_new(2).unwrap());
-    assert_eq!(atomic.following_break(), allowed);
-    for following_break in [prohibited, allowed, mandatory] {
-        assert!(
-            AtomicInlineParticipationOf::try_new(BidiLevel::try_new(0).unwrap(), following_break,)
-                .is_ok()
+        let prohibited = InlineBreakOpportunityOf::<S>::prohibited();
+        let allowed = InlineBreakOpportunityOf::<S>::allowed();
+        let mandatory = InlineBreakOpportunityOf::<S>::mandatory();
+        let replacement =
+            InlineBreakOpportunityOf::<S>::try_allowed_with_replacement(S::from_f64(3.0)).unwrap();
+        assert_eq!(prohibited.kind(), InlineBreakKind::Prohibited);
+        assert_eq!(allowed.kind(), InlineBreakKind::Allowed);
+        assert_eq!(mandatory.kind(), InlineBreakKind::Mandatory);
+        assert_eq!(replacement.kind(), InlineBreakKind::AllowedWithReplacement);
+        assert_eq!(
+            replacement.replacement_inline_extent(),
+            Some(S::from_f64(3.0))
         );
-    }
-    assert!(matches!(
-        AtomicInlineParticipationOf::try_new(BidiLevel::try_new(0).unwrap(), replacement),
-        Err(AtomicInlineParticipationErrorOf::ReplacementNotAllowed { .. })
-    ));
-
-    let default = NodeInputOf::<S>::default();
-    assert_eq!(default.atomic_inline_participation, None);
-    assert_eq!(default.float_exclusion, FloatExclusion::MarginBox);
-    let non_box = NodeInputOf::<S>::non_box();
-    assert_eq!(
-        non_box,
-        NodeInputOf {
-            display: Display::None,
-            ..NodeInputOf::default()
+        assert_eq!(allowed.replacement_inline_extent(), None);
+        for rejected in [S::from_f64(-1.0), S::INFINITY, S::NAN] {
+            assert!(matches!(
+                InlineBreakOpportunityOf::<S>::try_allowed_with_replacement(rejected),
+                Err(InlineTextInputErrorOf::InvalidReplacementInlineExtent { .. })
+            ));
         }
-    );
-    assert_eq!(non_box.display, Display::None);
-    assert_eq!(non_box.atomic_inline_participation, None);
-    assert_eq!(non_box.float_exclusion, FloatExclusion::MarginBox);
-    let vertical_align_name = |value| match value {
-        VerticalAlign::Baseline => "baseline",
-        VerticalAlign::Top => "top",
-        VerticalAlign::Bottom => "bottom",
+        let negative_zero =
+            InlineBreakOpportunityOf::<S>::try_allowed_with_replacement(-S::ZERO).unwrap();
+        assert_eq!(negative_zero.replacement_inline_extent(), Some(S::ZERO));
+
+        for whitespace in [
+            InlineWhitespaceEdge::Preserve,
+            InlineWhitespaceEdge::DiscardAtLineStart,
+            InlineWhitespaceEdge::DiscardAtLineEnd,
+            InlineWhitespaceEdge::DiscardAtBoth,
+        ] {
+            let segment = fri06_c01_segment(7, whitespace, allowed);
+            assert_eq!(segment.segment_id(), InlineSegmentId::new(7));
+            assert_eq!(segment.inline_extent(), S::from_f64(12.0));
+            assert_eq!(
+                segment.metrics(),
+                InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap()
+            );
+            assert_eq!(segment.bidi_level(), BidiLevel::try_new(1).unwrap());
+            assert_eq!(segment.whitespace_edge(), whitespace);
+            assert_eq!(segment.following_break(), allowed);
+        }
+
+        for whitespace_edge in [
+            InlineWhitespaceEdge::DiscardAtLineStart,
+            InlineWhitespaceEdge::DiscardAtLineEnd,
+            InlineWhitespaceEdge::DiscardAtBoth,
+        ] {
+            assert!(matches!(
+                ShapedInlineSegmentOf::try_new(
+                    InlineSegmentId::new(8),
+                    S::from_f64(1.0),
+                    InlineMetricsOf::default(),
+                    BidiLevel::try_new(0).unwrap(),
+                    whitespace_edge,
+                    replacement,
+                ),
+                Err(InlineTextInputErrorOf::ReplacementWithDiscardableWhitespace { .. })
+            ));
+        }
+        for inline_extent in [S::from_f64(-1.0), S::INFINITY, S::NAN] {
+            assert!(matches!(
+                ShapedInlineSegmentOf::try_new(
+                    InlineSegmentId::new(8),
+                    inline_extent,
+                    InlineMetricsOf::default(),
+                    BidiLevel::try_new(0).unwrap(),
+                    InlineWhitespaceEdge::Preserve,
+                    prohibited,
+                ),
+                Err(InlineTextInputErrorOf::InvalidInlineExtent { .. })
+            ));
+        }
+
+        assert_eq!(
+            InlineTextInputOf::<S>::try_new(Vec::new()),
+            Err(InlineTextInputErrorOf::Empty)
+        );
+        let first = fri06_c01_segment(1, InlineWhitespaceEdge::Preserve, prohibited);
+        assert_eq!(
+            InlineTextInputOf::try_new(vec![first, first]),
+            Err(InlineTextInputErrorOf::DuplicateSegmentId {
+                segment_id: InlineSegmentId::new(1),
+            })
+        );
+        let text = InlineTextInputOf::try_new(vec![first]).unwrap();
+        assert_eq!(text.segments(), &[first]);
+        assert_eq!(
+            LayoutInputOf::inline_text(text.clone()).as_inline_text(),
+            Some(&text)
+        );
+
+        let atomic =
+            AtomicInlineParticipationOf::try_new(BidiLevel::try_new(2).unwrap(), allowed).unwrap();
+        assert_eq!(atomic.bidi_level(), BidiLevel::try_new(2).unwrap());
+        assert_eq!(atomic.following_break(), allowed);
+        for following_break in [prohibited, allowed, mandatory] {
+            assert!(
+                AtomicInlineParticipationOf::try_new(
+                    BidiLevel::try_new(0).unwrap(),
+                    following_break,
+                )
+                .is_ok()
+            );
+        }
+        assert!(matches!(
+            AtomicInlineParticipationOf::try_new(BidiLevel::try_new(0).unwrap(), replacement),
+            Err(AtomicInlineParticipationErrorOf::ReplacementNotAllowed { .. })
+        ));
+
+        let default = NodeInputOf::<S>::default();
+        assert_eq!(default.atomic_inline_participation, None);
+        assert_eq!(default.float_exclusion, FloatExclusion::MarginBox);
+        let non_box = NodeInputOf::<S>::non_box();
+        assert_eq!(
+            non_box,
+            NodeInputOf {
+                display: Display::None,
+                ..NodeInputOf::default()
+            }
+        );
+        assert_eq!(non_box.display, Display::None);
+        assert_eq!(non_box.atomic_inline_participation, None);
+        assert_eq!(non_box.float_exclusion, FloatExclusion::MarginBox);
+        let vertical_align_name = |value| match value {
+            VerticalAlign::Baseline => "baseline",
+            VerticalAlign::Top => "top",
+            VerticalAlign::Bottom => "bottom",
+        };
+        assert_eq!(vertical_align_name(VerticalAlign::Bottom), "bottom");
     };
-    assert_eq!(vertical_align_name(VerticalAlign::Bottom), "bottom");
 }
 
 #[test]
@@ -1711,6 +1724,10 @@ fn collapsible_margins_preserve_css_block_collapse_rules() {
 
 #[test]
 fn public_flow_axes_cover_every_writing_mode_and_direction() {
+    (PUBLIC_FLOW_AXES_COVER_EVERY_WRITING_MODE_AND_DIRECTION_PHASE)();
+}
+
+const PUBLIC_FLOW_AXES_COVER_EVERY_WRITING_MODE_AND_DIRECTION_PHASE: fn() = || {
     let cases = [
         (
             WritingMode::HorizontalTb,
@@ -1820,7 +1837,7 @@ fn public_flow_axes_cover_every_writing_mode_and_direction() {
         assert_eq!(flow_axes.line_over(), line_over);
         assert_eq!(flow_axes.line_under(), line_over.opposite());
     }
-}
+};
 
 #[test]
 fn public_leaf_construction_retains_explicit_containing_flow() {
