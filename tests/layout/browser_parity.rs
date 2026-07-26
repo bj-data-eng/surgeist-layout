@@ -3777,6 +3777,77 @@ fn fri06_c08r_fixture_input_anonymous_wrapper_parser_is_closed_and_topology_chec
 }
 
 #[test]
+fn fri06_c08r_lineage_support_has_no_name_or_expectation_compatibility_path() {
+    let source = include_str!("browser_parity/support.rs");
+    for identifier in [
+        "apply_fri06_c08_finite_adapter",
+        "fri06_c08_fixture_name",
+        "mark_fri06_c08_grid_inline_text_wrappers",
+        "mark_fri06_c08_four_run_grid_wrapper",
+        "lower_fri06_c08_bidi_inline_boundaries",
+        "insert_fri06_c08_atomic_line_strut",
+        "insert_fri06_c08_float_line_strut",
+        "fri06_c08_synthetic_boundary",
+        "fixture_synthetic",
+    ] {
+        assert!(
+            !source.contains(identifier),
+            "removed compatibility identifier remains: {identifier}"
+        );
+    }
+    let parser = source
+        .split_once("impl Golden {")
+        .and_then(|(_, rest)| rest.split_once("pub fn fixture_files("))
+        .map(|(parser, _)| parser)
+        .expect("Golden parser source");
+    assert!(parser.contains("let root = parse_node(one_element_child(input)?)?;"));
+    assert!(parser.contains("validate_fri06_c08r_explicit_input(&root, true)?;"));
+    assert!(
+        parser.contains("let expectations = parse_expectation(one_element_child(expectations)?)?;")
+    );
+    assert!(!parser.contains("&name, &mut root"));
+    assert!(!parser.contains("&mut expectations"));
+}
+
+#[test]
+fn fri06_c08r_final_activation_union_browser_passes_without_substitutes() {
+    const KNOWN_CHROME_FAILURE_SUBSTITUTES: [&str; 0] = [];
+    let census =
+        include_str!("../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut outputs = BTreeSet::new();
+    let mut failures = Vec::new();
+    for line in census.lines().filter(|line| !line.starts_with('#')).skip(1) {
+        let fields = line.split('\t').collect::<Vec<_>>();
+        assert_eq!(fields.len(), 6, "activation row must retain six fields");
+        let source = fields[1]
+            .strip_prefix("html/")
+            .and_then(|source| source.strip_suffix(".html"))
+            .expect("normalized activation source");
+        let output = format!(
+            "tests/layout/browser_parity/xml/{source}__{}.xml",
+            fields[2]
+        );
+        assert!(outputs.insert(output.clone()), "duplicate activation row");
+        match support::Golden::parse_file(repository.join(&output)) {
+            Ok(golden) => {
+                if let Err(error) = support::assert_surgeist_matches(&golden) {
+                    failures.push(format!("{output}: {error}"));
+                }
+            }
+            Err(error) => failures.push(format!("{output}: {error}")),
+        }
+    }
+    assert_eq!(outputs.len(), 388);
+    assert!(KNOWN_CHROME_FAILURE_SUBSTITUTES.is_empty());
+    assert!(
+        failures.is_empty(),
+        "activation rows without a reviewed substitute failed:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
 fn fri06_c08_recovery_inputs_shape_break_places_34_38_then_42_46_on_two_lines() {
     let xml = fri06_c08_recovery_inputs_shape_xml();
     let golden = support::Golden::parse(&xml).expect("exact shape-break fixture should parse");

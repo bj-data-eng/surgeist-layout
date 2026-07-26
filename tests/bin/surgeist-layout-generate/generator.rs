@@ -13557,6 +13557,320 @@ status = "active"
         path.to_str().expect("test paths should be utf-8")
     }
 
+    fn fri06_c08r_source_slice<'a>(source: &'a str, start: &str, end: &str) -> &'a str {
+        let start = source.find(start).expect("frozen source slice start");
+        let end = source[start..]
+            .find(end)
+            .map(|offset| start + offset)
+            .expect("frozen source slice end");
+        &source[start..end]
+    }
+
+    fn fri06_c08r_activation_outputs() -> BTreeSet<String> {
+        let census =
+            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
+        assert_eq!(
+            sha256_bytes(census.as_bytes()),
+            "0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691"
+        );
+        let outputs = census
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .skip(1)
+            .map(|line| {
+                let fields = line.split('\t').collect::<Vec<_>>();
+                assert_eq!(fields.len(), 6, "activation row must retain six fields");
+                let source = fields[1]
+                    .strip_prefix("html/")
+                    .and_then(|source| source.strip_suffix(".html"))
+                    .expect("activation source path");
+                format!("xml/{source}__{}.xml", fields[2])
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(outputs.len(), 388);
+        outputs
+    }
+
+    fn fri06_c08r_xml_body_aggregate(corpus: &Path, outputs: &BTreeSet<String>) -> String {
+        let mut digest = Sha256::new();
+        for output in outputs {
+            let raw = fs::read_to_string(corpus.join(output)).expect(output);
+            let body = raw
+                .split_once('\n')
+                .map(|(_, body)| body)
+                .expect("generated XML provenance line");
+            digest.update(output.as_bytes());
+            digest.update([0]);
+            digest.update(body.as_bytes());
+            digest.update([0]);
+        }
+        hex_digest(&digest.finalize())
+    }
+
+    fn fri06_c08r_final_report(corpus: &Path) -> Value {
+        let raw = fs::read_to_string(corpus.join("xml/generation-reports/all.json"))
+            .expect("authoritative generation report");
+        serde_json::from_str(&raw).expect("authoritative report JSON")
+    }
+
+    #[test]
+    fn fri06_c08r_lineage_environment_is_unfiltered_and_default_rooted() {
+        for variable in [ROOT_ENV, FILTER_ENV, BROWSER_CACHE_ENV, BROWSER_VERSION_ENV] {
+            assert!(
+                env::var_os(variable).is_none(),
+                "{variable} must be absent for final-lineage evidence"
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_c08r_lineage_frozen_provenance_inputs_match_reviewed_values() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let corpus = repository.join("tests/layout/browser_parity");
+        let manifest = read_corpus_manifest(&Config {
+            root: corpus.clone(),
+            html_root: corpus.join("html"),
+            xml_root: corpus.join("xml"),
+        })
+        .expect("frozen corpus manifest");
+        assert_eq!(
+            sha256_file(&corpus.join("corpus.toml")).expect("manifest hash"),
+            "99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701"
+        );
+        assert_eq!(
+            sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()),
+            "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6"
+        );
+        assert_eq!(
+            launch_profile_digest(&manifest.browser.launch).expect("launch profile"),
+            "9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb"
+        );
+        assert_eq!(manifest.browser.version, "149.0.7827.115");
+        assert_eq!(manifest.imports.taffy.commit, TAFFY_COMMIT);
+        assert_eq!(fri06_c08r_activation_outputs().len(), 388);
+    }
+
+    #[test]
+    fn fri06_c08r_lineage_helper_and_eight_html_inputs_are_byte_frozen() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        for (path, expected) in [
+            (
+                "tests/layout/browser_parity/scripts/gentest/test_helper.js",
+                "23779c478c392bb7219f39ca73500b3574e497713c27e055049ff27fd38e5178",
+            ),
+            (
+                "tests/layout/browser_parity/html/subgrid/subgrid_baseline_auto_columns_first_item.html",
+                "e61a089de19d3366b1b1c0fd4fd15232d0f302fafacdecb0bc5e1b85fee9c428",
+            ),
+            (
+                "tests/layout/browser_parity/html/subgrid/subgrid_baseline_auto_columns_second_item.html",
+                "c29f0a0c153e450c61a430499f488382cbc820b82cb53e448c55cf4e755371e7",
+            ),
+            (
+                "tests/layout/browser_parity/html/subgrid/subgrid_baseline_standalone_axis_first_item.html",
+                "64d21ea29cf2c1e55be087c3b7fea9e2d1f20ecaa6b34a20773d34e7c2adf859",
+            ),
+            (
+                "tests/layout/browser_parity/html/subgrid/subgrid_baseline_standalone_axis_second_item.html",
+                "3bf53279ac7e74dd7ce9df4bd4b54dc7379df35efa87a829baa27bf1d07777ba",
+            ),
+            (
+                "tests/layout/browser_parity/html/subgrid/subgrid_auto_track_sizing_min_content_text_runs.html",
+                "6e2a6a4cea108df2fda55e5c3e0f02ff080d1b75dd9ab9c52ab833ddf6d0b754",
+            ),
+            (
+                "tests/layout/browser_parity/html/block/fri06_bidi_mixed_inline.html",
+                "2a0a81079914b57cb8fe21336aad8c165939cb3ccf77d1ca31a8e889f6e23bfe",
+            ),
+            (
+                "tests/layout/browser_parity/html/block/fri06_inline_mixed_text_atomic_wrap.html",
+                "a0fce2c3b15917b86f6355293a69386b8d470bd433630caaeaefb17b99b31c5d",
+            ),
+            (
+                "tests/layout/browser_parity/html/float/fri06_float_line_exclusion.html",
+                "169054142f69a4b94e878b9da1b7b80f11beb02212fea3f258cfd5d1a6632956",
+            ),
+        ] {
+            assert_eq!(sha256_file(&repository.join(path)).expect(path), expected);
+        }
+    }
+
+    #[test]
+    fn fri06_c08r_lineage_parser_and_serializer_implementations_are_frozen() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let support = fs::read_to_string(repository.join("tests/layout/browser_parity/support.rs"))
+            .expect("generated XML parser source");
+        let parser = fri06_c08r_source_slice(&support, "fn parse_node(", "fn parse_expectation(");
+        assert_eq!(
+            sha256_bytes(parser.as_bytes()),
+            "2c9c96fa64a7c6a2df073bcdc02a3eb11cd12653905fcae0eaaa83a0acbfb897"
+        );
+
+        let generator = fs::read_to_string(file!()).expect("generator source");
+        let serializer = fri06_c08r_source_slice(
+            &generator,
+            "fn generate_xml(",
+            "#[cfg(test)]\n#[path = \"../../layout/browser_parity/support.rs\"]",
+        );
+        assert_eq!(
+            sha256_bytes(serializer.as_bytes()),
+            "2a004418512b19a7e49eeae42cf01b2759aeda93cab4d6acc393e149ca06a710"
+        );
+    }
+
+    #[test]
+    fn fri06_c08r_final_lineage_report_closes_inventory_and_provenance() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let corpus = repository.join("tests/layout/browser_parity");
+        let report = fri06_c08r_final_report(&corpus);
+        assert!(report["filter"].is_null());
+        for (field, expected) in [
+            ("generated", 5_712),
+            ("unsupported", 16),
+            ("expected_fail", 0),
+            ("quarantined", 0),
+            ("failed_to_generate", 0),
+        ] {
+            assert_eq!(report["summary"][field].as_u64(), Some(expected));
+            assert_eq!(
+                report[field].as_array().map(Vec::len),
+                Some(expected as usize)
+            );
+        }
+        for entry in report["unsupported"]
+            .as_array()
+            .expect("unsupported report bucket")
+        {
+            assert_eq!(
+                entry["reason"].as_str(),
+                Some("Unsupported missing #test-root fixture root")
+            );
+        }
+        let metadata = &report["metadata"];
+        for (field, expected) in [
+            ("browser_version", "149.0.7827.115"),
+            (
+                "launch_profile_sha256",
+                "9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb",
+            ),
+            (
+                "helper_sha256",
+                "23779c478c392bb7219f39ca73500b3574e497713c27e055049ff27fd38e5178",
+            ),
+            (
+                "base_style_sha256",
+                "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
+            ),
+            (
+                "corpus_manifest_sha256",
+                "99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701",
+            ),
+            ("taffy_commit", TAFFY_COMMIT),
+        ] {
+            assert_eq!(metadata[field].as_str(), Some(expected), "{field}");
+        }
+        let report_files = collect_relative_files(&corpus.join("xml/generation-reports"))
+            .expect("generation report inventory");
+        assert_eq!(report_files, [PathBuf::from("all.json")]);
+    }
+
+    #[test]
+    fn fri06_c08r_final_lineage_preserves_nonactivation_xml_semantics() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let corpus = repository.join("tests/layout/browser_parity");
+        let report = fri06_c08r_final_report(&corpus);
+        let generated = report["generated"]
+            .as_array()
+            .expect("generated report bucket")
+            .iter()
+            .map(|entry| {
+                entry["output"]
+                    .as_str()
+                    .expect("generated output path")
+                    .to_string()
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(generated.len(), 5_712);
+        let activation = fri06_c08r_activation_outputs();
+        assert!(activation.is_subset(&generated));
+        let preserved = generated
+            .difference(&activation)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        assert_eq!(preserved.len(), 5_324);
+        assert_eq!(
+            fri06_c08r_xml_body_aggregate(&corpus, &preserved),
+            "852d293828a4c1427f5adac38d0f764131bda298d37109479ec25cac207fa027"
+        );
+        let files = collect_relative_files(&corpus.join("xml"))
+            .expect("generated XML inventory")
+            .into_iter()
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("xml"))
+            .map(|path| format!("xml/{}", path.to_string_lossy().replace('\\', "/")))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(files, generated);
+    }
+
+    #[test]
+    fn fri06_c08r_final_lineage_accounts_for_exact_marker_outputs() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let corpus = repository.join("tests/layout/browser_parity");
+        let report = fri06_c08r_final_report(&corpus);
+        let expected = BTreeMap::from([
+            (
+                "html/subgrid/subgrid_baseline_auto_columns_first_item.html",
+                (2, 0),
+            ),
+            (
+                "html/subgrid/subgrid_baseline_auto_columns_second_item.html",
+                (2, 0),
+            ),
+            (
+                "html/subgrid/subgrid_baseline_standalone_axis_first_item.html",
+                (2, 0),
+            ),
+            (
+                "html/subgrid/subgrid_baseline_standalone_axis_second_item.html",
+                (2, 0),
+            ),
+            (
+                "html/subgrid/subgrid_auto_track_sizing_min_content_text_runs.html",
+                (1, 0),
+            ),
+            ("html/block/fri06_bidi_mixed_inline.html", (0, 4)),
+            (
+                "html/block/fri06_inline_mixed_text_atomic_wrap.html",
+                (0, 1),
+            ),
+            ("html/float/fri06_float_line_exclusion.html", (0, 1)),
+        ]);
+        let mut seen = BTreeMap::<String, usize>::new();
+        for entry in report["generated"]
+            .as_array()
+            .expect("generated report bucket")
+        {
+            let source = entry["source"].as_str().expect("generated source");
+            let output = entry["output"].as_str().expect("generated output");
+            let raw = fs::read_to_string(corpus.join(output)).expect(output);
+            browser_parity_support::Golden::parse(&raw)
+                .unwrap_or_else(|error| panic!("{output} marker XML: {error}"));
+            let wrapper_count = raw
+                .matches("layout-ready-anonymous-grid-text-wrapper=\"true\"")
+                .count();
+            let boundary_count = raw.matches("<inline-boundary ").count();
+            assert_eq!(
+                (wrapper_count, boundary_count),
+                expected.get(source).copied().unwrap_or((0, 0)),
+                "{source} marker output"
+            );
+            if expected.contains_key(source) {
+                *seen.entry(source.to_string()).or_default() += 1;
+            }
+        }
+        assert_eq!(seen.len(), 8);
+        assert!(seen.values().all(|count| *count == 4));
+    }
+
     #[test]
     fn fri06_c08r_fixture_input_exact_source_marker_inventory_is_authored() {
         let html = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
@@ -13978,9 +14292,8 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
     fn fri06_c08_recovery_characterization_reconciles_literal_and_executed_censuses() {
         let literal =
             include_str!("../../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
-        let executed = include_str!(
-            "../../../plans/2026-07-20-surgeist-layout-fri-06-c08-second-lineage-census.md"
-        );
+        let executed =
+            include_str!("../../../plans/P01-layout/P01-I06-S01-C10-second-lineage-census.md");
         assert_eq!(
             sha256_bytes(literal.as_bytes()),
             "0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691"
