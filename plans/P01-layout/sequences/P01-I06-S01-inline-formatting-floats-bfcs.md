@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/P01-layout/initiatives/P01-I06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`702fab3acac6c66b22333f5120212ab36e365c7b6a00734d70285c583fb3c212`,
-committed as `49ede2ba2672a91f99ba193651dbb1350ede7b80`.
+`c7caa79f1c8016e8eb2210e1987ef81ddf6a5055b1c0452a59b6666431581c3e`,
+committed as `28a763b58ff0c856b8e655b158d3293e7998f62d`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -29,14 +29,17 @@ FRI-01's unit cache key remains unchanged. Transactional invalidation uses only
 the reviewed FRI-06 entry point, exact ancestor closure, and two-phase batch
 application.
 
-Scoped generation remains optional diagnostic work, never completion evidence.
-C10 synthesis is characterization only. C12 replaces name/expectation-driven
-lowering with the closed explicit fixture-input contract. Chrome and the browser
-helper own HTML parsing and actual-DOM marker validation; Rust must not
-reconstruct HTML, CSS, or DOM topology and may account only for helper-reported
-source-local marker use. C12 records exact known Chrome failures or `None` and
-owns the only full unfiltered existing-pinned lineage after inputs settle. A
-confirmed input defect returns to C12 and invalidates its lineage.
+Scoped generation remains optional diagnostic work, never completion evidence,
+and is never repeated over unchanged inputs. C10 synthesis and C12's first
+structurally successful full run are characterization only. C12 replaces
+name/expectation-driven lowering with the closed explicit fixture-input contract.
+Chrome and the browser helper own HTML parsing and actual-DOM marker validation;
+Rust must not reconstruct HTML, CSS, or DOM topology and may account only for
+helper-reported source-local marker use. A dedicated task resolves the newly
+configured crate-wide line-count lint without widening a feature task. C12 then
+realizes only production work proven by corrected-input diagnostics, records
+exact known Chrome failures or `None`, and owns the only final full unfiltered
+existing-pinned lineage after inputs settle.
 
 ## 3 Activation Recovery Evidence
 
@@ -341,17 +344,22 @@ cover the complete pinned recovery membership.
 physical-placement, comparator, fixture, and acceptance portions of `FRI-06.5`,
 `FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and `FRI-06.14`.
 **Prerequisites:** `P01/I06/S01/C11` complete and remotely verified.
-**Entry state:** C11's inputs and ten-row characterization are diagnostic-frozen;
-name/expectation-driven final lowering and unresolved production rows remain.
-**Bounded outcome:** Serialize the closed input-only fixture facts, record exact
-known Chrome failures or `None`, correct remaining production boundaries, freeze
-inputs, then run one full existing-pinned generation. No unchanged-input retry,
-generator architecture change, or later-owned behavior is permitted.
+**Entry state:** C11's assumed input freeze was invalidated by the honest 5,712
+full-run diagnostic: 314/388 activation rows fail, including 244 rows whose
+adapted HTML lost pinned WPT default-block roles, while direction-derived bidi
+levels and comparator-local identities are not final input evidence.
+**Bounded outcome:** Preserve that run as diagnostic, resolve the crate-wide
+line-count lint in its own task, restore the closed input-only fixture/comparator
+facts, and use scoped diagnostics only to realize exact remaining production
+tasks. Freeze all inputs and production behavior before one final full
+existing-pinned generation. No unchanged-input retry, generator architecture
+change, speculative task, or later-owned behavior is permitted.
 **Observable exit evidence:** Report is 5,712/16 and `filter: null`; expected-fail
 inventory exactly equals the reviewed plan registry, normally zero; every 388 row
 is browser-pass or has the reviewed synthetic substitute; the other 5,324 bodies
 preserve semantics; no scoped report remains and FRI-13 stays unclaimed.
-**Handoff:** The realized sequence ends with generator inputs and outputs frozen.
+**Handoff:** The realized sequence ends with generator inputs and outputs frozen;
+the successful assumption-failing run is not artifact lineage.
 
 ## 5 Sequence Completion
 
