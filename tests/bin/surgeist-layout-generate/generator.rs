@@ -14680,6 +14680,29 @@ const inactiveUnusedParent = parent(
 );
 const inactiveUnused = layoutReadyInlineBidiLevels(inactiveUnusedParent, [atomic]);
 rejectUnusedLayoutReadyInlineBidiLevels(inactiveUnused);
+
+const atomicChildren = [text, atomic, { ...text }];
+const atomicMarker = '[{"sourceIndex":0,"bidiLevel":1,"whenDirection":"rtl"},{"sourceIndex":1,"bidiLevel":1,"whenDirection":"rtl"},{"sourceIndex":2,"bidiLevel":1,"whenDirection":"rtl"}]';
+const ltrAtomicParent = parent(atomicMarker, atomicChildren);
+const ltrAtomic = layoutReadyInlineBidiLevels(ltrAtomicParent, atomicChildren);
+const ltrLevels = atomicChildren.map((_, sourceIndex) =>
+  consumeLayoutReadyInlineBidiLevel(ltrAtomic, sourceIndex)
+);
+if (JSON.stringify(ltrLevels) !== JSON.stringify([0, 0, 0]) || ltrAtomic.size !== 0) {
+  throw new Error(`inactive atomic RTL records produced ${JSON.stringify(ltrLevels)}`);
+}
+rejectUnusedLayoutReadyInlineBidiLevels(ltrAtomic);
+
+const rtlAtomicParent = parent(atomicMarker, atomicChildren);
+rtlAtomicParent.computedStyle.direction = 'rtl';
+const rtlAtomic = layoutReadyInlineBidiLevels(rtlAtomicParent, atomicChildren);
+const rtlLevels = atomicChildren.map((_, sourceIndex) =>
+  consumeLayoutReadyInlineBidiLevel(rtlAtomic, sourceIndex)
+);
+if (JSON.stringify(rtlLevels) !== JSON.stringify([1, 1, 1]) || rtlAtomic.size !== 0) {
+  throw new Error(`active atomic RTL records produced ${JSON.stringify(rtlLevels)}`);
+}
+rejectUnusedLayoutReadyInlineBidiLevels(rtlAtomic);
 "#,
         ]
         .concat();
@@ -14699,7 +14722,7 @@ rejectUnusedLayoutReadyInlineBidiLevels(inactiveUnused);
     }
 
     #[test]
-    fn fri06_c12_t07_exact_nine_source_marker_inventory_has_two_scoped_bidi_records() {
+    fn fri06_c12_t07_exact_nine_source_marker_inventory_has_four_scoped_bidi_records() {
         let html = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
         let markers = [
             "data-surgeist-anonymous-grid-text-wrapper=",
@@ -14738,18 +14761,33 @@ rejectUnusedLayoutReadyInlineBidiLevels(inactiveUnused);
                     .count()
             })
             .sum::<usize>();
-        assert_eq!(scoped_records, 2, "exact authored scoped bidi record count");
-        for (relative, source_index) in [
-            ("block/fri06_atomic_inline_percentage_block_size.html", 0),
-            ("float/fri06_float_line_exclusion.html", 4),
-        ] {
-            let raw = fs::read_to_string(html.join(relative)).expect(relative);
-            let record = format!(
-                r#"data-surgeist-inline-bidi-levels='[{{"sourceIndex":{source_index},"bidiLevel":1,"whenDirection":"rtl"}}]'"#
-            );
-            assert_eq!(raw.matches("data-surgeist-inline-bidi-levels=").count(), 1);
-            assert!(raw.contains(&record), "{relative} lacks {record}");
-        }
+        assert_eq!(scoped_records, 4, "exact authored scoped bidi record count");
+
+        let atomic_relative = "block/fri06_atomic_inline_percentage_block_size.html";
+        let atomic = fs::read_to_string(html.join(atomic_relative)).expect(atomic_relative);
+        let atomic_marker = r#"data-surgeist-inline-bidi-levels='[{"sourceIndex":0,"bidiLevel":1,"whenDirection":"rtl"},{"sourceIndex":1,"bidiLevel":1,"whenDirection":"rtl"},{"sourceIndex":2,"bidiLevel":1,"whenDirection":"rtl"}]'"#;
+        assert_eq!(
+            atomic.matches("data-surgeist-inline-bidi-levels=").count(),
+            1
+        );
+        assert!(
+            atomic.contains(atomic_marker),
+            "{atomic_relative} lacks {atomic_marker}"
+        );
+
+        let float_relative = "float/fri06_float_line_exclusion.html";
+        let float_line = fs::read_to_string(html.join(float_relative)).expect(float_relative);
+        let float_marker = r#"data-surgeist-inline-bidi-levels='[{"sourceIndex":4,"bidiLevel":1,"whenDirection":"rtl"}]'"#;
+        assert_eq!(
+            float_line
+                .matches("data-surgeist-inline-bidi-levels=")
+                .count(),
+            1
+        );
+        assert!(
+            float_line.contains(float_marker),
+            "{float_relative} lacks {float_marker}"
+        );
     }
 
     mod c08_entry_preflight {
