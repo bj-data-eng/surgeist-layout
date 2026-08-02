@@ -107,15 +107,15 @@ not a nested planning index.
   algorithms consume that contract instead of synthesizing local conventions.
 - `FRI-06`, `FRI-07`, and `FRI-08` are distinct domain initiatives that consume
   the same completed shared contracts.
-- Before `FRI-07` begins flex-completeness behavior, validate `MR-001` through
-  `MR-006` from `plans/P01-layout/P01-I06-mechanical-refactoring-review-findings.md`
-  against the published `FRI-06` candidate. Implement every still-applicable
-  opportunity as the first `FRI-07` cycle, with behavior-preserving
-  characterization evidence; record any disproven opportunity with exact source
-  evidence. This ordering leaves all 59 existing closure-owner assignments
-  unchanged and unduplicated; it does not close an `FRI-07` finding or authorize
-  a future just-in-time cycle plan before `FRI-06` publication and the reviewed
-  `FRI-07` specification and sequence.
+- After `FRI-06` behavior and lineage are published through C12, validate
+  `MR-001` through `MR-006` from
+  `plans/P01-layout/P01-I06-mechanical-refactoring-review-findings.md` against
+  that immutable candidate. Implement every still-applicable opportunity as the
+  last `FRI-06` cycle, C13, with behavior-preserving characterization evidence;
+  record every disproven opportunity with exact source evidence. This ordering
+  leaves all 59 existing closure-owner assignments unchanged and unduplicated and
+  closes no `FRI-07` finding. Do not author the C13 just-in-time plan before C12
+  publication and the reviewed sequence that places C13.
 - `FRI-09` follows the inline, flex, and grid initiatives because its alignment
   behavior consumes their completed line, baseline, and distribution mechanisms.
 - `FRI-10` depends on inline static-position facts and shared scroll context.

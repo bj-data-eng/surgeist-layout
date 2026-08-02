@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/P01-layout/initiatives/P01-I06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`35e62066a9e1593d3fd5111b897423688f3be77020d5c23c43e627063295166f`,
-committed as `b019df54310788d7b253d1f354a7ae3f5d59e76a`.
+`4d383feef44dd58c53ea14ff9fd380effde9b42d5165fa3d8b1911ad56f5ab47`,
+committed as `82b163d93edafa0f2b1ee42f6f7c273de876829d`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -30,8 +30,9 @@ the reviewed FRI-06 entry point, exact ancestor closure, and two-phase batch
 application.
 
 Scoped generation remains optional diagnostic work, never completion evidence,
-and is never repeated over unchanged inputs. C10 synthesis and C12's first
-structurally successful full run are characterization only. C12 replaces
+and is repeated only when changed inputs/code or a failed evidence capture gives
+it a concrete diagnostic purpose. C10 synthesis and C12's first structurally
+successful full run are characterization only. C12 replaces
 name/expectation-driven lowering with the closed explicit fixture-input contract.
 Chrome and the browser helper own HTML parsing and actual-DOM marker validation;
 Rust must not reconstruct HTML, CSS, or DOM topology and may account only for
@@ -350,18 +351,40 @@ levels and comparator-local identities are not final input evidence.
 **Bounded outcome:** Preserve that run as diagnostic, restore the closed
 fixture/comparator facts, and use scoped diagnostics only to realize exact
 remaining production tasks. Freeze all inputs and production behavior before one
-final full existing-pinned generation. No unchanged-input retry, generator
-architecture change, speculative task, or later-owned behavior is permitted.
+final full existing-pinned generation. A scoped repeat has a concrete diagnostic
+cause in changed inputs/code or a failed evidence capture; generator architecture
+change, speculative task, and later-owned behavior remain prohibited.
 **Observable exit evidence:** Report is 5,712/16 and `filter: null`; expected-fail
 inventory exactly equals the reviewed plan registry, normally zero; every 388 row
 is browser-pass or has the reviewed synthetic substitute; the other 5,324 bodies
 preserve semantics; no scoped report remains and FRI-13 stays unclaimed.
-**Handoff:** The realized sequence ends with generator inputs and outputs frozen;
-the successful assumption-failing run is not artifact lineage.
+**Handoff:** C13 receives the published behavior-correct candidate with generator
+inputs and outputs frozen; the successful assumption-failing run is not lineage.
+
+### 4.13 `P01/I06/S01/C13` Validated Mechanical Consolidation
+**Specification sources:** module-responsibility and test portions of
+`FRI-06.9` and `FRI-06.10`; internal-discipline and acceptance portions of
+`FRI-06.14`.
+**Prerequisites:** `P01/I06/S01/C12` complete, published, remotely verified, and
+handed off with its exact candidate and artifact hashes.
+**Entry state:** The immutable C12 candidate closes FRI-06 behavior and lineage;
+`plans/P01-layout/P01-I06-mechanical-refactoring-review-findings.md` contains six
+earlier structural opportunities that must be revalidated against that result.
+**Bounded outcome:** Validate `MR-001` through `MR-006`; implement every
+still-applicable opportunity as behavior-preserving internal consolidation and
+record exact source evidence for every disproven item. Preserve public API,
+behavior, dependencies, features, fixtures, generator logic, generated artifacts,
+and all 59 finding-owner assignments. Do not close an FRI-07 finding.
+**Observable exit evidence:** Every MR item has one validated disposition;
+characterization and applicable scaling evidence preserve the published C12
+behavior and artifact hashes; configured checks and independent reviews are
+clean; the final FRI-06 candidate is published and remotely verified.
+**Handoff:** Return the final FRI-06 leaf candidate and complete MR disposition to
+the P01/root coordinator before FRI-07 planning begins.
 
 ## 5 Sequence Completion
 
-This realized sequence ends at `P01/I06/S01/C12`. Every listed cycle satisfies
+This realized sequence ends at `P01/I06/S01/C13`. Every listed cycle satisfies
 its observable exit in order. No later cycle is represented. A material
 specification change returns to specification review before this sequence is
 revised.
