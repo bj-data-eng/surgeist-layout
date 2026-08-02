@@ -5077,72 +5077,81 @@ fn fri06_c08_float_line_content_box_rtl_rounds_final_height_to_63() {
     assert_fri06_c08_float_line_final_height::<f64>(Direction::Rtl, BoxSizing::ContentBox);
 }
 
-#[test]
-fn fri06_c12_t08_horizontal_forced_break_fallback_expands_each_line_envelope() {
-    fn assert_lane<S: LayoutScalar>() {
-        let atomic = |node| {
-            let style = fri06_c03_atomic_style(
-                24.0,
-                16.0,
-                0.0,
-                0.0,
-                0,
-                InlineBreakOpportunityOf::prohibited(),
-            );
-            (
-                node,
-                LayoutInputOf::box_input(style.clone()),
-                style,
-                Vec::new(),
-            )
-        };
-        let line_break = LineBreakInputOf::new().with_metrics(
-            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(14.8))
-                .unwrap(),
+fn fri06_c12_t08_forced_break_fallback_batch<S: LayoutScalar>(
+    line_break_baseline: f64,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let atomic = |node| {
+        let style = fri06_c03_atomic_style(
+            24.0,
+            16.0,
+            0.0,
+            0.0,
+            0,
+            InlineBreakOpportunityOf::prohibited(),
         );
-        let parent = NodeInputOf {
+        (
+            node,
+            LayoutInputOf::box_input(style.clone()),
+            style,
+            Vec::new(),
+        )
+    };
+    let line_break = LineBreakInputOf::new().with_metrics(
+        InlineMetricsOf::from_line_height_and_baseline(
+            S::from_f64(20.0),
+            S::from_f64(line_break_baseline),
+        )
+        .unwrap(),
+    );
+    let parent = NodeInputOf {
+        display: Display::Block,
+        size: Size::new(
+            PreferredSizeOf::px(S::from_f64(160.0)),
+            PreferredSizeOf::AUTO,
+        ),
+        ..NodeInputOf::default()
+    };
+    let mut nodes = Vec::new();
+    for (parent_node, first_atomic, line_break_node, second_atomic) in
+        [(1, 2, 3, 4), (5, 6, 7, 8), (9, 10, 11, 12)]
+    {
+        nodes.push((
+            parent_node,
+            LayoutInputOf::box_input(parent.clone()),
+            parent.clone(),
+            vec![first_atomic, line_break_node, second_atomic],
+        ));
+        nodes.push(atomic(first_atomic));
+        nodes.push((
+            line_break_node,
+            LayoutInputOf::line_break(line_break),
+            NodeInputOf::non_box(),
+            Vec::new(),
+        ));
+        nodes.push(atomic(second_atomic));
+    }
+    fri06_c04_front_door_batch(
+        NodeInputOf {
             display: Display::Block,
             size: Size::new(
                 PreferredSizeOf::px(S::from_f64(160.0)),
                 PreferredSizeOf::AUTO,
             ),
             ..NodeInputOf::default()
-        };
-        let mut nodes = Vec::new();
-        for (parent_node, first_atomic, line_break_node, second_atomic) in
-            [(1, 2, 3, 4), (5, 6, 7, 8), (9, 10, 11, 12)]
-        {
-            nodes.push((
-                parent_node,
-                LayoutInputOf::box_input(parent.clone()),
-                parent.clone(),
-                vec![first_atomic, line_break_node, second_atomic],
-            ));
-            nodes.push(atomic(first_atomic));
-            nodes.push((
-                line_break_node,
-                LayoutInputOf::line_break(line_break),
-                NodeInputOf::non_box(),
-                Vec::new(),
-            ));
-            nodes.push(atomic(second_atomic));
-        }
-        let batch = fri06_c04_front_door_batch(
-            NodeInputOf {
-                display: Display::Block,
-                size: Size::new(
-                    PreferredSizeOf::px(S::from_f64(160.0)),
-                    PreferredSizeOf::AUTO,
-                ),
-                ..NodeInputOf::default()
-            },
-            LogicalSizeOf::new(
-                AvailableOf::definite(S::from_f64(160.0)),
-                AvailableOf::MAX_CONTENT,
-            ),
-            vec![1, 5, 9],
-            nodes,
-        );
+        },
+        LogicalSizeOf::new(
+            AvailableOf::definite(S::from_f64(160.0)),
+            AvailableOf::MAX_CONTENT,
+        ),
+        vec![1, 5, 9],
+        nodes,
+    )
+}
+
+#[test]
+fn fri06_c12_t08_horizontal_forced_break_fallback_expands_each_line_envelope() {
+    fn assert_lane<S: LayoutScalar>() {
+        let batch = fri06_c12_t08_forced_break_fallback_batch::<S>(15.0);
 
         for (parent_node, first_atomic, second_atomic, block_start) in
             [(1, 2, 4, 0.0), (5, 6, 8, 42.0), (9, 10, 12, 84.0)]
@@ -5183,6 +5192,65 @@ fn fri06_c12_t08_horizontal_forced_break_fallback_expands_each_line_envelope() {
         assert_eq!(
             fri06_c02_final_node(&batch, 0).size.height,
             S::from_f64(126.0),
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c12_t08_fractional_forced_break_fallback_preserves_unrounded_envelope() {
+    fn assert_close<S: LayoutScalar>(actual: S, expected: f64, label: &str) {
+        let expected = S::from_f64(expected);
+        let tolerance = S::EPSILON * expected.abs().max(S::ONE) * S::from_f64(8.0);
+        assert!(
+            (actual - expected).abs() <= tolerance,
+            "{label}: expected {expected:?} within {tolerance:?}, got {actual:?}",
+        );
+    }
+
+    fn assert_lane<S: LayoutScalar>() {
+        let batch = fri06_c12_t08_forced_break_fallback_batch::<S>(14.8);
+
+        for (index, (parent_node, first_atomic, second_atomic)) in
+            [(1, 2, 4), (5, 6, 8), (9, 10, 12)].into_iter().enumerate()
+        {
+            let parent = public_flow_output(batch.unrounded_entries(), parent_node);
+            assert_close(
+                parent.size.height,
+                42.4,
+                "two unrounded 21.2px line envelopes publish once per parent",
+            );
+            assert_close(
+                parent.location.y,
+                42.4 * index as f64,
+                "parent block progression consumes the unrounded envelope once",
+            );
+            assert_close(
+                public_flow_output(batch.unrounded_entries(), first_atomic)
+                    .location
+                    .y,
+                0.0,
+                "first atomic starts at the first unrounded line envelope",
+            );
+            assert_close(
+                public_flow_output(batch.unrounded_entries(), second_atomic)
+                    .location
+                    .y,
+                21.2,
+                "second atomic starts after one unrounded line envelope",
+            );
+        }
+        assert_close(
+            public_flow_output(batch.unrounded_entries(), 0).size.height,
+            127.2,
+            "root publishes three unrounded parent envelopes exactly once",
+        );
+        assert_eq!(
+            fri06_c02_final_node(&batch, 0).size.height,
+            S::from_f64(127.0),
+            "ordinary final-layout rounding remains the only rounding phase",
         );
     }
 

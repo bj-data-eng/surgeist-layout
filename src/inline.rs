@@ -396,8 +396,6 @@ fn resolve_completed_fallback_envelope<S: LayoutScalar>(
         return;
     }
 
-    let completed_extent = (line.baseline + line.after_baseline).round();
-    line.after_baseline = (completed_extent - line.baseline).max(S::ZERO);
     line.fallback_line_band = None;
 }
 
