@@ -125,11 +125,13 @@ and commit validation remain authoritative.
 ### 5.5 `P01/I06/S01/C12/T05` Capture The Diagnostic Lineage Failure
 
 **Files/area:** historical span `90c7e861..0bbfbc04`, whose T05 code commits are
-exactly `5ba51d3f`, `78876ebe`, and `0bbfbc04`; focused
-generator/parser/helper/comparator tests; the stale serializer-freeze expectation
-identified by independent review; ignored `.DS_Store` workspace cleanup; and
-uncommitted diagnostic residue. No production, generator logic, fixture,
-generated-artifact, or generation change.
+exactly `5ba51d3f`, `78876ebe`, and `0bbfbc04`; their bounded
+generator/parser/helper/comparator implementation and focused tests; the stale
+serializer-freeze expectation corrected by sole review-fix commit
+`40ccaeb2fbf012b017a58615a6f0f856e6918672`; ignored `.DS_Store` cleanup
+in Surgeist-owned repository paths; and uncommitted diagnostic residue. The
+review fix adds no production, generator logic, fixture, generated-artifact, or
+generation change.
 
 **Outcome:** Preserve the input freeze, zero-width whitespace, and empty Range
 schema corrections. Record the structurally successful full run as diagnostic,
@@ -166,13 +168,19 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 The layout command retains one aggregate RED; `verify` retains six and
 `verify-generator` three. Every other result matches the recorded T05 evidence.
-One review-fix commit may update only the stale serializer-freeze expectation.
-Removing the ignored `.DS_Store` is workspace cleanup and creates no repository
-artifact. Neither action authorizes generation or changes the diagnostic hashes.
+The sole review-fix span
+`92bab66c8914cd1a8ac91edd71e1fea71a2a041d..40ccaeb2fbf012b017a58615a6f0f856e6918672`
+updates only the stale serializer-freeze expectation. It is appended to T05's
+ordered review range; no further T05 implementation commit is authorized.
+Removing every ignored `.DS_Store` in Surgeist-owned repository paths is
+workspace cleanup and creates no repository artifact; `.git`, `tmp`, and
+`target` metadata and external source/cache trees are excluded. Neither action
+authorizes generation or changes the diagnostic hashes.
 
 **Dependency:** T01-T04 are task-clean.
 
-**Intended review-fix commit:** `test(parity): refresh T05 serializer freeze`.
+**Realized review-fix commit:** `40ccaeb2fbf012b017a58615a6f0f856e6918672`
+(`test(parity): refresh T05 serializer freeze`).
 
 ### 5.7 `P01/I06/S01/C12/T07` Restore Honest Fixture And Comparator Inputs
 
