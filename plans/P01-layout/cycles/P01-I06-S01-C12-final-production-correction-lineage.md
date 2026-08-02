@@ -11,8 +11,8 @@ Cycle base: `8ffb4bc551a24d2283ad54436870ab3f5e66a473`
 Reviewed specification:
 `plans/P01-layout/initiatives/P01-I06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`c7caa79f1c8016e8eb2210e1987ef81ddf6a5055b1c0452a59b6666431581c3e`,
-commit `28a763b58ff0c856b8e655b158d3293e7998f62d`: `FRI-06.4 D-01`,
+`35e62066a9e1593d3fd5111b897423688f3be77020d5c23c43e627063295166f`,
+commit `b019df54310788d7b253d1f354a7ae3f5d59e76a`: `FRI-06.4 D-01`,
 `D-04`, `D-06`, `D-07`, `D-09`, `D-11`, `D-12`, `D-13`, and `D-16`;
 line, metric-fragment, atomic-baseline, physical-placement, comparator,
 fixture, and acceptance portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`
@@ -21,15 +21,14 @@ through `FRI-06.11`, and `FRI-06.14`.
 Reviewed implementation sequence:
 `plans/P01-layout/sequences/P01-I06-S01-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`547e4ab7c3f1335fac62df47182adf69a7fcab52ebb29b960bc54135fc3cf986`,
-commit `6df2730fbeb43819a2e392e5208065c575fcaacb`, entry `P01/I06/S01/C12`.
+`1513da19041bed2d38d24611dcda1e4b235a6e8309998f3588505c11e1ef0d69`,
+commit `84ec3085f10b7b534407aa144c6264d630e0ed26`, entry `P01/I06/S01/C12`.
 
 ## 1 Outcome
 
 Complete the reviewed T01-T04 production corrections, retain T05's successful
 full generation as diagnostic evidence of an invalid final-lineage assumption,
-resolve the newly configured crate-wide line-count lint in its own task, and
-restore honest finite fixture/comparator inputs. Use the resulting scoped
+and restore honest finite fixture/comparator inputs. Use the resulting scoped
 diagnostic census to realize only the next exact production tasks. After all
 inputs and production behavior settle, one later plan amendment authorizes the
 single final full lineage and publication gate.
@@ -83,6 +82,12 @@ lineage. Independent audits partition the failures into comparator transparency
 and line identity, fixture adaptation, truthful bidi input, RTL projection,
 float phase, and only then any residual production behavior.
 
+The attempted hard line-count task at `134db06f7` was rejected because it moved
+large bodies into closure and function-pointer wrappers instead of separating
+cohesive responsibilities. Commit `71ea9617c` exactly restores the pre-task tree.
+That experiment contributes no task evidence, acceptance requirement, or
+dependency; its retired T06 identity is not reused.
+
 ## 3 Known Chrome Measurement Failures
 
 None. Chrome remains authoritative; an entry requires the full `FRI-06.11` gate.
@@ -95,7 +100,7 @@ None. Chrome remains authoritative; an entry requires the full `FRI-06.11` gate.
 - **Tests/fixtures:** exact comparator, default-block, and bidi-input honesty.
 - **Generated artifacts:** T05 residue is diagnostic and uncommitted; scoped
   generation remains diagnostic only; one later reviewed full run owns lineage.
-- **Lint:** T06 alone owns the crate-wide `too_many_lines` remediation.
+- **Lint:** configured repository gates remain unchanged by this cycle.
 - **Dependencies, features, docs, examples, MSRV, and root:** unchanged.
 - **Safety:** Surgeist-owned code remains free of unsafe; no new `allow` or
   `expect` attribute is permitted.
@@ -115,9 +120,7 @@ not be re-executed or widened by later work.
 | `T04` Derive Float Continuation And Terminal Extent | `515b712c`, `90c7e861` | Float continuation and terminal geometry pass within T04 scope |
 
 Each task's recorded RED/GREEN, focused/default gates, independent task review,
-commit validation, and telemetry completion remain authoritative. The newly
-enabled crate-wide line-count lint is later T06 scope, not a retroactive T04
-finding.
+and commit validation remain authoritative.
 
 ### 5.5 `P01/I06/S01/C12/T05` Capture The Diagnostic Lineage Failure
 
@@ -161,50 +164,7 @@ The layout command retains one aggregate RED; `verify` retains six and
 `verify-generator` three. Every other result matches the recorded T05 evidence.
 T05 creates no additional commit.
 
-**Dependency:** T01-T04 are task-clean. T06 may proceed before T05 review.
-
-### 5.6 `P01/I06/S01/C12/T06` Bound Newly Linted Rust Functions
-
-**Files/area:** root `clippy.toml`, the two Clippy branches in
-`scripts/run-cargo-task.sh`, the union of Rust functions then reported by the
-default and generator-feature matrices for `clippy::too_many_lines`, and focused
-tests needed to preserve behavior. A reported generator/parser function may be
-split mechanically; no semantic HTML/parser/helper, generated artifact, manifest,
-dependency, feature, public API, or generator architecture change.
-
-**Outcome:** Configure `too-many-lines-threshold = 100` and make both canonical
-Clippy commands pass `-D clippy::too_many_lines`. Census their union, then extract
-cohesive existing phases/helpers until every function meets the gate. This is
-mechanical responsibility separation, not feature work or an excuse to refactor
-T04.
-
-**RED:** In a temporary exact-base worktree, apply only the owned Clippy
-configuration/command activation and run `just clippy` plus
-`just generator-clippy`. Their deduplicated failing identity union is the complete
-task census. Remove the temporary worktree after recording the authentic RED; no
-failing gate-only commit lands. No other lint or behavior enters this task.
-
-**Acceptance:** Both canonical Clippy branches visibly deny
-`clippy::too_many_lines`, root configuration pins 100, every censused identity is
-resolved, and both matrices plus format pass. Default and generator verification
-preserve only T05's exact six and three final-activation failures; every other
-test remains green. Neither task range nor repository adds `allow`/`expect`,
-executable unsafe, dependency, feature, public API, or unrelated semantic change.
-
-**Commands:**
-
-```sh
-CARGO_NET_OFFLINE=true just clippy
-CARGO_NET_OFFLINE=true just generator-clippy
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just fmt-check
-git diff --check
-```
-
-**Dependency:** T04 is task-clean. It may run while T05 awaits review.
-
-**Intended commit:** `refactor(lint): bound oversized Rust functions`.
+**Dependency:** T01-T04 are task-clean.
 
 ### 5.7 `P01/I06/S01/C12/T07` Restore Honest Fixture And Comparator Inputs
 
@@ -232,8 +192,9 @@ pinned WPT target roles remain ordinary boxes. Marker syntax, range, target,
 uniqueness, and consumption reject malformed input. Renaming and
 expectation-only mutation preserve normalized input; direction-only changes do
 not choose bidi levels. The 28 explicit-adapter/comparator rows pass without
-source-name dispatch or Rust HTML/CSS parsing. Focused/default/generator gates
-and format pass; no full generation runs.
+source-name dispatch or Rust HTML/CSS parsing. Focused/default/generator checks
+are clean except for the exact corrected final-activation aggregates retained as
+diagnostic RED; format passes and no full generation runs.
 
 **Commands:**
 
@@ -258,17 +219,49 @@ input/adapter iteration and must not be repeated over unchanged files. Its
 output is diagnostic, is cleaned after hashes and categories are recorded, and
 is never verification or lineage evidence.
 
-**Dependency:** T05 and T06 are task-clean.
+**Dependency:** T05 is task-clean.
 
 **Intended commit:** `fix(parity): restore honest inline fixture inputs`.
 
-## 6 Successive Planning Gate
+## 6 Current Revision Completion
 
-After T07's corrected-input diagnostic, amend this plan with only the exact
-remaining production categories and tasks it proves. Do not create placeholder
-tasks. The later reviewed amendment owns one final full unfiltered pinned-browser
-generation after all HTML/helper/parser/fixture inputs and production code settle,
-then the complete verification, independent task reviews, holistic review,
-publication, remote readback, closure, and handoff gates.
+This revision exits only when:
+
+1. T05 has a clean independent task review, its recorded hashes are read back,
+   and all T05 XML/report/provenance residue is removed before T07 edits;
+2. T07 is committed and independently task-clean against the exact task contract;
+3. the focused generator and parity tests pass, both configured verification
+   matrices retain only the exact corrected final-activation aggregate RED, format
+   and diff checks pass, and the latest changed-input scoped diagnostic records
+   its input commit, filter, report hash, complete 388-row partition, and exact
+   remaining production categories; and
+4. every scoped diagnostic output is removed after that evidence is recorded, so
+   no generated XML, report, or provenance residue remains.
+
+The final evidence commands for this revision are:
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t07_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t07_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just fmt-check
+git diff --check
+```
+
+The handoff is the clean T05 verdict, exact T07 task range and clean verdict,
+command evidence, and cleaned scoped-diagnostic census. This state does not mark
+C12 complete and grants no final generation, holistic review, publication, or
+candidate-handoff authority.
+
+## 7 Successive Planning Gate
+
+After the current-revision handoff, amend and independently review this plan with
+only the exact remaining production categories and tasks proved by the cleaned
+diagnostic census. Do not create placeholder tasks. The later reviewed amendment
+owns one final full unfiltered pinned-browser generation after all
+HTML/helper/parser/fixture inputs and production code settle, then the complete
+verification, independent task reviews, holistic review, publication, remote
+readback, closure, and handoff gates.
 
 Blocker: current T05 residue is diagnostic and awaits reviewed replacement.
