@@ -11,8 +11,8 @@ Cycle base: `8ffb4bc551a24d2283ad54436870ab3f5e66a473`
 Reviewed specification:
 `plans/P01-layout/initiatives/P01-I06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`35e62066a9e1593d3fd5111b897423688f3be77020d5c23c43e627063295166f`,
-commit `b019df54310788d7b253d1f354a7ae3f5d59e76a`: `FRI-06.4 D-01`,
+`4d383feef44dd58c53ea14ff9fd380effde9b42d5165fa3d8b1911ad56f5ab47`,
+commit `82b163d93edafa0f2b1ee42f6f7c273de876829d`: `FRI-06.4 D-01`,
 `D-04`, `D-06`, `D-07`, `D-09`, `D-11`, `D-12`, `D-13`, and `D-16`;
 line, metric-fragment, atomic-baseline, physical-placement, comparator,
 fixture, and acceptance portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`
@@ -21,8 +21,8 @@ through `FRI-06.11`, and `FRI-06.14`.
 Reviewed implementation sequence:
 `plans/P01-layout/sequences/P01-I06-S01-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`1513da19041bed2d38d24611dcda1e4b235a6e8309998f3588505c11e1ef0d69`,
-commit `84ec3085f10b7b534407aa144c6264d630e0ed26`, entry `P01/I06/S01/C12`.
+`a5f7a219a49c2cf37dd14f73cedab328409415c60c82e9b87b9165e8ec17edf4`,
+commit `858e23dfada37ab899130ea3251fc73ae192a6fe`, entry `P01/I06/S01/C12`.
 
 ## 1 Outcome
 
@@ -82,11 +82,26 @@ lineage. Independent audits partition the failures into comparator transparency
 and line identity, fixture adaptation, truthful bidi input, RTL projection,
 float phase, and only then any residual production behavior.
 
-The attempted hard line-count task at `134db06f7` was rejected because it moved
-large bodies into closure and function-pointer wrappers instead of separating
-cohesive responsibilities. Commit `71ea9617c` exactly restores the pre-task tree.
-That experiment contributes no task evidence, acceptance requirement, or
-dependency; its retired T06 identity is not reused.
+T07 restored the 363 default-block parents, explicit bidi input, transparent
+boundaries, and root-local Range identity. Its post-task scoped census generated
+97 sources once, then compared all 388 rows: 134 PASS at
+`850d819f2989b7600f5d46cef98031f7035eb7f73eedaae730910036b764caac`
+and 254 FAIL at
+`fa194548ede4759cceca86bce3ea30a2a7ac8a5a43436721ebbf5aef3089e190`;
+membership remains
+`3a0f78a7fdefc9f49feee9f0fcb5a035bc87f381f8fc8d96049eaa0cdcbc2eb1`.
+Root-cause probes assign 4 rows to missing direction-scoped bidi records, 24 to
+zero-size control comparison, and 226 to six production causes. Fixture parsing
+and generator architecture are not causes. All scoped XML was removed and the
+report remains
+`4f18b4299765d7f0cf996fa5c2510724cfadb577651c3a438c3f2904cc4b94ab`.
+
+Selectors below use `V4 = {border_box_ltr, content_box_ltr, border_box_rtl,
+content_box_rtl}`, `LTR = {border_box_ltr, content_box_ltr}`, and
+`RTL = {border_box_rtl, content_box_rtl}`. `R12` is `inner_row1`, `inner_row2`,
+`outer_row3`, and `parent_row1` through `parent_row3`, each with `_first` and
+`_last`; `C12` is the analogous `inner_col1`, `inner_col2`, `outer_col3`, and
+`parent_col1` through `parent_col3` suffix set.
 
 ## 3 Known Chrome Measurement Failures
 
@@ -95,9 +110,8 @@ None. Chrome remains authoritative; an entry requires the full `FRI-06.11` gate.
 ## 4 Impacts
 
 - **Public API and compatibility:** unchanged.
-- **Production:** T01-T04 remain scoped; later production work is realized only
-  from the corrected-input diagnostic.
-- **Tests/fixtures:** exact comparator, default-block, and bidi-input honesty.
+- **Production:** T01-T04 remain scoped; T08 owns six confirmed causes only.
+- **Tests/fixtures:** T07 adds two scoped bidi records and one comparator rule.
 - **Generated artifacts:** T05 residue is diagnostic and uncommitted; scoped
   generation remains diagnostic only; one later reviewed full run owns lineage.
 - **Lint:** configured repository gates remain unchanged by this cycle.
@@ -185,32 +199,38 @@ authorizes generation or changes the diagnostic hashes.
 ### 5.7 `P01/I06/S01/C12/T07` Restore Honest Fixture And Comparator Inputs
 
 **Files/area:** the exact 61 HTML sources/363 direct BR-parent divs in the
-reviewed specification; `fri06_bidi_mixed_inline.html`; browser helper;
+reviewed specification; the three reviewed bidi-marker sources; browser helper;
 `support.rs`; narrow serializer/accounting tests in the generator; focused
 browser-parity tests; T05-owned uncommitted provenance edits in `generator.rs`,
 all 5,712 generated XML paths under `tests/layout/browser_parity/xml/`, and
 `xml/generation-reports/all.json`. No production, base style, manifest,
 dependency, feature, or generator architecture.
 
-**Outcome:** Author `display:block` on every audited default-block parent; add
-and validate the one source-indexed nonzero bidi marker; make level zero the
-layout-ready-inline adapter rule without reading computed direction; keep typed
-inline boundaries expectation-transparent; and normalize Range line identity to
-the explicit containing root's physical block coordinates with 0.1px tolerance.
-Remove T05 generated residue only after its hashes/evidence are read back.
+**Outcome:** Retain the original correction, then add exact RTL-scoped nonzero
+bidi records at atomic-percentage source index 0 and float-line source index 4.
+Direction activates only the authored `whenDirection` record and never derives a
+level. A zero-size break touching a shared endpoint is `Same` with its previous
+neighbor and `Later` than its next. Remove T05 residue only after readback.
 
-**RED:** Focused tests prove unauthored parents compute flex, direction changes
-currently change bidi input, boundaries inflate expected child counts, and local
-wrapper Range lines disagree with root-local line identity.
+**RED:** Original RED remains. The reopened RED is the two atomic-percentage RTL
+rows (`a0620971c825fe0be6909c2331add26e26478c9970e1bd9eb4ff5b8d28321b40`),
+two float-line RTL rows
+(`09256c6d96b712fe0094eee0b302954f17090760e8a72634bcc886425e3703ae`),
+and 24 `subgrid_baseline_inline_column_{C12}` LTR rows
+(`6600fa577693e69a132fff45bb5b784fe48e68e118dc92e8ad43522264f02ce7`).
+Their sorted 28-row union hashes to
+`fcfc328900a2eb44f683bd03c3009b576226f61575b3d054a8a5bd541df150be`.
+Level-one probes produce Range starts 73.296875 and 130 instead of level-zero
+180 and 102. A control at 25 touching previous `[5,25]` and next `[25,45]`
+currently reports both `Same`; the next relation must be `Later`.
 
-**Acceptance:** Chrome computes all 363 corrected parents as block and their
-pinned WPT target roles remain ordinary boxes. Marker syntax, range, target,
-uniqueness, and consumption reject malformed input. Renaming and
-expectation-only mutation preserve normalized input; direction-only changes do
-not choose bidi levels. The 28 explicit-adapter/comparator rows pass without
-source-name dispatch or Rust HTML/CSS parsing. Focused/default/generator checks
-are clean except for the exact corrected final-activation aggregates retained as
-diagnostic RED; format passes and no full generation runs.
+**Acceptance:** Original T07 acceptance remains. The marker accepts only the two
+closed record forms, validates inactive scoped records, consumes each applicable
+record once, and rejects invalid direction, fields, target, duplicate, or unused
+applicable data. LTR variants remain level zero; the four RTL rows carry level
+one. Previous/next endpoint controls pass without relaxing nonzero overlap or
+tolerance. Exact inventory is nine sources. No generation, source-name dispatch,
+Rust HTML/CSS parsing, full run, or report write occurs in this fix.
 
 **Commands:**
 
@@ -237,9 +257,62 @@ input/adapter iteration and must not be repeated over unchanged files. Its
 output is diagnostic, is cleaned after hashes and categories are recorded, and
 is never verification or lineage evidence.
 
-**Dependency:** T05 is task-clean.
+**Dependency:** T05 is task-clean. The revised specification reopens T07; append
+the fix span to its ordered task range and re-review the complete range.
 
-**Intended commit:** `fix(parity): restore honest inline fixture inputs`.
+**Realized commit:** `323d73afa98ddc73e65fd9c1da223a5fbd85875e`.
+
+**Review-fix commit:** `fix(parity): close scoped bidi and control facts`.
+
+### 5.8 `P01/I06/S01/C12/T08` Close Confirmed Production Causes
+
+**Files/area:** `src/inline.rs`, `src/block.rs`, `src/grid/child.rs`,
+`src/grid/subgrid.rs`, `src/grid/tracks.rs`, and focused existing Rust tests.
+No fixture, helper, adapter/parser, comparator, generated artifact, manifest,
+dependency, public API, or generator-architecture change.
+
+**Outcome/RED:** Correct these six confirmed causes over exactly 226 rows; their
+sorted union hashes to
+`56234cee8300676e31882ac06136ba22b98fc2c2aa151c6380cf0f1e21045291`.
+
+| Cause and deterministic rows | Count | Row hash | Probe |
+| --- | ---: | --- | --- |
+| Horizontal forced-break fallback envelope; `fri06_inline_unequal_line_alignment`, V4 | 4 | `2bd81de88087d7c2898c04c5736b3e4ec8b8bdb10f28d93255c57a6b22a53d8e` | one parent is 40 instead of 42; root is 120 instead of 126 |
+| LTR post-exclusion continuation start; `fri06_float_line_exclusion`, LTR | 2 | `a130acbb6f747b8414a8014840712a78aaede0698d44bafc50b08a31e0bf7ac5` | expansion end-aligns at 90 instead of starting at 0 |
+| Float-dominated terminal extent; `fri06_float_shape_exclusion`, V4 | 4 | `0b96e7d9a39716b0121017cdbe67345381d72044918c9cef5b31ec216364de18` | split phase turns float end 60 into 60.5, rounded 61 |
+| Parent baseline shim in intrinsic rows; `subgrid_baseline_auto_rows_{R12}`, V4 | 48 | `2714795b167ecd2062012cf97c4f232d77814057dcadfec6f7558feac9c28570` | minimal auto row stays 20 instead of baseline envelope 26; roots are 324 instead of 411 |
+| Refreshed physical offsets consumed as logical: `inline_column_{C12}` RTL plus `vertical_auto_rows_{R12}` and `vertical_nested_{R12}` V4 | 120 | `05130449e6303bb52d061c71ff49e1265fb55b4e4f2c3b3237b7237516541aaf` | second projection yields x 10/15 instead of 5/10 |
+| Inherited baseline double gap adjustment; `nested_block_{R12}`, V4 | 48 | `64fbf855984169eea06abc65f31d1072fb1ced0a0cc6402b01d77b430a93e548` | positive half-gap subtracts 5 twice; y is 57 instead of 62 |
+
+**Acceptance:** Add the smallest public-front-door regression for each cause
+before its correction and preserve nearest passing controls. Do not add content,
+direction, fixture-family, or rounding special cases. After T07 inputs settle,
+derive 97 unique filters from column 2 of the committed C10 census (raw hash
+`0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691`),
+strip only `html/`, and require filter-list hash
+`d3eb02ed93972e4f4aa8283e7e4f0bdee718be9c95e8196851d4d0037c6dd169`.
+Set `FILTER` to each exact list value and run the command once before the
+aggregate RED; keep
+the 388 XML files during code-only iteration and rerun comparison, not generation.
+
+```sh
+CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' SURGEIST_LAYOUT_GENERATE_FILTER="$FILTER" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout layout::browser_parity::fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --exact
+```
+
+Before cleanup, record the complete 388-row partition. Map each row to
+`tests/layout/browser_parity/xml/{source without html/ or .html}__{variant}.xml`;
+the sorted generated path set must hash to
+`fea38e6dc7a9ba24c05a23420f2118d6000db72b195a73859e4c86f689328597`.
+Require no tracked XML diff and the untracked set to equal that path set; remove
+only those paths. Then prove 5,324 tracked XML, zero untracked XML, unchanged
+report hash, clean index/worktree, and no generator process. A newly exposed
+first failure stops implementation and requires a reviewed T08 amendment.
+
+**Dependency:** T07's complete ordered range is task-clean under the revised spec.
+
+**Intended commit:** `fix(layout): close confirmed FRI-06 production causes`.
 
 ## 6 Current Revision Completion
 
@@ -247,39 +320,36 @@ This revision exits only when:
 
 1. T05 has a clean independent task review, its recorded hashes are read back,
    and all T05 XML/report/provenance residue is removed before T07 edits;
-2. T07 is committed and independently task-clean against the exact task contract;
-3. the focused generator and parity tests pass, both configured verification
-   matrices retain only the exact corrected final-activation aggregate RED, format
-   and diff checks pass, and the latest changed-input scoped diagnostic records
-   its input commit, filter, report hash, complete 388-row partition, and exact
-   remaining production categories; and
-4. every scoped diagnostic output is removed after that evidence is recorded, so
-   no generated XML, report, or provenance residue remains.
+2. T07's revised ordered range is committed and independently task-clean;
+3. T08 is committed and independently task-clean for every currently confirmed
+   cause; a new first failure is recorded but not corrected before plan review;
+4. focused/configured verification, format, and diff checks have only the exact
+   newly exposed aggregate RED, if any; and
+5. the latest complete 388-row partition is recorded before all scoped XML and
+   other diagnostic residue is removed.
 
 The final evidence commands for this revision are:
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t07_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t07_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout layout::browser_parity::fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --exact
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just fmt-check
 git diff --check
 ```
 
-The handoff is the clean T05 verdict, exact T07 task range and clean verdict,
-command evidence, and cleaned scoped-diagnostic census. This state does not mark
-C12 complete and grants no final generation, holistic review, publication, or
-candidate-handoff authority.
+The handoff is clean T05/T07 verdicts, the exact T08 range and verdict, command
+evidence, and cleaned scoped census. It does not mark C12 complete or authorize
+final generation, holistic review, publication, or C13 planning.
 
 ## 7 Successive Planning Gate
 
-After the current-revision handoff, amend and independently review this plan with
-only the exact remaining production categories and tasks proved by the cleaned
-diagnostic census. Do not create placeholder tasks. The later reviewed amendment
-owns one final full unfiltered pinned-browser generation after all
-HTML/helper/parser/fixture inputs and production code settle, then the complete
-verification, independent task reviews, holistic review, publication, remote
-readback, closure, and handoff gates.
+If T08 exposes another first failure, amend and independently review T08 with
+only that evidence. Once all 388 rows pass, a later reviewed amendment adds the
+eighth and final C12 task for one full unfiltered existing-pinned generation,
+complete verification/reviews, publication, remote readback, and C13 handoff.
 
-Blocker: current T05 residue is diagnostic and awaits reviewed replacement.
+Blocker: none.
