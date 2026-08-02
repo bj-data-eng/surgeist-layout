@@ -346,23 +346,12 @@ hashes caused by the reviewed T07 fixture input. No HTML, helper, parser,
 serializer, comparator, production, API, manifest, dependency, feature, or
 generator-architecture change.
 
-**Outcome/RED:** Preserve the existing full-corpus failures as RED, verify the
-settled source and helper freezes, then run the existing pinned browser exactly
-once through unfiltered `generate-existing`. A failed acceptance check does not
-authorize another generation; diagnose without generation and revise this plan
-before any replacement run.
-
-**Procedure:**
-
-1. Prove a clean T08 head, no generation process or residue, exactly 5,324
-   tracked XML bodies, the pinned Chrome version, and absence of root, filter,
-   cache, and version override variables.
-2. Update only T07-invalidated freeze constants from direct file hashes; run the
-   focused source/input tests before generation. Do not change expected geometry.
-3. Execute one full unfiltered existing-pinned generation with Chrome
-   `149.0.7827.115` at the reviewed repository-relative path.
-4. Validate and commit the generated corpus, report, and narrow freeze updates;
-   record report, complete XML, preserved-body, and activation-body hashes.
+**Outcome/RED:** The focused freeze test is exact RED before generation: atomic
+HTML actual SHA `73709999d0514673ee1e7eaead635c37afdce8b6a4467bd5f1ca328c9b7112f1`
+versus stale `31cf5d0ae3ca7c681f57ddc2a9a7cd3f75cf4190412d8f469e5c14cd519140e4`.
+Update only that direct file-hash constant and prove GREEN. Then run the existing
+pinned browser exactly once through unfiltered `generate-existing`. A failed
+acceptance check permits diagnosis but no second run until plan revision/review.
 
 **Acceptance:** Report `filter` is null; generated is 5,712; unsupported is the
 same 16 missing-root variants; expected-fail, quarantine, and generation-failure
@@ -375,14 +364,25 @@ only the reviewed generated lineage and narrow freeze updates before commit and
 is clean afterward.
 
 ```sh
+git status --short
+git ls-files 'tests/layout/browser_parity/xml/**/*.xml' | wc -l
+! printenv SURGEIST_LAYOUT_BROWSER_PARITY_ROOT SURGEIST_LAYOUT_GENERATE_FILTER SURGEIST_BROWSER_CACHE SURGEIST_BROWSER_VERSION
+! pgrep -af surgeist-layout-generate
 "target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" --version
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_lineage_helper_and_nine_html_inputs_are_byte_frozen
 CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just fmt-check
+CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
+CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets --features layout-golden-generate -- -F unsafe-code -D warnings
+! git ls-files -co --exclude-standard '*.rs' | xargs rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{'
 git diff --check
+git status --short
 ```
 
 **Dependency:** T07 and T08 are independently task-clean. This is C12's eighth
@@ -391,8 +391,8 @@ and final task. **Intended commit:** `test(parity): publish final FRI-06 lineage
 ## 6 Cycle Completion
 
 After T09 is task-clean, set `cycle_head`, record the final hashes and task
-ranges in this plan's status-only `complete` commit, run the complete gates on a
-clean worktree, and obtain a fresh holistic `CLEAN` review over
+ranges in this plan's status-only `complete` commit, rerun every post-generation
+command above on a clean worktree, and obtain a fresh holistic `CLEAN` review over
 `cycle_base..cycle_head`. Rerun the gates at the reviewed head, fast-forward
 local and remote `main`, read back equality, remove temporary resources, and
 handoff the published leaf candidate to C13. Blocker: none.
