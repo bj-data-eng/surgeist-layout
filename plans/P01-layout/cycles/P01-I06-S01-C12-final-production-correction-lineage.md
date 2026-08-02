@@ -126,8 +126,10 @@ and commit validation remain authoritative.
 
 **Files/area:** historical span `90c7e861..0bbfbc04`, whose T05 code commits are
 exactly `5ba51d3f`, `78876ebe`, and `0bbfbc04`; focused
-generator/parser/helper/comparator tests; uncommitted diagnostic residue. No new
-code, generation, or commit.
+generator/parser/helper/comparator tests; the stale serializer-freeze expectation
+identified by independent review; ignored `.DS_Store` workspace cleanup; and
+uncommitted diagnostic residue. No production, generator logic, fixture,
+generated-artifact, or generation change.
 
 **Outcome:** Preserve the input freeze, zero-width whitespace, and empty Range
 schema corrections. Record the structurally successful full run as diagnostic,
@@ -145,8 +147,10 @@ XML aggregate
 `19eba32b808f51e08fafd106878b3f93dee9e8e0bf3cef8580851fb0e7be5cc3`,
 and activation aggregate
 `3a0f78a7fdefc9f49feee9f0fcb5a035bc87f381f8fc8d96049eaa0cdcbc2eb1`.
-Focused GREEN, corpus/Taffy, and format checks pass; the exact activation and
-full verification failures are retained. No generated residue is committed.
+The serializer-freeze expectation equals the post-empty-Range serializer hash
+`5b03bacde641266c548871ab6c0d11d413b00e0b4199fff6c93ab732b7922716`.
+Focused GREEN, corpus/Taffy, and format checks pass; the exact activation and full
+verification failures are retained. No generated residue is committed.
 
 **Commands:**
 
@@ -162,9 +166,13 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 The layout command retains one aggregate RED; `verify` retains six and
 `verify-generator` three. Every other result matches the recorded T05 evidence.
-T05 creates no additional commit.
+One review-fix commit may update only the stale serializer-freeze expectation.
+Removing the ignored `.DS_Store` is workspace cleanup and creates no repository
+artifact. Neither action authorizes generation or changes the diagnostic hashes.
 
 **Dependency:** T01-T04 are task-clean.
+
+**Intended review-fix commit:** `test(parity): refresh T05 serializer freeze`.
 
 ### 5.7 `P01/I06/S01/C12/T07` Restore Honest Fixture And Comparator Inputs
 
@@ -208,10 +216,12 @@ git diff --check
 ```
 
 Before edits, read back the recorded T05 hashes, then restore the 5,324 modified
-and 388 untracked XML files, report, and uncommitted provenance-only generator
-delta to `0bbfbc04`. Prove no diagnostic residue remains before T07's authored
-changes. The two full verification commands may fail only at the exact final
-activation aggregates; their corrected census is T07 diagnostic output.
+and 388 untracked XML files and report to `0bbfbc04`. Restore only the
+uncommitted provenance hunk in `generator.rs` to the committed T05 review-fix
+HEAD, retaining its corrected serializer-freeze expectation. Prove no diagnostic
+residue remains before T07's authored changes. The two full verification commands
+may fail only at the exact final activation aggregates; their corrected census is
+T07 diagnostic output.
 
 **Diagnostic:** After the committed task is clean, scoped generation may be used
 only to census the changed 388-row activation union. Each run must follow a real
