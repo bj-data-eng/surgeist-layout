@@ -1327,13 +1327,15 @@ function layoutReadyInlineBidiLevels(parent, childNodes) {
 
   const bidiLevels = new Map();
   for (const [recordIndex, record] of parsed.entries()) {
-    const fields = new Set(['sourceIndex', 'bidiLevel']);
+    const fields = new Set(['sourceIndex', 'bidiLevel', 'whenDirection']);
+    const hasDirection = record && Object.hasOwn(record, 'whenDirection');
+    const expectedFieldCount = hasDirection ? 3 : 2;
     if (!record || typeof record !== 'object' || Array.isArray(record) ||
-        Object.keys(record).length !== fields.size ||
+        Object.keys(record).length !== expectedFieldCount ||
         Object.keys(record).some((key) => !fields.has(key))) {
       throw new Error(`inline bidi level ${recordIndex} must contain exactly the closed fields`);
     }
-    const { sourceIndex, bidiLevel } = record;
+    const { sourceIndex, bidiLevel, whenDirection } = record;
     if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= childNodes.length) {
       throw new Error(`inline bidi level ${recordIndex} requires an existing non-negative sourceIndex`);
     }
@@ -1343,6 +1345,9 @@ function layoutReadyInlineBidiLevels(parent, childNodes) {
     if (!Number.isInteger(bidiLevel) || bidiLevel < 1 || bidiLevel > 125) {
       throw new Error(`inline bidi level ${recordIndex} must be an integer in 1..=125`);
     }
+    if (hasDirection && whenDirection !== 'ltr' && whenDirection !== 'rtl') {
+      throw new Error(`inline bidi level ${recordIndex} requires direction ltr or rtl`);
+    }
     const child = childNodes[sourceIndex];
     const shapedText = child.nodeType === Node.TEXT_NODE &&
       shouldSerializeLayoutReadyText(child, childNodes, sourceIndex, parent);
@@ -1351,22 +1356,25 @@ function layoutReadyInlineBidiLevels(parent, childNodes) {
     if (!shapedText && !atomic) {
       throw new Error(`inline bidi level ${recordIndex} must target shaped text or an atomic inline`);
     }
-    bidiLevels.set(sourceIndex, bidiLevel);
+    const applicable = !hasDirection || getComputedStyle(parent).direction === whenDirection;
+    bidiLevels.set(sourceIndex, { bidiLevel, applicable });
   }
   return bidiLevels;
 }
 
 function consumeLayoutReadyInlineBidiLevel(bidiLevels, sourceIndex) {
-  const bidiLevel = bidiLevels.get(sourceIndex) ?? 0;
+  const record = bidiLevels.get(sourceIndex);
   bidiLevels.delete(sourceIndex);
-  return bidiLevel;
+  return record?.applicable ? record.bidiLevel : 0;
 }
 
 function rejectUnusedLayoutReadyInlineBidiLevels(bidiLevels) {
-  if (bidiLevels.size !== 0) {
-    throw new Error(
-      `data-surgeist-inline-bidi-levels contains an unused sourceIndex ${bidiLevels.keys().next().value}`
-    );
+  for (const [sourceIndex, record] of bidiLevels) {
+    if (record.applicable) {
+      throw new Error(
+        `data-surgeist-inline-bidi-levels contains an unused sourceIndex ${sourceIndex}`
+      );
+    }
   }
 }
 

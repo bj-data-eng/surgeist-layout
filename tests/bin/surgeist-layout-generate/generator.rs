@@ -7334,11 +7334,11 @@ if (expectedReason === undefined) {{
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "20936bff165797fa1ee00829d7eaf4fdadcc67e209a862f70139d0ed316cd1b9"
+            "f7a3a73f194925b63c72424bd9fff599785ff296ab9c776f92f7909300954c9e"
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            "4adbe29dbdee892df42347fd0bbc54f21a61602ce8164e69f64a81bce57ad1ab"
+            "def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23"
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
@@ -13767,12 +13767,12 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
     }
 
     #[test]
-    fn fri06_c08r_lineage_helper_and_eight_html_inputs_are_byte_frozen() {
+    fn fri06_c08r_lineage_helper_and_nine_html_inputs_are_byte_frozen() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
         for (path, expected) in [
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "4adbe29dbdee892df42347fd0bbc54f21a61602ce8164e69f64a81bce57ad1ab",
+                "def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23",
             ),
             (
                 "tests/layout/browser_parity/html/subgrid/subgrid_baseline_auto_columns_first_item.html",
@@ -13799,12 +13799,16 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
                 "951ff318db6ab56c0048a85f4fe77bacd4433a98a3fbbb4e54a894cc1fb94d66",
             ),
             (
+                "tests/layout/browser_parity/html/block/fri06_atomic_inline_percentage_block_size.html",
+                "31cf5d0ae3ca7c681f57ddc2a9a7cd3f75cf4190412d8f469e5c14cd519140e4",
+            ),
+            (
                 "tests/layout/browser_parity/html/block/fri06_inline_mixed_text_atomic_wrap.html",
                 "a0fce2c3b15917b86f6355293a69386b8d470bd433630caaeaefb17b99b31c5d",
             ),
             (
                 "tests/layout/browser_parity/html/float/fri06_float_line_exclusion.html",
-                "169054142f69a4b94e878b9da1b7b80f11beb02212fea3f258cfd5d1a6632956",
+                "4583d97bcc6db5550a0c99f3f61fbed02498bb3808c87295b902e89cb146a2ae",
             ),
         ] {
             assert_eq!(sha256_file(&repository.join(path)).expect(path), expected);
@@ -14027,6 +14031,11 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
                 1,
             ),
             (
+                "block/fri06_atomic_inline_percentage_block_size.html",
+                "data-surgeist-inline-bidi-levels=",
+                1,
+            ),
+            (
                 "block/fri06_inline_mixed_text_atomic_wrap.html",
                 "data-surgeist-inline-struts=",
                 1,
@@ -14034,6 +14043,11 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
             (
                 "float/fri06_float_line_exclusion.html",
                 "data-surgeist-inline-struts=",
+                1,
+            ),
+            (
+                "float/fri06_float_line_exclusion.html",
+                "data-surgeist-inline-bidi-levels=",
                 1,
             ),
         ] {
@@ -14380,7 +14394,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "4adbe29dbdee892df42347fd0bbc54f21a61602ce8164e69f64a81bce57ad1ab",
+                "def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23",
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_base_style.css",
@@ -14405,7 +14419,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "20936bff165797fa1ee00829d7eaf4fdadcc67e209a862f70139d0ed316cd1b9"
+            "f7a3a73f194925b63c72424bd9fff599785ff296ab9c776f92f7909300954c9e"
         );
     }
 
@@ -14592,6 +14606,7 @@ const br = { nodeType: Node.ELEMENT_NODE, tagName: 'BR', computedStyle: { displa
 function parent(value, children = [text]) {
   return {
     childNodes: children,
+    computedStyle: { display: 'block', direction: 'ltr' },
     getAttribute(name) { return name === 'data-surgeist-inline-bidi-levels' ? value : null; },
   };
 }
@@ -14614,18 +14629,38 @@ if (consumeLayoutReadyInlineBidiLevel(valid, 0) !== 1 || valid.size !== 0) {
 }
 rejectUnusedLayoutReadyInlineBidiLevels(valid);
 
+const matchingParent = parent('[{"sourceIndex":0,"bidiLevel":1,"whenDirection":"rtl"}]');
+matchingParent.computedStyle.direction = 'rtl';
+const matching = layoutReadyInlineBidiLevels(matchingParent, [text]);
+if (consumeLayoutReadyInlineBidiLevel(matching, 0) !== 1 || matching.size !== 0) {
+  throw new Error('matching scoped bidi marker did not supply its authored level exactly once');
+}
+rejectUnusedLayoutReadyInlineBidiLevels(matching);
+
+const inactiveParent = parent('[{"sourceIndex":0,"bidiLevel":1,"whenDirection":"rtl"}]');
+const inactive = layoutReadyInlineBidiLevels(inactiveParent, [text]);
+if (inactive.size !== 1 || consumeLayoutReadyInlineBidiLevel(inactive, 0) !== 0 || inactive.size !== 0) {
+  throw new Error('inactive scoped bidi marker was not accounted without supplying a level');
+}
+rejectUnusedLayoutReadyInlineBidiLevels(inactive);
+
 for (const [label, value, children, expected] of [
   ['syntax', '{', [text], 'valid JSON'],
   ['empty', '[]', [text], 'nonempty finite table'],
   ['extra field', '[{"sourceIndex":0,"bidiLevel":1,"extra":true}]', [text], 'closed fields'],
   ['missing field', '[{"sourceIndex":0}]', [text], 'closed fields'],
+  ['missing level with direction', '[{"sourceIndex":0,"whenDirection":"rtl"}]', [text], 'closed fields'],
+  ['invalid direction', '[{"sourceIndex":0,"bidiLevel":1,"whenDirection":"RTL"}]', [text], 'direction ltr or rtl'],
+  ['non-string direction', '[{"sourceIndex":0,"bidiLevel":1,"whenDirection":1}]', [text], 'direction ltr or rtl'],
   ['negative source', '[{"sourceIndex":-1,"bidiLevel":1}]', [text], 'existing non-negative sourceIndex'],
   ['missing target', '[{"sourceIndex":1,"bidiLevel":1}]', [text], 'existing non-negative sourceIndex'],
   ['duplicate target', '[{"sourceIndex":0,"bidiLevel":1},{"sourceIndex":0,"bidiLevel":2}]', [text], 'duplicates sourceIndex'],
+  ['duplicate scoped target', '[{"sourceIndex":0,"bidiLevel":1,"whenDirection":"ltr"},{"sourceIndex":0,"bidiLevel":2,"whenDirection":"rtl"}]', [text], 'duplicates sourceIndex'],
   ['zero level', '[{"sourceIndex":0,"bidiLevel":0}]', [text], 'integer in 1..=125'],
   ['high level', '[{"sourceIndex":0,"bidiLevel":126}]', [text], 'integer in 1..=125'],
   ['fractional level', '[{"sourceIndex":0,"bidiLevel":1.5}]', [text], 'integer in 1..=125'],
   ['BR target', '[{"sourceIndex":0,"bidiLevel":1}]', [br], 'shaped text or an atomic inline'],
+  ['inactive BR target', '[{"sourceIndex":0,"bidiLevel":1,"whenDirection":"rtl"}]', [br], 'shaped text or an atomic inline'],
   ['ordinary box target', '[{"sourceIndex":0,"bidiLevel":1}]', [{...atomic, computedStyle: {display: 'block'}}], 'shaped text or an atomic inline'],
 ]) {
   mustReject(label, () => layoutReadyInlineBidiLevels(parent(value, children), children), expected);
@@ -14639,6 +14674,12 @@ mustReject(
   () => rejectUnusedLayoutReadyInlineBidiLevels(unused),
   'unused sourceIndex 0'
 );
+
+const inactiveUnusedParent = parent(
+  '[{"sourceIndex":0,"bidiLevel":1,"whenDirection":"rtl"}]', [atomic]
+);
+const inactiveUnused = layoutReadyInlineBidiLevels(inactiveUnusedParent, [atomic]);
+rejectUnusedLayoutReadyInlineBidiLevels(inactiveUnused);
 "#,
         ]
         .concat();
@@ -14655,6 +14696,60 @@ mustReject(
                 r#"data-surgeist-inline-bidi-levels='[{"sourceIndex":0,"bidiLevel":1}]'"#
             )
         );
+    }
+
+    #[test]
+    fn fri06_c12_t07_exact_nine_source_marker_inventory_has_two_scoped_bidi_records() {
+        let html = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        let markers = [
+            "data-surgeist-anonymous-grid-text-wrapper=",
+            "data-surgeist-transparent-inline-container=",
+            "data-surgeist-inline-struts=",
+            "data-surgeist-inline-bidi-levels=",
+        ];
+        let actual = collect_relative_html(&html)
+            .expect("HTML inventory")
+            .into_iter()
+            .filter(|relative| {
+                let raw = fs::read_to_string(html.join(relative)).expect("marker source");
+                markers.iter().any(|marker| raw.contains(marker))
+            })
+            .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+            .collect::<BTreeSet<_>>();
+        let expected = BTreeSet::from([
+            "block/fri06_atomic_inline_percentage_block_size.html".to_string(),
+            "block/fri06_bidi_mixed_inline.html".to_string(),
+            "block/fri06_inline_mixed_text_atomic_wrap.html".to_string(),
+            "float/fri06_float_line_exclusion.html".to_string(),
+            "subgrid/subgrid_auto_track_sizing_min_content_text_runs.html".to_string(),
+            "subgrid/subgrid_baseline_auto_columns_first_item.html".to_string(),
+            "subgrid/subgrid_baseline_auto_columns_second_item.html".to_string(),
+            "subgrid/subgrid_baseline_standalone_axis_first_item.html".to_string(),
+            "subgrid/subgrid_baseline_standalone_axis_second_item.html".to_string(),
+        ]);
+        assert_eq!(actual, expected, "closed authored marker source inventory");
+
+        let scoped_records = actual
+            .iter()
+            .map(|relative| {
+                fs::read_to_string(html.join(relative))
+                    .expect(relative)
+                    .matches(r#""whenDirection":"rtl""#)
+                    .count()
+            })
+            .sum::<usize>();
+        assert_eq!(scoped_records, 2, "exact authored scoped bidi record count");
+        for (relative, source_index) in [
+            ("block/fri06_atomic_inline_percentage_block_size.html", 0),
+            ("float/fri06_float_line_exclusion.html", 4),
+        ] {
+            let raw = fs::read_to_string(html.join(relative)).expect(relative);
+            let record = format!(
+                r#"data-surgeist-inline-bidi-levels='[{{"sourceIndex":{source_index},"bidiLevel":1,"whenDirection":"rtl"}}]'"#
+            );
+            assert_eq!(raw.matches("data-surgeist-inline-bidi-levels=").count(), 1);
+            assert!(raw.contains(&record), "{relative} lacks {record}");
+        }
     }
 
     mod c08_entry_preflight {

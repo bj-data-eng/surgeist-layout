@@ -3001,6 +3001,19 @@ fn block_relation(
     flow: layout::FlowAxes,
 ) -> BrowserNeighborLine {
     let tolerance = ComparisonTolerance::browser_parity().value;
+    if control.0 == control.1 {
+        let neighbor_touches_later_side = match flow.block_start() {
+            layout::PhysicalSide::Top | layout::PhysicalSide::Left => {
+                neighbor.0 == control.0 && neighbor.1 > control.1
+            }
+            layout::PhysicalSide::Right | layout::PhysicalSide::Bottom => {
+                neighbor.1 == control.1 && neighbor.0 < control.0
+            }
+        };
+        if neighbor_touches_later_side {
+            return BrowserNeighborLine::Later;
+        }
+    }
     if neighbor.1 + tolerance >= control.0 && control.1 + tolerance >= neighbor.0 {
         return BrowserNeighborLine::Same;
     }
@@ -5845,6 +5858,47 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "browser control observations must not include model control geometry"
+        );
+    }
+
+    #[test]
+    fn fri06_c12_t07_zero_size_shared_endpoint_keeps_directional_neighbor_relation() {
+        let forward =
+            layout::FlowAxes::new(layout::WritingMode::HorizontalTb, layout::Direction::Ltr);
+        let control = (25.0, 25.0);
+        assert_eq!(
+            block_relation(control, (5.0, 25.0), forward),
+            BrowserNeighborLine::Same,
+            "the touching previous neighbor remains on the control line"
+        );
+        assert_eq!(
+            block_relation(control, (25.0, 45.0), forward),
+            BrowserNeighborLine::Later,
+            "the touching next neighbor begins after the control line"
+        );
+
+        let reverse =
+            layout::FlowAxes::new(layout::WritingMode::VerticalRl, layout::Direction::Ltr);
+        assert_eq!(
+            block_relation(control, (25.0, 45.0), reverse),
+            BrowserNeighborLine::Same,
+            "the physical-right touching interval is previous in reverse block flow"
+        );
+        assert_eq!(
+            block_relation(control, (5.0, 25.0), reverse),
+            BrowserNeighborLine::Later,
+            "the physical-left touching interval is next in reverse block flow"
+        );
+
+        assert_eq!(
+            block_relation((20.0, 30.0), (25.0, 45.0), forward),
+            BrowserNeighborLine::Same,
+            "nonzero overlap remains same-line"
+        );
+        assert_eq!(
+            block_relation(control, (25.05, 45.0), forward),
+            BrowserNeighborLine::Same,
+            "the existing browser tolerance remains unchanged away from a shared endpoint"
         );
     }
 
