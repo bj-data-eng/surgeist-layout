@@ -630,7 +630,7 @@ fn lp64(absolute_px: f64, percent_fraction: f64) -> LengthPercentageOf<f64> {
         .expect("test coefficients are finite")
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 enum ShapeProviderBehavior<S: LayoutScalar> {
     #[default]
     Missing,
@@ -645,12 +645,14 @@ enum ShapeProviderBehavior<S: LayoutScalar> {
         minimum: S,
         maximum: S,
     },
+    Bands(Vec<(S, S, S, S)>),
 }
 
 #[derive(Default)]
 struct PublicBlockTree<S: LayoutScalar> {
     children: HashMap<u32, Vec<u32>>,
     styles: HashMap<u32, NodeInputOf<S>>,
+    layout_inputs: HashMap<u32, LayoutInputOf<S>>,
     leaf_nodes: HashSet<u32>,
     leaf_measurements: HashMap<u32, Size<S>>,
     shape_provider: ShapeProviderBehavior<S>,
@@ -665,6 +667,11 @@ impl<S: LayoutScalar> PublicBlockTree<S> {
 
     fn with_style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
         self.styles.insert(node, style);
+        self
+    }
+
+    fn with_layout_input(mut self, node: u32, input: LayoutInputOf<S>) -> Self {
+        self.layout_inputs.insert(node, input);
         self
     }
 
@@ -718,7 +725,10 @@ impl<S: LayoutScalar> LayoutTree for PublicBlockTree<S> {
     }
 
     fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
-        LayoutInputOf::box_input(self.styles[&node].clone())
+        self.layout_inputs
+            .get(&node)
+            .cloned()
+            .unwrap_or_else(|| LayoutInputOf::box_input(self.styles[&node].clone()))
     }
 
     fn has_leaf_measurement(&self, node: Self::Node) -> bool {
@@ -739,12 +749,12 @@ impl<S: LayoutScalar> LayoutTree for PublicBlockTree<S> {
         query: FloatExclusionQueryOf<S>,
     ) -> Option<Result<Option<FloatExclusionIntervalOf<S>>, Self::MeasureError>> {
         self.shape_queries.lock().unwrap().push((node, query));
-        match self.shape_provider {
+        match &self.shape_provider {
             ShapeProviderBehavior::Missing => None,
             ShapeProviderBehavior::Failure => Some(Err(())),
             ShapeProviderBehavior::Empty => Some(Ok(None)),
             ShapeProviderBehavior::Interval { minimum, maximum } => Some(Ok(
-                FloatExclusionIntervalOf::try_new(query, minimum, maximum)
+                FloatExclusionIntervalOf::try_new(query, *minimum, *maximum)
                     .expect("test provider endpoints are valid"),
             )),
             ShapeProviderBehavior::Mismatch {
@@ -752,9 +762,22 @@ impl<S: LayoutScalar> LayoutTree for PublicBlockTree<S> {
                 minimum,
                 maximum,
             } => Some(Ok(FloatExclusionIntervalOf::try_new(
-                query, minimum, maximum,
+                *query, *minimum, *maximum,
             )
             .expect("mismatch provider endpoints are valid"))),
+            ShapeProviderBehavior::Bands(bands) => {
+                let interval = bands
+                    .iter()
+                    .find(|(band_minimum, band_maximum, _, _)| {
+                        query.band_minimum() == *band_minimum
+                            && query.band_maximum() == *band_maximum
+                    })
+                    .map(|(_, _, minimum, maximum)| {
+                        FloatExclusionIntervalOf::try_new(query, *minimum, *maximum)
+                            .expect("fixture band endpoints are valid")
+                    });
+                Some(Ok(interval.flatten()))
+            }
         }
     }
 }
@@ -2898,6 +2921,200 @@ fn fri06_c05_shape_query_float_line_and_bfc_consumers_record_exact_candidate_onc
 
     assert_lane::<f32>();
     assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c12_t08_float_dominated_terminal_extent_stops_at_the_float_edge() {
+    fn assert_lane<S: LayoutScalar>() {
+        let root = NodeInputOf {
+            display: Display::Block,
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(180.0)),
+                PreferredSizeOf::AUTO,
+            ),
+            ..NodeInputOf::default()
+        };
+        let mut floating = fri06_c05_shape_float_style(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Float::Left,
+            44.0,
+            60.0,
+        );
+        floating.float_exclusion = FloatExclusion::Shape;
+        let segment = ShapedInlineSegmentOf::try_new(
+            InlineSegmentId::new(1),
+            S::from_f64(48.164_062_5),
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(14.8))
+                .unwrap(),
+            BidiLevel::try_new(0).unwrap(),
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )
+        .unwrap();
+        let text = LayoutInputOf::inline_text(InlineTextInputOf::try_new(vec![segment]).unwrap());
+        let atomic = |inline_extent, following_break| NodeInputOf {
+            display: Display::InlineBlock,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(inline_extent)),
+                PreferredSizeOf::px(S::from_f64(16.0)),
+            ),
+            atomic_inline_participation: Some(
+                AtomicInlineParticipationOf::try_new(
+                    BidiLevel::try_new(0).unwrap(),
+                    following_break,
+                )
+                .unwrap(),
+            ),
+            ..NodeInputOf::default()
+        };
+        let atomics = [
+            atomic(34.0, InlineBreakOpportunityOf::prohibited()),
+            atomic(38.0, InlineBreakOpportunityOf::prohibited()),
+            atomic(42.0, InlineBreakOpportunityOf::allowed()),
+            atomic(46.0, InlineBreakOpportunityOf::prohibited()),
+        ];
+        let mut tree = PublicBlockTree::default()
+            .with_shape_provider(ShapeProviderBehavior::Bands(vec![
+                (S::ZERO, S::from_f64(21.2), S::ZERO, S::from_f64(44.0)),
+                (
+                    S::from_f64(21.2),
+                    S::from_f64(37.2),
+                    S::ZERO,
+                    S::from_f64(44.0),
+                ),
+            ]))
+            .with_children(0, [1, 2, 3, 4, 5, 6])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(0, root)
+            .with_style(1, floating)
+            .with_style(2, NodeInputOf::non_box())
+            .with_layout_input(2, text);
+        for (offset, style) in atomics.into_iter().enumerate() {
+            let node = u32::try_from(offset + 3).unwrap();
+            tree = tree.with_children(node, []).with_style(node, style);
+        }
+
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::new(
+                AvailableOf::definite(S::from_f64(180.0)),
+                AvailableOf::MAX_CONTENT,
+            ))
+            .unwrap(),
+        )
+        .expect("shape-excluded inline layout succeeds");
+
+        assert_eq!(
+            batch
+                .unrounded_entries()
+                .iter()
+                .find(|entry| entry.node() == 0)
+                .unwrap()
+                .output()
+                .size
+                .height,
+            S::from_f64(60.0),
+        );
+        assert_eq!(
+            public_final_output(&batch, 0).size.height,
+            S::from_f64(60.0)
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c12_t08_float_shape_slots_follow_visual_order_before_physical_projection() {
+    fn assert_lane<S: LayoutScalar>(direction: Direction) {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, direction);
+        let root = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::HorizontalTb,
+            direction,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(180.0)),
+                PreferredSizeOf::AUTO,
+            ),
+            ..NodeInputOf::default()
+        };
+        let floating = fri06_c05_shape_float_style(flow_axes, Float::Right, 44.0, 60.0);
+        let (shape_minimum, shape_maximum) = match direction {
+            Direction::Ltr => (S::from_f64(136.0), S::from_f64(180.0)),
+            Direction::Rtl => (S::ZERO, S::from_f64(44.0)),
+        };
+        let bidi_level = BidiLevel::try_new(u8::from(direction == Direction::Rtl)).unwrap();
+        let segments = [(1, 66.0), (2, 114.0)]
+            .into_iter()
+            .map(|(id, inline_extent)| {
+                ShapedInlineSegmentOf::try_new(
+                    InlineSegmentId::new(id),
+                    S::from_f64(inline_extent),
+                    InlineMetricsOf::from_line_height_and_baseline(
+                        S::from_f64(20.0),
+                        S::from_f64(14.0),
+                    )
+                    .unwrap(),
+                    bidi_level,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let text = LayoutInputOf::inline_text(InlineTextInputOf::try_new(segments).unwrap());
+        let tree = PublicBlockTree::default()
+            .with_shape_provider(ShapeProviderBehavior::Interval {
+                minimum: shape_minimum,
+                maximum: shape_maximum,
+            })
+            .with_children(0, [1, 2])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(0, root)
+            .with_style(1, floating)
+            .with_style(2, NodeInputOf::non_box())
+            .with_layout_input(2, text);
+
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::new(
+                AvailableOf::definite(S::from_f64(180.0)),
+                AvailableOf::MAX_CONTENT,
+            ))
+            .unwrap(),
+        )
+        .expect("shape-backed float slot layout succeeds");
+        let flow_inline_starts = batch
+            .unrounded_inline_fragments()
+            .iter()
+            .map(|entry| {
+                let rect = entry.fragment().rect();
+                match direction {
+                    Direction::Ltr => rect.origin().x,
+                    Direction::Rtl => rect.origin().x + rect.size().width,
+                }
+            })
+            .collect::<Vec<_>>();
+        let expected = match direction {
+            Direction::Ltr => vec![S::ZERO, S::from_f64(66.0)],
+            Direction::Rtl => vec![S::from_f64(66.0), S::from_f64(180.0)],
+        };
+        assert_eq!(
+            flow_inline_starts, expected,
+            "logical slots are LTR 0/66 and RTL 114/0 before FlowAxes projects them",
+        );
+    }
+
+    assert_lane::<f32>(Direction::Ltr);
+    assert_lane::<f64>(Direction::Ltr);
+    assert_lane::<f32>(Direction::Rtl);
+    assert_lane::<f64>(Direction::Rtl);
 }
 
 #[test]

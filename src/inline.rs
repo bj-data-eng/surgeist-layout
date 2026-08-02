@@ -164,7 +164,6 @@ struct SelectedInlineLineOf<S: LayoutScalar> {
     split_baseline_edge_phase: Option<S>,
     inline_start_override: Option<S>,
     uses_float_strut_phase: bool,
-    float_band_slots_decrease: bool,
     band: LogicalLineBandOf<S>,
 }
 
@@ -367,19 +366,39 @@ impl<S: LayoutScalar> MixedInlineParticipantOf<S> {
             Self::Boundary(control) => control.alignment(),
         }
     }
+}
 
-    fn fallback_fits_line_band(
-        self,
-        flow_axes: FlowAxes,
-        line_band: Option<InlineMetricContributionOf<S>>,
-    ) -> bool {
-        match self {
-            Self::Atomic { item, .. } => line_band
-                .and_then(|band| item.fallback_block_start_in_band(flow_axes, band))
-                .is_some(),
-            Self::ShapedText(_) | Self::ForcedLineBreak(_) | Self::Boundary(_) => false,
-        }
+fn resolve_completed_fallback_envelope<S: LayoutScalar>(
+    line: &mut SelectedInlineLineOf<S>,
+    flow_axes: FlowAxes,
+    uses_float_band: bool,
+) {
+    let Some(fallback_band) = line.fallback_line_band else {
+        return;
+    };
+    let has_fallback_atomic = line.units.iter().copied().any(|unit| {
+        !unit.discarded
+            && matches!(
+                unit.participant,
+                MixedInlineParticipantOf::Atomic { item, .. }
+                    if item
+                        .fallback_block_start_in_band(flow_axes, fallback_band)
+                        .is_some()
+            )
+    });
+    if !has_fallback_atomic {
+        return;
     }
+
+    if uses_float_band {
+        line.baseline = fallback_band.baseline;
+        line.after_baseline = fallback_band.after_baseline;
+        return;
+    }
+
+    let completed_extent = (line.baseline + line.after_baseline).round();
+    line.after_baseline = (completed_extent - line.baseline).max(S::ZERO);
+    line.fallback_line_band = None;
 }
 
 #[must_use]
@@ -444,9 +463,7 @@ fn summarize_inline_line<S: LayoutScalar>(
             discarded_start_end = index + 1;
         } else {
             at_line_start = false;
-            if !participant.fallback_fits_line_band(flow_axes, fallback_line_band) {
-                metric_groups.include(participant.alignment(), participant.metrics(flow_axes));
-            }
+            metric_groups.include(participant.alignment(), participant.metrics(flow_axes));
             used_inline_extent = used_inline_extent + participant.inline_advance(flow_axes);
         }
         if index + 1 == participants.len()
@@ -512,7 +529,6 @@ fn select_inline_line<S: LayoutScalar>(
         split_baseline_edge_phase: summary.split_baseline_edge_phase,
         inline_start_override: None,
         uses_float_strut_phase: false,
-        float_band_slots_decrease: false,
         band: LogicalLineBandOf {
             inline_start: S::ZERO,
             inline_end: S::ZERO,
@@ -886,11 +902,7 @@ fn resolved_inline_unit_slots<S: LayoutScalar>(
     for (visual_index, source_index) in visual_order.iter().copied().enumerate() {
         visual_indices[source_index] = visual_index;
     }
-    let mut inline_start = if line.float_band_slots_decrease {
-        line_inline_start + line.used_inline_extent
-    } else {
-        line_inline_start
-    };
+    let mut inline_start = line_inline_start;
     for source_index in visual_order {
         let selected = line.units[source_index];
         let selected_inline_extent = if selected.discarded {
@@ -899,13 +911,8 @@ fn resolved_inline_unit_slots<S: LayoutScalar>(
             selected.participant.inline_advance(flow_axes)
                 + selected.replacement_inline_extent.unwrap_or(S::ZERO)
         };
-        if line.float_band_slots_decrease {
-            inline_start = inline_start - selected_inline_extent;
-        }
         inline_starts[source_index] = inline_start;
-        if !line.float_band_slots_decrease {
-            inline_start = inline_start + selected_inline_extent;
-        }
+        inline_start = inline_start + selected_inline_extent;
     }
     (line_inline_start, visual_indices, inline_starts)
 }
@@ -1017,6 +1024,11 @@ where
         } else {
             float_strut
         };
+        resolve_completed_fallback_envelope(
+            &mut selected.line,
+            input.flow_axes,
+            has_float_transition,
+        );
         let selected_block_end =
             block_cursor + selected.line.baseline + selected.line.after_baseline;
         let continuation_overflows = continuation_inline_cursor
@@ -1037,17 +1049,7 @@ where
 
         let mut line = selected.line;
         if advanced_phase_transition && continuation_inline_cursor.is_some() {
-            line.inline_start_override = Some(
-                if input
-                    .flow_axes
-                    .logical_axis_progression(crate::LogicalAxis::Inline)
-                    .is_decreasing()
-                {
-                    band_inline_start
-                } else {
-                    band_inline_end - line.used_inline_extent
-                },
-            );
+            line.inline_start_override = Some(band_inline_start);
         }
         line.band = LogicalLineBandOf {
             inline_start: band_inline_start,
@@ -1055,11 +1057,6 @@ where
             block_start: block_cursor,
             block_end: selected_block_end,
         };
-        line.float_band_slots_decrease = has_float_transition
-            && input
-                .flow_axes
-                .logical_axis_progression(crate::LogicalAxis::Inline)
-                .is_decreasing();
         source_cursor = selected.next_source_cursor;
         pending_strut = selected.pending_strut;
         let line_block_end = block_cursor + line.baseline + line.after_baseline;

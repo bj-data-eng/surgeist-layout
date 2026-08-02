@@ -821,6 +821,10 @@ where
             item.area.size,
         );
         let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
+        let container_flow_axes = FlowAxes::new(
+            input.container_style.writing_mode,
+            input.container_style.direction,
+        );
         let mut sizing = grid_item_sizing_for_grid_flow::<Tree, M>(
             tree,
             item.node,
@@ -828,15 +832,12 @@ where
             input.container_style,
             physical_area_size,
             physical_area_size.map(Some),
-            child_flow_axes,
+            container_flow_axes,
         )?;
         apply_final_subgrid_axis_constraints(
             &mut sizing,
             subgrid_item,
-            FlowAxes::new(
-                input.container_style.writing_mode,
-                input.container_style.direction,
-            ),
+            container_flow_axes,
             child_flow_axes,
         );
         let area_parent = physical_area_size.map(Some);
@@ -929,7 +930,7 @@ where
             sizing.justify_self,
             sizing.align_self,
         );
-        let horizontal_axis = physical_grid_item_axis(PhysicalGridItemAxis {
+        let physical_horizontal_axis = physical_grid_item_axis(PhysicalGridItemAxis {
             area_size: physical_area_size.width,
             size: output.size.width,
             margin_start: sizing.unresolved_margin.left,
@@ -941,7 +942,7 @@ where
                 PhysicalAxis::Horizontal,
             ),
         });
-        let vertical_axis = physical_grid_item_axis(PhysicalGridItemAxis {
+        let physical_vertical_axis = physical_grid_item_axis(PhysicalGridItemAxis {
             area_size: physical_area_size.height,
             size: output.size.height,
             margin_start: sizing.unresolved_margin.top,
@@ -954,10 +955,29 @@ where
             ),
         });
         let margin = Edges {
-            left: horizontal_axis.margin_start,
-            right: horizontal_axis.margin_end,
-            top: vertical_axis.margin_start,
-            bottom: vertical_axis.margin_end,
+            left: physical_horizontal_axis.margin_start,
+            right: physical_horizontal_axis.margin_end,
+            top: physical_vertical_axis.margin_start,
+            bottom: physical_vertical_axis.margin_end,
+        };
+        let logical_offset = container_flow_axes.logical_point(
+            Point::new(
+                physical_horizontal_axis.offset,
+                physical_vertical_axis.offset,
+            ),
+            output.size,
+            physical_area_size,
+        );
+        let logical_margin = container_flow_axes.logical_edges(margin);
+        let horizontal_axis = ResolvedGridItemAxis {
+            offset: logical_offset.inline,
+            margin_start: logical_margin.inline_start,
+            margin_end: logical_margin.inline_end,
+        };
+        let vertical_axis = ResolvedGridItemAxis {
+            offset: logical_offset.block,
+            margin_start: logical_margin.block_start,
+            margin_end: logical_margin.block_end,
         };
         let baselines = output.baselines();
         let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
@@ -1336,6 +1356,7 @@ pub(super) fn publish_row_baseline_groups<S: LayoutScalar>(
     expected_axis: PhysicalAxis,
 ) -> Vec<PublishedTrackBaselineGroup<S>> {
     let parent_span_len = axis.parent_end.saturating_sub(axis.parent_start);
+    let local_count = local_groups.len().min(parent_span_len);
     local_groups
         .iter()
         .copied()
@@ -1347,29 +1368,25 @@ pub(super) fn publish_row_baseline_groups<S: LayoutScalar>(
             } else {
                 axis.parent_start + local_index
             };
-            let internal_gap_adjustment =
-                axis.gap_difference * internal_gap_edge_count(local_groups.len(), local_index);
             let first = group.first.map(|baseline| {
                 adjust_published_baseline(
                     baseline,
-                    internal_gap_adjustment
-                        + if local_index == 0 {
-                            axis.start_mbp
-                        } else {
-                            S::ZERO
-                        },
+                    if local_index == 0 {
+                        axis.start_mbp
+                    } else {
+                        axis.gap_difference
+                    },
                     expected_axis,
                 )
             });
             let last = group.last.map(|baseline| {
                 adjust_published_baseline(
                     baseline,
-                    internal_gap_adjustment
-                        + if local_index + 1 == local_groups.len() {
-                            axis.end_mbp
-                        } else {
-                            S::ZERO
-                        },
+                    if local_index + 1 == local_count {
+                        axis.end_mbp
+                    } else {
+                        axis.gap_difference
+                    },
                     expected_axis,
                 )
             });
@@ -1391,15 +1408,6 @@ fn adjust_published_baseline<S: LayoutScalar>(
     } else {
         baseline
     }
-}
-
-fn internal_gap_edge_count<S: LayoutScalar>(track_count: usize, track_index: usize) -> S {
-    if track_count < 2 {
-        return S::ZERO;
-    }
-    let before = usize::from(track_index > 0);
-    let after = usize::from(track_index + 1 < track_count);
-    S::from_usize(before + after)
 }
 
 pub(super) fn grid_container_baselines<Node, S: LayoutScalar>(

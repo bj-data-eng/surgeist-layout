@@ -4794,9 +4794,26 @@ fn assert_fri06_c08_float_line_final_height<S: LayoutScalar>(
              node {node} expected {expected}, got {actual:?}"
         );
     }
+    let expected_second_line_atomic_x = match direction {
+        Direction::Ltr => [42.0, 74.0],
+        Direction::Rtl => [62.0, 94.0],
+    };
+    assert_eq!(
+        [5, 6].map(|node| {
+            public_flow_output(batch.unrounded_entries(), node)
+                .location
+                .x
+        }),
+        expected_second_line_atomic_x.map(S::from_f64),
+        "bidi visual ordering assigns logical float-band slots once before physical projection",
+    );
+    let expected_terminal_x = match direction {
+        Direction::Ltr => 0.0,
+        Direction::Rtl => 90.0,
+    };
     assert_eq!(
         public_flow_output(batch.unrounded_entries(), 7).location.x,
-        S::from_f64(90.0),
+        S::from_f64(expected_terminal_x),
         "{direction:?} {box_sizing:?} terminal atomic physical placement"
     );
     assert_eq!(
@@ -5058,6 +5075,176 @@ fn fri06_c08_float_line_content_box_ltr_rounds_final_height_to_63() {
 fn fri06_c08_float_line_content_box_rtl_rounds_final_height_to_63() {
     assert_fri06_c08_float_line_final_height::<f32>(Direction::Rtl, BoxSizing::ContentBox);
     assert_fri06_c08_float_line_final_height::<f64>(Direction::Rtl, BoxSizing::ContentBox);
+}
+
+#[test]
+fn fri06_c12_t08_horizontal_forced_break_fallback_expands_each_line_envelope() {
+    fn assert_lane<S: LayoutScalar>() {
+        let atomic = |node| {
+            let style = fri06_c03_atomic_style(
+                24.0,
+                16.0,
+                0.0,
+                0.0,
+                0,
+                InlineBreakOpportunityOf::prohibited(),
+            );
+            (
+                node,
+                LayoutInputOf::box_input(style.clone()),
+                style,
+                Vec::new(),
+            )
+        };
+        let line_break = LineBreakInputOf::new().with_metrics(
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(14.8))
+                .unwrap(),
+        );
+        let parent = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(160.0)),
+                PreferredSizeOf::AUTO,
+            ),
+            ..NodeInputOf::default()
+        };
+        let mut nodes = Vec::new();
+        for (parent_node, first_atomic, line_break_node, second_atomic) in
+            [(1, 2, 3, 4), (5, 6, 7, 8), (9, 10, 11, 12)]
+        {
+            nodes.push((
+                parent_node,
+                LayoutInputOf::box_input(parent.clone()),
+                parent.clone(),
+                vec![first_atomic, line_break_node, second_atomic],
+            ));
+            nodes.push(atomic(first_atomic));
+            nodes.push((
+                line_break_node,
+                LayoutInputOf::line_break(line_break),
+                NodeInputOf::non_box(),
+                Vec::new(),
+            ));
+            nodes.push(atomic(second_atomic));
+        }
+        let batch = fri06_c04_front_door_batch(
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(160.0)),
+                    PreferredSizeOf::AUTO,
+                ),
+                ..NodeInputOf::default()
+            },
+            LogicalSizeOf::new(
+                AvailableOf::definite(S::from_f64(160.0)),
+                AvailableOf::MAX_CONTENT,
+            ),
+            vec![1, 5, 9],
+            nodes,
+        );
+
+        for (parent_node, first_atomic, second_atomic, block_start) in
+            [(1, 2, 4, 0.0), (5, 6, 8, 42.0), (9, 10, 12, 84.0)]
+        {
+            assert_eq!(
+                public_flow_output(batch.unrounded_entries(), parent_node)
+                    .size
+                    .height,
+                S::from_f64(42.0),
+                "each completed parent publishes two exact 21px line envelopes",
+            );
+            assert_eq!(
+                public_flow_output(batch.unrounded_entries(), parent_node)
+                    .location
+                    .y,
+                S::from_f64(block_start),
+                "parent block progression consumes the exact completed envelope",
+            );
+            assert_eq!(
+                public_flow_output(batch.unrounded_entries(), first_atomic)
+                    .location
+                    .y,
+                S::ZERO,
+                "the first atomic starts at the actual completed line envelope",
+            );
+            assert_eq!(
+                public_flow_output(batch.unrounded_entries(), second_atomic)
+                    .location
+                    .y,
+                S::from_f64(21.0),
+                "the second fallback envelope starts after exactly one completed line",
+            );
+        }
+        assert_eq!(
+            public_flow_output(batch.unrounded_entries(), 0).size.height,
+            S::from_f64(126.0),
+        );
+        assert_eq!(
+            fri06_c02_final_node(&batch, 0).size.height,
+            S::from_f64(126.0),
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c12_t08_ltr_post_exclusion_continuation_restarts_at_line_start() {
+    fn assert_lane<S: LayoutScalar>() {
+        let batch = fri06_c08_float_line_control_batch(
+            fri06_c08_float_line_continuation_input::<S>(20.0, [0; 4]),
+            62.0,
+        );
+
+        assert_eq!(
+            public_flow_output(batch.unrounded_entries(), 7).location.x,
+            S::ZERO,
+        );
+        assert_eq!(
+            public_flow_output(batch.unrounded_entries(), 6).location.x,
+            S::from_f64(74.0),
+            "the nearest in-exclusion continuation remains unchanged",
+        );
+        assert_eq!(
+            public_flow_output(
+                fri06_c08_float_line_control_batch(
+                    fri06_c08_float_line_continuation_input::<S>(20.25, [0; 4]),
+                    62.0,
+                )
+                .unrounded_entries(),
+                0,
+            )
+            .size
+            .height,
+            S::from_f64(62.25),
+            "fractional terminal line geometry remains independent of continuation placement",
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c12_t08_terminal_line_phase_survives_both_inline_progressions() {
+    assert_fri06_c08_float_line_final_height::<f32>(Direction::Ltr, BoxSizing::BorderBox);
+    assert_fri06_c08_float_line_final_height::<f64>(Direction::Ltr, BoxSizing::BorderBox);
+    assert_fri06_c08_float_line_final_height::<f32>(Direction::Rtl, BoxSizing::BorderBox);
+    assert_fri06_c08_float_line_final_height::<f64>(Direction::Rtl, BoxSizing::BorderBox);
+}
+
+#[test]
+fn fri06_c12_t08_rtl_float_line_slots_project_logical_progression_once() {
+    assert_fri06_c08_float_line_final_height::<f32>(Direction::Rtl, BoxSizing::BorderBox);
+    assert_fri06_c08_float_line_final_height::<f64>(Direction::Rtl, BoxSizing::BorderBox);
+}
+
+#[test]
+fn fri06_c12_t08_ltr_float_line_slots_preserve_logical_progression() {
+    assert_fri06_c08_float_line_final_height::<f32>(Direction::Ltr, BoxSizing::BorderBox);
+    assert_fri06_c08_float_line_final_height::<f64>(Direction::Ltr, BoxSizing::BorderBox);
 }
 
 fn fri06_c08_recovery_characterization_batch<S: LayoutScalar>(
@@ -5505,8 +5692,8 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                     );
                 }
                 let atomic_x = match direction {
-                    Direction::Ltr => [81.0, 42.0, 74.0, 90.0],
-                    Direction::Rtl => [63.0, 98.0, 62.0, 90.0],
+                    Direction::Ltr => [81.0, 42.0, 74.0, 0.0],
+                    Direction::Rtl => [102.0, 62.0, 94.0, 90.0],
                 };
                 for (index, (node, width, y)) in [
                     (4, 28.0, 0.0),
@@ -5540,7 +5727,7 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                 let fragment = batch.unrounded_inline_fragments()[0].fragment();
                 let (x, baseline_x) = match direction {
                     Direction::Ltr => (42.0, 42.0),
-                    Direction::Rtl => (91.46875, 130.0),
+                    Direction::Rtl => (63.46875, 102.0),
                 };
                 assert_eq!(fragment.line_index(), 0);
                 assert_eq!(fragment.rect().origin().x, S::from_f64(x));
@@ -5553,6 +5740,17 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                 );
                 assert_eq!(fragment.baseline().x, S::from_f64(baseline_x));
                 assert!((fragment.baseline().y - S::from_f64(16.0)).abs() <= S::from_f64(0.000_1));
+                if direction == Direction::Rtl {
+                    let first_atomic = public_flow_output(batch.unrounded_entries(), 4);
+                    assert_eq!(
+                        [
+                            fragment.rect().origin().x + fragment.rect().size().width,
+                            first_atomic.location.x + first_atomic.size.width,
+                        ],
+                        [S::from_f64(102.0), S::from_f64(130.0)],
+                        "logical float-band starts 78/50 project once to physical Range starts 102/130",
+                    );
+                }
             }
         }
     }

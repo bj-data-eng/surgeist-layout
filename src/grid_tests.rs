@@ -8473,6 +8473,598 @@ fn sibling_row_subgrids_revisit_inherited_published_baselines() {
     assert_eq!(final_y(&tree, 5), 62.0);
 }
 
+fn fri06_c12_t08_parent_baseline_row(
+    direct_baseline: f32,
+    nested_baseline: f32,
+    row_track: TrackComponent,
+    alignment: AlignItems,
+) -> f32 {
+    let baseline_measurement = |baseline| match alignment {
+        AlignItems::Baseline => baseline_measure(30.0, 20.0, Some(baseline), None),
+        AlignItems::LastBaseline => baseline_measure(30.0, 20.0, None, Some(baseline)),
+        _ => unreachable!("the intrinsic baseline helper uses a baseline alignment"),
+    };
+    let mut tree = OracleTree::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [4])
+        .children(4, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
+                grid_template_rows: vec![row_track],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                align_self: Some(alignment),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::Grid,
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_template_columns: vec![TrackComponent::px(60.0)],
+                grid_template_rows: vec![empty_subgrid_track()],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                align_self: Some(alignment),
+                ..NodeInput::default()
+            },
+        )
+        .measure(2, baseline_measurement(direct_baseline))
+        .measure(4, baseline_measurement(nested_baseline));
+
+    let output = compute_grid(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
+    )
+    .expect("intrinsic baseline subgrid layout succeeds");
+
+    output.size.height
+}
+
+#[test]
+fn fri06_c12_t08_parent_baseline_envelope_grows_an_intrinsic_row() {
+    assert_eq!(
+        fri06_c12_t08_parent_baseline_row(14.0, 8.0, TrackComponent::AUTO, AlignItems::Baseline,),
+        26.0,
+    );
+}
+
+#[test]
+fn fri06_c12_t08_equal_parent_and_nested_baselines_need_no_intrinsic_shim() {
+    assert_eq!(
+        fri06_c12_t08_parent_baseline_row(14.0, 14.0, TrackComponent::AUTO, AlignItems::Baseline,),
+        20.0,
+    );
+}
+
+#[test]
+fn fri06_c12_t08_fixed_parent_row_ignores_intrinsic_baseline_shim() {
+    assert_eq!(
+        fri06_c12_t08_parent_baseline_row(
+            14.0,
+            8.0,
+            TrackComponent::px(40.0),
+            AlignItems::Baseline,
+        ),
+        40.0,
+    );
+}
+
+#[test]
+fn fri06_c12_t08_parent_last_baseline_envelope_grows_the_same_intrinsic_row() {
+    assert_eq!(
+        fri06_c12_t08_parent_baseline_row(
+            14.0,
+            8.0,
+            TrackComponent::AUTO,
+            AlignItems::LastBaseline,
+        ),
+        26.0,
+    );
+}
+
+#[test]
+fn fri06_c12_t08_equal_parent_and_nested_last_baselines_need_no_intrinsic_shim() {
+    assert_eq!(
+        fri06_c12_t08_parent_baseline_row(
+            14.0,
+            14.0,
+            TrackComponent::AUTO,
+            AlignItems::LastBaseline,
+        ),
+        20.0,
+    );
+}
+
+#[test]
+fn fri06_c12_t08_synthesized_intrinsic_cycle_is_disqualified_from_the_baseline_group() {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let participation = baseline_participation_for_container(
+        AlignItems::Baseline,
+        false,
+        true,
+        Baselines::NONE,
+        flow_axes,
+        flow_axes,
+    );
+
+    assert!(!participation.participates);
+    assert_eq!(participation.group, None);
+    assert!(participation.synthesized);
+    assert_eq!(participation.fallback_alignment, Some(AlignItems::Start));
+}
+
+#[test]
+fn fri06_c12_t08_refreshed_subgrid_offsets_remain_logical_until_projection() {
+    let mut tree = OracleTree::new()
+        .children(1, [2])
+        .children(2, [3])
+        .children(3, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                direction: Direction::Rtl,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                grid_template_columns: vec![TrackComponent::px(100.0)],
+                grid_template_rows: vec![TrackComponent::px(100.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Grid,
+                direction: Direction::Rtl,
+                grid_template_columns: vec![empty_subgrid_track()],
+                grid_template_rows: vec![empty_subgrid_track()],
+                margin: Edges {
+                    left: LengthAuto::px(24.0),
+                    right: LengthAuto::px(10.0),
+                    ..Edges::all(LengthAuto::ZERO)
+                },
+                ..NodeInput::default()
+            },
+        )
+        .style(3, NodeInput::default())
+        .measure(3, baseline_measure(20.0, 20.0, Some(14.0), None));
+
+    compute_oracle_grid(&mut tree);
+
+    assert_eq!(
+        tree.layout(2).expect("subgrid is laid out").location.x,
+        24.0
+    );
+}
+
+fn fri06_c12_t08_refreshed_cross_flow_tree(
+    direction: Direction,
+    child_writing_mode: WritingMode,
+    container_height: f32,
+    descendant_height: f32,
+) -> OracleTree {
+    let mut tree = OracleTree::new()
+        .children(1, [2, 4])
+        .children(2, [3])
+        .children(3, [])
+        .children(4, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                direction,
+                size: Size::new(
+                    PreferredSize::px(200.0),
+                    PreferredSize::px(container_height),
+                ),
+                grid_template_columns: vec![TrackComponent::px(100.0), TrackComponent::px(100.0)],
+                grid_template_rows: vec![TrackComponent::px(container_height)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: child_writing_mode,
+                direction,
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Stretch),
+                grid_template_columns: vec![empty_subgrid_track()],
+                grid_template_rows: vec![TrackComponent::AUTO],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInput::default()
+            },
+        )
+        .measure(
+            3,
+            baseline_measure(20.0, descendant_height, Some(7.0), None),
+        )
+        .measure(4, baseline_measure(20.0, 10.0, Some(7.0), None));
+
+    compute_oracle_grid(&mut tree);
+    tree
+}
+
+#[test]
+fn fri06_c12_t08_refreshed_vertical_rl_item_uses_horizontal_rtl_grid_coordinates_once() {
+    let tree = fri06_c12_t08_refreshed_cross_flow_tree(
+        Direction::Rtl,
+        WritingMode::VerticalRl,
+        80.0,
+        10.0,
+    );
+
+    assert_eq!(
+        tree.final_layout(2)
+            .expect("refreshed item is laid out")
+            .size,
+        Size::new(20.0, 80.0),
+        "the containing grid axes own refreshed area sizing",
+    );
+    assert_eq!(
+        tree.final_layout(2)
+            .expect("refreshed item is laid out")
+            .location,
+        Point::new(180.0, 0.0),
+        "horizontal RTL projects the refreshed logical item once",
+    );
+    assert_eq!(
+        tree.final_layout(4)
+            .expect("ordinary sibling is laid out")
+            .location,
+        Point::new(80.0, 0.0),
+        "the ordinary non-refreshed sibling remains in its RTL grid area",
+    );
+    assert_eq!(
+        tree.final_layout(3)
+            .expect("nested descendant is laid out")
+            .location,
+        Point::new(0.0, 70.0),
+        "vertical-rl child-internal projection remains child-local after refresh",
+    );
+    assert_eq!(
+        tree.final_layout(1).expect("root is laid out").size,
+        Size::new(200.0, 80.0),
+        "root accumulation retains the containing-grid dimensions",
+    );
+}
+
+#[test]
+fn fri06_c12_t08_refreshed_same_flow_ltr_and_ordinary_item_remain_unchanged() {
+    let tree = fri06_c12_t08_refreshed_cross_flow_tree(
+        Direction::Ltr,
+        WritingMode::HorizontalTb,
+        80.0,
+        10.0,
+    );
+
+    assert_eq!(
+        tree.final_layout(2)
+            .expect("refreshed item is laid out")
+            .size,
+        Size::new(100.0, 80.0),
+    );
+    assert_eq!(
+        tree.final_layout(2)
+            .expect("refreshed item is laid out")
+            .location,
+        Point::new(0.0, 0.0),
+    );
+    assert_eq!(
+        tree.final_layout(3)
+            .expect("nested descendant is laid out")
+            .location,
+        Point::new(0.0, 0.0),
+    );
+    assert_eq!(
+        tree.final_layout(4)
+            .expect("ordinary sibling is laid out")
+            .location,
+        Point::new(100.0, 0.0),
+    );
+}
+
+#[test]
+fn fri06_c12_t08_refreshed_vertical_cross_writing_offset_is_projected_once() {
+    let tree = fri06_c12_t08_refreshed_cross_flow_tree(
+        Direction::Rtl,
+        WritingMode::VerticalRl,
+        120.0,
+        24.0,
+    );
+
+    assert_eq!(
+        tree.final_layout(2)
+            .expect("refreshed cross-writing item is laid out")
+            .size,
+        Size::new(20.0, 120.0),
+    );
+    assert_eq!(
+        tree.final_layout(3)
+            .expect("cross-writing descendant is laid out")
+            .location,
+        Point::new(0.0, 96.0),
+        "child-internal vertical RTL projection consumes the refreshed area once",
+    );
+}
+
+fn fri06_c12_t08_inherited_baseline_gap_position(parent_gap: f32, child_gap: f32) -> f32 {
+    let mut tree = OracleTree::new()
+        .children(1, [2, 3])
+        .children(2, [4])
+        .children(3, [5])
+        .children(4, [])
+        .children(5, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
+                grid_template_rows: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+                gap: Size::new(Length::ZERO, Length::px(parent_gap)),
+                align_items: Some(AlignItems::Start),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Grid,
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
+                grid_template_columns: vec![TrackComponent::px(60.0)],
+                grid_template_rows: vec![empty_subgrid_track()],
+                gap: Size::new(Length::ZERO, Length::px(parent_gap)),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::Grid,
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
+                grid_template_columns: vec![TrackComponent::px(60.0)],
+                grid_template_rows: vec![empty_subgrid_track()],
+                gap: Size::new(Length::ZERO, Length::px(child_gap)),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            5,
+            NodeInput {
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .measure(4, baseline_measure(30.0, 20.0, Some(30.0), None))
+        .measure(5, baseline_measure(30.0, 20.0, Some(8.0), None));
+
+    compute_oracle_grid(&mut tree);
+
+    final_y(&tree, 5)
+}
+
+#[test]
+fn fri06_c12_t08_inherited_baseline_gap_adjustment_is_applied_once() {
+    assert_eq!(
+        fri06_c12_t08_inherited_baseline_gap_position(10.0, 20.0),
+        72.0
+    );
+}
+
+#[test]
+fn fri06_c12_t08_equal_inherited_gap_keeps_the_parent_baseline_coordinate() {
+    assert_eq!(
+        fri06_c12_t08_inherited_baseline_gap_position(0.0, 0.0),
+        62.0
+    );
+}
+
+#[test]
+fn fri06_c12_t08_smaller_inherited_gap_applies_one_signed_track_transform() {
+    assert_eq!(
+        fri06_c12_t08_inherited_baseline_gap_position(20.0, 10.0),
+        82.0
+    );
+}
+
+#[test]
+fn fri06_c12_t08_inherited_gap_transform_uses_local_first_and_last_edges_after_reversal() {
+    let parent_major = [
+        Some(tagged_baseline(PhysicalAxis::Vertical, 14.0)),
+        Some(tagged_baseline(PhysicalAxis::Vertical, 30.0)),
+    ];
+    let parent_minor = [
+        Some(tagged_baseline(PhysicalAxis::Vertical, 6.0)),
+        Some(tagged_baseline(PhysicalAxis::Vertical, 12.0)),
+    ];
+
+    let forward = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
+        parent_major: &parent_major,
+        parent_minor: &parent_minor,
+        physical_axis: PhysicalAxis::Vertical,
+        parent_span: GridTrackSpan::new(1, 3),
+        reversed: false,
+        start_mbp: 2.0,
+        end_mbp: 3.0,
+        parent_gap: 10.0,
+        subgrid_gap: 20.0,
+    })
+    .unwrap();
+    assert_eq!(
+        forward.final_major,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 12.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 25.0)),
+        ],
+        "first baselines rebase only across their local start edge",
+    );
+    assert_eq!(
+        forward.final_minor,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 1.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 9.0)),
+        ],
+        "last baselines rebase only across their local end edge",
+    );
+
+    let reversed = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
+        parent_major: &parent_major,
+        parent_minor: &parent_minor,
+        physical_axis: PhysicalAxis::Vertical,
+        parent_span: GridTrackSpan::new(1, 3),
+        reversed: true,
+        start_mbp: 2.0,
+        end_mbp: 3.0,
+        parent_gap: 10.0,
+        subgrid_gap: 20.0,
+    })
+    .unwrap();
+    assert_eq!(
+        reversed.final_major,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 28.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 9.0)),
+        ],
+    );
+    assert_eq!(
+        reversed.final_minor,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 7.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 3.0)),
+        ],
+    );
+}
+
+#[test]
+fn fri06_c12_t08_inherited_baseline_publication_round_trips_signed_gap_geometry() {
+    for (subgrid_gap, gap_difference, reversed) in [
+        (20.0, 5.0, false),
+        (10.0, 0.0, false),
+        (0.0, -5.0, false),
+        (20.0, 5.0, true),
+    ] {
+        let parent_major = [
+            Some(tagged_baseline(PhysicalAxis::Vertical, 14.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 30.0)),
+        ];
+        let parent_minor = [
+            Some(tagged_baseline(PhysicalAxis::Vertical, 6.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 12.0)),
+        ];
+        let inherited = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
+            parent_major: &parent_major,
+            parent_minor: &parent_minor,
+            physical_axis: PhysicalAxis::Vertical,
+            parent_span: GridTrackSpan::new(1, 3),
+            reversed,
+            start_mbp: 2.0,
+            end_mbp: 3.0,
+            parent_gap: 10.0,
+            subgrid_gap,
+        })
+        .unwrap();
+        assert_eq!(inherited.gap_difference, gap_difference);
+
+        let axis = InheritedGridAxis {
+            offset: 0.0,
+            gap: subgrid_gap,
+            tracks: vec![40.0 - gap_difference, 40.0 - gap_difference],
+            named_lines: named::NamedGridLines::new(GridAxisKind::Row, 2),
+            area_facts: None,
+            major_baselines: inherited.final_major.clone(),
+            minor_baselines: inherited.final_minor.clone(),
+            parent_start: 0,
+            parent_end: 2,
+            reversed,
+            start_mbp: 2.0,
+            end_mbp: 3.0,
+            gap_difference,
+        };
+        let local_groups = inherited
+            .final_major
+            .iter()
+            .copied()
+            .zip(inherited.final_minor.iter().copied())
+            .map(|(first, last)| TrackBaselineGroup { first, last })
+            .collect::<Vec<_>>();
+        let published = publish_row_baseline_groups(&local_groups, &axis, PhysicalAxis::Vertical);
+        let mut published = published;
+        published.sort_by_key(|entry| entry.parent_index);
+        assert_eq!(
+            published,
+            vec![
+                PublishedTrackBaselineGroup {
+                    parent_index: 0,
+                    group: TrackBaselineGroup {
+                        first: parent_major[0],
+                        last: parent_minor[0],
+                    },
+                },
+                PublishedTrackBaselineGroup {
+                    parent_index: 1,
+                    group: TrackBaselineGroup {
+                        first: parent_major[1],
+                        last: parent_minor[1],
+                    },
+                },
+            ],
+            "publication is the exact inverse for gap sign and local reversal",
+        );
+    }
+}
+
 fn assert_published_baseline_group_order_keeps_compatible_axis<S: LayoutScalar>(
     incompatible_first: bool,
 ) where
@@ -21529,7 +22121,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         published,
         vec![PublishedTrackBaselineGroup::<f64> {
             parent_index: 0,
-            group: tagged_group(PhysicalAxis::Vertical, Some(12.75), None),
+            group: tagged_group(PhysicalAxis::Vertical, Some(12.5), None),
         }]
     );
 
@@ -21568,7 +22160,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
     assert_eq!(
         inherited_baselines.final_major,
         vec![
-            Some(tagged_baseline(PhysicalAxis::Vertical, 5.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 7.0)),
             Some(tagged_baseline(PhysicalAxis::Vertical, 15.0)),
         ]
     );
@@ -21576,7 +22168,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         inherited_baselines.final_minor,
         vec![
             Some(tagged_baseline(PhysicalAxis::Vertical, 2.0)),
-            Some(tagged_baseline(PhysicalAxis::Vertical, 0.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 2.0)),
         ]
     );
 
@@ -23136,15 +23728,15 @@ fn published_row_baselines_map_reversed_subgrid_back_to_parent_rows() {
         vec![
             PublishedTrackBaselineGroup {
                 parent_index: 3,
-                group: tagged_group(PhysicalAxis::Vertical, Some(11.0), None),
+                group: tagged_group(PhysicalAxis::Vertical, Some(13.0), None),
             },
             PublishedTrackBaselineGroup {
                 parent_index: 2,
-                group: tagged_group(PhysicalAxis::Vertical, Some(16.0), Some(2.0)),
+                group: tagged_group(PhysicalAxis::Vertical, Some(18.0), Some(4.0)),
             },
             PublishedTrackBaselineGroup {
                 parent_index: 1,
-                group: tagged_group(PhysicalAxis::Vertical, None, Some(17.0)),
+                group: tagged_group(PhysicalAxis::Vertical, None, Some(19.0)),
             },
         ]
     );
@@ -25258,7 +25850,7 @@ fn subgrid_track_inheritance_expands_tracks_for_smaller_subgrid_gap() {
 }
 
 #[test]
-fn subgrid_baselines_apply_negative_gap_difference_to_internal_edges() {
+fn subgrid_baselines_apply_negative_gap_difference_to_local_baseline_edges() {
     let report = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
         parent_major: &[
             Some(tagged_baseline(PhysicalAxis::Vertical, 13.0)),
@@ -25282,7 +25874,7 @@ fn subgrid_baselines_apply_negative_gap_difference_to_internal_edges() {
     assert_eq!(
         report.final_major,
         vec![
-            Some(tagged_baseline(PhysicalAxis::Vertical, 18.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 13.0)),
             Some(tagged_baseline(PhysicalAxis::Vertical, 25.0)),
         ]
     );
@@ -25290,7 +25882,7 @@ fn subgrid_baselines_apply_negative_gap_difference_to_internal_edges() {
         report.final_minor,
         vec![
             Some(tagged_baseline(PhysicalAxis::Vertical, 10.0)),
-            Some(tagged_baseline(PhysicalAxis::Vertical, 25.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 20.0)),
         ]
     );
 }
@@ -25527,6 +26119,7 @@ fn traversal_leaf(node: u32, start: usize, end: usize) -> SubgridTraversalChild<
         span_in_parent: GridTrackSpan::new(start, end),
         available_inline_size: None,
         available_inline_size_is_known: false,
+        align_self: AlignItems::Stretch,
     })
 }
 

@@ -191,6 +191,7 @@ pub(super) struct SubgridTraversalLeaf<Node, S: LayoutScalar = Scalar> {
     pub(super) span_in_parent: GridTrackSpan,
     pub(super) available_inline_size: Option<S>,
     pub(super) available_inline_size_is_known: bool,
+    pub(super) align_self: AlignItems,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -201,6 +202,7 @@ pub(super) struct SubgridLeafContribution<Node, S: LayoutScalar = Scalar> {
     pub(super) ancestor_span: GridTrackSpan,
     pub(super) available_inline_size: Option<S>,
     pub(super) available_inline_size_is_known: bool,
+    pub(super) align_self: AlignItems,
     pub(super) accumulated_edge_adjustment: Vec<S>,
     pub(super) accumulated_gap_adjustment: Vec<S>,
 }
@@ -262,6 +264,7 @@ where
                         .or(context.available_inline_size),
                     available_inline_size_is_known: leaf.available_inline_size_is_known
                         || context.available_inline_size_is_known,
+                    align_self: leaf.align_self,
                     accumulated_edge_adjustment: context.accumulated_edge_adjustment,
                     accumulated_gap_adjustment: context.accumulated_gap_adjustment,
                 });
@@ -597,8 +600,13 @@ pub(super) fn inherit_subgrid_baselines<S: LayoutScalar>(
     let gap_difference = (input.subgrid_gap - input.parent_gap) / S::from_f64(2.0);
     let mut final_major = after_mbp_major.clone();
     let mut final_minor = after_mbp_minor.clone();
-    subtract_internal_gap_difference(&mut final_major, gap_difference, input.physical_axis);
-    subtract_internal_gap_difference(&mut final_minor, gap_difference, input.physical_axis);
+    for baseline in final_major.iter_mut().skip(1) {
+        subtract_baseline(baseline, gap_difference, input.physical_axis);
+    }
+    let minor_count = final_minor.len().saturating_sub(1);
+    for baseline in final_minor.iter_mut().take(minor_count) {
+        subtract_baseline(baseline, gap_difference, input.physical_axis);
+    }
 
     Ok(SubgridBaselineInheritanceReport {
         parent_span: input.parent_span,
@@ -693,21 +701,6 @@ fn subtract_baseline<S: LayoutScalar>(
             current.axis(),
             current.coordinate() - amount,
         ));
-    }
-}
-
-fn subtract_internal_gap_difference<S: LayoutScalar>(
-    groups: &mut [Option<PhysicalBaseline<S>>],
-    gap_difference: S,
-    expected_axis: PhysicalAxis,
-) {
-    if groups.len() < 2 {
-        return;
-    }
-
-    for edge in 0..(groups.len() - 1) {
-        subtract_baseline(&mut groups[edge], gap_difference, expected_axis);
-        subtract_baseline(&mut groups[edge + 1], gap_difference, expected_axis);
     }
 }
 
@@ -840,6 +833,7 @@ where
             input.named_columns,
             input.named_rows,
             input.area_facts,
+            child_style.align_self.unwrap_or(AlignItems::Stretch),
         )?
         else {
             continue;
@@ -874,6 +868,7 @@ fn subgrid_traversal_child<Tree, M>(
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
     parent_area_facts: Option<&GridAreaNameFacts>,
+    align_self: AlignItems,
 ) -> LayoutResultOf<
     <Tree as Traverse>::Node,
     Option<SubgridTraversalChild<<Tree as Traverse>::Node, Tree::Scalar>>,
@@ -895,6 +890,7 @@ where
                 .then_some(area_size.width)
                 .filter(|width| *width > Tree::Scalar::ZERO),
             available_inline_size_is_known: false,
+            align_self,
         })));
     }
 
@@ -1170,6 +1166,10 @@ where
             &initialized.context.named_columns,
             &initialized.context.named_rows,
             initialized.context.area_facts.as_ref(),
+            child_style
+                .align_self
+                .or(style.align_items)
+                .unwrap_or(AlignItems::Stretch),
         )? {
             traversal_children.push(child);
         }

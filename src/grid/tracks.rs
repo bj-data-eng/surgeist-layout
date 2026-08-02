@@ -123,7 +123,7 @@ where
     });
     let column_area_sizes = columns.clone();
     let row_area_sizes = rows.clone();
-    apply_subgrid_intrinsic_contributions(
+    let _column_subgrid_contributions = apply_subgrid_intrinsic_contributions(
         tree,
         SubgridIntrinsicContributionInput {
             constants,
@@ -146,7 +146,7 @@ where
     )?;
     let column_area_sizes = columns.clone();
     let row_area_sizes = rows.clone();
-    apply_subgrid_intrinsic_contributions(
+    let row_subgrid_contributions = apply_subgrid_intrinsic_contributions(
         tree,
         SubgridIntrinsicContributionInput {
             constants,
@@ -167,6 +167,7 @@ where
             row_sizes: &row_area_sizes,
         },
     )?;
+    row_contributions.extend(row_subgrid_contributions.row_contributions);
 
     for (index, (child, area)) in children.into_iter().zip(placed_areas).enumerate() {
         let child_style = tree.node_input(child).clone();
@@ -844,15 +845,26 @@ struct SubgridIntrinsicContributionInput<'a, Node, S: LayoutScalar = Scalar> {
     row_sizes: &'a [S],
 }
 
+struct SubgridIntrinsicContributionReport<Node, S: LayoutScalar = Scalar> {
+    contributing_roots: Vec<Node>,
+    row_contributions: Vec<RowIntrinsicContribution<S>>,
+}
+
+type SubgridIntrinsicContributionResult<Node, S, M> =
+    LayoutResultOf<Node, SubgridIntrinsicContributionReport<Node, S>, S, M>;
+
 fn apply_subgrid_intrinsic_contributions<Tree, M>(
     tree: &mut Tree,
     input: SubgridIntrinsicContributionInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, Vec<<Tree as Traverse>::Node>, Tree::Scalar, M>
+) -> SubgridIntrinsicContributionResult<<Tree as Traverse>::Node, Tree::Scalar, M>
 where
     Tree: Compute<M>,
 {
     if input.tracks.is_empty() || input.subgrid_report.items.is_empty() {
-        return Ok(Vec::new());
+        return Ok(SubgridIntrinsicContributionReport {
+            contributing_roots: Vec::new(),
+            row_contributions: Vec::new(),
+        });
     }
 
     let intrinsic_min_track_facts = input
@@ -879,7 +891,10 @@ where
         },
     )?
     else {
-        return Ok(Vec::new());
+        return Ok(SubgridIntrinsicContributionReport {
+            contributing_roots: Vec::new(),
+            row_contributions: Vec::new(),
+        });
     };
 
     for (index, lower_bound) in report.edge_lower_bounds.into_iter().enumerate() {
@@ -895,6 +910,7 @@ where
             .saturating_sub(leaf.ancestor_span.start)
     });
     let mut contributing_roots = Vec::new();
+    let mut row_contributions = Vec::new();
     for leaf in leaves {
         let child_style = tree.node_input(leaf.node).clone();
         if !is_in_flow_grid_child(&child_style) {
@@ -940,7 +956,16 @@ where
         let output = tree.compute_child(
             leaf.node,
             ComputeInputOf::for_child(
-                RunMode::ComputeSize,
+                if input.axis == GridAxisKind::Row
+                    && matches!(
+                        leaf.align_self,
+                        AlignItems::Baseline | AlignItems::LastBaseline
+                    )
+                {
+                    RunMode::PerformLayout
+                } else {
+                    RunMode::ComputeSize
+                },
                 SizingMode::InherentSize,
                 RequestedAxis::Both,
                 Size::new(row_known_inline_size, None),
@@ -980,7 +1005,72 @@ where
         {
             contributing_roots.push(root);
         }
-        if end == start + 1 {
+        if input.axis == GridAxisKind::Row {
+            let baselines = output.baselines();
+            let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
+            let block_auto_margins = block_auto_margins_for_intrinsic_contribution(
+                &child_style,
+                input.constants,
+                child_flow_axes,
+            )
+            .map_err(|status| crate::compute::value_resolution_error(leaf.node, status))?;
+            let participation = baseline_participation_for_container(
+                leaf.align_self,
+                block_auto_margins,
+                synthesized_baseline_would_cycle(
+                    leaf.align_self,
+                    baselines,
+                    child_flow_axes,
+                    span_tracks,
+                ),
+                baselines,
+                child_flow_axes,
+                input.constants.flow_axes,
+            );
+            let mut geometry =
+                baseline_geometry_for_intrinsic_contribution(output, margin, child_flow_axes);
+            let leading_adjustment = leaf
+                .accumulated_edge_adjustment
+                .get(start)
+                .copied()
+                .unwrap_or(Tree::Scalar::ZERO)
+                + leaf
+                    .accumulated_gap_adjustment
+                    .get(start)
+                    .copied()
+                    .unwrap_or(Tree::Scalar::ZERO);
+            let trailing_index = end.saturating_sub(1);
+            let trailing_adjustment = leaf
+                .accumulated_edge_adjustment
+                .get(trailing_index)
+                .copied()
+                .unwrap_or(Tree::Scalar::ZERO)
+                + leaf
+                    .accumulated_gap_adjustment
+                    .get(trailing_index)
+                    .copied()
+                    .unwrap_or(Tree::Scalar::ZERO);
+            geometry.margin_box_size = geometry.margin_box_size
+                + adjustment_sum(&leaf.accumulated_edge_adjustment, start, end)
+                + adjustment_sum(&leaf.accumulated_gap_adjustment, start, end);
+            geometry.major_baseline = PhysicalBaseline::new(
+                geometry.major_baseline.axis(),
+                geometry.major_baseline.coordinate() + leading_adjustment,
+            );
+            geometry.minor_baseline = PhysicalBaseline::new(
+                geometry.minor_baseline.axis(),
+                geometry.minor_baseline.coordinate() + trailing_adjustment,
+            );
+            row_contributions.push(RowIntrinsicContribution {
+                start,
+                end,
+                contributes_to_row_size: true,
+                contribution_kind,
+                contribution,
+                participation,
+                geometry,
+            });
+        } else if end == start + 1 {
             input.sizes[start] = input.sizes[start].max(contribution);
         } else if input.axis == GridAxisKind::Column
             && axis_available(input.available, input.axis) == AvailableOf::MIN_CONTENT
@@ -1006,7 +1096,10 @@ where
             );
         }
     }
-    Ok(contributing_roots)
+    Ok(SubgridIntrinsicContributionReport {
+        contributing_roots,
+        row_contributions,
+    })
 }
 
 fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
@@ -1168,8 +1261,6 @@ where
     if columns.is_empty() || row_count == 0 {
         return Ok(rows);
     }
-    let mut row_contributions = Vec::new();
-
     let zero_rows: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; row_count];
     let children = tree.children(node).collect::<Vec<_>>();
     let placed_areas = resolve_grid_child_areas(ResolveGridChildAreasInput {
@@ -1181,7 +1272,7 @@ where
         gap,
         lines: grid.lines,
     });
-    let published_row_subgrid_roots = if grid
+    let subgrid_contributions = if grid
         .subgrid_report
         .items
         .iter()
@@ -1214,8 +1305,13 @@ where
             },
         )?
     } else {
-        Vec::new()
+        SubgridIntrinsicContributionReport {
+            contributing_roots: Vec::new(),
+            row_contributions: Vec::new(),
+        }
     };
+    let published_row_subgrid_roots = subgrid_contributions.contributing_roots;
+    let mut row_contributions = subgrid_contributions.row_contributions;
 
     for (index, (child, area)) in children.into_iter().zip(placed_areas).enumerate() {
         let child_style = tree.node_input(child).clone();

@@ -1977,7 +1977,7 @@ fn resolved_inline_float_terminal_block_end<S: LayoutScalar>(
         if terminal_line_block_end > owned_float_block_end {
             terminal_line_block_end
         } else {
-            owned_float_block_end + phase
+            (terminal_line_block_end + phase).max(owned_float_block_end)
         }
     })
 }
