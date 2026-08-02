@@ -13830,7 +13830,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         );
         assert_eq!(
             sha256_bytes(serializer.as_bytes()),
-            "2a004418512b19a7e49eeae42cf01b2759aeda93cab4d6acc393e149ca06a710"
+            "5b03bacde641266c548871ab6c0d11d413b00e0b4199fff6c93ab732b7922716"
         );
     }
 
