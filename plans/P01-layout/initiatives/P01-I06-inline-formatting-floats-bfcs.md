@@ -1309,10 +1309,7 @@ FRI-06 is complete only when:
     later initiative behavior;
 18. default and generator-feature verification, focused parity, corpus/Taffy,
     docs, formatting, full configured Clippy with `-F unsafe-code -D warnings`,
-    diff/provenance, and the tracked/non-ignored Rust unsafe scan are clean; the
-    newly enabled crate-wide `too_many_lines` lint is remediated to its configured
-    100-line maximum in one dedicated P01 task rather than widened into feature
-    work;
+    diff/provenance, and the tracked/non-ignored Rust unsafe scan are clean;
 19. all FRI-06-owned dead-code allowances are removed and no new lint suppression
     or executable `unsafe` exists; and
 20. no dependency, feature, MSRV, generator architecture, root/sibling,
