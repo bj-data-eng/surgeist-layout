@@ -96,18 +96,14 @@ and generator architecture are not causes. All scoped XML was removed and the
 report remains
 `4f18b4299765d7f0cf996fa5c2510724cfadb577651c3a438c3f2904cc4b94ab`.
 
-The first T08 attempt added six focused REDs, retained four supported partial
-corrections, and stopped before correcting a newly exposed value. Its single
-scoped generation partitioned the union as 136 PASS
-(`c2bca266cfd0092c9a08424ca9c9e362d2969e15b1d335199e3bd4ab2eb1a02e`)
-and 252 FAIL
-(`b57bf7ffb102565034cf740ebb5256ae0560a1405d7ca72ef00f3ee805b25396`).
-The new 120-row category remains inside cause 5 and hashes to
-`9aebf4e1673f40ca442453ccdb28f070f3e15f1b3c0f545e8c1402c6d618383c`:
-24 inline-column RTL direct siblings are x 570 instead of 527, 48 vertical
-auto-row values are x 202 instead of 196, and 48 vertical nested values are x
-192 instead of 202. The exact XML set was cleaned; the tracked count and report
-hash remain unchanged.
+Two T08 attempts stopped uncommitted. The first partition was 136 PASS and 252
+FAIL at hashes `c2bca266cfd0092c9a08424ca9c9e362d2969e15b1d335199e3bd4ab2eb1a02e`
+and `b57bf7ffb102565034cf740ebb5256ae0560a1405d7ca72ef00f3ee805b25396`.
+The second ran its scoped diagnostic before focused GREEN, so its 142/246
+partition is a clue, not acceptance. It leaves intrinsic 20/26 and refreshed
+100x80/20x80 RED, disproves the retained gap controls, and exposes six RTL Range
+starts without one proven producer. Exact XML was cleaned after each stop; the
+tracked count and report hash remain unchanged.
 
 Selectors below use `V4 = {border_box_ltr, content_box_ltr, border_box_rtl,
 content_box_rtl}`, `LTR = {border_box_ltr, content_box_ltr}`, and
@@ -295,7 +291,7 @@ sorted union hashes to
 | Float-dominated terminal extent; `fri06_float_shape_exclusion`, V4 | 4 | `0b96e7d9a39716b0121017cdbe67345381d72044918c9cef5b31ec216364de18` | an unqualified line phase turns float-owned end 60 into 60.5; removing it globally also turns line-owned 62.5 into 62 |
 | Parent baseline shim in intrinsic rows; `subgrid_baseline_auto_rows_{R12}`, V4 | 48 | `2714795b167ecd2062012cf97c4f232d77814057dcadfec6f7558feac9c28570` | nested 20@8 omits the 6px shim against direct 20@14, leaving auto row 20 instead of 26 and roots 324 instead of 411 |
 | Refreshed sizing and offsets use the wrong coordinate phase: `inline_column_{C12}` RTL plus `vertical_auto_rows_{R12}` and `vertical_nested_{R12}` V4 | 120 | `05130449e6303bb52d061c71ff49e1265fb55b4e4f2c3b3237b7237516541aaf` | child axes size a parent-grid area before physical offsets are stored as logical; correct both stages and the exact nested/direct values above |
-| Inherited baseline double gap adjustment; `nested_block_{R12}`, V4 | 48 | `64fbf855984169eea06abc65f31d1072fb1ced0a0cc6402b01d77b430a93e548` | gap 10 to 20 shifts tracks by 5, then inherited baseline 30 to 25 repeats it; synthetic y 72/77 and browser y 57/62 share that residual |
+| Role-sensitive inherited gap transform; `nested_block_{R12}`, V4 | 48 | `64fbf855984169eea06abc65f31d1072fb1ced0a0cc6402b01d77b430a93e548` | for gap 10 to 20, major baseline 30 rebases to 25: positive/equal/negative controls are 72/62/82, with first/last edge roles and inverse publication |
 
 The terminal extent is exactly the maximum of the resolved terminal line-envelope
 end and the owned float margin-box end; any fractional phase stays inside its
@@ -306,47 +302,37 @@ interpretation; convert the resulting physical alignment offsets back to
 container-logical values before storing `PendingGridItem` axes for the single
 final physical projection.
 
+Every cycle-eligible introspected subgrid leaf must enter the same phase-local
+`RowIntrinsicContribution` baseline group as direct items before intrinsic row
+sizing. Gap rebasing applies the signed half-gutter difference by mapped edge and
+major/first versus minor/last role; reversed mappings change the local edge, and
+publication applies the exact inverse.
+
 **Acceptance:** Add the smallest public-front-door regression for each cause
 before its correction and preserve nearest passing controls. Do not add content,
-direction, fixture-family, or rounding special cases. After T07 inputs settle,
-derive 97 unique filters from column 2 of the committed C10 census (raw hash
-`0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691`),
-strip only `html/`, and require filter-list hash
-`d3eb02ed93972e4f4aa8283e7e4f0bdee718be9c95e8196851d4d0037c6dd169`.
-For an authorized scoped diagnostic, set `FILTER` to each exact list value and
-keep the 388 XML files during code-only iteration; rerun comparison, not
-generation.
+direction, fixture-family, or rounding special cases.
 
-The stopped attempt realized that run and cleaned it only because the mandatory
-new-first-failure boundary was reached. Resume from its retained focused tests
-without generation. The corrected behavior must additionally prove exact
-unrounded forced-break endpoints and root 126; the exact terminal maximum above
-for line-owned 62.5 versus float-owned 60; intrinsic 20 + 6 = 26; the exact
-containing-grid refresh sizing, physical-to-logical storage, and single final
-projection above; and one invertible positive, equal, and negative gap transform.
-After those focused corrections settle, run
-the same exact 97-source scoped generation once to obtain the next aggregate
-partition; do not generate during code-only iteration or repeat unchanged
-inputs after that run.
+Before any further correction or generation, a fresh diagnostic worker may add
+one temporary `#[cfg(test)]` observer in `src/inline.rs` and one focused test in
+`src/root_tests.rs` for the atomic-percentage, float-line, and float-shape RTL
+sources. Trace `border_box_rtl` and `content_box_rtl` plus their exact
+`border_box_ltr` and `content_box_ltr` controls: 12 rows total. Capture atomic
+size/fallback, line bands, cursor/float
+transition/override/used extent, source/bidi/advance/visual/logical starts, and
+published logical and final root-relative Range starts. Run only that exact
+locked/offline test, remove the probe, and restore the complete implementation
+diff byte-for-byte to
+`613ef2e3f515f21dc367577d1e3f5bbf6cb425536ac3b1f21dcd75492feb19ae`.
+Then stop for a reviewed T08 amendment naming the confirmed producer. No scoped
+generation or production correction is authorized by this diagnostic substage.
 
 ```sh
-CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' SURGEIST_LAYOUT_GENERATE_FILTER="$FILTER" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout layout::browser_parity::fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --exact
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_rtl_range_start_phase_trace -- --nocapture
 ```
-
-Before cleanup, record the complete 388-row partition. Map each row to
-`tests/layout/browser_parity/xml/{source without html/ or .html}__{variant}.xml`;
-the sorted generated path set must hash to
-`fea38e6dc7a9ba24c05a23420f2118d6000db72b195a73859e4c86f689328597`.
-Require no tracked XML diff and the untracked set to equal that path set; remove
-only those paths. Then prove 5,324 tracked XML, zero untracked XML, unchanged
-report hash, clean index/worktree, and no generator process. A newly exposed
-first failure stops implementation and requires a reviewed T08 amendment.
 
 **Dependency:** T07's complete ordered range is task-clean under the revised spec.
 
-**Intended commit:** `fix(layout): close confirmed FRI-06 production causes`.
+**Diagnostic commit:** none; restore the exact pre-probe implementation diff.
 
 ## 6 Current Revision Completion
 
@@ -355,35 +341,32 @@ This revision exits only when:
 1. T05 has a clean independent task review, its recorded hashes are read back,
    and all T05 XML/report/provenance residue is removed before T07 edits;
 2. T07's revised ordered range is committed and independently task-clean;
-3. T08 is committed and independently task-clean for every currently confirmed
-   cause; a new first failure is recorded but not corrected before plan review;
-4. focused/configured verification, format, and diff checks have only the exact
-   newly exposed aggregate RED, if any; and
-5. the latest complete 388-row partition is recorded before all scoped XML and
-   other diagnostic residue is removed.
+3. the exact 12-row RTL/LTR trace identifies the first incorrect producer or
+   returns an evidence-backed insufficiency;
+4. all observer/test residue is removed and the complete implementation diff
+   again hashes to `613ef2e3f515f21dc367577d1e3f5bbf6cb425536ac3b1f21dcd75492feb19ae`;
+5. after this reviewed plan is committed alone, status retains only the seven
+   owned T08 implementation files, with zero XML or process residue; and
+6. T08 is amended and independently reviewed before any correction resumes.
 
 The final evidence commands for this revision are:
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t07_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t07_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout layout::browser_parity::fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --exact
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just fmt-check
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_rtl_range_start_phase_trace -- --nocapture
+git diff -- src/inline.rs src/block.rs src/grid/child.rs src/grid/subgrid.rs src/root_tests.rs src/block_tests.rs src/grid_tests.rs | shasum -a 256
 git diff --check
+git status --short
 ```
 
-The handoff is clean T05/T07 verdicts, the exact T08 range and verdict, command
-evidence, and cleaned scoped census. It does not mark C12 complete or authorize
-final generation, holistic review, publication, or C13 planning.
+The handoff is the exact trace, confirmed producer or insufficiency, restored
+diff/status evidence, and no commit. It authorizes no production correction,
+generation, task review, C12 completion, publication, or C13 planning.
 
 ## 7 Successive Planning Gate
 
-If T08 exposes another first failure, amend and independently review T08 with
-only that evidence. Once all 388 rows pass, a later reviewed amendment adds the
-eighth and final C12 task for one full unfiltered existing-pinned generation,
-complete verification/reviews, publication, remote readback, and C13 handoff.
+After the trace, amend and independently review T08 with only its confirmed
+evidence. Once all 388 rows pass, a later reviewed amendment adds the eighth and
+final C12 task for one full unfiltered existing-pinned generation, complete
+verification/reviews, publication, remote readback, and C13 handoff.
 
 Blocker: none.
