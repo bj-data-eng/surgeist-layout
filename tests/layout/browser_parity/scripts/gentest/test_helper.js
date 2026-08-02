@@ -1300,11 +1300,74 @@ function layoutReadyTransparentInlineProjection(e) {
       !shouldSerializeLayoutReadyText(childNodes[0], childNodes, 0, e)) {
     throw new Error('data-surgeist-transparent-inline-container requires one direct shaped-text child');
   }
-  const text = layoutReadyTextNodeData(childNodes[0], e, 0);
+  const bidiLevels = layoutReadyInlineBidiLevels(e, childNodes);
+  const text = layoutReadyTextNodeData(
+    childNodes[0], e, 0, undefined, consumeLayoutReadyInlineBidiLevel(bidiLevels, 0)
+  );
   if (!text) {
     throw new Error('data-surgeist-transparent-inline-container requires one complete shaped-text child');
   }
+  rejectUnusedLayoutReadyInlineBidiLevels(bidiLevels);
   return [inlineBoundaryData('start'), text, inlineBoundaryData('end')];
+}
+
+function layoutReadyInlineBidiLevels(parent, childNodes) {
+  const raw = parent.getAttribute?.('data-surgeist-inline-bidi-levels');
+  if (raw === null || raw === undefined) return new Map();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    throw new Error('data-surgeist-inline-bidi-levels must be valid JSON');
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error('data-surgeist-inline-bidi-levels must be a nonempty finite table');
+  }
+
+  const bidiLevels = new Map();
+  for (const [recordIndex, record] of parsed.entries()) {
+    const fields = new Set(['sourceIndex', 'bidiLevel']);
+    if (!record || typeof record !== 'object' || Array.isArray(record) ||
+        Object.keys(record).length !== fields.size ||
+        Object.keys(record).some((key) => !fields.has(key))) {
+      throw new Error(`inline bidi level ${recordIndex} must contain exactly the closed fields`);
+    }
+    const { sourceIndex, bidiLevel } = record;
+    if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= childNodes.length) {
+      throw new Error(`inline bidi level ${recordIndex} requires an existing non-negative sourceIndex`);
+    }
+    if (bidiLevels.has(sourceIndex)) {
+      throw new Error(`inline bidi level ${recordIndex} duplicates sourceIndex ${sourceIndex}`);
+    }
+    if (!Number.isInteger(bidiLevel) || bidiLevel < 1 || bidiLevel > 125) {
+      throw new Error(`inline bidi level ${recordIndex} must be an integer in 1..=125`);
+    }
+    const child = childNodes[sourceIndex];
+    const shapedText = child.nodeType === Node.TEXT_NODE &&
+      shouldSerializeLayoutReadyText(child, childNodes, sourceIndex, parent);
+    const atomic = child.nodeType === Node.ELEMENT_NODE && child.tagName !== 'BR' &&
+      isLoweredAtomicInline(child);
+    if (!shapedText && !atomic) {
+      throw new Error(`inline bidi level ${recordIndex} must target shaped text or an atomic inline`);
+    }
+    bidiLevels.set(sourceIndex, bidiLevel);
+  }
+  return bidiLevels;
+}
+
+function consumeLayoutReadyInlineBidiLevel(bidiLevels, sourceIndex) {
+  const bidiLevel = bidiLevels.get(sourceIndex) ?? 0;
+  bidiLevels.delete(sourceIndex);
+  return bidiLevel;
+}
+
+function rejectUnusedLayoutReadyInlineBidiLevels(bidiLevels) {
+  if (bidiLevels.size !== 0) {
+    throw new Error(
+      `data-surgeist-inline-bidi-levels contains an unused sourceIndex ${bidiLevels.keys().next().value}`
+    );
+  }
 }
 
 function layoutReadyInlineStruts(parent, childNodes) {
@@ -1409,6 +1472,7 @@ function describeChildNodes(e, expectedElement = null) {
   let childNodes = Array.from(e.childNodes);
   const inlineBreaks = layoutReadyInlineBreaks(e, childNodes);
   const inlineStruts = layoutReadyInlineStruts(e, childNodes);
+  const inlineBidiLevels = layoutReadyInlineBidiLevels(e, childNodes);
   const layoutReadyInlineRun = hasLayoutReadyInlineFixture(e) && childNodes.some((child, index) => {
     return child.nodeType === Node.ELEMENT_NODE && child.tagName === 'BR' ||
       child.nodeType === Node.TEXT_NODE && shouldSerializeLayoutReadyText(child, childNodes, index, e);
@@ -1428,7 +1492,7 @@ function describeChildNodes(e, expectedElement = null) {
       const described = describeElement(child, expectedElement);
       if (layoutReadyInlineRun && child.tagName !== 'BR' && isLoweredAtomicInline(child)) {
         described.atomicInlineParticipation = {
-          bidiLevel: getComputedStyle(child).direction === 'rtl' ? 1 : 0,
+          bidiLevel: consumeLayoutReadyInlineBidiLevel(inlineBidiLevels, i),
           ...(inlineBreaks.get(i) || { followingBreak: 'prohibited' }),
         };
         inlineBreaks.delete(i);
@@ -1439,7 +1503,9 @@ function describeChildNodes(e, expectedElement = null) {
       child.nodeType === Node.TEXT_NODE &&
       shouldSerializeLayoutReadyText(child, childNodes, i, e)
     ) {
-      const described = layoutReadyTextNodeData(child, e, i, inlineBreaks.get(i));
+      const described = layoutReadyTextNodeData(
+        child, e, i, inlineBreaks.get(i), consumeLayoutReadyInlineBidiLevel(inlineBidiLevels, i)
+      );
       if (described) {
         children.push(described);
         inlineBreaks.delete(i);
@@ -1452,6 +1518,7 @@ function describeChildNodes(e, expectedElement = null) {
   if (inlineStruts.size !== 0) {
     throw new Error(`data-surgeist-inline-struts contains an unused beforeSourceIndex ${inlineStruts.keys().next().value}`);
   }
+  rejectUnusedLayoutReadyInlineBidiLevels(inlineBidiLevels);
   return children;
 }
 
@@ -1460,7 +1527,9 @@ function shouldSerializeLayoutReadyText(node, siblings, index, parent) {
   return isSignificantInlineWhitespace(node, siblings, index, parent);
 }
 
-function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefined) {
+function layoutReadyTextNodeData(
+  node, parent, segmentId, reviewedBreak = undefined, reviewedBidiLevel = 0
+) {
   const range = document.createRange();
   range.selectNodeContents(node);
   const rect = range.getBoundingClientRect();
@@ -1529,7 +1598,7 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
       inlineExtent,
       inlineBaseline: baseline,
       inlineLineHeight: lineHeight,
-      bidiLevel: computedStyle.direction === 'rtl' ? 1 : 0,
+      bidiLevel: reviewedBidiLevel,
       whitespaceEdge: whitespace ? 'discard-at-both' : 'preserve',
       ...(reviewedBreak || { followingBreak: whitespace ? 'allowed' : 'prohibited' }),
     }],

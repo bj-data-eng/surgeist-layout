@@ -3547,6 +3547,136 @@ fn fri06_c08r_fixture_input_explicit_boundary_xml(name: &str, expectations: &str
 }
 
 #[test]
+fn fri06_c12_t07_typed_inline_boundaries_are_expectation_transparent() {
+    let xml = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "fri06_c12_t07_transparent_boundaries",
+        r#"<node x="0" y="0" width="100" height="12"><node /><node /></node>"#,
+    );
+    let golden = support::Golden::parse(&xml).expect("typed boundary fixture must parse");
+    support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+        panic!("typed input boundaries inflated expectations: {error}\n{xml}")
+    });
+}
+
+fn fri06_c12_t07_wrapper_range_xml(name: &str) -> String {
+    format!(
+        r#"<test name="{name}" use-rounding="false">
+  <viewport width="100px" height="max-content"/>
+  <input>
+    <div layout-ready-inline-root="true" display="block" width="100px">
+      <div display="block">
+        <text layout-input="inline-text">
+          <segment id="0" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+        </text>
+      </div>
+      <div display="block">
+        <text layout-input="inline-text">
+          <segment id="0" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="20">
+      <node x="0" y="0" width="100" height="10">
+        <node>
+          <range-inks>
+            <range-ink source_segment_id="0" line_index="0" physical_start_edge="left" start="0" advance="10"/>
+          </range-inks>
+        </node>
+      </node>
+      <node x="0" y="10" width="100" height="10">
+        <node>
+          <range-inks>
+            <range-ink source_segment_id="0" line_index="1" physical_start_edge="left" start="0" advance="10"/>
+          </range-inks>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>"#
+    )
+}
+
+#[test]
+fn fri06_c12_t07_local_wrapper_range_lines_use_explicit_root_physical_identity() {
+    let xml = fri06_c12_t07_wrapper_range_xml("fri06_c12_t07_root_range_lines");
+    let golden = support::Golden::parse(&xml).expect("root-local Range fixture must parse");
+    support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+        panic!("local wrapper Range identity was not root-normalized: {error}\n{xml}")
+    });
+}
+
+#[test]
+fn fri06_c12_t07_rename_and_expectation_mutation_preserve_normalized_input() {
+    let original = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "fri06_bidi_mixed_inline__border_box_ltr",
+        r#"<node width="100" height="12"><node /><node /></node>"#,
+    );
+    let mutated = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "renamed_without_fixture_dispatch",
+        r#"<node width="999" height="777"><node x="40" /><node y="80"><node /></node></node>"#,
+    );
+    let original = support::Golden::parse(&original).expect("original fixture must parse");
+    let mutated = support::Golden::parse(&mutated).expect("mutated fixture must parse");
+    assert_eq!(original.root, mutated.root);
+}
+
+#[test]
+fn fri06_c12_t07_exact_28_explicit_adapter_comparator_rows_pass() {
+    const VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+    const GRID_SOURCES: [&str; 4] = [
+        "subgrid_baseline_auto_columns_first_item",
+        "subgrid_baseline_auto_columns_second_item",
+        "subgrid_baseline_standalone_axis_first_item",
+        "subgrid_baseline_standalone_axis_second_item",
+    ];
+
+    let mut rows = Vec::new();
+    for source in GRID_SOURCES {
+        for variant in VARIANTS {
+            rows.push(fri06_c12_t07_wrapper_range_xml(&format!(
+                "{source}__{variant}"
+            )));
+        }
+    }
+    for variant in VARIANTS {
+        for source in [
+            "fri06_bidi_mixed_inline",
+            "fri06_inline_mixed_text_atomic_wrap",
+            "fri06_float_line_exclusion",
+        ] {
+            rows.push(fri06_c08r_fixture_input_explicit_boundary_xml(
+                &format!("{source}__{variant}"),
+                r#"<node x="0" y="0" width="100" height="12"><node /><node /></node>"#,
+            ));
+        }
+    }
+    assert_eq!(rows.len(), 28);
+
+    let failures = rows
+        .iter()
+        .filter_map(|xml| {
+            let golden = support::Golden::parse(xml)
+                .unwrap_or_else(|error| panic!("explicit adapter row must parse: {error}\n{xml}"));
+            support::assert_surgeist_matches(&golden)
+                .err()
+                .map(|error| format!("{}: {error}", golden.name))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        failures.is_empty(),
+        "explicit adapter/comparator rows failed:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
 fn fri06_c08r_fixture_input_closed_boundary_forms_parse_without_name_dispatch() {
     let xml = fri06_c08r_fixture_input_explicit_boundary_xml(
         "renamed_fixture_without_c08_identity",

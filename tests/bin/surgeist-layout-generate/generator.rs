@@ -7028,7 +7028,7 @@ if (expectedReason === undefined) {{
                 &[
                     "data-surgeist-layout-ready-inline=\"true\"",
                     "<bdo dir=\"ltr\" data-surgeist-transparent-inline-container=\"true\">alpha</bdo>",
-                    "<bdo dir=\"rtl\" data-surgeist-transparent-inline-container=\"true\">אבג</bdo>",
+                    "<bdo dir=\"rtl\" data-surgeist-transparent-inline-container=\"true\" data-surgeist-inline-bidi-levels='[{\"sourceIndex\":0,\"bidiLevel\":1}]'>אבג</bdo>",
                     "delta",
                 ],
             ),
@@ -7334,11 +7334,11 @@ if (expectedReason === undefined) {{
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "2a244da5dbc74b5b9936bf953cf04fa20af29e1ee35bb5678aca40e179a9d51f"
+            "20936bff165797fa1ee00829d7eaf4fdadcc67e209a862f70139d0ed316cd1b9"
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            "8a577da1af24df4d80fa1262b40c370af2ba1ddf4aa3ff54de166e1d75128e0d"
+            "4adbe29dbdee892df42347fd0bbc54f21a61602ce8164e69f64a81bce57ad1ab"
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
@@ -7660,7 +7660,7 @@ console.log(JSON.stringify({
                     .map(|source| (*source).to_string())
                     .collect()
             ),
-            "529b6ca00751afa1e9090b03f1381dd497a3033bc75dbda9a1ba8a24a6e500a3"
+            "10aa4404971bf99925398d602f88851c9d95a7abf3bd7b9c6f95732079e6d23b"
         );
         for (reason, expected_rows) in [
             (FRI06_C08_EXISTING_REASONS[0], 100),
@@ -13772,7 +13772,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         for (path, expected) in [
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "8a577da1af24df4d80fa1262b40c370af2ba1ddf4aa3ff54de166e1d75128e0d",
+                "4adbe29dbdee892df42347fd0bbc54f21a61602ce8164e69f64a81bce57ad1ab",
             ),
             (
                 "tests/layout/browser_parity/html/subgrid/subgrid_baseline_auto_columns_first_item.html",
@@ -13796,7 +13796,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
             ),
             (
                 "tests/layout/browser_parity/html/block/fri06_bidi_mixed_inline.html",
-                "2a0a81079914b57cb8fe21336aad8c165939cb3ccf77d1ca31a8e889f6e23bfe",
+                "951ff318db6ab56c0048a85f4fe77bacd4433a98a3fbbb4e54a894cc1fb94d66",
             ),
             (
                 "tests/layout/browser_parity/html/block/fri06_inline_mixed_text_atomic_wrap.html",
@@ -14020,6 +14020,11 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
                 "block/fri06_bidi_mixed_inline.html",
                 "data-surgeist-transparent-inline-container=\"true\"",
                 2,
+            ),
+            (
+                "block/fri06_bidi_mixed_inline.html",
+                "data-surgeist-inline-bidi-levels=",
+                1,
             ),
             (
                 "block/fri06_inline_mixed_text_atomic_wrap.html",
@@ -14357,7 +14362,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
 
         assert_eq!(
             sha256_bytes(production.as_bytes()),
-            "d3161f95d4a768fff259aa8f2aa92c670addf01c2a2356be51517f3314a7288d",
+            "7a31afe088f100405d4c3533a7d40f4576d2fb861f5bc2117299a5f1fed065c4",
             "generator production source must match the reviewed C08R correction"
         );
         for (path, expected) in [
@@ -14375,7 +14380,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "8a577da1af24df4d80fa1262b40c370af2ba1ddf4aa3ff54de166e1d75128e0d",
+                "4adbe29dbdee892df42347fd0bbc54f21a61602ce8164e69f64a81bce57ad1ab",
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_base_style.css",
@@ -14400,7 +14405,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "2a244da5dbc74b5b9936bf953cf04fa20af29e1ee35bb5678aca40e179a9d51f"
+            "20936bff165797fa1ee00829d7eaf4fdadcc67e209a862f70139d0ed316cd1b9"
         );
     }
 
@@ -14456,6 +14461,200 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
         assert_eq!(literal_pass + moved_fail_to_pass, 104);
         assert_eq!(literal_fail - moved_fail_to_pass, 284);
         assert_eq!(36 + 352, 104 + 284);
+    }
+
+    #[test]
+    fn fri06_c12_t07_default_block_parent_inventory_authors_block_role() {
+        let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let html = corpus.join("html");
+        let families = [
+            "subgrid_baseline_nested_block_",
+            "subgrid_baseline_vertical_nested_",
+            "subgrid_baseline_auto_rows_",
+            "subgrid_baseline_vertical_auto_rows_",
+            "subgrid_baseline_inline_column_",
+        ];
+        let sources = collect_relative_html(&html)
+            .expect("HTML inventory")
+            .into_iter()
+            .filter(|relative| {
+                relative
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| families.iter().any(|family| name.starts_with(family)))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(sources.len(), 60, "reviewed WPT source inventory");
+
+        let authored_parent = r#"<div style="display: block;"#;
+        let mut authored = 0usize;
+        for relative in &sources {
+            let raw = fs::read_to_string(html.join(relative)).expect("reviewed WPT source");
+            let count = raw.matches(authored_parent).count();
+            assert_eq!(
+                count,
+                6,
+                "{} leaves direct BR parents on the shared flex default",
+                relative.display()
+            );
+            authored += count;
+        }
+
+        let unequal =
+            fs::read_to_string(html.join("block/fri06_inline_unequal_line_alignment.html"))
+                .expect("unequal-line source");
+        let unequal_count = unequal
+            .matches(
+                r#"data-surgeist-layout-ready-inline="true" style="display: block; text-align:"#,
+            )
+            .count();
+        assert_eq!(
+            unequal_count, 3,
+            "unequal-line BR parents must author block"
+        );
+        authored += unequal_count;
+        assert_eq!(authored, 363, "reviewed default-block parent inventory");
+
+        let base_style = fs::read_to_string(corpus.join("scripts/gentest/test_base_style.css"))
+            .expect("shared corpus style");
+        assert!(
+            base_style.contains("div {\n  display: flex;\n}"),
+            "RED requires the unauthored parents to compute flex"
+        );
+    }
+
+    #[test]
+    fn fri06_c12_t07_direction_only_changes_do_not_choose_bidi_levels() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const rootRect = { x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20 };
+const textRect = { x: 0, y: 0, left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 };
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return textRect; },
+  getClientRects() { return [textRect]; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const root = {
+  parentElement: null,
+  getAttribute(name) { return name === 'data-surgeist-layout-ready-inline' ? 'true' : null; },
+  getBoundingClientRect() { return rootRect; },
+};
+const parent = { parentElement: root, childNodes: [], getAttribute() { return null; } };
+const text = { nodeType: Node.TEXT_NODE, textContent: 'alpha', parentElement: parent };
+parent.childNodes = [text];
+let direction = 'ltr';
+function getComputedStyle(element) {
+  return {
+    direction,
+    writingMode: 'horizontal-tb',
+    fontSize: '10px',
+    lineHeight: '10px',
+    display: element === root ? 'block' : 'inline',
+  };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const levels = [];
+for (direction of ['ltr', 'rtl']) {
+  resetLayoutReadyRangeLineRegistry(root);
+  levels.push(layoutReadyTextNodeData(text, parent, 0).inlineSegments[0].bidiLevel);
+}
+if (JSON.stringify(levels) !== JSON.stringify([0, 0])) {
+  throw new Error(`direction-only mutation chose bidi input ${JSON.stringify(levels)}`);
+}
+"#,
+        ]
+        .concat();
+        run_bundled_helper_script("fri06-c12-t07-direction-neutral-bidi", script);
+    }
+
+    #[test]
+    fn fri06_c12_t07_bidi_marker_is_closed_targeted_unique_and_consumed() {
+        let script = [
+            r#"
+const window = {};
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const document = { styleSheets: [] };
+function getComputedStyle(element) { return element.computedStyle || { display: 'block' }; }
+const text = { nodeType: Node.TEXT_NODE, textContent: 'alpha' };
+const atomic = {
+  nodeType: Node.ELEMENT_NODE,
+  tagName: 'SPAN',
+  computedStyle: { display: 'inline-block' },
+};
+const br = { nodeType: Node.ELEMENT_NODE, tagName: 'BR', computedStyle: { display: 'inline' } };
+function parent(value, children = [text]) {
+  return {
+    childNodes: children,
+    getAttribute(name) { return name === 'data-surgeist-inline-bidi-levels' ? value : null; },
+  };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+function mustReject(label, callback, expected) {
+  let error;
+  try { callback(); } catch (caught) { error = String(caught); }
+  if (!error || !error.includes(expected)) {
+    throw new Error(`${label} did not reject with ${expected}: ${error}`);
+  }
+}
+
+const valid = layoutReadyInlineBidiLevels(
+  parent('[{"sourceIndex":0,"bidiLevel":1}]'), [text]
+);
+if (consumeLayoutReadyInlineBidiLevel(valid, 0) !== 1 || valid.size !== 0) {
+  throw new Error('valid source-indexed bidi marker was not consumed exactly once');
+}
+rejectUnusedLayoutReadyInlineBidiLevels(valid);
+
+for (const [label, value, children, expected] of [
+  ['syntax', '{', [text], 'valid JSON'],
+  ['empty', '[]', [text], 'nonempty finite table'],
+  ['extra field', '[{"sourceIndex":0,"bidiLevel":1,"extra":true}]', [text], 'closed fields'],
+  ['missing field', '[{"sourceIndex":0}]', [text], 'closed fields'],
+  ['negative source', '[{"sourceIndex":-1,"bidiLevel":1}]', [text], 'existing non-negative sourceIndex'],
+  ['missing target', '[{"sourceIndex":1,"bidiLevel":1}]', [text], 'existing non-negative sourceIndex'],
+  ['duplicate target', '[{"sourceIndex":0,"bidiLevel":1},{"sourceIndex":0,"bidiLevel":2}]', [text], 'duplicates sourceIndex'],
+  ['zero level', '[{"sourceIndex":0,"bidiLevel":0}]', [text], 'integer in 1..=125'],
+  ['high level', '[{"sourceIndex":0,"bidiLevel":126}]', [text], 'integer in 1..=125'],
+  ['fractional level', '[{"sourceIndex":0,"bidiLevel":1.5}]', [text], 'integer in 1..=125'],
+  ['BR target', '[{"sourceIndex":0,"bidiLevel":1}]', [br], 'shaped text or an atomic inline'],
+  ['ordinary box target', '[{"sourceIndex":0,"bidiLevel":1}]', [{...atomic, computedStyle: {display: 'block'}}], 'shaped text or an atomic inline'],
+]) {
+  mustReject(label, () => layoutReadyInlineBidiLevels(parent(value, children), children), expected);
+}
+
+const unused = layoutReadyInlineBidiLevels(
+  parent('[{"sourceIndex":0,"bidiLevel":1}]', [atomic]), [atomic]
+);
+mustReject(
+  'unused record',
+  () => rejectUnusedLayoutReadyInlineBidiLevels(unused),
+  'unused sourceIndex 0'
+);
+"#,
+        ]
+        .concat();
+        run_bundled_helper_script("fri06-c12-t07-bidi-marker-validation", script);
+
+        let bidi = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/layout/browser_parity/html/block/fri06_bidi_mixed_inline.html"),
+        )
+        .expect("bidi source");
+        assert_eq!(bidi.matches("data-surgeist-inline-bidi-levels=").count(), 1);
+        assert!(
+            bidi.contains(
+                r#"data-surgeist-inline-bidi-levels='[{"sourceIndex":0,"bidiLevel":1}]'"#
+            )
+        );
     }
 
     mod c08_entry_preflight {

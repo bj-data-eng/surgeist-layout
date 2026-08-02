@@ -2283,15 +2283,18 @@ fn compare_expectation(
     unrounded_inline_fragments: &[layout::InlineFragmentOutputEntry<usize>],
     final_inline_fragments: &[layout::InlineFragmentOutputEntry<usize>],
 ) -> Result<(), Error> {
-    let mut fragment_cursors = FragmentCursors {
-        unrounded: FragmentCursor {
-            entries: unrounded_inline_fragments,
-            next: 0,
+    let mut comparison_state = ComparisonState {
+        fragment_cursors: FragmentCursors {
+            unrounded: FragmentCursor {
+                entries: unrounded_inline_fragments,
+                next: 0,
+            },
+            final_output: FragmentCursor {
+                entries: final_inline_fragments,
+                next: 0,
+            },
         },
-        final_output: FragmentCursor {
-            entries: final_inline_fragments,
-            next: 0,
-        },
+        range_line_registries: RangeLineRegistries::default(),
     };
     compare_expectation_in_source_order(
         tree,
@@ -2299,23 +2302,25 @@ fn compare_expectation(
         expected,
         path,
         use_rounding,
-        &mut fragment_cursors,
+        &mut comparison_state,
         None,
     )?;
-    if let Some(entry) = fragment_cursors
+    if let Some(entry) = comparison_state
+        .fragment_cursors
         .unrounded
         .entries
-        .get(fragment_cursors.unrounded.next)
+        .get(comparison_state.fragment_cursors.unrounded.next)
     {
         return Err(Error::new(format!(
             "{path}: unexpected unrounded fragment source association at node {}",
             entry.node()
         )));
     }
-    if let Some(entry) = fragment_cursors
+    if let Some(entry) = comparison_state
+        .fragment_cursors
         .final_output
         .entries
-        .get(fragment_cursors.final_output.next)
+        .get(comparison_state.fragment_cursors.final_output.next)
     {
         return Err(Error::new(format!(
             "{path}: unexpected fragment source association at node {}",
@@ -2333,6 +2338,45 @@ struct FragmentCursor<'a> {
 struct FragmentCursors<'a> {
     unrounded: FragmentCursor<'a>,
     final_output: FragmentCursor<'a>,
+}
+
+struct ComparisonState<'a> {
+    fragment_cursors: FragmentCursors<'a>,
+    range_line_registries: RangeLineRegistries,
+}
+
+#[derive(Default)]
+struct RangeLineRegistries {
+    roots: BTreeMap<usize, Vec<Scalar>>,
+}
+
+impl RangeLineRegistries {
+    fn line_index(&mut self, root: usize, coordinate: Scalar) -> Result<usize, Error> {
+        const TOLERANCE: Scalar = 0.1;
+        if !coordinate.is_finite() {
+            return Err(Error::new(
+                "Range line identity requires a finite root-local block coordinate",
+            ));
+        }
+        let anchors = self.roots.entry(root).or_default();
+        let matches = anchors
+            .iter()
+            .enumerate()
+            .filter(|(_, anchor)| (**anchor - coordinate).abs() <= TOLERANCE)
+            .map(|(line_index, _)| line_index)
+            .collect::<Vec<_>>();
+        if matches.len() > 1 {
+            return Err(Error::new(format!(
+                "ambiguous Range line identity at root-local block coordinate {coordinate}"
+            )));
+        }
+        if let Some(line_index) = matches.first() {
+            return Ok(*line_index);
+        }
+        let line_index = anchors.len();
+        anchors.push(coordinate);
+        Ok(line_index)
+    }
 }
 
 impl<'a> FragmentCursor<'a> {
@@ -2362,7 +2406,7 @@ fn compare_expectation_in_source_order(
     expected: &Expectation,
     path: &str,
     use_rounding: bool,
-    fragment_cursors: &mut FragmentCursors<'_>,
+    comparison_state: &mut ComparisonState<'_>,
     browser_control_context: Option<BrowserControlContext<'_>>,
 ) -> Result<(), Error> {
     validate_observation_expectation_category(expected)
@@ -2412,13 +2456,26 @@ fn compare_expectation_in_source_order(
         compare_number(path, "scroll height", y_span, expected_scroll_size.height)?;
     }
 
-    let unrounded_fragments = fragment_cursors.unrounded.take_for_node(node);
-    let final_fragments = fragment_cursors.final_output.take_for_node(node);
+    let unrounded_fragments = comparison_state
+        .fragment_cursors
+        .unrounded
+        .take_for_node(node);
+    let final_fragments = comparison_state
+        .fragment_cursors
+        .final_output
+        .take_for_node(node);
     if let Some(expected_fragments) = &expected.fragments {
         compare_fragment_expectations(path, final_fragments, expected_fragments)?;
     }
     if let Some(expected_range_inks) = &expected.range_inks {
-        compare_range_ink_expectations(tree, node, path, unrounded_fragments, expected_range_inks)?;
+        compare_range_ink_expectations(
+            tree,
+            node,
+            path,
+            unrounded_fragments,
+            expected_range_inks,
+            &mut comparison_state.range_line_registries,
+        )?;
     }
     if let Some(expected_browser_control) = expected.browser_control {
         compare_browser_control_expectation(
@@ -2431,24 +2488,23 @@ fn compare_expectation_in_source_order(
     }
 
     let children = comparison_children(tree, node);
-    if children.len() != expected.children.len() {
+    let expected_children = comparison_expected_children(tree, node, &expected.children);
+    if children.len() != expected_children.len() {
         return Err(Error::new(format!(
             "{path}: expected {} children, got {}",
-            expected.children.len(),
+            expected_children.len(),
             children.len()
         )));
     }
 
-    for (index, (&child, expected_child)) in
-        children.iter().zip(expected.children.iter()).enumerate()
-    {
+    for (index, (&child, expected_child)) in children.iter().zip(expected_children).enumerate() {
         compare_expectation_in_source_order(
             tree,
             child,
             expected_child,
             &format!("{path}/{index}"),
             use_rounding,
-            fragment_cursors,
+            comparison_state,
             Some(BrowserControlContext {
                 parent: node,
                 source_index: index,
@@ -2465,11 +2521,36 @@ fn comparison_children(tree: &TestTree, node: usize) -> Vec<usize> {
     for child in tree.nodes[node].children.iter().copied() {
         if tree.nodes[child].synthetic {
             children.extend(comparison_children(tree, child));
-        } else {
+        } else if !matches!(
+            tree.nodes[child].layout_input,
+            layout::LayoutInput::InlineBoundary(_)
+        ) {
             children.push(child);
         }
     }
     children
+}
+
+fn comparison_expected_children<'a>(
+    tree: &TestTree,
+    node: usize,
+    expected: &'a [Expectation],
+) -> Vec<&'a Expectation> {
+    let source_children = &tree.nodes[node].children;
+    if source_children.len() != expected.len() {
+        return expected.iter().collect();
+    }
+    source_children
+        .iter()
+        .zip(expected)
+        .filter_map(|(&child, expectation)| {
+            (!matches!(
+                tree.nodes[child].layout_input,
+                layout::LayoutInput::InlineBoundary(_)
+            ))
+            .then_some(expectation)
+        })
+        .collect()
 }
 
 fn compare_fragment_expectations(
@@ -2557,16 +2638,28 @@ fn compare_range_ink_expectations(
     path: &str,
     actual: &[layout::InlineFragmentOutputEntry<usize>],
     expected: &[InlineRangeInkExpectation],
+    range_line_registries: &mut RangeLineRegistries,
 ) -> Result<(), Error> {
-    compare_range_ink_expectations_with_translation(path, actual, expected, |edge| {
-        range_ink_ancestor_translation(tree, owner, edge)
-    })
+    let actual_line_indices = actual
+        .iter()
+        .map(|entry| {
+            range_ink_root_line_index(tree, owner, entry.fragment(), range_line_registries)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    compare_range_ink_expectations_with_translation(
+        path,
+        actual,
+        expected,
+        &actual_line_indices,
+        |edge| range_ink_ancestor_translation(tree, owner, edge),
+    )
 }
 
 fn compare_range_ink_expectations_with_translation(
     path: &str,
     actual: &[layout::InlineFragmentOutputEntry<usize>],
     expected: &[InlineRangeInkExpectation],
+    actual_line_indices: &[usize],
     mut translation: impl FnMut(PhysicalStartEdge) -> Result<Scalar, Error>,
 ) -> Result<(), Error> {
     if actual.len() != expected.len() {
@@ -2585,7 +2678,7 @@ fn compare_range_ink_expectations_with_translation(
             .find(|(actual_index, entry)| {
                 !matched[*actual_index]
                     && entry.fragment().segment_id().get() == expected.source_segment_id
-                    && entry.fragment().line_index() == expected.line_index
+                    && actual_line_indices[*actual_index] == expected.line_index
             })
             .map(|(actual_index, _)| actual_index)
             .or_else(|| matched.iter().position(|matched| !matched))
@@ -2604,7 +2697,7 @@ fn compare_range_ink_expectations_with_translation(
             path,
             index,
             "line index",
-            fragment.line_index(),
+            actual_line_indices[actual_index],
             expected.line_index,
         )?;
         let rect = fragment.rect();
@@ -2632,11 +2725,37 @@ fn compare_range_ink_expectations_with_translation(
     Ok(())
 }
 
-fn range_ink_ancestor_translation(
+fn range_ink_root_line_index(
     tree: &TestTree,
     owner: usize,
-    edge: PhysicalStartEdge,
-) -> Result<Scalar, Error> {
+    fragment: layout::InlineFragmentOutput,
+    registries: &mut RangeLineRegistries,
+) -> Result<usize, Error> {
+    let root = range_ink_root(tree, owner)?;
+    let root_node = &tree.nodes[root];
+    let flow = root_node
+        .layout_input
+        .as_box()
+        .map(|input| layout::FlowAxes::new(input.writing_mode, input.direction))
+        .ok_or_else(|| Error::new("Range inline root must be a box input"))?;
+    let rect = fragment.rect();
+    let edge = match flow.block_start() {
+        layout::PhysicalSide::Top => PhysicalStartEdge::Top,
+        layout::PhysicalSide::Right => PhysicalStartEdge::Right,
+        layout::PhysicalSide::Bottom => PhysicalStartEdge::Bottom,
+        layout::PhysicalSide::Left => PhysicalStartEdge::Left,
+    };
+    let local_coordinate = match edge {
+        PhysicalStartEdge::Left => rect.origin().x,
+        PhysicalStartEdge::Right => rect.origin().x + rect.size().width,
+        PhysicalStartEdge::Top => rect.origin().y,
+        PhysicalStartEdge::Bottom => rect.origin().y + rect.size().height,
+    };
+    let coordinate = local_coordinate + range_ink_ancestor_translation(tree, owner, edge)?;
+    registries.line_index(root, coordinate)
+}
+
+fn range_ink_root(tree: &TestTree, owner: usize) -> Result<usize, Error> {
     let owner_node = tree
         .nodes
         .get(owner)
@@ -2655,6 +2774,19 @@ fn range_ink_ancestor_translation(
             "Range inline root identity `{root}` does not name its explicit marker"
         )));
     }
+    Ok(root)
+}
+
+fn range_ink_ancestor_translation(
+    tree: &TestTree,
+    owner: usize,
+    edge: PhysicalStartEdge,
+) -> Result<Scalar, Error> {
+    let owner_node = tree
+        .nodes
+        .get(owner)
+        .ok_or_else(|| Error::new(format!("Range owner node `{owner}` is missing")))?;
+    let root = range_ink_root(tree, owner)?;
 
     let mut current = owner_node.parent.ok_or_else(|| {
         Error::new(format!(
@@ -5429,12 +5561,17 @@ mod tests {
                 }
             })
             .collect::<Vec<_>>();
+        let actual_line_indices = actual
+            .iter()
+            .map(|entry| entry.fragment().line_index())
+            .collect::<Vec<_>>();
         expected.reverse();
 
         compare_range_ink_expectations_with_translation(
             "fri06-c08-r0-range",
             &actual,
             &expected,
+            &actual_line_indices,
             |_| Ok(0.0),
         )
         .expect("Range source order must not become a model visual-index assertion");
@@ -5453,6 +5590,7 @@ mod tests {
                     "fri06-c08-r0-range",
                     &actual,
                     &changed,
+                    &actual_line_indices,
                     |_| Ok(0.0),
                 )
                 .is_err(),
