@@ -1114,7 +1114,7 @@ The authored marker inventory is exactly:
 | `subgrid/subgrid_baseline_standalone_axis_second_item.html` | Exactly two anonymous-wrapper markers at the same two-item topology |
 | `subgrid/subgrid_auto_track_sizing_min_content_text_runs.html` | Exactly one anonymous-wrapper marker on the innermost grid that directly owns the four typed text runs, beneath the sole min-content outer grid |
 | `block/fri06_bidi_mixed_inline.html` | Exactly two transparent-inline-container markers, one on each direct inline `bdo` child of `#test-root`, plus one `data-surgeist-inline-bidi-levels` record `{ "sourceIndex": 0, "bidiLevel": 1 }` on the RTL `bdo` |
-| `block/fri06_atomic_inline_percentage_block_size.html` | Exactly one root `data-surgeist-inline-bidi-levels` record: `{ "sourceIndex": 0, "bidiLevel": 1, "whenDirection": "rtl" }` |
+| `block/fri06_atomic_inline_percentage_block_size.html` | Exactly one root `data-surgeist-inline-bidi-levels` marker containing three records: `{ "sourceIndex": 0, "bidiLevel": 1, "whenDirection": "rtl" }`, `{ "sourceIndex": 1, "bidiLevel": 1, "whenDirection": "rtl" }`, and `{ "sourceIndex": 2, "bidiLevel": 1, "whenDirection": "rtl" }` |
 | `block/fri06_inline_mixed_text_atomic_wrap.html` | Exactly one root `data-surgeist-inline-struts` record: `{ "beforeSourceIndex": 2, "baseline": 14.8, "lineHeight": 20 }` |
 | `float/fri06_float_line_exclusion.html` | Exactly one root `data-surgeist-inline-struts` record `{ "beforeSourceIndex": 5, "baseline": 12, "lineHeight": 20 }` and one root `data-surgeist-inline-bidi-levels` record `{ "sourceIndex": 4, "bidiLevel": 1, "whenDirection": "rtl" }` |
 
@@ -1127,7 +1127,7 @@ and use on any other HTML source reject the run. Rust may pin exact source bytes
 or literal marker counts as diagnostic drift evidence, but such checks neither
 parse HTML nor constitute final inventory acceptance. The four generated
 variants of each source inherit the same authored marker inventory; direction
-selects only the two explicitly scoped records above, and box sizing does not
+selects only the four explicitly scoped record entries above, and box sizing does not
 alter it.
 
 The only new generated-XML structural forms for these facts remain
