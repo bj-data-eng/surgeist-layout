@@ -326,142 +326,131 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {}
 
 fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
-    (ParseNodePhaseL328::RUN)(xml)
-}
+    if xml.has_tag_name("inline-boundary") {
+        return parse_inline_boundary_node(xml);
+    }
+    let kind = match xml.tag_name().name() {
+        "div" => NodeKind::Div,
+        "text" => NodeKind::Text,
+        tag => return Err(Error::new(format!("unsupported input node `<{tag}>`"))),
+    };
 
-type ParseNodePhaseL328Run = fn(roxmltree::Node<'_, '_>) -> Result<Node, Error>;
-
-struct ParseNodePhaseL328;
-
-impl ParseNodePhaseL328 {
-    const RUN: ParseNodePhaseL328Run = |xml: roxmltree::Node<'_, '_>| {
-        if xml.has_tag_name("inline-boundary") {
-            return parse_inline_boundary_node(xml);
+    if let Some(layout_input) = xml.attribute("layout-input") {
+        if kind != NodeKind::Text || layout_input != "inline-text" {
+            return Err(Error::new(format!(
+                "invalid `layout-input` on `<{}>`: `{layout_input}`",
+                xml.tag_name().name()
+            )));
         }
-        let kind = match xml.tag_name().name() {
-            "div" => NodeKind::Div,
-            "text" => NodeKind::Text,
-            tag => return Err(Error::new(format!("unsupported input node `<{tag}>`"))),
-        };
+        return parse_inline_text_node(xml);
+    }
 
-        if let Some(layout_input) = xml.attribute("layout-input") {
-            if kind != NodeKind::Text || layout_input != "inline-text" {
-                return Err(Error::new(format!(
-                    "invalid `layout-input` on `<{}>`: `{layout_input}`",
-                    xml.tag_name().name()
-                )));
-            }
-            return parse_inline_text_node(xml);
+    let layout_ready_inline_root = match xml.attribute("layout-ready-inline-root") {
+        Some(value) if parse_bool(value)? => true,
+        Some(_) => {
+            return Err(Error::new(
+                "`layout-ready-inline-root` must be `true` when present",
+            ));
         }
-
-        let layout_ready_inline_root = match xml.attribute("layout-ready-inline-root") {
-            Some(value) if parse_bool(value)? => true,
+        None => false,
+    };
+    let anonymous_grid_text_wrapper =
+        match xml.attribute("layout-ready-anonymous-grid-text-wrapper") {
+            Some("true") => true,
             Some(_) => {
                 return Err(Error::new(
-                    "`layout-ready-inline-root` must be `true` when present",
+                    "`layout-ready-anonymous-grid-text-wrapper` must be exactly `true`",
                 ));
             }
             None => false,
         };
-        let anonymous_grid_text_wrapper =
-            match xml.attribute("layout-ready-anonymous-grid-text-wrapper") {
-                Some("true") => true,
-                Some(_) => {
-                    return Err(Error::new(
-                        "`layout-ready-anonymous-grid-text-wrapper` must be exactly `true`",
-                    ));
-                }
-                None => false,
-            };
-        let mut attrs = BTreeMap::new();
-        for attr in xml.attributes() {
-            if attr.name() == "layout-ready-anonymous-grid-text-wrapper" {
-                continue;
-            }
-            if attr.name().starts_with("layout-ready-") && attr.name() != "layout-ready-inline-root"
-            {
-                return Err(Error::new(format!(
-                    "unsupported layout-ready input attribute `{}`",
-                    attr.name()
-                )));
-            }
-            attrs.insert(attr.name().to_string(), attr.value().to_string());
+    let mut attrs = BTreeMap::new();
+    for attr in xml.attributes() {
+        if attr.name() == "layout-ready-anonymous-grid-text-wrapper" {
+            continue;
         }
-
-        let mut shape_bands = None;
-        for table in xml
-            .children()
-            .filter(roxmltree::Node::is_element)
-            .filter(|child| child.has_tag_name("shape-bands"))
-        {
-            if shape_bands.is_some() {
-                return Err(Error::new(
-                    "expected at most one `<shape-bands>` child on an input node",
-                ));
-            }
-            shape_bands = Some(parse_shape_bands(table)?);
+        if attr.name().starts_with("layout-ready-") && attr.name() != "layout-ready-inline-root" {
+            return Err(Error::new(format!(
+                "unsupported layout-ready input attribute `{}`",
+                attr.name()
+            )));
         }
+        attrs.insert(attr.name().to_string(), attr.value().to_string());
+    }
 
-        if anonymous_grid_text_wrapper
-            && xml.children().any(|child| {
-                child.is_text() && child.text().is_some_and(|text| !text.trim().is_empty())
-            })
-        {
+    let mut shape_bands = None;
+    for table in xml
+        .children()
+        .filter(roxmltree::Node::is_element)
+        .filter(|child| child.has_tag_name("shape-bands"))
+    {
+        if shape_bands.is_some() {
             return Err(Error::new(
-                "anonymous grid text wrapper rejects raw text fallback",
+                "expected at most one `<shape-bands>` child on an input node",
             ));
         }
+        shape_bands = Some(parse_shape_bands(table)?);
+    }
 
-        let text = xml
-            .text()
-            .map(str::trim)
-            .filter(|text| !text.is_empty())
-            .map(ToOwned::to_owned);
-        let mut children = xml
-            .children()
-            .filter(roxmltree::Node::is_element)
-            .filter(|child| {
-                !child.has_tag_name("atomic-placeholder") && !child.has_tag_name("shape-bands")
-            })
-            .map(parse_node)
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut atomic_indices = std::collections::BTreeSet::new();
-        for placeholder in xml
-            .children()
-            .filter(roxmltree::Node::is_element)
-            .filter(|child| child.has_tag_name("atomic-placeholder"))
-        {
-            let (child_index, participation) = parse_atomic_placeholder(placeholder)?;
-            if !atomic_indices.insert(child_index) {
-                return Err(Error::new(format!(
-                    "duplicate atomic child index `{child_index}`"
-                )));
-            }
-            let child = children.get_mut(child_index).ok_or_else(|| {
-                Error::new(format!("unmatched atomic child index `{child_index}`"))
-            })?;
-            if child.inline_text.is_some() || child.atomic_inline_participation.is_some() {
-                return Err(Error::new(format!(
-                    "unmatched atomic child index `{child_index}`"
-                )));
-            }
-            child.atomic_inline_participation = Some(participation);
-        }
-
-        Ok(Node {
-            kind,
-            style: StyleAttrs { attrs },
-            text,
-            children,
-            inline_text: None,
-            atomic_inline_participation: None,
-            shape_bands,
-            inline_boundary: None,
-            atomic_line_strut: None,
-            anonymous_grid_text_wrapper,
-            layout_ready_inline_root,
+    if anonymous_grid_text_wrapper
+        && xml.children().any(|child| {
+            child.is_text() && child.text().is_some_and(|text| !text.trim().is_empty())
         })
-    };
+    {
+        return Err(Error::new(
+            "anonymous grid text wrapper rejects raw text fallback",
+        ));
+    }
+
+    let text = xml
+        .text()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(ToOwned::to_owned);
+    let mut children = xml
+        .children()
+        .filter(roxmltree::Node::is_element)
+        .filter(|child| {
+            !child.has_tag_name("atomic-placeholder") && !child.has_tag_name("shape-bands")
+        })
+        .map(parse_node)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut atomic_indices = std::collections::BTreeSet::new();
+    for placeholder in xml
+        .children()
+        .filter(roxmltree::Node::is_element)
+        .filter(|child| child.has_tag_name("atomic-placeholder"))
+    {
+        let (child_index, participation) = parse_atomic_placeholder(placeholder)?;
+        if !atomic_indices.insert(child_index) {
+            return Err(Error::new(format!(
+                "duplicate atomic child index `{child_index}`"
+            )));
+        }
+        let child = children
+            .get_mut(child_index)
+            .ok_or_else(|| Error::new(format!("unmatched atomic child index `{child_index}`")))?;
+        if child.inline_text.is_some() || child.atomic_inline_participation.is_some() {
+            return Err(Error::new(format!(
+                "unmatched atomic child index `{child_index}`"
+            )));
+        }
+        child.atomic_inline_participation = Some(participation);
+    }
+
+    Ok(Node {
+        kind,
+        style: StyleAttrs { attrs },
+        text,
+        children,
+        inline_text: None,
+        atomic_inline_participation: None,
+        shape_bands,
+        inline_boundary: None,
+        atomic_line_strut: None,
+        anonymous_grid_text_wrapper,
+        layout_ready_inline_root,
+    })
 }
 
 fn parse_inline_boundary_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
@@ -886,127 +875,115 @@ fn parse_shape_bands(xml: roxmltree::Node<'_, '_>) -> Result<Vec<FixtureShapeBan
 }
 
 fn parse_shape_band(xml: roxmltree::Node<'_, '_>) -> Result<FixtureShapeBand, Error> {
-    (ParseShapeBandPhaseL877::RUN)(xml)
-}
+    expect_tag(xml, "shape-band")?;
+    const ATTRIBUTES: &[&str] = &[
+        "band-minimum",
+        "band-maximum",
+        "interval-minimum",
+        "interval-maximum",
+        "origin-band-minimum",
+        "origin-band-maximum",
+        "provider-result",
+    ];
+    if let Some(attribute) = xml
+        .attributes()
+        .find(|attribute| !ATTRIBUTES.contains(&attribute.name()))
+    {
+        return Err(Error::new(format!(
+            "unsupported `<shape-band>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    validate_inline_payload(xml)?;
 
-type ParseShapeBandPhaseL877Run = fn(roxmltree::Node<'_, '_>) -> Result<FixtureShapeBand, Error>;
+    let band_minimum = parse_number(required_attr(xml, "band-minimum")?)?;
+    let band_maximum = parse_number(required_attr(xml, "band-maximum")?)?;
+    let validation_margin_box =
+        layout::ScrollRect::try_new(layout::Point::ZERO, layout::Size::ZERO)
+            .expect("zero validation margin box is valid");
+    let query = layout::FloatExclusionQuery::try_new(
+        validation_margin_box,
+        layout::FlowAxes::new(layout::WritingMode::HorizontalTb, layout::Direction::Ltr),
+        band_minimum,
+        band_maximum,
+    )
+    .map_err(|error| Error::new(format!("invalid shape band query: {error:?}")))?;
 
-struct ParseShapeBandPhaseL877;
-
-impl ParseShapeBandPhaseL877 {
-    const RUN: ParseShapeBandPhaseL877Run = |xml: roxmltree::Node<'_, '_>| {
-        expect_tag(xml, "shape-band")?;
-        const ATTRIBUTES: &[&str] = &[
-            "band-minimum",
-            "band-maximum",
-            "interval-minimum",
-            "interval-maximum",
-            "origin-band-minimum",
-            "origin-band-maximum",
-            "provider-result",
-        ];
-        if let Some(attribute) = xml
-            .attributes()
-            .find(|attribute| !ATTRIBUTES.contains(&attribute.name()))
-        {
-            return Err(Error::new(format!(
-                "unsupported `<shape-band>` attribute `{}`",
-                attribute.name()
-            )));
+    let interval = match (
+        xml.attribute("interval-minimum"),
+        xml.attribute("interval-maximum"),
+    ) {
+        (Some(minimum), Some(maximum)) => Some((parse_number(minimum)?, parse_number(maximum)?)),
+        (None, None) => None,
+        _ => {
+            return Err(Error::new("shape interval endpoints must appear together"));
         }
-        validate_inline_payload(xml)?;
+    };
+    let originating_band = match (
+        xml.attribute("origin-band-minimum"),
+        xml.attribute("origin-band-maximum"),
+    ) {
+        (Some(minimum), Some(maximum)) => {
+            let minimum = parse_number(minimum)?;
+            let maximum = parse_number(maximum)?;
+            layout::FloatExclusionQuery::try_new(
+                validation_margin_box,
+                query.flow_axes(),
+                minimum,
+                maximum,
+            )
+            .map_err(|error| {
+                Error::new(format!("invalid originating shape band query: {error:?}"))
+            })?;
+            Some((minimum, maximum))
+        }
+        (None, None) => None,
+        _ => {
+            return Err(Error::new(
+                "originating shape band endpoints must appear together",
+            ));
+        }
+    };
 
-        let band_minimum = parse_number(required_attr(xml, "band-minimum")?)?;
-        let band_maximum = parse_number(required_attr(xml, "band-maximum")?)?;
-        let validation_margin_box =
-            layout::ScrollRect::try_new(layout::Point::ZERO, layout::Size::ZERO)
-                .expect("zero validation margin box is valid");
-        let query = layout::FloatExclusionQuery::try_new(
-            validation_margin_box,
-            layout::FlowAxes::new(layout::WritingMode::HorizontalTb, layout::Direction::Ltr),
-            band_minimum,
-            band_maximum,
-        )
-        .map_err(|error| Error::new(format!("invalid shape band query: {error:?}")))?;
-
-        let interval = match (
-            xml.attribute("interval-minimum"),
-            xml.attribute("interval-maximum"),
-        ) {
-            (Some(minimum), Some(maximum)) => {
-                Some((parse_number(minimum)?, parse_number(maximum)?))
-            }
-            (None, None) => None,
-            _ => {
-                return Err(Error::new("shape interval endpoints must appear together"));
-            }
-        };
-        let originating_band = match (
-            xml.attribute("origin-band-minimum"),
-            xml.attribute("origin-band-maximum"),
-        ) {
-            (Some(minimum), Some(maximum)) => {
-                let minimum = parse_number(minimum)?;
-                let maximum = parse_number(maximum)?;
-                layout::FloatExclusionQuery::try_new(
-                    validation_margin_box,
-                    query.flow_axes(),
-                    minimum,
-                    maximum,
-                )
-                .map_err(|error| {
-                    Error::new(format!("invalid originating shape band query: {error:?}"))
-                })?;
-                Some((minimum, maximum))
-            }
-            (None, None) => None,
-            _ => {
+    let response = match xml.attribute("provider-result") {
+        Some("failure") => {
+            if interval.is_some() || originating_band.is_some() {
                 return Err(Error::new(
-                    "originating shape band endpoints must appear together",
+                    "provider failure must not include an exclusion interval",
                 ));
             }
-        };
-
-        let response = match xml.attribute("provider-result") {
-            Some("failure") => {
-                if interval.is_some() || originating_band.is_some() {
-                    return Err(Error::new(
-                        "provider failure must not include an exclusion interval",
-                    ));
+            FixtureShapeResponse::Failure
+        }
+        Some(value) => {
+            return Err(Error::new(format!(
+                "unsupported shape provider result `{value}`"
+            )));
+        }
+        None => match interval {
+            Some((minimum, maximum)) => {
+                layout::FloatExclusionInterval::try_new(query, minimum, maximum).map_err(
+                    |error| Error::new(format!("invalid shape exclusion interval: {error:?}")),
+                )?;
+                FixtureShapeResponse::Interval {
+                    minimum,
+                    maximum,
+                    originating_band,
                 }
-                FixtureShapeResponse::Failure
             }
-            Some(value) => {
-                return Err(Error::new(format!(
-                    "unsupported shape provider result `{value}`"
-                )));
+            None if originating_band.is_some() => {
+                return Err(Error::new(
+                    "originating shape band requires an exclusion interval",
+                ));
             }
-            None => match interval {
-                Some((minimum, maximum)) => {
-                    layout::FloatExclusionInterval::try_new(query, minimum, maximum).map_err(
-                        |error| Error::new(format!("invalid shape exclusion interval: {error:?}")),
-                    )?;
-                    FixtureShapeResponse::Interval {
-                        minimum,
-                        maximum,
-                        originating_band,
-                    }
-                }
-                None if originating_band.is_some() => {
-                    return Err(Error::new(
-                        "originating shape band requires an exclusion interval",
-                    ));
-                }
-                None => FixtureShapeResponse::Empty,
-            },
-        };
-
-        Ok(FixtureShapeBand {
-            band_minimum: query.band_minimum(),
-            band_maximum: query.band_maximum(),
-            response,
-        })
+            None => FixtureShapeResponse::Empty,
+        },
     };
+
+    Ok(FixtureShapeBand {
+        band_minimum: query.band_minimum(),
+        band_maximum: query.band_maximum(),
+        response,
+    })
 }
 
 fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error> {
@@ -1594,72 +1571,6 @@ struct InheritedTextContext {
     range_root: Option<usize>,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct NodeChildContext {
-    id: usize,
-    font_family: FontFamily,
-    font_size: Scalar,
-    line_height: LineHeightState,
-    resolved_line_height: Scalar,
-    box_display: Option<layout::Display>,
-    containing_flow: Option<layout::FlowAxes>,
-    grid_lanes_text: bool,
-    inline_level_text: bool,
-    range_root: Option<usize>,
-}
-
-fn fixture_layout_input(
-    node: &Node,
-    inherited: InheritedTextContext,
-    font_size: Scalar,
-    resolved_line_height: Scalar,
-) -> Result<layout::LayoutInput, Error> {
-    let mut layout_input = match (node.inline_boundary, &node.inline_text) {
-        (Some(kind), None) => {
-            let flow = inherited.containing_flow.ok_or_else(|| {
-                Error::new("synthetic inline boundary requires a containing flow")
-            })?;
-            let metrics = node
-                .atomic_line_strut
-                .map(Ok)
-                .unwrap_or_else(|| fixture_inline_metrics(font_size, resolved_line_height))?;
-            layout::LayoutInput::inline_boundary(
-                layout::InlineBoundaryInput::new(kind, metrics)
-                    .with_direction(flow.direction())
-                    .with_writing_mode(flow.writing_mode()),
-            )
-        }
-        (None, Some(input)) => layout::LayoutInput::inline_text(input.clone()),
-        (None, None) => to_layout_input_in_flow(&node.style, inherited.containing_flow)?,
-        (Some(_), Some(_)) => {
-            return Err(Error::new(
-                "fixture node cannot be both inline text and an inline boundary",
-            ));
-        }
-    };
-    if let Some(participation) = node.atomic_inline_participation {
-        let Some(input) = layout_input.as_box() else {
-            return Err(Error::new("atomic placeholder must reference a box child"));
-        };
-        let mut input = input.clone();
-        input.atomic_inline_participation = Some(participation);
-        layout_input = layout::LayoutInput::box_input(input);
-    }
-    if node.shape_bands.is_some()
-        && !layout_input.as_box().is_some_and(|input| {
-            input.float_exclusion == layout::FloatExclusion::Shape
-                && input.display != layout::Display::None
-                && input.position != layout::Position::Absolute
-                && matches!(input.float, layout::Float::Left | layout::Float::Right)
-        })
-    {
-        return Err(Error::new(
-            "shape band table requires a visible in-flow left/right shape float",
-        ));
-    }
-    Ok(layout_input)
-}
-
 impl TestTree {
     fn from_golden(root: &Node) -> Result<Self, Error> {
         let mut tree = Self::default();
@@ -1693,7 +1604,49 @@ impl TestTree {
             None => inherited.line_height,
         };
         let resolved_line_height = line_height.resolve(font_size);
-        let layout_input = fixture_layout_input(node, inherited, font_size, resolved_line_height)?;
+        let mut layout_input = match (node.inline_boundary, &node.inline_text) {
+            (Some(kind), None) => {
+                let flow = inherited.containing_flow.ok_or_else(|| {
+                    Error::new("synthetic inline boundary requires a containing flow")
+                })?;
+                let metrics = node
+                    .atomic_line_strut
+                    .map(Ok)
+                    .unwrap_or_else(|| fixture_inline_metrics(font_size, resolved_line_height))?;
+                layout::LayoutInput::inline_boundary(
+                    layout::InlineBoundaryInput::new(kind, metrics)
+                        .with_direction(flow.direction())
+                        .with_writing_mode(flow.writing_mode()),
+                )
+            }
+            (None, Some(input)) => layout::LayoutInput::inline_text(input.clone()),
+            (None, None) => to_layout_input_in_flow(&node.style, inherited.containing_flow)?,
+            (Some(_), Some(_)) => {
+                return Err(Error::new(
+                    "fixture node cannot be both inline text and an inline boundary",
+                ));
+            }
+        };
+        if let Some(participation) = node.atomic_inline_participation {
+            let Some(input) = layout_input.as_box() else {
+                return Err(Error::new("atomic placeholder must reference a box child"));
+            };
+            let mut input = input.clone();
+            input.atomic_inline_participation = Some(participation);
+            layout_input = layout::LayoutInput::box_input(input);
+        }
+        if node.shape_bands.is_some()
+            && !layout_input.as_box().is_some_and(|input| {
+                input.float_exclusion == layout::FloatExclusion::Shape
+                    && input.display != layout::Display::None
+                    && input.position != layout::Position::Absolute
+                    && matches!(input.float, layout::Float::Left | layout::Float::Right)
+            })
+        {
+            return Err(Error::new(
+                "shape band table requires a visible in-flow left/right shape float",
+            ));
+        }
         let box_display = layout_input.as_box().map(|input| input.display);
         let containing_flow = layout_input
             .as_box()
@@ -1731,30 +1684,6 @@ impl TestTree {
             shape_bands: node.shape_bands.clone(),
         });
 
-        let children = self.push_node_children(
-            node,
-            NodeChildContext {
-                id,
-                font_family,
-                font_size,
-                line_height,
-                resolved_line_height,
-                box_display,
-                containing_flow,
-                grid_lanes_text,
-                inline_level_text,
-                range_root,
-            },
-        )?;
-        self.nodes[id].children = children;
-        Ok(id)
-    }
-
-    fn push_node_children(
-        &mut self,
-        node: &Node,
-        context: NodeChildContext,
-    ) -> Result<Vec<usize>, Error> {
         let mut children = node
             .children
             .iter()
@@ -1762,14 +1691,14 @@ impl TestTree {
                 self.push_node(
                     child,
                     InheritedTextContext {
-                        font_family: context.font_family,
-                        font_size: context.font_size,
-                        line_height: context.line_height,
-                        grid_lanes_text: context.grid_lanes_text,
-                        inline_level_text: context.inline_level_text,
-                        containing_flow: context.containing_flow,
-                        parent: Some(context.id),
-                        range_root: context.range_root,
+                        font_family,
+                        font_size,
+                        line_height,
+                        grid_lanes_text,
+                        inline_level_text,
+                        containing_flow,
+                        parent: Some(id),
+                        range_root,
                     },
                 )
             })
@@ -1787,44 +1716,42 @@ impl TestTree {
                     "anonymous grid text wrapper requires direct shaped-text children",
                 ));
             }
-            context
-                .containing_flow
+            containing_flow
                 .ok_or_else(|| Error::new("anonymous grid text wrapper requires a grid flow"))?;
             children = vec![self.push_synthetic_grid_text_wrapper(
                 children,
                 InheritedTextContext {
-                    font_family: context.font_family,
-                    font_size: context.font_size,
-                    line_height: LineHeightState::Px(context.resolved_line_height),
-                    grid_lanes_text: context.grid_lanes_text,
-                    inline_level_text: context.inline_level_text,
-                    containing_flow: context.containing_flow,
-                    parent: Some(context.id),
-                    range_root: context.range_root,
+                    font_family,
+                    font_size,
+                    line_height: LineHeightState::Px(resolved_line_height),
+                    grid_lanes_text,
+                    inline_level_text,
+                    containing_flow,
+                    parent: Some(id),
+                    range_root,
                 },
             )];
         }
         if let Some(text) = &node.text
-            && context
-                .box_display
-                .is_some_and(grid_text_container_needs_anonymous_child)
+            && box_display.is_some_and(grid_text_container_needs_anonymous_child)
         {
             children.push(self.push_synthetic_text(
                 text,
                 InheritedTextContext {
-                    font_family: context.font_family,
-                    font_size: context.font_size,
-                    line_height: LineHeightState::Px(context.resolved_line_height),
-                    grid_lanes_text: context.grid_lanes_text,
-                    inline_level_text: context.inline_level_text,
-                    containing_flow: context.containing_flow,
-                    parent: Some(context.id),
-                    range_root: context.range_root,
+                    font_family,
+                    font_size,
+                    line_height: LineHeightState::Px(resolved_line_height),
+                    grid_lanes_text,
+                    inline_level_text,
+                    containing_flow,
+                    parent: Some(id),
+                    range_root,
                 },
             )?);
-            self.nodes[context.id].text = None;
+            self.nodes[id].text = None;
         }
-        Ok(children)
+        self.nodes[id].children = children;
+        Ok(id)
     }
 
     fn push_synthetic_grid_text_wrapper(
@@ -2777,157 +2704,130 @@ fn compare_browser_control_expectation(
     expected: BrowserControlExpectation,
     context: Option<BrowserControlContext<'_>>,
 ) -> Result<(), Error> {
-    (CompareBrowserControlExpectationPhaseL2700::RUN)(tree, node, path, expected, context)
-}
+    let context = context.ok_or_else(|| {
+        Error::new(format!(
+            "{path}: browser control source mismatch, expected a source child"
+        ))
+    })?;
+    compare_browser_control_identity(
+        path,
+        "source index",
+        context.source_index,
+        expected.source_index,
+    )?;
+    let parent_input = &tree.nodes[context.parent].node_input;
+    if parent_input.display == layout::Display::Flex {
+        if parent_input.flex_wrap != layout::FlexWrap::NoWrap {
+            return Err(Error::new(format!(
+                "{path}: wrapped flex browser control observations are unsupported"
+            )));
+        }
+        if !tree.nodes[node].is_br_source {
+            return Err(Error::new(format!(
+                "{path}: browser control source mismatch, expected a BR source"
+            )));
+        }
 
-type CompareBrowserControlExpectationPhaseL2700Run = fn(
-    &TestTree,
-    usize,
-    &str,
-    BrowserControlExpectation,
-    Option<BrowserControlContext<'_>>,
-) -> Result<(), Error>;
-
-struct CompareBrowserControlExpectationPhaseL2700;
-
-impl CompareBrowserControlExpectationPhaseL2700 {
-    const RUN: CompareBrowserControlExpectationPhaseL2700Run =
-        |tree: &TestTree,
-         node: usize,
-         path: &str,
-         expected: BrowserControlExpectation,
-         context: Option<BrowserControlContext<'_>>| {
-            let context = context.ok_or_else(|| {
-                Error::new(format!(
-                    "{path}: browser control source mismatch, expected a source child"
-                ))
-            })?;
+        if let Some(expected_slot) = expected.terminal_visual_slot {
             compare_browser_control_identity(
                 path,
-                "source index",
+                "terminal visual slot",
                 context.source_index,
-                expected.source_index,
+                expected_slot,
             )?;
-            let parent_input = &tree.nodes[context.parent].node_input;
-            if parent_input.display == layout::Display::Flex {
-                if parent_input.flex_wrap != layout::FlexWrap::NoWrap {
-                    return Err(Error::new(format!(
-                        "{path}: wrapped flex browser control observations are unsupported"
-                    )));
-                }
-                if !tree.nodes[node].is_br_source {
-                    return Err(Error::new(format!(
-                        "{path}: browser control source mismatch, expected a BR source"
-                    )));
-                }
-
-                if let Some(expected_slot) = expected.terminal_visual_slot {
-                    compare_browser_control_identity(
-                        path,
-                        "terminal visual slot",
-                        context.source_index,
-                        expected_slot,
-                    )?;
-                }
-                if expected.previous_line != BrowserNeighborLine::Unobserved {
-                    let actual_previous = if context.source_index == 0 {
-                        BrowserNeighborLine::Absent
-                    } else {
-                        BrowserNeighborLine::Same
-                    };
-                    compare_browser_control_identity(
-                        path,
-                        "previous neighbor line",
-                        actual_previous,
-                        expected.previous_line,
-                    )?;
-                }
-                if expected.next_line != BrowserNeighborLine::Unobserved {
-                    let actual_next = if context.source_index + 1 == context.siblings.len() {
-                        BrowserNeighborLine::Absent
-                    } else {
-                        BrowserNeighborLine::Same
-                    };
-                    compare_browser_control_identity(
-                        path,
-                        "next neighbor line",
-                        actual_next,
-                        expected.next_line,
-                    )?;
-                }
-                return Ok(());
-            }
-
-            let line_break = match tree.nodes[node].layout_input {
-                layout::LayoutInput::LineBreak(line_break) => line_break,
-                _ => {
-                    return Err(Error::new(format!(
-                        "{path}: browser control source mismatch, expected a line break"
-                    )));
-                }
+        }
+        if expected.previous_line != BrowserNeighborLine::Unobserved {
+            let actual_previous = if context.source_index == 0 {
+                BrowserNeighborLine::Absent
+            } else {
+                BrowserNeighborLine::Same
             };
-            if !tree.nodes[node].unrounded_present {
-                return Err(Error::new(format!(
-                    "{path}: browser control observation mismatch, expected unrounded output"
-                )));
-            }
+            compare_browser_control_identity(
+                path,
+                "previous neighbor line",
+                actual_previous,
+                expected.previous_line,
+            )?;
+        }
+        if expected.next_line != BrowserNeighborLine::Unobserved {
+            let actual_next = if context.source_index + 1 == context.siblings.len() {
+                BrowserNeighborLine::Absent
+            } else {
+                BrowserNeighborLine::Same
+            };
+            compare_browser_control_identity(
+                path,
+                "next neighbor line",
+                actual_next,
+                expected.next_line,
+            )?;
+        }
+        return Ok(());
+    }
 
-            let flow = layout::FlowAxes::new(line_break.writing_mode(), line_break.direction());
-            let control_interval = output_block_interval(tree.nodes[node].unrounded, flow);
-            let actual_slot = context.siblings[..context.source_index]
-                .iter()
-                .rev()
-                .take_while(|sibling| {
-                    !matches!(
-                        tree.nodes[**sibling].layout_input,
-                        layout::LayoutInput::LineBreak(_)
-                    )
-                })
-                .filter(|sibling| {
-                    tree.nodes[**sibling].unrounded_present
-                        && block_relation(
-                            control_interval,
-                            output_block_interval(tree.nodes[**sibling].unrounded, flow),
-                            flow,
-                        ) == BrowserNeighborLine::Same
-                })
-                .count();
-            if let Some(expected_slot) = expected.terminal_visual_slot {
-                compare_browser_control_identity(
-                    path,
-                    "terminal visual slot",
-                    actual_slot,
-                    expected_slot,
-                )?;
-            }
+    let line_break = match tree.nodes[node].layout_input {
+        layout::LayoutInput::LineBreak(line_break) => line_break,
+        _ => {
+            return Err(Error::new(format!(
+                "{path}: browser control source mismatch, expected a line break"
+            )));
+        }
+    };
+    if !tree.nodes[node].unrounded_present {
+        return Err(Error::new(format!(
+            "{path}: browser control observation mismatch, expected unrounded output"
+        )));
+    }
 
-            let previous = context
-                .source_index
-                .checked_sub(1)
-                .map(|index| context.siblings[index]);
-            let next = context.siblings.get(context.source_index + 1).copied();
-            if expected.previous_line != BrowserNeighborLine::Unobserved {
-                let actual_previous =
-                    browser_neighbor_relation(tree, previous, control_interval, flow, path)?;
-                compare_browser_control_identity(
-                    path,
-                    "previous neighbor line",
-                    actual_previous,
-                    expected.previous_line,
-                )?;
-            }
-            if expected.next_line != BrowserNeighborLine::Unobserved {
-                let actual_next =
-                    browser_neighbor_relation(tree, next, control_interval, flow, path)?;
-                compare_browser_control_identity(
-                    path,
-                    "next neighbor line",
-                    actual_next,
-                    expected.next_line,
-                )?;
-            }
-            Ok(())
-        };
+    let flow = layout::FlowAxes::new(line_break.writing_mode(), line_break.direction());
+    let control_interval = output_block_interval(tree.nodes[node].unrounded, flow);
+    let actual_slot = context.siblings[..context.source_index]
+        .iter()
+        .rev()
+        .take_while(|sibling| {
+            !matches!(
+                tree.nodes[**sibling].layout_input,
+                layout::LayoutInput::LineBreak(_)
+            )
+        })
+        .filter(|sibling| {
+            tree.nodes[**sibling].unrounded_present
+                && block_relation(
+                    control_interval,
+                    output_block_interval(tree.nodes[**sibling].unrounded, flow),
+                    flow,
+                ) == BrowserNeighborLine::Same
+        })
+        .count();
+    if let Some(expected_slot) = expected.terminal_visual_slot {
+        compare_browser_control_identity(path, "terminal visual slot", actual_slot, expected_slot)?;
+    }
+
+    let previous = context
+        .source_index
+        .checked_sub(1)
+        .map(|index| context.siblings[index]);
+    let next = context.siblings.get(context.source_index + 1).copied();
+    if expected.previous_line != BrowserNeighborLine::Unobserved {
+        let actual_previous =
+            browser_neighbor_relation(tree, previous, control_interval, flow, path)?;
+        compare_browser_control_identity(
+            path,
+            "previous neighbor line",
+            actual_previous,
+            expected.previous_line,
+        )?;
+    }
+    if expected.next_line != BrowserNeighborLine::Unobserved {
+        let actual_next = browser_neighbor_relation(tree, next, control_interval, flow, path)?;
+        compare_browser_control_identity(
+            path,
+            "next neighbor line",
+            actual_next,
+            expected.next_line,
+        )?;
+    }
+    Ok(())
 }
 
 fn browser_neighbor_relation(
@@ -3111,253 +3011,241 @@ fn to_node_input_in_flow(
     attrs: &StyleAttrs,
     containing_flow: Option<layout::FlowAxes>,
 ) -> Result<layout::NodeInput, Error> {
-    (ToNodeInputInFlowPhaseL3010::RUN)(attrs, containing_flow)
-}
-
-type ToNodeInputInFlowPhaseL3010Run =
-    fn(&StyleAttrs, Option<layout::FlowAxes>) -> Result<layout::NodeInput, Error>;
-
-struct ToNodeInputInFlowPhaseL3010;
-
-impl ToNodeInputInFlowPhaseL3010 {
-    const RUN: ToNodeInputInFlowPhaseL3010Run =
-        |attrs: &StyleAttrs, containing_flow: Option<layout::FlowAxes>| {
-            for name in ["overflow", "scroll-padding", "scroll-margin", "transform"] {
-                if attrs.get(name).is_some() {
-                    return Err(Error::new(format!(
-                        "unsupported authored fixture attribute `{name}`"
-                    )));
-                }
+    for name in ["overflow", "scroll-padding", "scroll-margin", "transform"] {
+        if attrs.get(name).is_some() {
+            return Err(Error::new(format!(
+                "unsupported authored fixture attribute `{name}`"
+            )));
+        }
+    }
+    let mut input = layout::NodeInput {
+        overflow: parse_computed_overflow(attrs)?,
+        ..layout::NodeInput::default()
+    };
+    let source_tag = attrs.get("source-tag");
+    input.display = match attrs.get("display") {
+        Some("inline") if source_tag == Some("br") => layout::Display::Block,
+        Some(value) => parse_display(value)?,
+        None => match source_tag {
+            Some("div") => layout::Display::Block,
+            _ => input.display,
+        },
+    };
+    if let Some(value) = attrs.get("order") {
+        input.item_order = parse_item_order(value)?;
+    }
+    if let Some(value) = attrs.get("box-sizing") {
+        input.box_sizing = parse_box_sizing(value)?;
+    }
+    if let Some(value) = attrs.get("direction") {
+        input.direction = parse_direction(value)?;
+    }
+    if let Some(value) = attrs.get("position") {
+        input.position = parse_position(value)?;
+    }
+    if let Some(value) = attrs.get("float-exclusion") {
+        input.float_exclusion = match value {
+            "shape" => layout::FloatExclusion::Shape,
+            _ => {
+                return Err(Error::new(format!(
+                    "unsupported fixture float exclusion `{value}`"
+                )));
             }
-            let mut input = layout::NodeInput {
-                overflow: parse_computed_overflow(attrs)?,
-                ..layout::NodeInput::default()
-            };
-            let source_tag = attrs.get("source-tag");
-            input.display = match attrs.get("display") {
-                Some("inline") if source_tag == Some("br") => layout::Display::Block,
-                Some(value) => parse_display(value)?,
-                None => match source_tag {
-                    Some("div") => layout::Display::Block,
-                    _ => input.display,
-                },
-            };
-            if let Some(value) = attrs.get("order") {
-                input.item_order = parse_item_order(value)?;
-            }
-            if let Some(value) = attrs.get("box-sizing") {
-                input.box_sizing = parse_box_sizing(value)?;
-            }
-            if let Some(value) = attrs.get("direction") {
-                input.direction = parse_direction(value)?;
-            }
-            if let Some(value) = attrs.get("position") {
-                input.position = parse_position(value)?;
-            }
-            if let Some(value) = attrs.get("float-exclusion") {
-                input.float_exclusion = match value {
-                    "shape" => layout::FloatExclusion::Shape,
-                    _ => {
-                        return Err(Error::new(format!(
-                            "unsupported fixture float exclusion `{value}`"
-                        )));
-                    }
-                };
-            }
-            if let Some(value) = attrs.get("scrollbar-width") {
-                input.scrollbar_width = layout::ScrollbarWidth::try_new(parse_number(value)?)
-                    .map_err(|source| Error::new(source.to_string()))?;
-            }
-            if let Some(value) = attrs.get("overflow-clip-margin") {
-                input.overflow_clip_margin = parse_overflow_clip_margin(value)?;
-            }
-            if let Some(value) = attrs.get("scrollbar-gutter") {
-                input.scrollbar_gutter = parse_scrollbar_gutter(value)?;
-            }
-            input.scroll_padding = layout::ScrollPadding::new(
-                parse_scroll_padding(attrs.get("scroll-padding-top"))?,
-                parse_scroll_padding(attrs.get("scroll-padding-right"))?,
-                parse_scroll_padding(attrs.get("scroll-padding-bottom"))?,
-                parse_scroll_padding(attrs.get("scroll-padding-left"))?,
-            );
-            input.scroll_margin = layout::ScrollMargin::try_new(
-                parse_scroll_margin(attrs.get("scroll-margin-top"))?,
-                parse_scroll_margin(attrs.get("scroll-margin-right"))?,
-                parse_scroll_margin(attrs.get("scroll-margin-bottom"))?,
-                parse_scroll_margin(attrs.get("scroll-margin-left"))?,
-            )
-            .map_err(|source| Error::new(source.to_string()))?;
-            if let Some(value) = attrs.get("scroll-snap-type") {
-                input.scroll_snap_type = parse_scroll_snap_type(value)?;
-            }
-            if let Some(value) = attrs.get("scroll-snap-align") {
-                input.scroll_snap_align = parse_scroll_snap_align(value)?;
-            }
-            if let Some(value) = attrs.get("scroll-snap-stop") {
-                input.scroll_snap_stop = parse_scroll_snap_stop(value)?;
-            }
-            if let Some(value) = attrs.get("text-align") {
-                input.text_align = parse_text_align(value)?;
-            }
-            if let Some(value) = attrs.get("vertical-align") {
-                input.vertical_align = parse_vertical_align(value)?;
-            }
-            input.writing_mode = parse_writing_mode(attrs.get("writing-mode"))?;
-            let containing_flow = containing_flow
-                .unwrap_or_else(|| layout::FlowAxes::new(input.writing_mode, input.direction));
-            if let Some(value) = attrs.get("float") {
-                input.float = parse_float(value, containing_flow)?;
-            }
-            if let Some(value) = attrs.get("clear") {
-                input.clear = parse_clear(value, containing_flow)?;
-            }
-            if let Some(value) = attrs.get("flex-direction") {
-                input.flex_direction = parse_flex_direction(value)?;
-            }
-            if let Some(value) = attrs.get("flex-wrap") {
-                input.flex_wrap = parse_flex_wrap(value)?;
-            }
-            if let Some(value) = attrs.get("flex-grow") {
-                input.flex_grow = layout::FlexGrow::try_new(parse_number(value)?)
-                    .map_err(|source| Error::new(source.to_string()))?;
-            }
-            if let Some(value) = attrs.get("flex-shrink") {
-                input.flex_shrink = layout::FlexShrink::try_new(parse_number(value)?)
-                    .map_err(|source| Error::new(source.to_string()))?;
-            }
-            if let Some(value) = attrs.get("flex-basis") {
-                input.flex_basis = parse_flex_basis(value)?;
-            }
-            if let Some(value) = attrs.get("width") {
-                input.size.width = parse_preferred_size(value)?;
-            }
-            if let Some(value) = attrs.get("height") {
-                input.size.height = parse_preferred_size(value)?;
-            }
-            if let Some(value) = attrs.get("min-width") {
-                input.min_size.width = parse_min_size(value)?;
-            }
-            if let Some(value) = attrs.get("min-height") {
-                input.min_size.height = parse_min_size(value)?;
-            }
-            if let Some(value) = attrs.get("max-width") {
-                input.max_size.width = parse_max_size(value)?;
-            }
-            if let Some(value) = attrs.get("max-height") {
-                input.max_size.height = parse_max_size(value)?;
-            }
-            if let Some(value) = attrs.get("aspect-ratio") {
-                let value = parse_number(value)?;
-                input.aspect_ratio = layout::AspectRatio::new(value);
-                if input.aspect_ratio.is_none() {
-                    return Err(Error::new(format!("invalid aspect-ratio `{value}`")));
-                }
-            }
-            let flow_axes = layout::FlowAxes::new(input.writing_mode, input.direction);
-            let (default_inline_gap, default_block_gap) = match flow_axes.inline_axis() {
-                layout::PhysicalAxis::Horizontal => (input.gap.width, input.gap.height),
-                layout::PhysicalAxis::Vertical => (input.gap.height, input.gap.width),
-            };
-            let inline_gap = match attrs.get("column-gap") {
-                Some(value) => parse_length_with_calc(value)?,
-                None => default_inline_gap,
-            };
-            let block_gap = match attrs.get("row-gap") {
-                Some(value) => parse_length_with_calc(value)?,
-                None => default_block_gap,
-            };
-            input.gap = match flow_axes.inline_axis() {
-                layout::PhysicalAxis::Horizontal => layout::Size::new(inline_gap, block_gap),
-                layout::PhysicalAxis::Vertical => layout::Size::new(block_gap, inline_gap),
-            };
-
-            apply_edges_auto(
-                &mut input.margin,
-                attrs,
-                [
-                    ("margin-top", 0),
-                    ("margin-right", 1),
-                    ("margin-bottom", 2),
-                    ("margin-left", 3),
-                ],
-                layout::LengthAuto::ZERO,
-            )?;
-            apply_edges(
-                &mut input.padding,
-                attrs,
-                [
-                    ("padding-top", 0),
-                    ("padding-right", 1),
-                    ("padding-bottom", 2),
-                    ("padding-left", 3),
-                ],
-                layout::Length::ZERO,
-            )?;
-            apply_edges(
-                &mut input.border,
-                attrs,
-                [
-                    ("border-top", 0),
-                    ("border-right", 1),
-                    ("border-bottom", 2),
-                    ("border-left", 3),
-                ],
-                layout::Length::ZERO,
-            )?;
-            apply_edges_auto(
-                &mut input.inset,
-                attrs,
-                [("top", 0), ("right", 1), ("bottom", 2), ("left", 3)],
-                layout::LengthAuto::AUTO,
-            )?;
-
-            if let Some(value) = attrs.get("align-items") {
-                input.align_items = Some(parse_align_items(value)?);
-            }
-            if let Some(value) = attrs.get("align-self") {
-                input.align_self = Some(parse_align_items(value)?);
-            }
-            if let Some(value) = attrs.get("justify-items") {
-                input.justify_items = Some(parse_align_items(value)?);
-            }
-            if let Some(value) = attrs.get("justify-self") {
-                input.justify_self = Some(parse_align_items(value)?);
-            }
-            if let Some(value) = attrs.get("align-content") {
-                input.align_content = Some(parse_align_content(value)?);
-            }
-            if let Some(value) = attrs.get("justify-content") {
-                input.justify_content = Some(parse_align_content(value)?);
-            }
-            if let Some(value) = attrs.get("grid-auto-flow") {
-                input.grid_auto_flow = parse_grid_auto_flow(value)?;
-            }
-            if let Some(value) = attrs.get("grid-template-columns") {
-                input.grid_template_columns = parse_track_component_list_with_calc(value)?;
-            }
-            if let Some(value) = attrs.get("grid-template-rows") {
-                input.grid_template_rows = parse_track_component_list_with_calc(value)?;
-            }
-            if let Some(value) = attrs.get("grid-template-areas") {
-                input.grid_template_areas = parse_grid_template_areas(value)?;
-            }
-            if let Some(value) = attrs.get("grid-auto-columns") {
-                input.grid_auto_columns = parse_track_component_list_with_calc(value)?;
-            }
-            if let Some(value) = attrs.get("grid-auto-rows") {
-                input.grid_auto_rows = parse_track_component_list_with_calc(value)?;
-            }
-            let (grid_column, raw_grid_column) =
-                parse_grid_placement(attrs.get("grid-column-start"), attrs.get("grid-column-end"))?;
-            input.grid_column = grid_column;
-            input.raw_grid_column = raw_grid_column;
-            let (grid_row, raw_grid_row) =
-                parse_grid_placement(attrs.get("grid-row-start"), attrs.get("grid-row-end"))?;
-            input.grid_row = grid_row;
-            input.raw_grid_row = raw_grid_row;
-
-            Ok(input)
         };
+    }
+    if let Some(value) = attrs.get("scrollbar-width") {
+        input.scrollbar_width = layout::ScrollbarWidth::try_new(parse_number(value)?)
+            .map_err(|source| Error::new(source.to_string()))?;
+    }
+    if let Some(value) = attrs.get("overflow-clip-margin") {
+        input.overflow_clip_margin = parse_overflow_clip_margin(value)?;
+    }
+    if let Some(value) = attrs.get("scrollbar-gutter") {
+        input.scrollbar_gutter = parse_scrollbar_gutter(value)?;
+    }
+    input.scroll_padding = layout::ScrollPadding::new(
+        parse_scroll_padding(attrs.get("scroll-padding-top"))?,
+        parse_scroll_padding(attrs.get("scroll-padding-right"))?,
+        parse_scroll_padding(attrs.get("scroll-padding-bottom"))?,
+        parse_scroll_padding(attrs.get("scroll-padding-left"))?,
+    );
+    input.scroll_margin = layout::ScrollMargin::try_new(
+        parse_scroll_margin(attrs.get("scroll-margin-top"))?,
+        parse_scroll_margin(attrs.get("scroll-margin-right"))?,
+        parse_scroll_margin(attrs.get("scroll-margin-bottom"))?,
+        parse_scroll_margin(attrs.get("scroll-margin-left"))?,
+    )
+    .map_err(|source| Error::new(source.to_string()))?;
+    if let Some(value) = attrs.get("scroll-snap-type") {
+        input.scroll_snap_type = parse_scroll_snap_type(value)?;
+    }
+    if let Some(value) = attrs.get("scroll-snap-align") {
+        input.scroll_snap_align = parse_scroll_snap_align(value)?;
+    }
+    if let Some(value) = attrs.get("scroll-snap-stop") {
+        input.scroll_snap_stop = parse_scroll_snap_stop(value)?;
+    }
+    if let Some(value) = attrs.get("text-align") {
+        input.text_align = parse_text_align(value)?;
+    }
+    if let Some(value) = attrs.get("vertical-align") {
+        input.vertical_align = parse_vertical_align(value)?;
+    }
+    input.writing_mode = parse_writing_mode(attrs.get("writing-mode"))?;
+    let containing_flow = containing_flow
+        .unwrap_or_else(|| layout::FlowAxes::new(input.writing_mode, input.direction));
+    if let Some(value) = attrs.get("float") {
+        input.float = parse_float(value, containing_flow)?;
+    }
+    if let Some(value) = attrs.get("clear") {
+        input.clear = parse_clear(value, containing_flow)?;
+    }
+    if let Some(value) = attrs.get("flex-direction") {
+        input.flex_direction = parse_flex_direction(value)?;
+    }
+    if let Some(value) = attrs.get("flex-wrap") {
+        input.flex_wrap = parse_flex_wrap(value)?;
+    }
+    if let Some(value) = attrs.get("flex-grow") {
+        input.flex_grow = layout::FlexGrow::try_new(parse_number(value)?)
+            .map_err(|source| Error::new(source.to_string()))?;
+    }
+    if let Some(value) = attrs.get("flex-shrink") {
+        input.flex_shrink = layout::FlexShrink::try_new(parse_number(value)?)
+            .map_err(|source| Error::new(source.to_string()))?;
+    }
+    if let Some(value) = attrs.get("flex-basis") {
+        input.flex_basis = parse_flex_basis(value)?;
+    }
+    if let Some(value) = attrs.get("width") {
+        input.size.width = parse_preferred_size(value)?;
+    }
+    if let Some(value) = attrs.get("height") {
+        input.size.height = parse_preferred_size(value)?;
+    }
+    if let Some(value) = attrs.get("min-width") {
+        input.min_size.width = parse_min_size(value)?;
+    }
+    if let Some(value) = attrs.get("min-height") {
+        input.min_size.height = parse_min_size(value)?;
+    }
+    if let Some(value) = attrs.get("max-width") {
+        input.max_size.width = parse_max_size(value)?;
+    }
+    if let Some(value) = attrs.get("max-height") {
+        input.max_size.height = parse_max_size(value)?;
+    }
+    if let Some(value) = attrs.get("aspect-ratio") {
+        let value = parse_number(value)?;
+        input.aspect_ratio = layout::AspectRatio::new(value);
+        if input.aspect_ratio.is_none() {
+            return Err(Error::new(format!("invalid aspect-ratio `{value}`")));
+        }
+    }
+    let flow_axes = layout::FlowAxes::new(input.writing_mode, input.direction);
+    let (default_inline_gap, default_block_gap) = match flow_axes.inline_axis() {
+        layout::PhysicalAxis::Horizontal => (input.gap.width, input.gap.height),
+        layout::PhysicalAxis::Vertical => (input.gap.height, input.gap.width),
+    };
+    let inline_gap = match attrs.get("column-gap") {
+        Some(value) => parse_length_with_calc(value)?,
+        None => default_inline_gap,
+    };
+    let block_gap = match attrs.get("row-gap") {
+        Some(value) => parse_length_with_calc(value)?,
+        None => default_block_gap,
+    };
+    input.gap = match flow_axes.inline_axis() {
+        layout::PhysicalAxis::Horizontal => layout::Size::new(inline_gap, block_gap),
+        layout::PhysicalAxis::Vertical => layout::Size::new(block_gap, inline_gap),
+    };
+
+    apply_edges_auto(
+        &mut input.margin,
+        attrs,
+        [
+            ("margin-top", 0),
+            ("margin-right", 1),
+            ("margin-bottom", 2),
+            ("margin-left", 3),
+        ],
+        layout::LengthAuto::ZERO,
+    )?;
+    apply_edges(
+        &mut input.padding,
+        attrs,
+        [
+            ("padding-top", 0),
+            ("padding-right", 1),
+            ("padding-bottom", 2),
+            ("padding-left", 3),
+        ],
+        layout::Length::ZERO,
+    )?;
+    apply_edges(
+        &mut input.border,
+        attrs,
+        [
+            ("border-top", 0),
+            ("border-right", 1),
+            ("border-bottom", 2),
+            ("border-left", 3),
+        ],
+        layout::Length::ZERO,
+    )?;
+    apply_edges_auto(
+        &mut input.inset,
+        attrs,
+        [("top", 0), ("right", 1), ("bottom", 2), ("left", 3)],
+        layout::LengthAuto::AUTO,
+    )?;
+
+    if let Some(value) = attrs.get("align-items") {
+        input.align_items = Some(parse_align_items(value)?);
+    }
+    if let Some(value) = attrs.get("align-self") {
+        input.align_self = Some(parse_align_items(value)?);
+    }
+    if let Some(value) = attrs.get("justify-items") {
+        input.justify_items = Some(parse_align_items(value)?);
+    }
+    if let Some(value) = attrs.get("justify-self") {
+        input.justify_self = Some(parse_align_items(value)?);
+    }
+    if let Some(value) = attrs.get("align-content") {
+        input.align_content = Some(parse_align_content(value)?);
+    }
+    if let Some(value) = attrs.get("justify-content") {
+        input.justify_content = Some(parse_align_content(value)?);
+    }
+    if let Some(value) = attrs.get("grid-auto-flow") {
+        input.grid_auto_flow = parse_grid_auto_flow(value)?;
+    }
+    if let Some(value) = attrs.get("grid-template-columns") {
+        input.grid_template_columns = parse_track_component_list_with_calc(value)?;
+    }
+    if let Some(value) = attrs.get("grid-template-rows") {
+        input.grid_template_rows = parse_track_component_list_with_calc(value)?;
+    }
+    if let Some(value) = attrs.get("grid-template-areas") {
+        input.grid_template_areas = parse_grid_template_areas(value)?;
+    }
+    if let Some(value) = attrs.get("grid-auto-columns") {
+        input.grid_auto_columns = parse_track_component_list_with_calc(value)?;
+    }
+    if let Some(value) = attrs.get("grid-auto-rows") {
+        input.grid_auto_rows = parse_track_component_list_with_calc(value)?;
+    }
+    let (grid_column, raw_grid_column) =
+        parse_grid_placement(attrs.get("grid-column-start"), attrs.get("grid-column-end"))?;
+    input.grid_column = grid_column;
+    input.raw_grid_column = raw_grid_column;
+    let (grid_row, raw_grid_row) =
+        parse_grid_placement(attrs.get("grid-row-start"), attrs.get("grid-row-end"))?;
+    input.grid_row = grid_row;
+    input.raw_grid_row = raw_grid_row;
+
+    Ok(input)
 }
 
 fn apply_edges(
@@ -6152,104 +6040,91 @@ mod tests {
 
     fn fri06_c06_fragment_observation()
     -> (TestTree, layout::CompletedLayoutBatch<usize>, Expectation) {
-        (Fri06C06FragmentObservationPhaseL6041::RUN)()
-    }
-
-    type Fri06C06FragmentObservationPhaseL6041Run =
-        fn() -> (TestTree, layout::CompletedLayoutBatch<usize>, Expectation);
-
-    struct Fri06C06FragmentObservationPhaseL6041;
-
-    impl Fri06C06FragmentObservationPhaseL6041 {
-        const RUN: Fri06C06FragmentObservationPhaseL6041Run = || {
-            let root_input = layout::NodeInput {
-                display: layout::Display::Block,
-                ..layout::NodeInput::default()
-            };
-            let text = |id, extent| {
-                layout::LayoutInput::inline_text(
-                    layout::InlineTextInput::try_new(vec![fri06_c06_segment(id, extent)]).unwrap(),
+        let root_input = layout::NodeInput {
+            display: layout::Display::Block,
+            ..layout::NodeInput::default()
+        };
+        let text = |id, extent| {
+            layout::LayoutInput::inline_text(
+                layout::InlineTextInput::try_new(vec![fri06_c06_segment(id, extent)]).unwrap(),
+            )
+        };
+        let metrics = layout::InlineMetrics::from_ascent_descent(8.0, 2.0).unwrap();
+        let source = Fri06C06FragmentTree {
+            layout_inputs: vec![
+                layout::LayoutInput::box_input(root_input.clone()),
+                text(11, 10.25),
+                layout::LayoutInput::inline_boundary(layout::InlineBoundaryInput::new(
+                    layout::InlineBoundaryKind::Start,
+                    metrics,
+                )),
+                text(22, 5.0),
+            ],
+            node_inputs: vec![
+                root_input,
+                layout::NodeInput::non_box(),
+                layout::NodeInput::non_box(),
+                layout::NodeInput::non_box(),
+            ],
+            children: vec![vec![1, 2, 3], Vec::new(), Vec::new(), Vec::new()],
+        };
+        let request = layout::LayoutRootRequest::viewport(layout::Size::new(
+            layout::Available::definite(100.0),
+            layout::Available::MaxContent,
+        ))
+        .unwrap();
+        let batch = layout::compute_layout(&source, 0, request).unwrap();
+        let nodes = source
+            .layout_inputs
+            .iter()
+            .enumerate()
+            .map(|(node, layout_input)| TestNode {
+                node_input: source.node_inputs[node].clone(),
+                layout_input: layout_input.clone(),
+                is_br_source: false,
+                font_family: FontFamily::Ahem,
+                font_size: TextMeasure::LINE_HEIGHT,
+                line_height: TextMeasure::LINE_HEIGHT,
+                text: None,
+                children: source.children[node].clone(),
+                synthetic: false,
+                parent: (node != 0).then_some(0),
+                range_root: None,
+                explicit_range_root: false,
+                preserve_fractional_min_content: false,
+                use_tighter_monospace_wrap: false,
+                cache: layout::Cache::new(),
+                unrounded: batch
+                    .unrounded_entries()
+                    .iter()
+                    .find(|entry| entry.node() == node)
+                    .map_or_else(layout::NodeOutput::new, |entry| entry.output()),
+                unrounded_present: batch
+                    .unrounded_entries()
+                    .iter()
+                    .any(|entry| entry.node() == node),
+                final_layout: batch
+                    .final_entries()
+                    .iter()
+                    .find(|entry| entry.node() == node)
+                    .map_or_else(layout::NodeOutput::new, |entry| entry.output()),
+                final_layout_present: batch
+                    .final_entries()
+                    .iter()
+                    .any(|entry| entry.node() == node),
+                unrounded_inline_fragments: matches!(
+                    layout_input,
+                    layout::LayoutInput::InlineText(_)
                 )
-            };
-            let metrics = layout::InlineMetrics::from_ascent_descent(8.0, 2.0).unwrap();
-            let source = Fri06C06FragmentTree {
-                layout_inputs: vec![
-                    layout::LayoutInput::box_input(root_input.clone()),
-                    text(11, 10.25),
-                    layout::LayoutInput::inline_boundary(layout::InlineBoundaryInput::new(
-                        layout::InlineBoundaryKind::Start,
-                        metrics,
-                    )),
-                    text(22, 5.0),
-                ],
-                node_inputs: vec![
-                    root_input,
-                    layout::NodeInput::non_box(),
-                    layout::NodeInput::non_box(),
-                    layout::NodeInput::non_box(),
-                ],
-                children: vec![vec![1, 2, 3], Vec::new(), Vec::new(), Vec::new()],
-            };
-            let request = layout::LayoutRootRequest::viewport(layout::Size::new(
-                layout::Available::definite(100.0),
-                layout::Available::MaxContent,
-            ))
-            .unwrap();
-            let batch = layout::compute_layout(&source, 0, request).unwrap();
-            let nodes = source
-                .layout_inputs
-                .iter()
-                .enumerate()
-                .map(|(node, layout_input)| TestNode {
-                    node_input: source.node_inputs[node].clone(),
-                    layout_input: layout_input.clone(),
-                    is_br_source: false,
-                    font_family: FontFamily::Ahem,
-                    font_size: TextMeasure::LINE_HEIGHT,
-                    line_height: TextMeasure::LINE_HEIGHT,
-                    text: None,
-                    children: source.children[node].clone(),
-                    synthetic: false,
-                    parent: (node != 0).then_some(0),
-                    range_root: None,
-                    explicit_range_root: false,
-                    preserve_fractional_min_content: false,
-                    use_tighter_monospace_wrap: false,
-                    cache: layout::Cache::new(),
-                    unrounded: batch
-                        .unrounded_entries()
+                .then(|| {
+                    batch
+                        .unrounded_inline_fragments()
                         .iter()
-                        .find(|entry| entry.node() == node)
-                        .map_or_else(layout::NodeOutput::new, |entry| entry.output()),
-                    unrounded_present: batch
-                        .unrounded_entries()
-                        .iter()
-                        .any(|entry| entry.node() == node),
-                    final_layout: batch
-                        .final_entries()
-                        .iter()
-                        .find(|entry| entry.node() == node)
-                        .map_or_else(layout::NodeOutput::new, |entry| entry.output()),
-                    final_layout_present: batch
-                        .final_entries()
-                        .iter()
-                        .any(|entry| entry.node() == node),
-                    unrounded_inline_fragments: matches!(
-                        layout_input,
-                        layout::LayoutInput::InlineText(_)
-                    )
-                    .then(|| {
-                        batch
-                            .unrounded_inline_fragments()
-                            .iter()
-                            .filter(|entry| entry.node() == node)
-                            .map(|entry| entry.fragment())
-                            .collect()
-                    }),
-                    final_inline_fragments: matches!(
-                        layout_input,
-                        layout::LayoutInput::InlineText(_)
-                    )
+                        .filter(|entry| entry.node() == node)
+                        .map(|entry| entry.fragment())
+                        .collect()
+                }),
+                final_inline_fragments: matches!(layout_input, layout::LayoutInput::InlineText(_))
                     .then(|| {
                         batch
                             .final_inline_fragments()
@@ -6258,57 +6133,56 @@ mod tests {
                             .map(|entry| entry.fragment())
                             .collect()
                     }),
-                    shape_bands: None,
+                shape_bands: None,
+            })
+            .collect();
+        let tree = TestTree { nodes };
+
+        fn expected_for(
+            tree: &TestTree,
+            batch: &layout::CompletedLayoutBatch<usize>,
+            node: usize,
+        ) -> Expectation {
+            let fragments = batch
+                .final_inline_fragments()
+                .iter()
+                .filter(|entry| entry.node() == node)
+                .map(|entry| {
+                    let fragment = entry.fragment();
+                    let rect = fragment.rect();
+                    InlineFragmentExpectation {
+                        source_segment_id: fragment.segment_id().get(),
+                        line_index: fragment.line_index(),
+                        visual_index: fragment.visual_index(),
+                        x: rect.origin().x,
+                        y: rect.origin().y,
+                        width: rect.size().width,
+                        height: rect.size().height,
+                        baseline_x: fragment.baseline().x,
+                        baseline_y: fragment.baseline().y,
+                    }
                 })
                 .collect();
-            let tree = TestTree { nodes };
-
-            fn expected_for(
-                tree: &TestTree,
-                batch: &layout::CompletedLayoutBatch<usize>,
-                node: usize,
-            ) -> Expectation {
-                let fragments = batch
-                    .final_inline_fragments()
+            Expectation {
+                x: None,
+                y: None,
+                width: None,
+                height: None,
+                scroll_size: None,
+                fragments: Some(fragments),
+                range_inks: None,
+                browser_control: None,
+                children: tree.nodes[node]
+                    .children
                     .iter()
-                    .filter(|entry| entry.node() == node)
-                    .map(|entry| {
-                        let fragment = entry.fragment();
-                        let rect = fragment.rect();
-                        InlineFragmentExpectation {
-                            source_segment_id: fragment.segment_id().get(),
-                            line_index: fragment.line_index(),
-                            visual_index: fragment.visual_index(),
-                            x: rect.origin().x,
-                            y: rect.origin().y,
-                            width: rect.size().width,
-                            height: rect.size().height,
-                            baseline_x: fragment.baseline().x,
-                            baseline_y: fragment.baseline().y,
-                        }
-                    })
-                    .collect();
-                Expectation {
-                    x: None,
-                    y: None,
-                    width: None,
-                    height: None,
-                    scroll_size: None,
-                    fragments: Some(fragments),
-                    range_inks: None,
-                    browser_control: None,
-                    children: tree.nodes[node]
-                        .children
-                        .iter()
-                        .copied()
-                        .map(|child| expected_for(tree, batch, child))
-                        .collect(),
-                }
+                    .copied()
+                    .map(|child| expected_for(tree, batch, child))
+                    .collect(),
             }
+        }
 
-            let expected = expected_for(&tree, &batch, 0);
-            (tree, batch, expected)
-        };
+        let expected = expected_for(&tree, &batch, 0);
+        (tree, batch, expected)
     }
 
     fn fri06_c06_compare_fragments(
@@ -6987,263 +6861,238 @@ mod tests {
 
     #[test]
     fn fri04_c05_parser_accepts_property_keywords_nested_calculations_and_fit_content() {
-        (Fri04C05ParserAcceptsPropertyKeywordsNestedCalculationsAndFitContentPhaseL6863::RUN)()
-    }
+        for (raw, expected) in [
+            ("auto", layout::PreferredSize::AUTO),
+            ("min-content", layout::PreferredSize::MIN_CONTENT),
+            ("max-content", layout::PreferredSize::MAX_CONTENT),
+            ("stretch", layout::PreferredSize::STRETCH),
+            ("fit-content", layout::PreferredSize::FIT_CONTENT),
+            ("contain", layout::PreferredSize::CONTAIN),
+        ] {
+            assert_eq!(
+                parse_preferred_size(raw).expect("preferred keyword should parse"),
+                expected,
+                "preferred keyword {raw}"
+            );
+        }
+        for (raw, expected) in [
+            ("auto", layout::MinSize::AUTO),
+            ("min-content", layout::MinSize::MIN_CONTENT),
+            ("max-content", layout::MinSize::MAX_CONTENT),
+            ("stretch", layout::MinSize::STRETCH),
+            ("fit-content", layout::MinSize::FIT_CONTENT),
+            ("contain", layout::MinSize::CONTAIN),
+        ] {
+            assert_eq!(
+                parse_min_size(raw).expect("minimum keyword should parse"),
+                expected,
+                "minimum keyword {raw}"
+            );
+        }
+        for (raw, expected) in [
+            ("none", layout::MaxSize::NONE),
+            ("min-content", layout::MaxSize::MIN_CONTENT),
+            ("max-content", layout::MaxSize::MAX_CONTENT),
+            ("stretch", layout::MaxSize::STRETCH),
+            ("fit-content", layout::MaxSize::FIT_CONTENT),
+            ("contain", layout::MaxSize::CONTAIN),
+        ] {
+            assert_eq!(
+                parse_max_size(raw).expect("maximum keyword should parse"),
+                expected,
+                "maximum keyword {raw}"
+            );
+        }
+        for (raw, expected) in [
+            ("auto", layout::FlexBasis::AUTO),
+            ("content", layout::FlexBasis::CONTENT),
+            ("min-content", layout::FlexBasis::MIN_CONTENT),
+            ("max-content", layout::FlexBasis::MAX_CONTENT),
+            ("stretch", layout::FlexBasis::STRETCH),
+            ("fit-content", layout::FlexBasis::FIT_CONTENT),
+            ("contain", layout::FlexBasis::CONTAIN),
+        ] {
+            assert_eq!(
+                parse_flex_basis(raw).expect("flex keyword should parse"),
+                expected,
+                "flex keyword {raw}"
+            );
+        }
 
-    type Fri04C05ParserAcceptsPropertyKeywordsNestedCalculationsAndFitContentPhaseL6863Run = fn();
-
-    struct Fri04C05ParserAcceptsPropertyKeywordsNestedCalculationsAndFitContentPhaseL6863;
-
-    impl Fri04C05ParserAcceptsPropertyKeywordsNestedCalculationsAndFitContentPhaseL6863 {
-        const RUN:
-            Fri04C05ParserAcceptsPropertyKeywordsNestedCalculationsAndFitContentPhaseL6863Run =
-            || {
-                for (raw, expected) in [
-                    ("auto", layout::PreferredSize::AUTO),
-                    ("min-content", layout::PreferredSize::MIN_CONTENT),
-                    ("max-content", layout::PreferredSize::MAX_CONTENT),
-                    ("stretch", layout::PreferredSize::STRETCH),
-                    ("fit-content", layout::PreferredSize::FIT_CONTENT),
-                    ("contain", layout::PreferredSize::CONTAIN),
-                ] {
-                    assert_eq!(
-                        parse_preferred_size(raw).expect("preferred keyword should parse"),
-                        expected,
-                        "preferred keyword {raw}"
-                    );
-                }
-                for (raw, expected) in [
-                    ("auto", layout::MinSize::AUTO),
-                    ("min-content", layout::MinSize::MIN_CONTENT),
-                    ("max-content", layout::MinSize::MAX_CONTENT),
-                    ("stretch", layout::MinSize::STRETCH),
-                    ("fit-content", layout::MinSize::FIT_CONTENT),
-                    ("contain", layout::MinSize::CONTAIN),
-                ] {
-                    assert_eq!(
-                        parse_min_size(raw).expect("minimum keyword should parse"),
-                        expected,
-                        "minimum keyword {raw}"
-                    );
-                }
-                for (raw, expected) in [
-                    ("none", layout::MaxSize::NONE),
-                    ("min-content", layout::MaxSize::MIN_CONTENT),
-                    ("max-content", layout::MaxSize::MAX_CONTENT),
-                    ("stretch", layout::MaxSize::STRETCH),
-                    ("fit-content", layout::MaxSize::FIT_CONTENT),
-                    ("contain", layout::MaxSize::CONTAIN),
-                ] {
-                    assert_eq!(
-                        parse_max_size(raw).expect("maximum keyword should parse"),
-                        expected,
-                        "maximum keyword {raw}"
-                    );
-                }
-                for (raw, expected) in [
-                    ("auto", layout::FlexBasis::AUTO),
-                    ("content", layout::FlexBasis::CONTENT),
-                    ("min-content", layout::FlexBasis::MIN_CONTENT),
-                    ("max-content", layout::FlexBasis::MAX_CONTENT),
-                    ("stretch", layout::FlexBasis::STRETCH),
-                    ("fit-content", layout::FlexBasis::FIT_CONTENT),
-                    ("contain", layout::FlexBasis::CONTAIN),
-                ] {
-                    assert_eq!(
-                        parse_flex_basis(raw).expect("flex keyword should parse"),
-                        expected,
-                        "flex keyword {raw}"
-                    );
-                }
-
-                let px = |value| {
-                    layout::SizingCalculation::value(
-                        layout::LengthPercentageOf::px(value).expect("finite expected px"),
-                    )
-                };
-                let percent = |value| {
-                    layout::SizingCalculation::value(
-                        layout::LengthPercentageOf::from_percent_fraction(value)
-                            .expect("finite expected percentage"),
-                    )
-                };
-                let affine = layout::SizingCalculation::value(
-                    layout::LengthPercentageOf::from_coefficients(5.0, 0.1)
-                        .expect("finite expected affine value"),
-                );
-                let nested_min = layout::SizingCalculation::min(vec![percent(0.25), affine])
-                    .expect("nonempty expected minimum");
-                let nested_max = layout::SizingCalculation::max(vec![px(10.0), nested_min])
-                    .expect("nonempty expected maximum");
-                let expected = layout::PreferredSize::calculation(
-                    layout::SizingCalculation::clamp(None, nested_max, Some(px(90.0))),
-                );
-                assert_eq!(
-                    parse_preferred_size("clamp(none, max(10px, min(25%, calc(5px + 10%))), 90px)")
-                        .expect("nested preferred calculation should parse"),
-                    expected
-                );
-                assert_eq!(
-                    parse_min_size("clamp(none, 20px, none)")
-                        .expect("omitted clamp endpoints should parse"),
-                    layout::MinSize::calculation(layout::SizingCalculation::clamp(
-                        None,
-                        px(20.0),
-                        None
-                    ))
-                );
-                assert!(
-                    parse_flex_basis("fit-content(max(10px, 25%))")
-                        .expect("flex fit-content function should parse")
-                        .is_fit_content_function()
-                );
-                assert!(matches!(
-                    parse_max_track_sizing_with_calc("fit-content(min(40px, 50%))")
-                        .expect("maximum track fit-content should parse"),
-                    layout::MaxTrackSizing::FitContent(_)
-                ));
-            };
+        let px = |value| {
+            layout::SizingCalculation::value(
+                layout::LengthPercentageOf::px(value).expect("finite expected px"),
+            )
+        };
+        let percent = |value| {
+            layout::SizingCalculation::value(
+                layout::LengthPercentageOf::from_percent_fraction(value)
+                    .expect("finite expected percentage"),
+            )
+        };
+        let affine = layout::SizingCalculation::value(
+            layout::LengthPercentageOf::from_coefficients(5.0, 0.1)
+                .expect("finite expected affine value"),
+        );
+        let nested_min = layout::SizingCalculation::min(vec![percent(0.25), affine])
+            .expect("nonempty expected minimum");
+        let nested_max = layout::SizingCalculation::max(vec![px(10.0), nested_min])
+            .expect("nonempty expected maximum");
+        let expected = layout::PreferredSize::calculation(layout::SizingCalculation::clamp(
+            None,
+            nested_max,
+            Some(px(90.0)),
+        ));
+        assert_eq!(
+            parse_preferred_size("clamp(none, max(10px, min(25%, calc(5px + 10%))), 90px)")
+                .expect("nested preferred calculation should parse"),
+            expected
+        );
+        assert_eq!(
+            parse_min_size("clamp(none, 20px, none)")
+                .expect("omitted clamp endpoints should parse"),
+            layout::MinSize::calculation(layout::SizingCalculation::clamp(None, px(20.0), None))
+        );
+        assert!(
+            parse_flex_basis("fit-content(max(10px, 25%))")
+                .expect("flex fit-content function should parse")
+                .is_fit_content_function()
+        );
+        assert!(matches!(
+            parse_max_track_sizing_with_calc("fit-content(min(40px, 50%))")
+                .expect("maximum track fit-content should parse"),
+            layout::MaxTrackSizing::FitContent(_)
+        ));
     }
 
     #[test]
     fn fri04_c05_parser_accepts_canonical_calc_size_bases_and_affine_programs() {
-        (Fri04C05ParserAcceptsCanonicalCalcSizeBasesAndAffineProgramsPhaseL6969::RUN)()
-    }
+        let size = layout::CalcSizeCalculation::size();
+        for (raw, basis) in [
+            ("100%", layout::PreferredSizeCalcBasis::FullPercentage),
+            ("auto", layout::PreferredSizeCalcBasis::Auto),
+            ("min-content", layout::PreferredSizeCalcBasis::MinContent),
+            ("max-content", layout::PreferredSizeCalcBasis::MaxContent),
+            ("stretch", layout::PreferredSizeCalcBasis::Stretch),
+            ("fit-content", layout::PreferredSizeCalcBasis::FitContent),
+            ("contain", layout::PreferredSizeCalcBasis::Contain),
+        ] {
+            assert_eq!(
+                parse_preferred_size(&format!("calc-size({raw}, size)"))
+                    .expect("preferred calc-size basis should parse"),
+                layout::PreferredSize::calc_size(basis, size.clone())
+                    .expect("expected preferred calc-size should construct")
+            );
+        }
+        for (raw, basis) in [
+            ("100%", layout::MinSizeCalcBasis::FullPercentage),
+            ("auto", layout::MinSizeCalcBasis::Auto),
+            ("min-content", layout::MinSizeCalcBasis::MinContent),
+            ("max-content", layout::MinSizeCalcBasis::MaxContent),
+            ("stretch", layout::MinSizeCalcBasis::Stretch),
+            ("fit-content", layout::MinSizeCalcBasis::FitContent),
+            ("contain", layout::MinSizeCalcBasis::Contain),
+        ] {
+            assert_eq!(
+                parse_min_size(&format!("calc-size({raw}, size)"))
+                    .expect("minimum calc-size basis should parse"),
+                layout::MinSize::calc_size(basis, size.clone())
+                    .expect("expected minimum calc-size should construct")
+            );
+        }
+        for (raw, basis) in [
+            ("100%", layout::MaxSizeCalcBasis::FullPercentage),
+            ("none", layout::MaxSizeCalcBasis::None),
+            ("min-content", layout::MaxSizeCalcBasis::MinContent),
+            ("max-content", layout::MaxSizeCalcBasis::MaxContent),
+            ("stretch", layout::MaxSizeCalcBasis::Stretch),
+            ("fit-content", layout::MaxSizeCalcBasis::FitContent),
+            ("contain", layout::MaxSizeCalcBasis::Contain),
+        ] {
+            assert_eq!(
+                parse_max_size(&format!("calc-size({raw}, size)"))
+                    .expect("maximum calc-size basis should parse"),
+                layout::MaxSize::calc_size(basis, size.clone())
+                    .expect("expected maximum calc-size should construct")
+            );
+        }
+        for (raw, basis) in [
+            ("100%", layout::FlexBasisCalcBasis::FullPercentage),
+            ("auto", layout::FlexBasisCalcBasis::Auto),
+            ("content", layout::FlexBasisCalcBasis::Content),
+            ("min-content", layout::FlexBasisCalcBasis::MinContent),
+            ("max-content", layout::FlexBasisCalcBasis::MaxContent),
+            ("stretch", layout::FlexBasisCalcBasis::Stretch),
+            ("fit-content", layout::FlexBasisCalcBasis::FitContent),
+            ("contain", layout::FlexBasisCalcBasis::Contain),
+        ] {
+            assert_eq!(
+                parse_flex_basis(&format!("calc-size({raw}, size)"))
+                    .expect("flex calc-size basis should parse"),
+                layout::FlexBasis::calc_size(basis, size.clone())
+                    .expect("expected flex calc-size should construct")
+            );
+        }
 
-    type Fri04C05ParserAcceptsCanonicalCalcSizeBasesAndAffineProgramsPhaseL6969Run = fn();
+        let independent = layout::CalcSizeCalculation::from_coefficients(10.0, 0.25, 0.0)
+            .expect("finite independent calc-size coefficients");
+        assert_eq!(
+            parse_preferred_size("calc-size(any, 10px + 25%)")
+                .expect("independent Any calc-size should parse"),
+            layout::PreferredSize::calc_size(
+                layout::PreferredSizeCalcBasis::Any,
+                independent.clone()
+            )
+            .expect("independent Any calc-size should construct")
+        );
+        assert_eq!(
+            parse_min_size("calc-size(any, 10px + 25%)")
+                .expect("minimum Any calc-size should parse"),
+            layout::MinSize::calc_size(layout::MinSizeCalcBasis::Any, independent.clone())
+                .expect("minimum Any calc-size should construct")
+        );
+        assert_eq!(
+            parse_max_size("calc-size(any, 10px + 25%)")
+                .expect("maximum Any calc-size should parse"),
+            layout::MaxSize::calc_size(layout::MaxSizeCalcBasis::Any, independent.clone())
+                .expect("maximum Any calc-size should construct")
+        );
+        assert_eq!(
+            parse_flex_basis("calc-size(any, 10px + 25%)")
+                .expect("flex Any calc-size should parse"),
+            layout::FlexBasis::calc_size(layout::FlexBasisCalcBasis::Any, independent)
+                .expect("flex Any calc-size should construct")
+        );
 
-    struct Fri04C05ParserAcceptsCanonicalCalcSizeBasesAndAffineProgramsPhaseL6969;
-
-    impl Fri04C05ParserAcceptsCanonicalCalcSizeBasesAndAffineProgramsPhaseL6969 {
-        const RUN: Fri04C05ParserAcceptsCanonicalCalcSizeBasesAndAffineProgramsPhaseL6969Run =
-            || {
-                let size = layout::CalcSizeCalculation::size();
-                for (raw, basis) in [
-                    ("100%", layout::PreferredSizeCalcBasis::FullPercentage),
-                    ("auto", layout::PreferredSizeCalcBasis::Auto),
-                    ("min-content", layout::PreferredSizeCalcBasis::MinContent),
-                    ("max-content", layout::PreferredSizeCalcBasis::MaxContent),
-                    ("stretch", layout::PreferredSizeCalcBasis::Stretch),
-                    ("fit-content", layout::PreferredSizeCalcBasis::FitContent),
-                    ("contain", layout::PreferredSizeCalcBasis::Contain),
-                ] {
-                    assert_eq!(
-                        parse_preferred_size(&format!("calc-size({raw}, size)"))
-                            .expect("preferred calc-size basis should parse"),
-                        layout::PreferredSize::calc_size(basis, size.clone())
-                            .expect("expected preferred calc-size should construct")
-                    );
-                }
-                for (raw, basis) in [
-                    ("100%", layout::MinSizeCalcBasis::FullPercentage),
-                    ("auto", layout::MinSizeCalcBasis::Auto),
-                    ("min-content", layout::MinSizeCalcBasis::MinContent),
-                    ("max-content", layout::MinSizeCalcBasis::MaxContent),
-                    ("stretch", layout::MinSizeCalcBasis::Stretch),
-                    ("fit-content", layout::MinSizeCalcBasis::FitContent),
-                    ("contain", layout::MinSizeCalcBasis::Contain),
-                ] {
-                    assert_eq!(
-                        parse_min_size(&format!("calc-size({raw}, size)"))
-                            .expect("minimum calc-size basis should parse"),
-                        layout::MinSize::calc_size(basis, size.clone())
-                            .expect("expected minimum calc-size should construct")
-                    );
-                }
-                for (raw, basis) in [
-                    ("100%", layout::MaxSizeCalcBasis::FullPercentage),
-                    ("none", layout::MaxSizeCalcBasis::None),
-                    ("min-content", layout::MaxSizeCalcBasis::MinContent),
-                    ("max-content", layout::MaxSizeCalcBasis::MaxContent),
-                    ("stretch", layout::MaxSizeCalcBasis::Stretch),
-                    ("fit-content", layout::MaxSizeCalcBasis::FitContent),
-                    ("contain", layout::MaxSizeCalcBasis::Contain),
-                ] {
-                    assert_eq!(
-                        parse_max_size(&format!("calc-size({raw}, size)"))
-                            .expect("maximum calc-size basis should parse"),
-                        layout::MaxSize::calc_size(basis, size.clone())
-                            .expect("expected maximum calc-size should construct")
-                    );
-                }
-                for (raw, basis) in [
-                    ("100%", layout::FlexBasisCalcBasis::FullPercentage),
-                    ("auto", layout::FlexBasisCalcBasis::Auto),
-                    ("content", layout::FlexBasisCalcBasis::Content),
-                    ("min-content", layout::FlexBasisCalcBasis::MinContent),
-                    ("max-content", layout::FlexBasisCalcBasis::MaxContent),
-                    ("stretch", layout::FlexBasisCalcBasis::Stretch),
-                    ("fit-content", layout::FlexBasisCalcBasis::FitContent),
-                    ("contain", layout::FlexBasisCalcBasis::Contain),
-                ] {
-                    assert_eq!(
-                        parse_flex_basis(&format!("calc-size({raw}, size)"))
-                            .expect("flex calc-size basis should parse"),
-                        layout::FlexBasis::calc_size(basis, size.clone())
-                            .expect("expected flex calc-size should construct")
-                    );
-                }
-
-                let independent = layout::CalcSizeCalculation::from_coefficients(10.0, 0.25, 0.0)
-                    .expect("finite independent calc-size coefficients");
-                assert_eq!(
-                    parse_preferred_size("calc-size(any, 10px + 25%)")
-                        .expect("independent Any calc-size should parse"),
-                    layout::PreferredSize::calc_size(
-                        layout::PreferredSizeCalcBasis::Any,
-                        independent.clone()
-                    )
-                    .expect("independent Any calc-size should construct")
-                );
-                assert_eq!(
-                    parse_min_size("calc-size(any, 10px + 25%)")
-                        .expect("minimum Any calc-size should parse"),
-                    layout::MinSize::calc_size(layout::MinSizeCalcBasis::Any, independent.clone())
-                        .expect("minimum Any calc-size should construct")
-                );
-                assert_eq!(
-                    parse_max_size("calc-size(any, 10px + 25%)")
-                        .expect("maximum Any calc-size should parse"),
-                    layout::MaxSize::calc_size(layout::MaxSizeCalcBasis::Any, independent.clone())
-                        .expect("maximum Any calc-size should construct")
-                );
-                assert_eq!(
-                    parse_flex_basis("calc-size(any, 10px + 25%)")
-                        .expect("flex Any calc-size should parse"),
-                    layout::FlexBasis::calc_size(layout::FlexBasisCalcBasis::Any, independent)
-                        .expect("flex Any calc-size should construct")
-                );
-
-                let nested_min = layout::CalcSizeCalculation::min(vec![
-                    layout::CalcSizeCalculation::from_coefficients(0.0, 0.0, 0.5)
-                        .expect("finite size coefficient"),
-                    layout::CalcSizeCalculation::from_coefficients(0.0, 0.8, 0.0)
-                        .expect("finite percentage coefficient"),
-                ])
-                .expect("nonempty calc-size minimum");
-                let nested_max = layout::CalcSizeCalculation::max(vec![
-                    layout::CalcSizeCalculation::from_coefficients(10.0, 0.25, 0.0)
-                        .expect("finite affine coefficient"),
-                    nested_min,
-                ])
-                .expect("nonempty calc-size maximum");
-                let nested = layout::CalcSizeCalculation::clamp(
-                    None,
-                    nested_max,
-                    Some(
-                        layout::CalcSizeCalculation::from_coefficients(100.0, 0.0, 0.0)
-                            .expect("finite maximum coefficient"),
-                    ),
-                );
-                assert_eq!(
-                    parse_preferred_size(
-                        "calc-size(auto, clamp(none, max(10px + 25%, min(size * 0.5, 80%)), 100px))"
-                    )
-                    .expect("nested calc-size program should parse"),
-                    layout::PreferredSize::calc_size(layout::PreferredSizeCalcBasis::Auto, nested)
-                        .expect("nested calc-size program should construct")
-                );
-            };
+        let nested_min = layout::CalcSizeCalculation::min(vec![
+            layout::CalcSizeCalculation::from_coefficients(0.0, 0.0, 0.5)
+                .expect("finite size coefficient"),
+            layout::CalcSizeCalculation::from_coefficients(0.0, 0.8, 0.0)
+                .expect("finite percentage coefficient"),
+        ])
+        .expect("nonempty calc-size minimum");
+        let nested_max = layout::CalcSizeCalculation::max(vec![
+            layout::CalcSizeCalculation::from_coefficients(10.0, 0.25, 0.0)
+                .expect("finite affine coefficient"),
+            nested_min,
+        ])
+        .expect("nonempty calc-size maximum");
+        let nested = layout::CalcSizeCalculation::clamp(
+            None,
+            nested_max,
+            Some(
+                layout::CalcSizeCalculation::from_coefficients(100.0, 0.0, 0.0)
+                    .expect("finite maximum coefficient"),
+            ),
+        );
+        assert_eq!(
+            parse_preferred_size(
+                "calc-size(auto, clamp(none, max(10px + 25%, min(size * 0.5, 80%)), 100px))"
+            )
+            .expect("nested calc-size program should parse"),
+            layout::PreferredSize::calc_size(layout::PreferredSizeCalcBasis::Auto, nested)
+                .expect("nested calc-size program should construct")
+        );
     }
 
     #[test]

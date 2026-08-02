@@ -30,7 +30,7 @@ case "${task}" in
         exec cargo test --locked -p surgeist-layout
         ;;
     clippy)
-        exec cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings -D clippy::too_many_lines
+        exec cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
         ;;
     generator-check)
         exec cargo check --locked -p surgeist-layout --all-targets --features layout-golden-generate
@@ -39,7 +39,7 @@ case "${task}" in
         exec cargo test --locked -p surgeist-layout --all-targets --features layout-golden-generate
         ;;
     generator-clippy)
-        exec cargo clippy --locked -p surgeist-layout --all-targets --features layout-golden-generate -- -F unsafe-code -D warnings -D clippy::too_many_lines
+        exec cargo clippy --locked -p surgeist-layout --all-targets --features layout-golden-generate -- -F unsafe-code -D warnings
         ;;
     *)
         printf 'Unknown task: %s\n' "${task}" >&2

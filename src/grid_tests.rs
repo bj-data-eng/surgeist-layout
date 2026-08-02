@@ -1658,411 +1658,389 @@ fn fri05_c05_grid_lanes_geometry_publishes_reservation_range_and_target_in_all_f
 
 #[test]
 fn fri05_c05_grid_lanes_geometry_reserves_forced_stable_both_zero_tiny_and_auto() {
-    (FRI05_C05_GRID_LANES_GEOMETRY_RESERVES_FORCED_STABLE_BOTH_ZERO_TINY_AND_AUTO_PHASE)();
-}
-
-const FRI05_C05_GRID_LANES_GEOMETRY_RESERVES_FORCED_STABLE_BOTH_ZERO_TINY_AND_AUTO_PHASE: fn() =
-    || {
-        for (overflow, gutter, width, size, expected_edges) in [
-            (
-                computed_overflow(Overflow::Scroll, Overflow::Scroll),
-                ScrollbarGutter::Auto,
-                10.0,
-                Size::new(100.0, 80.0),
-                (false, true, true),
-            ),
-            (
-                computed_overflow(Overflow::Hidden, Overflow::Hidden),
-                ScrollbarGutter::Stable,
-                10.0,
-                Size::new(100.0, 80.0),
-                (false, true, false),
-            ),
-            (
-                computed_overflow(Overflow::Hidden, Overflow::Hidden),
-                ScrollbarGutter::StableBothEdges,
-                10.0,
-                Size::new(100.0, 80.0),
-                (true, true, false),
-            ),
-            (
-                computed_overflow(Overflow::Scroll, Overflow::Scroll),
-                ScrollbarGutter::Auto,
-                0.0,
-                Size::new(100.0, 80.0),
-                (false, false, false),
-            ),
-            (
-                computed_overflow(Overflow::Hidden, Overflow::Hidden),
-                ScrollbarGutter::StableBothEdges,
-                8.0,
-                Size::new(10.0, 6.0),
-                (true, true, false),
-            ),
-        ] {
-            let mut tree = OracleTree::new().children(0, []).style(
-                0,
-                NodeInput {
-                    display: Display::GridLanes,
-                    size: size.map(PreferredSize::px),
-                    overflow,
-                    scrollbar_gutter: gutter,
-                    scrollbar_width: ScrollbarWidth::try_new(width).unwrap(),
-                    grid_template_columns: vec![TrackComponent::px(1.0)],
-                    grid_template_rows: vec![TrackComponent::px(1.0)],
-                    ..NodeInput::default()
-                },
-            );
-            let geometry = compute_grid(&mut tree, 0, fri05_c05_grid_sizing_input(size.map(Some)))
-                .unwrap()
-                .scroll_geometry
-                .unwrap();
-            assert_eq!(geometry.gutters().left().is_some(), expected_edges.0);
-            assert_eq!(geometry.gutters().right().is_some(), expected_edges.1);
-            assert_eq!(geometry.gutters().bottom().is_some(), expected_edges.2);
-            if size == Size::new(10.0, 6.0) {
-                assert_eq!(geometry.content_box().size(), Size::new(0.0, 6.0));
-            }
-        }
-
-        let mut auto = OracleTree::new()
-            .children(0, [1])
-            .children(1, [])
-            .style(
-                0,
-                NodeInput {
-                    display: Display::GridLanes,
-                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
-                    overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
-                    scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
-                    grid_template_columns: vec![TrackComponent::px(95.0)],
-                    grid_template_rows: vec![TrackComponent::px(120.0)],
-                    ..NodeInput::default()
-                },
-            )
-            .style(
-                1,
-                NodeInput {
-                    position: Position::Relative,
-                    size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
-                    inset: Edges::new(
-                        LengthAuto::px(95.0),
-                        LengthAuto::AUTO,
-                        LengthAuto::AUTO,
-                        LengthAuto::px(95.0),
-                    ),
-                    ..NodeInput::default()
-                },
-            );
-        let geometry = compute_grid(
-            &mut auto,
+    for (overflow, gutter, width, size, expected_edges) in [
+        (
+            computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            ScrollbarGutter::Auto,
+            10.0,
+            Size::new(100.0, 80.0),
+            (false, true, true),
+        ),
+        (
+            computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::Stable,
+            10.0,
+            Size::new(100.0, 80.0),
+            (false, true, false),
+        ),
+        (
+            computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::StableBothEdges,
+            10.0,
+            Size::new(100.0, 80.0),
+            (true, true, false),
+        ),
+        (
+            computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            ScrollbarGutter::Auto,
+            0.0,
+            Size::new(100.0, 80.0),
+            (false, false, false),
+        ),
+        (
+            computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::StableBothEdges,
+            8.0,
+            Size::new(10.0, 6.0),
+            (true, true, false),
+        ),
+    ] {
+        let mut tree = OracleTree::new().children(0, []).style(
             0,
-            fri05_c05_grid_sizing_input(Size::splat(Some(100.0))),
+            NodeInput {
+                display: Display::GridLanes,
+                size: size.map(PreferredSize::px),
+                overflow,
+                scrollbar_gutter: gutter,
+                scrollbar_width: ScrollbarWidth::try_new(width).unwrap(),
+                grid_template_columns: vec![TrackComponent::px(1.0)],
+                grid_template_rows: vec![TrackComponent::px(1.0)],
+                ..NodeInput::default()
+            },
+        );
+        let geometry = compute_grid(&mut tree, 0, fri05_c05_grid_sizing_input(size.map(Some)))
+            .unwrap()
+            .scroll_geometry
+            .unwrap();
+        assert_eq!(geometry.gutters().left().is_some(), expected_edges.0);
+        assert_eq!(geometry.gutters().right().is_some(), expected_edges.1);
+        assert_eq!(geometry.gutters().bottom().is_some(), expected_edges.2);
+        if size == Size::new(10.0, 6.0) {
+            assert_eq!(geometry.content_box().size(), Size::new(0.0, 6.0));
+        }
+    }
+
+    let mut auto = OracleTree::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+                grid_template_columns: vec![TrackComponent::px(95.0)],
+                grid_template_rows: vec![TrackComponent::px(120.0)],
+                ..NodeInput::default()
+            },
         )
-        .unwrap()
-        .scroll_geometry
-        .unwrap();
-        assert!(geometry.gutters().right().is_some());
-        assert!(geometry.gutters().bottom().is_some());
-        assert!(auto.inputs(1).iter().all(|input| {
-            input.settled_auto_scrollbars() == crate::scroll::SettledAutoScrollbarState::INITIAL
-        }));
-    };
+        .style(
+            1,
+            NodeInput {
+                position: Position::Relative,
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
+                inset: Edges::new(
+                    LengthAuto::px(95.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(95.0),
+                ),
+                ..NodeInput::default()
+            },
+        );
+    let geometry = compute_grid(
+        &mut auto,
+        0,
+        fri05_c05_grid_sizing_input(Size::splat(Some(100.0))),
+    )
+    .unwrap()
+    .scroll_geometry
+    .unwrap();
+    assert!(geometry.gutters().right().is_some());
+    assert!(geometry.gutters().bottom().is_some());
+    assert!(auto.inputs(1).iter().all(|input| {
+        input.settled_auto_scrollbars() == crate::scroll::SettledAutoScrollbarState::INITIAL
+    }));
+}
 
 fn assert_fri05_c05_grid_round_cache_for_display<S: LayoutScalar>(display: Display)
 where
     OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S> + Round,
 {
-    (AssertFri05C05GridRoundCacheForDisplayPhaseL1772::<S>::RUN)(display)
-}
-
-type AssertFri05C05GridRoundCacheForDisplayPhaseL1772Run = fn(Display);
-
-struct AssertFri05C05GridRoundCacheForDisplayPhaseL1772<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertFri05C05GridRoundCacheForDisplayPhaseL1772<S>
-where
-    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S> + Round,
-{
-    const RUN: AssertFri05C05GridRoundCacheForDisplayPhaseL1772Run = |display: Display| {
-        let scalar = S::from_f64;
-        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
-        let scroll_margin =
-            ScrollMarginOf::try_new(scalar(1.25), scalar(2.25), scalar(3.25), scalar(4.25))
-                .unwrap();
-        let snap_align =
-            ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
-        let mut tree = OracleTreeOf::<S>::new().children(0, []).style(
-            0,
-            NodeInputOf {
-                display,
-                size: Size::new(
-                    PreferredSizeOf::px(scalar(100.4)),
-                    PreferredSizeOf::px(scalar(80.4)),
-                ),
-                overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
-                scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.4)).unwrap(),
-                grid_template_columns: vec![TrackComponentOf::px(scalar(130.6))],
-                grid_template_rows: vec![TrackComponentOf::px(scalar(110.6))],
-                justify_content: Some(AlignContent::End),
-                align_content: Some(AlignContent::Center),
-                scroll_margin,
-                scroll_snap_align: snap_align,
-                scroll_snap_stop: ScrollSnapStop::Always,
-                ..NodeInputOf::default()
-            },
-        );
-        let input = ComputeInputOf::for_child(
-            RunMode::PerformLayout,
-            SizingMode::InherentSize,
-            RequestedAxis::Both,
-            Size::NONE,
-            Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
-            ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
-            Size::new(
-                AvailableOf::Definite(scalar(100.4)),
-                AvailableOf::Definite(scalar(80.4)),
+    let scalar = S::from_f64;
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let scroll_margin =
+        ScrollMarginOf::try_new(scalar(1.25), scalar(2.25), scalar(3.25), scalar(4.25)).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
+    let mut tree = OracleTreeOf::<S>::new().children(0, []).style(
+        0,
+        NodeInputOf {
+            display,
+            size: Size::new(
+                PreferredSizeOf::px(scalar(100.4)),
+                PreferredSizeOf::px(scalar(80.4)),
             ),
-        );
-        let cold = compute_grid(&mut tree, 0, input).expect("scalar grid geometry computes");
-        let geometry = cold.scroll_geometry.expect("cold geometry is present");
-        let format = match display {
-            Display::Grid => "ordinary grid",
-            Display::GridLanes => "grid lanes",
-            _ => unreachable!("focused round/cache evidence accepts only grid-family displays"),
-        };
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.4)).unwrap(),
+            grid_template_columns: vec![TrackComponentOf::px(scalar(130.6))],
+            grid_template_rows: vec![TrackComponentOf::px(scalar(110.6))],
+            justify_content: Some(AlignContent::End),
+            align_content: Some(AlignContent::Center),
+            scroll_margin,
+            scroll_snap_align: snap_align,
+            scroll_snap_stop: ScrollSnapStop::Always,
+            ..NodeInputOf::default()
+        },
+    );
+    let input = ComputeInputOf::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
+        ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+        Size::new(
+            AvailableOf::Definite(scalar(100.4)),
+            AvailableOf::Definite(scalar(80.4)),
+        ),
+    );
+    let cold = compute_grid(&mut tree, 0, input).expect("scalar grid geometry computes");
+    let geometry = cold.scroll_geometry.expect("cold geometry is present");
+    let format = match display {
+        Display::Grid => "ordinary grid",
+        Display::GridLanes => "grid lanes",
+        _ => unreachable!("focused round/cache evidence accepts only grid-family displays"),
+    };
 
-        let assert_geometry = |phase: &str,
-                               output: ComputeOutputOf<S>,
-                               expected_border: Size<S>,
-                               expected_bar: S,
-                               expected_content_size: Size<S>,
-                               expected_range: (S, S, S, S)| {
-            let geometry = output
-                .scroll_geometry
-                .unwrap_or_else(|| panic!("{format} {phase} geometry is present"));
-            let expected_scrollport = Size::new(
-                expected_border.width - expected_bar,
-                expected_border.height - expected_bar,
-            );
-            let expected_right = ScrollRectOf::try_new(
-                Point::new(expected_scrollport.width, S::ZERO),
-                Size::new(expected_bar, expected_scrollport.height),
-            )
-            .unwrap();
-            let expected_bottom = ScrollRectOf::try_new(
-                Point::new(S::ZERO, expected_scrollport.height),
-                Size::new(expected_scrollport.width, expected_bar),
-            )
-            .unwrap();
-            let expected_overflow = ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap();
-            let range = geometry.physical_range();
-
-            assert_eq!(geometry.flow_axes(), flow_axes, "{format} {phase} axes");
-            assert_eq!(
-                geometry.used_overflow_x(),
-                Overflow::Scroll,
-                "{format} {phase} x"
-            );
-            assert_eq!(
-                geometry.used_overflow_y(),
-                Overflow::Scroll,
-                "{format} {phase} y"
-            );
-            assert_eq!(
-                geometry.border_box(),
-                ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap(),
-                "{format} {phase} border"
-            );
-            assert_eq!(
-                geometry.padding_box(),
-                geometry.border_box(),
-                "{format} {phase} padding box"
-            );
-            assert_eq!(
-                geometry.content_box(),
-                ScrollRectOf::try_new(Point::ZERO, expected_scrollport).unwrap(),
-                "{format} {phase} content box"
-            );
-            assert_eq!(
-                geometry.scrollport(),
-                ScrollRectOf::try_new(Point::ZERO, expected_scrollport).unwrap(),
-                "{format} {phase} scrollport"
-            );
-            assert_eq!(
-                geometry.gutters().top(),
-                None,
-                "{format} {phase} top gutter"
-            );
-            assert_eq!(
-                geometry.gutters().right(),
-                Some(expected_right),
-                "{format} {phase} right gutter"
-            );
-            assert_eq!(
-                geometry.gutters().bottom(),
-                Some(expected_bottom),
-                "{format} {phase} bottom gutter"
-            );
-            assert_eq!(
-                geometry.gutters().left(),
-                None,
-                "{format} {phase} left gutter"
-            );
-            assert_eq!(
-                geometry.scrollbar_size(),
-                Size::splat(expected_bar),
-                "{format} {phase} scrollbar size"
-            );
-            assert_eq!(
-                (
-                    range.x().minimum(),
-                    range.x().maximum(),
-                    range.y().minimum(),
-                    range.y().maximum()
-                ),
-                expected_range,
-                "{format} {phase} alignment-bounded physical range"
-            );
-            assert_eq!(
-                geometry.scrollable_overflow(),
-                expected_overflow,
-                "{format} {phase} complete overflow"
-            );
-            assert_eq!(
-                geometry.canonical_content_size().unwrap(),
-                expected_overflow.size(),
-                "{format} {phase} canonical content extent"
-            );
-            assert_eq!(
-                output.content_size, expected_content_size,
-                "{format} {phase} output content size"
-            );
-            assert_eq!(
-                geometry.target().border_box(),
-                ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap(),
-                "{format} {phase} target border"
-            );
-            assert_eq!(
-                geometry.target().flow_axes(),
-                flow_axes,
-                "{format} {phase} target axes"
-            );
-            assert_eq!(
-                geometry.target().scroll_margin(),
-                scroll_margin,
-                "{format} {phase} target margin"
-            );
-            assert_eq!(
-                geometry.target().snap_align(),
-                snap_align,
-                "{format} {phase} target alignment"
-            );
-            assert_eq!(
-                geometry.target().snap_stop(),
-                ScrollSnapStop::Always,
-                "{format} {phase} target stop"
-            );
-        };
-
-        assert_geometry(
-            "cold",
-            cold,
-            Size::new(scalar(100.4), scalar(80.4)),
-            scalar(7.4),
-            Size::new(scalar(130.6), scalar(110.6)),
-            (
-                S::ZERO - (scalar(130.6) - (scalar(100.4) - scalar(7.4))),
-                S::ZERO,
-                S::ZERO - (scalar(110.6) - (scalar(80.4) - scalar(7.4))) / scalar(2.0),
-                S::ZERO,
-            ),
-        );
-        let mut cache = CacheOf::<S>::new();
-        cache.store_with_context(&input, CacheKeyContext::new(), cold);
-        let warm = cache
-            .get_with_context(&input, CacheKeyContext::new())
-            .expect("warm cache returns grid output");
-        assert_eq!(warm, cold);
-        assert_eq!(warm.scroll_geometry, Some(geometry));
-        assert_geometry(
-            "warm",
-            warm,
-            Size::new(scalar(100.4), scalar(80.4)),
-            scalar(7.4),
-            Size::new(scalar(130.6), scalar(110.6)),
-            (
-                S::ZERO - (scalar(130.6) - (scalar(100.4) - scalar(7.4))),
-                S::ZERO,
-                S::ZERO - (scalar(110.6) - (scalar(80.4) - scalar(7.4))) / scalar(2.0),
-                S::ZERO,
-            ),
-        );
-
-        Compute::set_unrounded(
-            &mut tree,
-            0,
-            NodeOutputOf {
-                source_index: SourceIndex::ZERO,
-                location: Point::ZERO,
-                size: cold.size,
-                content_size: cold.content_size,
-                scroll_geometry: Some(geometry),
-                border: Edges::ZERO,
-                padding: Edges::ZERO,
-                margin: Edges::ZERO,
-            },
-        );
-        round_layout(&mut tree, 0).expect("grid geometry rounds from canonical source");
-        let rounded = tree.final_layout(0).expect("rounded output is staged");
-        let rounded_geometry = rounded
+    let assert_geometry = |phase: &str,
+                           output: ComputeOutputOf<S>,
+                           expected_border: Size<S>,
+                           expected_bar: S,
+                           expected_content_size: Size<S>,
+                           expected_range: (S, S, S, S)| {
+        let geometry = output
             .scroll_geometry
-            .expect("rounding retains canonical grid geometry");
-        assert_geometry(
-            "rounded",
-            ComputeOutputOf {
-                size: rounded.size,
-                content_size: rounded.content_size,
-                scroll_geometry: Some(rounded_geometry),
-                ..cold
-            },
-            Size::new(scalar(100.0), scalar(80.0)),
-            scalar(7.0),
-            Size::new(scalar(131.0), scalar(111.0)),
-            (scalar(-38.0), S::ZERO, scalar(-19.0), S::ZERO),
+            .unwrap_or_else(|| panic!("{format} {phase} geometry is present"));
+        let expected_scrollport = Size::new(
+            expected_border.width - expected_bar,
+            expected_border.height - expected_bar,
         );
-        assert_eq!(
-            rounded.content_box_size(),
-            Size::new(scalar(93.0), scalar(73.0)),
-            "{format} rounded output content box accessor"
-        );
-        assert_eq!(
-            rounded.scrollbar_size(),
-            Size::splat(scalar(7.0)),
-            "{format} rounded output scrollbar accessor"
-        );
+        let expected_right = ScrollRectOf::try_new(
+            Point::new(expected_scrollport.width, S::ZERO),
+            Size::new(expected_bar, expected_scrollport.height),
+        )
+        .unwrap();
+        let expected_bottom = ScrollRectOf::try_new(
+            Point::new(S::ZERO, expected_scrollport.height),
+            Size::new(expected_scrollport.width, expected_bar),
+        )
+        .unwrap();
+        let expected_overflow = ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap();
+        let range = geometry.physical_range();
 
-        let measurement_input = ComputeInputOf::for_child(
-            RunMode::ComputeSize,
-            SizingMode::InherentSize,
-            RequestedAxis::Both,
-            Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
-            Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
-            ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
-            Size::new(
-                AvailableOf::Definite(scalar(100.4)),
-                AvailableOf::Definite(scalar(80.4)),
-            ),
+        assert_eq!(geometry.flow_axes(), flow_axes, "{format} {phase} axes");
+        assert_eq!(
+            geometry.used_overflow_x(),
+            Overflow::Scroll,
+            "{format} {phase} x"
         );
-        let measurement = compute_grid(&mut tree, 0, measurement_input)
-            .expect("grid-family measurement control computes");
-        assert!(
-            measurement.scroll_geometry.is_none(),
-            "{format} measurement must not publish geometry"
+        assert_eq!(
+            geometry.used_overflow_y(),
+            Overflow::Scroll,
+            "{format} {phase} y"
+        );
+        assert_eq!(
+            geometry.border_box(),
+            ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap(),
+            "{format} {phase} border"
+        );
+        assert_eq!(
+            geometry.padding_box(),
+            geometry.border_box(),
+            "{format} {phase} padding box"
+        );
+        assert_eq!(
+            geometry.content_box(),
+            ScrollRectOf::try_new(Point::ZERO, expected_scrollport).unwrap(),
+            "{format} {phase} content box"
+        );
+        assert_eq!(
+            geometry.scrollport(),
+            ScrollRectOf::try_new(Point::ZERO, expected_scrollport).unwrap(),
+            "{format} {phase} scrollport"
+        );
+        assert_eq!(
+            geometry.gutters().top(),
+            None,
+            "{format} {phase} top gutter"
+        );
+        assert_eq!(
+            geometry.gutters().right(),
+            Some(expected_right),
+            "{format} {phase} right gutter"
+        );
+        assert_eq!(
+            geometry.gutters().bottom(),
+            Some(expected_bottom),
+            "{format} {phase} bottom gutter"
+        );
+        assert_eq!(
+            geometry.gutters().left(),
+            None,
+            "{format} {phase} left gutter"
+        );
+        assert_eq!(
+            geometry.scrollbar_size(),
+            Size::splat(expected_bar),
+            "{format} {phase} scrollbar size"
+        );
+        assert_eq!(
+            (
+                range.x().minimum(),
+                range.x().maximum(),
+                range.y().minimum(),
+                range.y().maximum()
+            ),
+            expected_range,
+            "{format} {phase} alignment-bounded physical range"
+        );
+        assert_eq!(
+            geometry.scrollable_overflow(),
+            expected_overflow,
+            "{format} {phase} complete overflow"
+        );
+        assert_eq!(
+            geometry.canonical_content_size().unwrap(),
+            expected_overflow.size(),
+            "{format} {phase} canonical content extent"
+        );
+        assert_eq!(
+            output.content_size, expected_content_size,
+            "{format} {phase} output content size"
+        );
+        assert_eq!(
+            geometry.target().border_box(),
+            ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap(),
+            "{format} {phase} target border"
+        );
+        assert_eq!(
+            geometry.target().flow_axes(),
+            flow_axes,
+            "{format} {phase} target axes"
+        );
+        assert_eq!(
+            geometry.target().scroll_margin(),
+            scroll_margin,
+            "{format} {phase} target margin"
+        );
+        assert_eq!(
+            geometry.target().snap_align(),
+            snap_align,
+            "{format} {phase} target alignment"
+        );
+        assert_eq!(
+            geometry.target().snap_stop(),
+            ScrollSnapStop::Always,
+            "{format} {phase} target stop"
         );
     };
+
+    assert_geometry(
+        "cold",
+        cold,
+        Size::new(scalar(100.4), scalar(80.4)),
+        scalar(7.4),
+        Size::new(scalar(130.6), scalar(110.6)),
+        (
+            S::ZERO - (scalar(130.6) - (scalar(100.4) - scalar(7.4))),
+            S::ZERO,
+            S::ZERO - (scalar(110.6) - (scalar(80.4) - scalar(7.4))) / scalar(2.0),
+            S::ZERO,
+        ),
+    );
+    let mut cache = CacheOf::<S>::new();
+    cache.store_with_context(&input, CacheKeyContext::new(), cold);
+    let warm = cache
+        .get_with_context(&input, CacheKeyContext::new())
+        .expect("warm cache returns grid output");
+    assert_eq!(warm, cold);
+    assert_eq!(warm.scroll_geometry, Some(geometry));
+    assert_geometry(
+        "warm",
+        warm,
+        Size::new(scalar(100.4), scalar(80.4)),
+        scalar(7.4),
+        Size::new(scalar(130.6), scalar(110.6)),
+        (
+            S::ZERO - (scalar(130.6) - (scalar(100.4) - scalar(7.4))),
+            S::ZERO,
+            S::ZERO - (scalar(110.6) - (scalar(80.4) - scalar(7.4))) / scalar(2.0),
+            S::ZERO,
+        ),
+    );
+
+    Compute::set_unrounded(
+        &mut tree,
+        0,
+        NodeOutputOf {
+            source_index: SourceIndex::ZERO,
+            location: Point::ZERO,
+            size: cold.size,
+            content_size: cold.content_size,
+            scroll_geometry: Some(geometry),
+            border: Edges::ZERO,
+            padding: Edges::ZERO,
+            margin: Edges::ZERO,
+        },
+    );
+    round_layout(&mut tree, 0).expect("grid geometry rounds from canonical source");
+    let rounded = tree.final_layout(0).expect("rounded output is staged");
+    let rounded_geometry = rounded
+        .scroll_geometry
+        .expect("rounding retains canonical grid geometry");
+    assert_geometry(
+        "rounded",
+        ComputeOutputOf {
+            size: rounded.size,
+            content_size: rounded.content_size,
+            scroll_geometry: Some(rounded_geometry),
+            ..cold
+        },
+        Size::new(scalar(100.0), scalar(80.0)),
+        scalar(7.0),
+        Size::new(scalar(131.0), scalar(111.0)),
+        (scalar(-38.0), S::ZERO, scalar(-19.0), S::ZERO),
+    );
+    assert_eq!(
+        rounded.content_box_size(),
+        Size::new(scalar(93.0), scalar(73.0)),
+        "{format} rounded output content box accessor"
+    );
+    assert_eq!(
+        rounded.scrollbar_size(),
+        Size::splat(scalar(7.0)),
+        "{format} rounded output scrollbar accessor"
+    );
+
+    let measurement_input = ComputeInputOf::for_child(
+        RunMode::ComputeSize,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
+        Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
+        ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+        Size::new(
+            AvailableOf::Definite(scalar(100.4)),
+            AvailableOf::Definite(scalar(80.4)),
+        ),
+    );
+    let measurement = compute_grid(&mut tree, 0, measurement_input)
+        .expect("grid-family measurement control computes");
+    assert!(
+        measurement.scroll_geometry.is_none(),
+        "{format} measurement must not publish geometry"
+    );
 }
 
 #[test]
@@ -2077,281 +2055,264 @@ fn assert_fri05_c05_grid_round_cache_subgrid<S: LayoutScalar>()
 where
     OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S> + Round,
 {
-    (AssertFri05C05GridRoundCacheSubgridPhaseL2059::<S>::RUN)()
-}
-
-type AssertFri05C05GridRoundCacheSubgridPhaseL2059Run = fn();
-
-struct AssertFri05C05GridRoundCacheSubgridPhaseL2059<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertFri05C05GridRoundCacheSubgridPhaseL2059<S>
-where
-    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S> + Round,
-{
-    const RUN: AssertFri05C05GridRoundCacheSubgridPhaseL2059Run = || {
-        let scalar = S::from_f64;
-        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
-        let scroll_margin =
-            ScrollMarginOf::try_new(scalar(1.25), scalar(2.25), scalar(3.25), scalar(4.25))
-                .unwrap();
-        let snap_align =
-            ScrollSnapAlign::new(ScrollSnapAlignValue::Start, ScrollSnapAlignValue::End);
-        let subgrid_track = || {
-            TrackComponentOf::Subgrid(SubgridTrack {
-                name_components: Vec::new(),
-            })
-        };
-        let mut tree = OracleTreeOf::<S>::new()
-            .children(0, [1])
-            .children(1, [])
-            .style(
-                0,
-                NodeInputOf {
-                    display: Display::Grid,
-                    size: Size::new(
-                        PreferredSizeOf::px(scalar(100.4)),
-                        PreferredSizeOf::px(scalar(80.4)),
-                    ),
-                    grid_template_columns: vec![TrackComponentOf::px(scalar(100.4))],
-                    grid_template_rows: vec![TrackComponentOf::px(scalar(80.4))],
-                    ..NodeInputOf::default()
-                },
-            )
-            .style(
-                1,
-                NodeInputOf {
-                    display: Display::Grid,
-                    overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
-                    scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.4)).unwrap(),
-                    grid_template_columns: vec![subgrid_track()],
-                    grid_template_rows: vec![subgrid_track()],
-                    justify_self: Some(AlignItems::Start),
-                    align_self: Some(AlignItems::Start),
-                    scroll_margin,
-                    scroll_snap_align: snap_align,
-                    scroll_snap_stop: ScrollSnapStop::Always,
-                    ..NodeInputOf::default()
-                },
-            );
-        let input = ComputeInputOf::for_child(
-            RunMode::PerformLayout,
-            SizingMode::InherentSize,
-            RequestedAxis::Both,
-            Size::NONE,
-            Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
-            ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
-            Size::new(
-                AvailableOf::Definite(scalar(100.4)),
-                AvailableOf::Definite(scalar(80.4)),
-            ),
-        );
-
-        let assert_subgrid = |phase: &str,
-                              output: NodeOutputOf<S>,
-                              expected_border: Size<S>,
-                              expected_bar: S,
-                              expected_content_size: Size<S>,
-                              expected_range: (S, S, S, S)| {
-            let geometry = output
-                .scroll_geometry
-                .unwrap_or_else(|| panic!("nested subgrid {phase} geometry is present"));
-            let expected_scrollport = Size::new(
-                expected_border.width - expected_bar,
-                expected_border.height - expected_bar,
-            );
-            let border_rect = ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap();
-            let scrollport_rect = ScrollRectOf::try_new(Point::ZERO, expected_scrollport).unwrap();
-            let right_gutter = ScrollRectOf::try_new(
-                Point::new(expected_scrollport.width, S::ZERO),
-                Size::new(expected_bar, expected_scrollport.height),
-            )
-            .unwrap();
-            let bottom_gutter = ScrollRectOf::try_new(
-                Point::new(S::ZERO, expected_scrollport.height),
-                Size::new(expected_scrollport.width, expected_bar),
-            )
-            .unwrap();
-            let range = geometry.physical_range();
-
-            assert_eq!(
-                geometry.flow_axes(),
-                flow_axes,
-                "nested subgrid {phase} axes"
-            );
-            assert_eq!(
-                geometry.used_overflow_x(),
-                Overflow::Scroll,
-                "nested subgrid {phase} x"
-            );
-            assert_eq!(
-                geometry.used_overflow_y(),
-                Overflow::Scroll,
-                "nested subgrid {phase} y"
-            );
-            assert_eq!(
-                geometry.border_box(),
-                border_rect,
-                "nested subgrid {phase} border"
-            );
-            assert_eq!(
-                geometry.padding_box(),
-                border_rect,
-                "nested subgrid {phase} padding box"
-            );
-            assert_eq!(
-                geometry.content_box(),
-                scrollport_rect,
-                "nested subgrid {phase} content box"
-            );
-            assert_eq!(
-                geometry.scrollport(),
-                scrollport_rect,
-                "nested subgrid {phase} scrollport"
-            );
-            assert_eq!(
-                geometry.gutters().top(),
-                None,
-                "nested subgrid {phase} top gutter"
-            );
-            assert_eq!(
-                geometry.gutters().right(),
-                Some(right_gutter),
-                "nested subgrid {phase} right gutter"
-            );
-            assert_eq!(
-                geometry.gutters().bottom(),
-                Some(bottom_gutter),
-                "nested subgrid {phase} bottom gutter"
-            );
-            assert_eq!(
-                geometry.gutters().left(),
-                None,
-                "nested subgrid {phase} left gutter"
-            );
-            assert_eq!(
-                geometry.scrollbar_size(),
-                Size::splat(expected_bar),
-                "nested subgrid {phase} scrollbar size"
-            );
-            assert_eq!(
-                (
-                    range.x().minimum(),
-                    range.x().maximum(),
-                    range.y().minimum(),
-                    range.y().maximum()
-                ),
-                expected_range,
-                "nested subgrid {phase} active-subject physical range"
-            );
-            assert_eq!(
-                geometry.scrollable_overflow(),
-                border_rect,
-                "nested subgrid {phase} complete overflow"
-            );
-            assert_eq!(
-                geometry.canonical_content_size().unwrap(),
-                expected_border,
-                "nested subgrid {phase} canonical content extent"
-            );
-            assert_eq!(
-                output.content_size, expected_content_size,
-                "nested subgrid {phase} output content size"
-            );
-            assert_eq!(
-                output.content_box_size(),
-                expected_scrollport,
-                "nested subgrid {phase} output content box accessor"
-            );
-            assert_eq!(
-                output.scrollbar_size(),
-                Size::splat(expected_bar),
-                "nested subgrid {phase} output scrollbar accessor"
-            );
-            assert_eq!(
-                geometry.target().border_box(),
-                border_rect,
-                "nested subgrid {phase} target border"
-            );
-            assert_eq!(
-                geometry.target().flow_axes(),
-                flow_axes,
-                "nested subgrid {phase} target axes"
-            );
-            assert_eq!(
-                geometry.target().scroll_margin(),
-                scroll_margin,
-                "nested subgrid {phase} target margin"
-            );
-            assert_eq!(
-                geometry.target().snap_align(),
-                snap_align,
-                "nested subgrid {phase} target alignment"
-            );
-            assert_eq!(
-                geometry.target().snap_stop(),
-                ScrollSnapStop::Always,
-                "nested subgrid {phase} target stop"
-            );
-        };
-
-        let cold = compute_grid(&mut tree, 0, input).expect("cold subgrid computes");
-        let cold_subgrid = tree.layout(1).expect("cold subgrid output is staged");
-        assert_subgrid(
-            "cold",
-            cold_subgrid,
-            Size::new(scalar(100.4), scalar(80.4)),
-            scalar(7.4),
-            Size::new(scalar(100.4), scalar(80.4)),
-            (S::ZERO, S::ZERO, S::ZERO, S::ZERO),
-        );
-        let warm = compute_grid(&mut tree, 0, input).expect("warm subgrid computes");
-        let warm_subgrid = tree.layout(1).expect("warm subgrid output is staged");
-        assert_eq!(warm, cold);
-        assert_eq!(warm_subgrid, cold_subgrid);
-        assert_subgrid(
-            "warm",
-            warm_subgrid,
-            Size::new(scalar(100.4), scalar(80.4)),
-            scalar(7.4),
-            Size::new(scalar(100.4), scalar(80.4)),
-            (S::ZERO, S::ZERO, S::ZERO, S::ZERO),
-        );
-
-        Compute::set_unrounded(
-            &mut tree,
+    let scalar = S::from_f64;
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let scroll_margin =
+        ScrollMarginOf::try_new(scalar(1.25), scalar(2.25), scalar(3.25), scalar(4.25)).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::Start, ScrollSnapAlignValue::End);
+    let subgrid_track = || {
+        TrackComponentOf::Subgrid(SubgridTrack {
+            name_components: Vec::new(),
+        })
+    };
+    let mut tree = OracleTreeOf::<S>::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(
             0,
-            NodeOutputOf {
-                source_index: SourceIndex::ZERO,
-                location: Point::ZERO,
-                size: cold.size,
-                content_size: cold.content_size,
-                scroll_geometry: cold.scroll_geometry,
-                border: Edges::ZERO,
-                padding: Edges::ZERO,
-                margin: Edges::ZERO,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(100.4)),
+                    PreferredSizeOf::px(scalar(80.4)),
+                ),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(100.4))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(80.4))],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.4)).unwrap(),
+                grid_template_columns: vec![subgrid_track()],
+                grid_template_rows: vec![subgrid_track()],
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                scroll_margin,
+                scroll_snap_align: snap_align,
+                scroll_snap_stop: ScrollSnapStop::Always,
+                ..NodeInputOf::default()
             },
         );
-        round_layout(&mut tree, 0).expect("subgrid geometry rounds from canonical source");
-        let rounded = tree
-            .final_layout(1)
-            .expect("rounded subgrid output is staged");
-        let rounded_geometry = rounded
+    let input = ComputeInputOf::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
+        ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+        Size::new(
+            AvailableOf::Definite(scalar(100.4)),
+            AvailableOf::Definite(scalar(80.4)),
+        ),
+    );
+
+    let assert_subgrid = |phase: &str,
+                          output: NodeOutputOf<S>,
+                          expected_border: Size<S>,
+                          expected_bar: S,
+                          expected_content_size: Size<S>,
+                          expected_range: (S, S, S, S)| {
+        let geometry = output
             .scroll_geometry
-            .expect("rounded subgrid retains canonical geometry");
-        assert_subgrid(
-            "rounded",
-            NodeOutputOf {
-                scroll_geometry: Some(rounded_geometry),
-                ..rounded
-            },
-            Size::new(scalar(100.0), scalar(80.0)),
-            scalar(7.0),
-            Size::new(scalar(100.0), scalar(80.0)),
-            (S::ZERO, S::ZERO, S::ZERO, S::ZERO),
+            .unwrap_or_else(|| panic!("nested subgrid {phase} geometry is present"));
+        let expected_scrollport = Size::new(
+            expected_border.width - expected_bar,
+            expected_border.height - expected_bar,
+        );
+        let border_rect = ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap();
+        let scrollport_rect = ScrollRectOf::try_new(Point::ZERO, expected_scrollport).unwrap();
+        let right_gutter = ScrollRectOf::try_new(
+            Point::new(expected_scrollport.width, S::ZERO),
+            Size::new(expected_bar, expected_scrollport.height),
+        )
+        .unwrap();
+        let bottom_gutter = ScrollRectOf::try_new(
+            Point::new(S::ZERO, expected_scrollport.height),
+            Size::new(expected_scrollport.width, expected_bar),
+        )
+        .unwrap();
+        let range = geometry.physical_range();
+
+        assert_eq!(
+            geometry.flow_axes(),
+            flow_axes,
+            "nested subgrid {phase} axes"
+        );
+        assert_eq!(
+            geometry.used_overflow_x(),
+            Overflow::Scroll,
+            "nested subgrid {phase} x"
+        );
+        assert_eq!(
+            geometry.used_overflow_y(),
+            Overflow::Scroll,
+            "nested subgrid {phase} y"
+        );
+        assert_eq!(
+            geometry.border_box(),
+            border_rect,
+            "nested subgrid {phase} border"
+        );
+        assert_eq!(
+            geometry.padding_box(),
+            border_rect,
+            "nested subgrid {phase} padding box"
+        );
+        assert_eq!(
+            geometry.content_box(),
+            scrollport_rect,
+            "nested subgrid {phase} content box"
+        );
+        assert_eq!(
+            geometry.scrollport(),
+            scrollport_rect,
+            "nested subgrid {phase} scrollport"
+        );
+        assert_eq!(
+            geometry.gutters().top(),
+            None,
+            "nested subgrid {phase} top gutter"
+        );
+        assert_eq!(
+            geometry.gutters().right(),
+            Some(right_gutter),
+            "nested subgrid {phase} right gutter"
+        );
+        assert_eq!(
+            geometry.gutters().bottom(),
+            Some(bottom_gutter),
+            "nested subgrid {phase} bottom gutter"
+        );
+        assert_eq!(
+            geometry.gutters().left(),
+            None,
+            "nested subgrid {phase} left gutter"
+        );
+        assert_eq!(
+            geometry.scrollbar_size(),
+            Size::splat(expected_bar),
+            "nested subgrid {phase} scrollbar size"
+        );
+        assert_eq!(
+            (
+                range.x().minimum(),
+                range.x().maximum(),
+                range.y().minimum(),
+                range.y().maximum()
+            ),
+            expected_range,
+            "nested subgrid {phase} active-subject physical range"
+        );
+        assert_eq!(
+            geometry.scrollable_overflow(),
+            border_rect,
+            "nested subgrid {phase} complete overflow"
+        );
+        assert_eq!(
+            geometry.canonical_content_size().unwrap(),
+            expected_border,
+            "nested subgrid {phase} canonical content extent"
+        );
+        assert_eq!(
+            output.content_size, expected_content_size,
+            "nested subgrid {phase} output content size"
+        );
+        assert_eq!(
+            output.content_box_size(),
+            expected_scrollport,
+            "nested subgrid {phase} output content box accessor"
+        );
+        assert_eq!(
+            output.scrollbar_size(),
+            Size::splat(expected_bar),
+            "nested subgrid {phase} output scrollbar accessor"
+        );
+        assert_eq!(
+            geometry.target().border_box(),
+            border_rect,
+            "nested subgrid {phase} target border"
+        );
+        assert_eq!(
+            geometry.target().flow_axes(),
+            flow_axes,
+            "nested subgrid {phase} target axes"
+        );
+        assert_eq!(
+            geometry.target().scroll_margin(),
+            scroll_margin,
+            "nested subgrid {phase} target margin"
+        );
+        assert_eq!(
+            geometry.target().snap_align(),
+            snap_align,
+            "nested subgrid {phase} target alignment"
+        );
+        assert_eq!(
+            geometry.target().snap_stop(),
+            ScrollSnapStop::Always,
+            "nested subgrid {phase} target stop"
         );
     };
+
+    let cold = compute_grid(&mut tree, 0, input).expect("cold subgrid computes");
+    let cold_subgrid = tree.layout(1).expect("cold subgrid output is staged");
+    assert_subgrid(
+        "cold",
+        cold_subgrid,
+        Size::new(scalar(100.4), scalar(80.4)),
+        scalar(7.4),
+        Size::new(scalar(100.4), scalar(80.4)),
+        (S::ZERO, S::ZERO, S::ZERO, S::ZERO),
+    );
+    let warm = compute_grid(&mut tree, 0, input).expect("warm subgrid computes");
+    let warm_subgrid = tree.layout(1).expect("warm subgrid output is staged");
+    assert_eq!(warm, cold);
+    assert_eq!(warm_subgrid, cold_subgrid);
+    assert_subgrid(
+        "warm",
+        warm_subgrid,
+        Size::new(scalar(100.4), scalar(80.4)),
+        scalar(7.4),
+        Size::new(scalar(100.4), scalar(80.4)),
+        (S::ZERO, S::ZERO, S::ZERO, S::ZERO),
+    );
+
+    Compute::set_unrounded(
+        &mut tree,
+        0,
+        NodeOutputOf {
+            source_index: SourceIndex::ZERO,
+            location: Point::ZERO,
+            size: cold.size,
+            content_size: cold.content_size,
+            scroll_geometry: cold.scroll_geometry,
+            border: Edges::ZERO,
+            padding: Edges::ZERO,
+            margin: Edges::ZERO,
+        },
+    );
+    round_layout(&mut tree, 0).expect("subgrid geometry rounds from canonical source");
+    let rounded = tree
+        .final_layout(1)
+        .expect("rounded subgrid output is staged");
+    let rounded_geometry = rounded
+        .scroll_geometry
+        .expect("rounded subgrid retains canonical geometry");
+    assert_subgrid(
+        "rounded",
+        NodeOutputOf {
+            scroll_geometry: Some(rounded_geometry),
+            ..rounded
+        },
+        Size::new(scalar(100.0), scalar(80.0)),
+        scalar(7.0),
+        Size::new(scalar(100.0), scalar(80.0)),
+        (S::ZERO, S::ZERO, S::ZERO, S::ZERO),
+    );
 }
 
 #[test]
@@ -2766,10 +2727,6 @@ fn fri05_c05_grid_positive_margin_bounds(output: NodeOutput) -> (Point<f32>, Poi
 
 #[test]
 fn fri05_c05_grid_contribution_container_origins_margins_terminal_padding_and_absolute_are_exact() {
-    (FRI05_C05_GRID_CONTRIBUTION_CONTAINER_ORIGINS_MARGINS_TERMINAL_PADDING_AND_ABSOLUTE_ARE_EXACT_PHASE)();
-}
-
-const FRI05_C05_GRID_CONTRIBUTION_CONTAINER_ORIGINS_MARGINS_TERMINAL_PADDING_AND_ABSOLUTE_ARE_EXACT_PHASE: fn() = || {
     let padding = Edges::new(
         Length::px(7.0),
         Length::px(4.0),
@@ -2884,7 +2841,7 @@ const FRI05_C05_GRID_CONTRIBUTION_CONTAINER_ORIGINS_MARGINS_TERMINAL_PADDING_AND
         Size::new(maximum.x - minimum.x, maximum.y - minimum.y),
         "container-local locations, positive outsets, negative starts, terminal padding, and the current absolute child contribute without area-relative subtraction"
     );
-};
+}
 
 #[test]
 fn fri05_c05_grid_contribution_zero_axis_visible_descendants_and_traps_are_independent() {
@@ -3090,117 +3047,111 @@ fn fri05_c05_grid_intrinsic_overflow_projects_used_axes_and_traps_descendants() 
 
 #[test]
 fn fri05_c05_grid_intrinsic_overflow_subgrid_uses_the_parent_flow_projection() {
-    (FRI05_C05_GRID_INTRINSIC_OVERFLOW_SUBGRID_USES_THE_PARENT_FLOW_PROJECTION_PHASE)();
-}
-
-const FRI05_C05_GRID_INTRINSIC_OVERFLOW_SUBGRID_USES_THE_PARENT_FLOW_PROJECTION_PHASE: fn() =
-    || {
-        for writing_mode in [
-            WritingMode::HorizontalTb,
-            WritingMode::VerticalRl,
-            WritingMode::VerticalLr,
-            WritingMode::SidewaysRl,
-            WritingMode::SidewaysLr,
-        ] {
-            for direction in [Direction::Ltr, Direction::Rtl] {
-                for (overflow, replaced, expected) in [
-                    (
-                        computed_overflow(Overflow::Visible, Overflow::Visible),
-                        false,
-                        Size::new(80.0, 90.0),
-                    ),
-                    (
-                        computed_overflow(Overflow::Clip, Overflow::Clip),
-                        false,
-                        Size::new(20.0, 30.0),
-                    ),
-                    (
-                        computed_overflow(Overflow::Hidden, Overflow::Hidden),
-                        false,
-                        Size::new(20.0, 30.0),
-                    ),
-                    (
-                        computed_overflow(Overflow::Hidden, Overflow::Hidden),
-                        true,
-                        Size::new(20.0, 30.0),
-                    ),
-                    (
-                        computed_overflow(Overflow::Scroll, Overflow::Scroll),
-                        false,
-                        Size::new(20.0, 30.0),
-                    ),
-                    (
-                        computed_overflow(Overflow::Auto, Overflow::Auto),
-                        false,
-                        Size::new(20.0, 30.0),
-                    ),
-                    (
-                        computed_overflow(Overflow::Visible, Overflow::Clip),
-                        false,
-                        Size::new(80.0, 30.0),
-                    ),
-                    (
-                        computed_overflow(Overflow::Clip, Overflow::Visible),
-                        false,
-                        Size::new(20.0, 90.0),
-                    ),
-                ] {
-                    let mut tree = OracleTree::new()
-                        .children(0, [1])
-                        .children(1, [2])
-                        .children(2, [])
-                        .style(
-                            0,
-                            NodeInput {
-                                display: Display::Grid,
-                                writing_mode,
-                                direction,
-                                grid_template_columns: vec![TrackComponent::AUTO],
-                                grid_template_rows: vec![TrackComponent::AUTO],
-                                ..NodeInput::default()
-                            },
-                        )
-                        .style(
-                            1,
-                            NodeInput {
-                                display: Display::Grid,
-                                writing_mode,
-                                direction,
-                                grid_template_columns: vec![empty_subgrid_track()],
-                                grid_template_rows: vec![empty_subgrid_track()],
-                                grid_column: GridPlacement::try_lines(1, -1)
-                                    .expect("valid subgrid column span"),
-                                grid_row: GridPlacement::try_lines(1, -1)
-                                    .expect("valid subgrid row span"),
-                                ..NodeInput::default()
-                            },
-                        )
-                        .style(
-                            2,
-                            NodeInput {
-                                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(30.0)),
-                                overflow,
-                                item_is_replaced: replaced,
-                                ..NodeInput::default()
-                            },
-                        )
-                        .measure(
-                            2,
-                            ComputeOutput::from_sizes(Size::new(20.0, 30.0), Size::new(80.0, 90.0)),
-                        );
-
-                    let output =
-                        compute_grid(&mut tree, 0, fri05_c05_grid_sizing_input(Size::NONE))
-                            .expect("intrinsic subgrid overflow case computes");
-
-                    assert_eq!(
-                        output.size, expected,
-                        "{writing_mode:?} {direction:?} {overflow:?} replaced={replaced}"
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            for (overflow, replaced, expected) in [
+                (
+                    computed_overflow(Overflow::Visible, Overflow::Visible),
+                    false,
+                    Size::new(80.0, 90.0),
+                ),
+                (
+                    computed_overflow(Overflow::Clip, Overflow::Clip),
+                    false,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    false,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    true,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                    false,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Auto, Overflow::Auto),
+                    false,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Visible, Overflow::Clip),
+                    false,
+                    Size::new(80.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Clip, Overflow::Visible),
+                    false,
+                    Size::new(20.0, 90.0),
+                ),
+            ] {
+                let mut tree = OracleTree::new()
+                    .children(0, [1])
+                    .children(1, [2])
+                    .children(2, [])
+                    .style(
+                        0,
+                        NodeInput {
+                            display: Display::Grid,
+                            writing_mode,
+                            direction,
+                            grid_template_columns: vec![TrackComponent::AUTO],
+                            grid_template_rows: vec![TrackComponent::AUTO],
+                            ..NodeInput::default()
+                        },
+                    )
+                    .style(
+                        1,
+                        NodeInput {
+                            display: Display::Grid,
+                            writing_mode,
+                            direction,
+                            grid_template_columns: vec![empty_subgrid_track()],
+                            grid_template_rows: vec![empty_subgrid_track()],
+                            grid_column: GridPlacement::try_lines(1, -1)
+                                .expect("valid subgrid column span"),
+                            grid_row: GridPlacement::try_lines(1, -1)
+                                .expect("valid subgrid row span"),
+                            ..NodeInput::default()
+                        },
+                    )
+                    .style(
+                        2,
+                        NodeInput {
+                            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(30.0)),
+                            overflow,
+                            item_is_replaced: replaced,
+                            ..NodeInput::default()
+                        },
+                    )
+                    .measure(
+                        2,
+                        ComputeOutput::from_sizes(Size::new(20.0, 30.0), Size::new(80.0, 90.0)),
                     );
-                }
+
+                let output = compute_grid(&mut tree, 0, fri05_c05_grid_sizing_input(Size::NONE))
+                    .expect("intrinsic subgrid overflow case computes");
+
+                assert_eq!(
+                    output.size, expected,
+                    "{writing_mode:?} {direction:?} {overflow:?} replaced={replaced}"
+                );
             }
         }
-    };
+    }
+}
 
 #[test]
 fn fri05_c05_grid_intrinsic_overflow_percentage_tracks_keep_item_priority_when_trapped() {
@@ -3414,11 +3365,6 @@ fn fri04_c04_grid_dispatch_style(value: Fri04C04GridSizingValue, axis: PhysicalA
 
 #[test]
 fn fri04_c04_grid_dispatch_grid_and_lanes_cover_all_direct_and_keyword_basis_payloads() {
-    (FRI04_C04_GRID_DISPATCH_GRID_AND_LANES_COVER_ALL_DIRECT_AND_KEYWORD_BASIS_PAYLOADS_PHASE)();
-}
-
-const FRI04_C04_GRID_DISPATCH_GRID_AND_LANES_COVER_ALL_DIRECT_AND_KEYWORD_BASIS_PAYLOADS_PHASE:
-    fn() = || {
     let sizing =
         || SizingCalculation::value(LengthPercentageOf::px(10.0).expect("finite calculation"));
     let calc = || CalcSizeCalculation::value(LengthPercentageOf::ZERO);
@@ -3603,7 +3549,7 @@ const FRI04_C04_GRID_DISPATCH_GRID_AND_LANES_COVER_ALL_DIRECT_AND_KEYWORD_BASIS_
             );
         }
     }
-};
+}
 
 #[test]
 fn fri04_c04_grid_dispatch_supported_calc_size_and_intrinsic_geometry_in_both_axes() {
@@ -3766,191 +3712,176 @@ fn assert_grid_lanes_order_modified_sequence<S: LayoutScalar>()
 where
     OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
 {
-    (AssertGridLanesOrderModifiedSequencePhaseL3731::<S>::RUN)()
-}
-
-type AssertGridLanesOrderModifiedSequencePhaseL3731Run = fn();
-
-struct AssertGridLanesOrderModifiedSequencePhaseL3731<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertGridLanesOrderModifiedSequencePhaseL3731<S>
-where
-    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
-{
-    const RUN: AssertGridLanesOrderModifiedSequencePhaseL3731Run = || {
-        let item_style = |order, width, height| NodeInputOf::<S> {
-            item_order: ItemOrder::new(order),
-            size: Size::new(
-                PreferredSizeOf::px(S::from_f64(width)),
-                PreferredSizeOf::px(S::from_f64(height)),
-            ),
-            grid_column: GridPlacement::try_line(1).expect("one is a valid grid line"),
-            ..NodeInputOf::default()
-        };
-        let mut tree = OracleTreeOf::<S>::new()
-            .children(0, [1, 2, 3, 4, 5, 6])
-            .children(1, [])
-            .children(2, [])
-            .children(3, [])
-            .children(4, [])
-            .children(5, [])
-            .children(6, [])
-            .style(
-                0,
-                NodeInputOf {
-                    display: Display::GridLanes,
-                    grid_template_columns: vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO],
-                    grid_template_rows: vec![TrackComponentOf::px(S::ZERO)],
-                    grid_flow_tolerance: GridFlowToleranceOf::Length(LengthOf::ZERO),
-                    ..NodeInputOf::default()
-                },
-            )
-            .style(
-                1,
-                NodeInputOf {
-                    grid_column: GridPlacement::try_line_span(1, 2)
-                        .expect("line one with span two is valid"),
-                    ..item_style(2, 100.0, 10.0)
-                },
-            )
-            .style(
-                2,
-                NodeInputOf {
-                    display: Display::None,
-                    item_order: ItemOrder::new(i32::MIN),
-                    ..item_style(0, 500.0, 500.0)
-                },
-            )
-            .style(3, item_style(-1, 80.0, 20.0))
-            .style(
-                4,
-                NodeInputOf {
-                    position: Position::Absolute,
-                    item_order: ItemOrder::new(i32::MIN),
-                    ..item_style(0, 500.0, 500.0)
-                },
-            )
-            .style(5, item_style(0, 0.0, 30.0))
-            .style(6, item_style(2, 0.0, 40.0));
-
-        let placement = |column, in_flow| ResolvedGridItemPlacement {
-            column,
-            row: GridPlacement::try_line(1).expect("one is a valid grid line"),
-            absolute_column: column,
-            absolute_row: GridPlacement::try_line(1).expect("one is a valid grid line"),
-            in_flow,
-        };
-        let placements = GridPlacementContext::new(
-            vec![1, 2, 3, 4, 5, 6],
-            vec![
-                placement(
-                    GridPlacement::try_line_span(1, 2).expect("line-span placement is valid"),
-                    true,
-                ),
-                placement(GridPlacement::AUTO, false),
-                placement(
-                    GridPlacement::try_line(1).expect("one is a valid grid line"),
-                    true,
-                ),
-                placement(GridPlacement::AUTO, false),
-                placement(
-                    GridPlacement::try_line(1).expect("one is a valid grid line"),
-                    true,
-                ),
-                placement(
-                    GridPlacement::try_line(1).expect("one is a valid grid line"),
-                    true,
-                ),
-            ],
-        )
-        .with_order_modified_indexes(vec![
-            SourceIndex::new(2),
-            SourceIndex::new(4),
-            SourceIndex::new(0),
-            SourceIndex::new(5),
-        ]);
-        let constants = Constants {
-            flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-            explicit_definite_content_size: Size::NONE,
-            node_outer_size: Size::NONE,
-            node_inner_size: Size::NONE,
-            node_min_size: Size::NONE,
-            node_max_size: Size::NONE,
-            available_inner_size: Size::NONE,
-            content_box_inset: Edges::ZERO,
-            padding: Edges::ZERO,
-            border: Edges::ZERO,
-        };
-        let tracks = [TrackSizingOf::AUTO, TrackSizingOf::AUTO];
-        let intrinsic_sizes = lane_intrinsic_track_sizes(
-            &mut tree,
+    let item_style = |order, width, height| NodeInputOf::<S> {
+        item_order: ItemOrder::new(order),
+        size: Size::new(
+            PreferredSizeOf::px(S::from_f64(width)),
+            PreferredSizeOf::px(S::from_f64(height)),
+        ),
+        grid_column: GridPlacement::try_line(1).expect("one is a valid grid line"),
+        ..NodeInputOf::default()
+    };
+    let mut tree = OracleTreeOf::<S>::new()
+        .children(0, [1, 2, 3, 4, 5, 6])
+        .children(1, [])
+        .children(2, [])
+        .children(3, [])
+        .children(4, [])
+        .children(5, [])
+        .children(6, [])
+        .style(
             0,
-            LaneIntrinsicTrackSizeInput {
-                constants: &constants,
-                axis: GridAxisKind::Column,
-                tracks: &tracks,
-                gap: S::ZERO,
-                available: AvailableOf::MAX_CONTENT,
-                available_basis: None,
-                lines: GridLines {
-                    column_explicit_start: 0,
-                    column_explicit_count: 2,
-                    row_explicit_start: 0,
-                    row_explicit_count: 1,
-                },
-                placements: &placements,
+            NodeInputOf {
+                display: Display::GridLanes,
+                grid_template_columns: vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::px(S::ZERO)],
+                grid_flow_tolerance: GridFlowToleranceOf::Length(LengthOf::ZERO),
+                ..NodeInputOf::default()
             },
         )
-        .expect("intrinsic collection succeeds")
-        .expect("intrinsic placement is valid");
-        assert_eq!(
-            intrinsic_sizes,
-            vec![S::from_f64(90.0), S::from_f64(10.0)],
-            "overlapping definite spans apply in the order-modified sequence"
-        );
-
-        let output = compute_grid(
-            &mut tree,
-            0,
-            ComputeInputOf::for_child(
-                RunMode::PerformLayout,
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                Size::NONE,
-                Size::NONE,
-                ContainingLayoutContext::new(
-                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                    ParentFormattingContext::NoParent,
-                ),
-                Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
-            ),
+        .style(
+            1,
+            NodeInputOf {
+                grid_column: GridPlacement::try_line_span(1, 2)
+                    .expect("line one with span two is valid"),
+                ..item_style(2, 100.0, 10.0)
+            },
         )
-        .expect("order-modified grid-lanes layout succeeds");
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::None,
+                item_order: ItemOrder::new(i32::MIN),
+                ..item_style(0, 500.0, 500.0)
+            },
+        )
+        .style(3, item_style(-1, 80.0, 20.0))
+        .style(
+            4,
+            NodeInputOf {
+                position: Position::Absolute,
+                item_order: ItemOrder::new(i32::MIN),
+                ..item_style(0, 500.0, 500.0)
+            },
+        )
+        .style(5, item_style(0, 0.0, 30.0))
+        .style(6, item_style(2, 0.0, 40.0));
 
-        assert_eq!(output.size.width, S::from_f64(140.0));
-        for (node, expected_y) in [(3, 0.0), (5, 20.0), (1, 50.0), (6, 60.0)] {
-            let layout = tree.layout(node).expect("in-flow lane child is staged");
-            assert_eq!(layout.source_index, SourceIndex::new((node - 1) as usize));
-            assert_eq!(layout.location.y, S::from_f64(expected_y));
-        }
-        assert_eq!(
-            Traverse::children(&tree, 0).collect::<Vec<_>>(),
-            [1, 2, 3, 4, 5, 6],
-            "final traversal stays in source order"
-        );
-        assert!(tree.inputs(2).iter().any(|input| {
-            input.run_mode() == RunMode::PerformHiddenLayout
-                && input.parent_formatting_context() == ParentFormattingContext::Grid
-        }));
-        assert_eq!(
-            tree.layout(4)
-                .expect("absolute lane child is staged")
-                .source_index,
-            SourceIndex::new(3)
-        );
+    let placement = |column, in_flow| ResolvedGridItemPlacement {
+        column,
+        row: GridPlacement::try_line(1).expect("one is a valid grid line"),
+        absolute_column: column,
+        absolute_row: GridPlacement::try_line(1).expect("one is a valid grid line"),
+        in_flow,
     };
+    let placements = GridPlacementContext::new(
+        vec![1, 2, 3, 4, 5, 6],
+        vec![
+            placement(
+                GridPlacement::try_line_span(1, 2).expect("line-span placement is valid"),
+                true,
+            ),
+            placement(GridPlacement::AUTO, false),
+            placement(
+                GridPlacement::try_line(1).expect("one is a valid grid line"),
+                true,
+            ),
+            placement(GridPlacement::AUTO, false),
+            placement(
+                GridPlacement::try_line(1).expect("one is a valid grid line"),
+                true,
+            ),
+            placement(
+                GridPlacement::try_line(1).expect("one is a valid grid line"),
+                true,
+            ),
+        ],
+    )
+    .with_order_modified_indexes(vec![
+        SourceIndex::new(2),
+        SourceIndex::new(4),
+        SourceIndex::new(0),
+        SourceIndex::new(5),
+    ]);
+    let constants = Constants {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        explicit_definite_content_size: Size::NONE,
+        node_outer_size: Size::NONE,
+        node_inner_size: Size::NONE,
+        node_min_size: Size::NONE,
+        node_max_size: Size::NONE,
+        available_inner_size: Size::NONE,
+        content_box_inset: Edges::ZERO,
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+    };
+    let tracks = [TrackSizingOf::AUTO, TrackSizingOf::AUTO];
+    let intrinsic_sizes = lane_intrinsic_track_sizes(
+        &mut tree,
+        0,
+        LaneIntrinsicTrackSizeInput {
+            constants: &constants,
+            axis: GridAxisKind::Column,
+            tracks: &tracks,
+            gap: S::ZERO,
+            available: AvailableOf::MAX_CONTENT,
+            available_basis: None,
+            lines: GridLines {
+                column_explicit_start: 0,
+                column_explicit_count: 2,
+                row_explicit_start: 0,
+                row_explicit_count: 1,
+            },
+            placements: &placements,
+        },
+    )
+    .expect("intrinsic collection succeeds")
+    .expect("intrinsic placement is valid");
+    assert_eq!(
+        intrinsic_sizes,
+        vec![S::from_f64(90.0), S::from_f64(10.0)],
+        "overlapping definite spans apply in the order-modified sequence"
+    );
+
+    let output = compute_grid(
+        &mut tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+        ),
+    )
+    .expect("order-modified grid-lanes layout succeeds");
+
+    assert_eq!(output.size.width, S::from_f64(140.0));
+    for (node, expected_y) in [(3, 0.0), (5, 20.0), (1, 50.0), (6, 60.0)] {
+        let layout = tree.layout(node).expect("in-flow lane child is staged");
+        assert_eq!(layout.source_index, SourceIndex::new((node - 1) as usize));
+        assert_eq!(layout.location.y, S::from_f64(expected_y));
+    }
+    assert_eq!(
+        Traverse::children(&tree, 0).collect::<Vec<_>>(),
+        [1, 2, 3, 4, 5, 6],
+        "final traversal stays in source order"
+    );
+    assert!(tree.inputs(2).iter().any(|input| {
+        input.run_mode() == RunMode::PerformHiddenLayout
+            && input.parent_formatting_context() == ParentFormattingContext::Grid
+    }));
+    assert_eq!(
+        tree.layout(4)
+            .expect("absolute lane child is staged")
+            .source_index,
+        SourceIndex::new(3)
+    );
 }
 
 #[test]
@@ -4061,158 +3992,143 @@ fn assert_ordinary_grid_order_modified_placement<S: LayoutScalar>()
 where
     OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
 {
-    (AssertOrdinaryGridOrderModifiedPlacementPhaseL4011::<S>::RUN)()
-}
-
-type AssertOrdinaryGridOrderModifiedPlacementPhaseL4011Run = fn();
-
-struct AssertOrdinaryGridOrderModifiedPlacementPhaseL4011<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertOrdinaryGridOrderModifiedPlacementPhaseL4011<S>
-where
-    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
-{
-    const RUN: AssertOrdinaryGridOrderModifiedPlacementPhaseL4011Run = || {
-        for auto_flow in [
-            GridAutoFlow::Row,
-            GridAutoFlow::RowDense,
-            GridAutoFlow::Column,
-            GridAutoFlow::ColumnDense,
-        ] {
-            let column_flow = auto_flow.is_column();
-            let item_style = |order| NodeInputOf::<S> {
-                item_order: ItemOrder::new(order),
-                size: Size::splat_clone(PreferredSizeOf::px(S::from_f64(10.0))),
-                ..NodeInputOf::default()
-            };
-            let definite_major = |order| NodeInputOf::<S> {
-                grid_column: if column_flow {
-                    GridPlacement::try_line(1).expect("one is a valid grid line")
-                } else {
-                    GridPlacement::AUTO
-                },
-                grid_row: if column_flow {
-                    GridPlacement::AUTO
-                } else {
-                    GridPlacement::try_line(1).expect("one is a valid grid line")
-                },
-                ..item_style(order)
-            };
-            let mut tree = OracleTreeOf::<S>::new()
-                .children(0, [1, 2, 3, 4, 5, 6, 7, 8])
-                .children(1, [])
-                .children(2, [])
-                .children(3, [])
-                .children(4, [])
-                .children(5, [])
-                .children(6, [])
-                .children(7, [])
-                .children(8, [])
-                .style(
-                    0,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        size: Size::splat_clone(PreferredSizeOf::px(S::from_f64(80.0))),
-                        grid_template_columns: vec![TrackComponentOf::px(S::from_f64(20.0)); 4],
-                        grid_template_rows: vec![TrackComponentOf::px(S::from_f64(20.0)); 4],
-                        grid_auto_flow: auto_flow,
-                        ..NodeInputOf::default()
-                    },
-                )
-                .style(1, item_style(2))
-                .style(
-                    2,
-                    NodeInputOf {
-                        display: Display::None,
-                        item_order: ItemOrder::new(i32::MIN),
-                        ..item_style(0)
-                    },
-                )
-                .style(
-                    3,
-                    NodeInputOf {
-                        grid_column: GridPlacement::try_line(2).expect("two is a valid grid line"),
-                        grid_row: GridPlacement::try_line(2).expect("two is a valid grid line"),
-                        item_order: ItemOrder::new(i32::MAX),
-                        ..item_style(0)
-                    },
-                )
-                .style(4, definite_major(2))
-                .style(
-                    5,
-                    NodeInputOf {
-                        position: Position::Absolute,
-                        item_order: ItemOrder::new(i32::MIN),
-                        ..item_style(0)
-                    },
-                )
-                .style(6, definite_major(-1))
-                .style(7, item_style(0))
-                .style(8, item_style(2));
-
-            let computation = compute_grid_with_report(
-                &mut tree,
-                0,
-                ComputeInputOf::for_child(
-                    RunMode::PerformLayout,
-                    SizingMode::InherentSize,
-                    RequestedAxis::Both,
-                    Size::NONE,
-                    Size::splat(Some(S::from_f64(80.0))),
-                    ContainingLayoutContext::new(
-                        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                        ParentFormattingContext::NoParent,
-                    ),
-                    Size::splat(AvailableOf::definite(S::from_f64(80.0))),
-                ),
-            )
-            .expect("order-modified ordinary-grid layout succeeds");
-            assert!(computation.report().is_empty());
-
-            let expected_cells = if column_flow {
-                [
-                    (6, 0, 0),
-                    (3, 1, 1),
-                    (4, 0, 1),
-                    (7, 0, 2),
-                    (1, 0, 3),
-                    (8, 1, 0),
-                ]
+    for auto_flow in [
+        GridAutoFlow::Row,
+        GridAutoFlow::RowDense,
+        GridAutoFlow::Column,
+        GridAutoFlow::ColumnDense,
+    ] {
+        let column_flow = auto_flow.is_column();
+        let item_style = |order| NodeInputOf::<S> {
+            item_order: ItemOrder::new(order),
+            size: Size::splat_clone(PreferredSizeOf::px(S::from_f64(10.0))),
+            ..NodeInputOf::default()
+        };
+        let definite_major = |order| NodeInputOf::<S> {
+            grid_column: if column_flow {
+                GridPlacement::try_line(1).expect("one is a valid grid line")
             } else {
-                [
-                    (6, 0, 0),
-                    (3, 1, 1),
-                    (4, 1, 0),
-                    (7, 2, 0),
-                    (1, 3, 0),
-                    (8, 0, 1),
-                ]
-            };
-            for (node, column, row) in expected_cells {
-                let layout = tree.layout(node).expect("in-flow child layout is staged");
-                assert_eq!(layout.source_index, SourceIndex::new((node - 1) as usize));
-                assert_eq!(
-                    layout.location,
-                    Point::new(S::from_usize(column * 20), S::from_usize(row * 20)),
-                    "{auto_flow:?} node {node} must use order-modified placement"
-                );
-            }
-            assert!(
-                tree.inputs(2)
-                    .iter()
-                    .any(|input| input.run_mode() == RunMode::PerformHiddenLayout),
-                "hidden children remain outside the ordinary-grid permutation"
-            );
+                GridPlacement::AUTO
+            },
+            grid_row: if column_flow {
+                GridPlacement::AUTO
+            } else {
+                GridPlacement::try_line(1).expect("one is a valid grid line")
+            },
+            ..item_style(order)
+        };
+        let mut tree = OracleTreeOf::<S>::new()
+            .children(0, [1, 2, 3, 4, 5, 6, 7, 8])
+            .children(1, [])
+            .children(2, [])
+            .children(3, [])
+            .children(4, [])
+            .children(5, [])
+            .children(6, [])
+            .children(7, [])
+            .children(8, [])
+            .style(
+                0,
+                NodeInputOf {
+                    display: Display::Grid,
+                    size: Size::splat_clone(PreferredSizeOf::px(S::from_f64(80.0))),
+                    grid_template_columns: vec![TrackComponentOf::px(S::from_f64(20.0)); 4],
+                    grid_template_rows: vec![TrackComponentOf::px(S::from_f64(20.0)); 4],
+                    grid_auto_flow: auto_flow,
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(1, item_style(2))
+            .style(
+                2,
+                NodeInputOf {
+                    display: Display::None,
+                    item_order: ItemOrder::new(i32::MIN),
+                    ..item_style(0)
+                },
+            )
+            .style(
+                3,
+                NodeInputOf {
+                    grid_column: GridPlacement::try_line(2).expect("two is a valid grid line"),
+                    grid_row: GridPlacement::try_line(2).expect("two is a valid grid line"),
+                    item_order: ItemOrder::new(i32::MAX),
+                    ..item_style(0)
+                },
+            )
+            .style(4, definite_major(2))
+            .style(
+                5,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    item_order: ItemOrder::new(i32::MIN),
+                    ..item_style(0)
+                },
+            )
+            .style(6, definite_major(-1))
+            .style(7, item_style(0))
+            .style(8, item_style(2));
+
+        let computation = compute_grid_with_report(
+            &mut tree,
+            0,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::splat(Some(S::from_f64(80.0))),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::splat(AvailableOf::definite(S::from_f64(80.0))),
+            ),
+        )
+        .expect("order-modified ordinary-grid layout succeeds");
+        assert!(computation.report().is_empty());
+
+        let expected_cells = if column_flow {
+            [
+                (6, 0, 0),
+                (3, 1, 1),
+                (4, 0, 1),
+                (7, 0, 2),
+                (1, 0, 3),
+                (8, 1, 0),
+            ]
+        } else {
+            [
+                (6, 0, 0),
+                (3, 1, 1),
+                (4, 1, 0),
+                (7, 2, 0),
+                (1, 3, 0),
+                (8, 0, 1),
+            ]
+        };
+        for (node, column, row) in expected_cells {
+            let layout = tree.layout(node).expect("in-flow child layout is staged");
+            assert_eq!(layout.source_index, SourceIndex::new((node - 1) as usize));
             assert_eq!(
-                tree.layout(5)
-                    .expect("absolute child layout is staged")
-                    .source_index,
-                SourceIndex::new(4)
+                layout.location,
+                Point::new(S::from_usize(column * 20), S::from_usize(row * 20)),
+                "{auto_flow:?} node {node} must use order-modified placement"
             );
         }
-    };
+        assert!(
+            tree.inputs(2)
+                .iter()
+                .any(|input| input.run_mode() == RunMode::PerformHiddenLayout),
+            "hidden children remain outside the ordinary-grid permutation"
+        );
+        assert_eq!(
+            tree.layout(5)
+                .expect("absolute child layout is staged")
+                .source_index,
+            SourceIndex::new(4)
+        );
+    }
 }
 
 #[test]
@@ -4328,128 +4244,115 @@ fn assert_grid_child_context_is_complete<S: LayoutScalar>()
 where
     OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
 {
-    (AssertGridChildContextIsCompletePhaseL4263::<S>::RUN)()
-}
+    let flow_axes = FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl);
+    let expected =
+        crate::ContainingLayoutContext::new(flow_axes, crate::ParentFormattingContext::Grid);
 
-type AssertGridChildContextIsCompletePhaseL4263Run = fn();
-
-struct AssertGridChildContextIsCompletePhaseL4263<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertGridChildContextIsCompletePhaseL4263<S>
-where
-    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
-{
-    const RUN: AssertGridChildContextIsCompletePhaseL4263Run = || {
-        let flow_axes = FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl);
-        let expected =
-            crate::ContainingLayoutContext::new(flow_axes, crate::ParentFormattingContext::Grid);
-
-        for display in [Display::Grid, Display::GridLanes] {
-            for run_mode in [RunMode::ComputeSize, RunMode::PerformLayout] {
-                let mut tree = OracleTreeOf::<S>::new()
-                    .children(0, [1, 2])
-                    .children(1, [])
-                    .children(2, [])
-                    .style(
-                        0,
-                        NodeInputOf {
-                            display,
-                            writing_mode: WritingMode::SidewaysRl,
-                            direction: Direction::Rtl,
-                            size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO),
-                            grid_template_columns: vec![TrackComponentOf::px(S::from_f64(160.0))],
-                            grid_template_rows: vec![TrackComponentOf::px(S::from_f64(120.0))],
-                            ..NodeInputOf::default()
-                        },
-                    )
-                    .style(1, NodeInputOf::default())
-                    .style(
-                        2,
-                        NodeInputOf {
-                            position: Position::Absolute,
-                            size: Size::new(
-                                PreferredSizeOf::px(S::from_f64(30.0)),
-                                PreferredSizeOf::px(S::from_f64(12.0)),
-                            ),
-                            ..NodeInputOf::default()
-                        },
-                    )
-                    .measure(
-                        1,
-                        ComputeOutputOf::from_outer_size(Size::new(
-                            S::from_f64(40.0),
-                            S::from_f64(20.0),
-                        )),
-                    )
-                    .measure(
-                        2,
-                        ComputeOutputOf::from_outer_size(Size::new(
-                            S::from_f64(30.0),
-                            S::from_f64(12.0),
-                        )),
-                    );
-
-                crate::compute_grid(
-                    &mut tree,
+    for display in [Display::Grid, Display::GridLanes] {
+        for run_mode in [RunMode::ComputeSize, RunMode::PerformLayout] {
+            let mut tree = OracleTreeOf::<S>::new()
+                .children(0, [1, 2])
+                .children(1, [])
+                .children(2, [])
+                .style(
                     0,
-                    ComputeInputOf::for_child(
-                        run_mode,
-                        SizingMode::InherentSize,
-                        RequestedAxis::Both,
-                        Size::NONE,
-                        Size::new(Some(S::from_f64(300.0)), Some(S::from_f64(240.0))),
-                        crate::ContainingLayoutContext::new(
-                            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                            crate::ParentFormattingContext::NoParent,
-                        ),
-                        Size::splat(AvailableOf::definite(S::from_f64(300.0))),
-                    ),
+                    NodeInputOf {
+                        display,
+                        writing_mode: WritingMode::SidewaysRl,
+                        direction: Direction::Rtl,
+                        size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO),
+                        grid_template_columns: vec![TrackComponentOf::px(S::from_f64(160.0))],
+                        grid_template_rows: vec![TrackComponentOf::px(S::from_f64(120.0))],
+                        ..NodeInputOf::default()
+                    },
                 )
-                .expect("grid context capture layout succeeds");
-
-                let normal_inputs = tree.inputs(1);
-                assert!(
-                    !normal_inputs.is_empty(),
-                    "{display:?} must request its in-flow child"
+                .style(1, NodeInputOf::default())
+                .style(
+                    2,
+                    NodeInputOf {
+                        position: Position::Absolute,
+                        size: Size::new(
+                            PreferredSizeOf::px(S::from_f64(30.0)),
+                            PreferredSizeOf::px(S::from_f64(12.0)),
+                        ),
+                        ..NodeInputOf::default()
+                    },
+                )
+                .measure(
+                    1,
+                    ComputeOutputOf::from_outer_size(Size::new(
+                        S::from_f64(40.0),
+                        S::from_f64(20.0),
+                    )),
+                )
+                .measure(
+                    2,
+                    ComputeOutputOf::from_outer_size(Size::new(
+                        S::from_f64(30.0),
+                        S::from_f64(12.0),
+                    )),
                 );
+
+            crate::compute_grid(
+                &mut tree,
+                0,
+                ComputeInputOf::for_child(
+                    run_mode,
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
+                    Size::NONE,
+                    Size::new(Some(S::from_f64(300.0)), Some(S::from_f64(240.0))),
+                    crate::ContainingLayoutContext::new(
+                        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                        crate::ParentFormattingContext::NoParent,
+                    ),
+                    Size::splat(AvailableOf::definite(S::from_f64(300.0))),
+                ),
+            )
+            .expect("grid context capture layout succeeds");
+
+            let normal_inputs = tree.inputs(1);
+            assert!(
+                !normal_inputs.is_empty(),
+                "{display:?} must request its in-flow child"
+            );
+            assert!(
+                normal_inputs
+                    .iter()
+                    .all(|input| input.containing_layout_context() == expected),
+                "every {display:?} in-flow request must use the parent axes and Grid role: {normal_inputs:#?}"
+            );
+
+            if run_mode == RunMode::ComputeSize {
                 assert!(
                     normal_inputs
                         .iter()
-                        .all(|input| input.containing_layout_context() == expected),
-                    "every {display:?} in-flow request must use the parent axes and Grid role: {normal_inputs:#?}"
+                        .any(|input| input.run_mode() == RunMode::ComputeSize),
+                    "{display:?} intrinsic sizing must request the child through the complete context"
                 );
-
-                if run_mode == RunMode::ComputeSize {
-                    assert!(
-                        normal_inputs
-                            .iter()
-                            .any(|input| input.run_mode() == RunMode::ComputeSize),
-                        "{display:?} intrinsic sizing must request the child through the complete context"
-                    );
-                } else {
-                    assert!(
-                        normal_inputs
-                            .iter()
-                            .any(|input| input.run_mode() == RunMode::PerformLayout),
-                        "{display:?} normal layout must request the child through the complete context"
-                    );
-                    let absolute_inputs = tree.inputs(2);
-                    assert!(
-                        absolute_inputs
-                            .iter()
-                            .any(|input| input.run_mode() == RunMode::PerformLayout),
-                        "{display:?} absolute scheduling must request the child"
-                    );
-                    assert!(
-                        absolute_inputs
-                            .iter()
-                            .all(|input| input.containing_layout_context() == expected),
-                        "every {display:?} absolute request must use the parent axes and Grid role: {absolute_inputs:#?}"
-                    );
-                }
+            } else {
+                assert!(
+                    normal_inputs
+                        .iter()
+                        .any(|input| input.run_mode() == RunMode::PerformLayout),
+                    "{display:?} normal layout must request the child through the complete context"
+                );
+                let absolute_inputs = tree.inputs(2);
+                assert!(
+                    absolute_inputs
+                        .iter()
+                        .any(|input| input.run_mode() == RunMode::PerformLayout),
+                    "{display:?} absolute scheduling must request the child"
+                );
+                assert!(
+                    absolute_inputs
+                        .iter()
+                        .all(|input| input.containing_layout_context() == expected),
+                    "every {display:?} absolute request must use the parent axes and Grid role: {absolute_inputs:#?}"
+                );
             }
         }
-    };
+    }
 }
 use lts::oracle::grid::{
     AlignmentSafety, AutoPlacer, ContributionSize, DefiniteTracks, Flow,
@@ -5121,10 +5024,6 @@ fn final_height(tree: &OracleTree, node: u32) -> Scalar {
 
 #[test]
 fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
-    (GRID_LANES_DISPLAY_USES_SEPARATE_PLACEMENT_PATH_BEFORE_CHILD_LAYOUT_PHASE)();
-}
-
-const GRID_LANES_DISPLAY_USES_SEPARATE_PLACEMENT_PATH_BEFORE_CHILD_LAYOUT_PHASE: fn() = || {
     #[derive(Default)]
     struct RecursiveTree {
         children: HashMap<u32, Vec<u32>>,
@@ -5245,14 +5144,10 @@ const GRID_LANES_DISPLAY_USES_SEPARATE_PLACEMENT_PATH_BEFORE_CHILD_LAYOUT_PHASE:
     assert_eq!(output.content_size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(10.0, 10.0));
-};
+}
 
 #[test]
 fn grid_lanes_content_size_uses_measured_lane_margin_boxes() {
-    (GRID_LANES_CONTENT_SIZE_USES_MEASURED_LANE_MARGIN_BOXES_PHASE)();
-}
-
-const GRID_LANES_CONTENT_SIZE_USES_MEASURED_LANE_MARGIN_BOXES_PHASE: fn() = || {
     #[derive(Default)]
     struct RecursiveTree {
         children: HashMap<u32, Vec<u32>>,
@@ -5380,7 +5275,7 @@ const GRID_LANES_CONTENT_SIZE_USES_MEASURED_LANE_MARGIN_BOXES_PHASE: fn() = || {
     assert_eq!(output.content_size, Size::new(20.0, 30.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&3].size, Size::new(20.0, 15.0));
-};
+}
 
 #[test]
 fn grid_lanes_content_size_preserves_resolved_track_sum() {
@@ -5661,10 +5556,6 @@ fn grid_lanes_with_rows_template_uses_columns_as_lane_axis_for_intrinsic_width()
 
 #[test]
 fn grid_lanes_lane_measurement_honors_min_content_width() {
-    (GRID_LANES_LANE_MEASUREMENT_HONORS_MIN_CONTENT_WIDTH_PHASE)();
-}
-
-const GRID_LANES_LANE_MEASUREMENT_HONORS_MIN_CONTENT_WIDTH_PHASE: fn() = || {
     let mut tree = OracleTree::new()
         .children(1, [2, 3])
         .style(
@@ -5836,7 +5727,7 @@ const GRID_LANES_LANE_MEASUREMENT_HONORS_MIN_CONTENT_WIDTH_PHASE: fn() = || {
         input.run_mode() == RunMode::ComputeSize
             && input.available() == Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT)
     }));
-};
+}
 
 #[test]
 fn named_grid_lanes_place_item_between_named_ordinary_grid_lines() {
@@ -6226,179 +6117,164 @@ fn assert_logical_grid_lanes_axes_baselines<S: LayoutScalar>()
 where
     OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
 {
-    (AssertLogicalGridLanesAxesBaselinesPhaseL6148::<S>::RUN)()
-}
+    let scalar = S::from_f64;
+    let logical_container_size = LogicalSizeOf::new(scalar(70.0), scalar(110.0));
+    let logical_child_size = LogicalSizeOf::new(scalar(10.0), scalar(20.0));
 
-type AssertLogicalGridLanesAxesBaselinesPhaseL6148Run = fn();
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+            let physical_container_size = flow_axes.physical_size(logical_container_size);
+            let physical_child_size = flow_axes.physical_size(logical_child_size);
+            let first_child = ComputeOutputOf::from_sizes_and_baselines(
+                physical_child_size,
+                physical_child_size,
+                BaselinesOf {
+                    first: physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(13.0),
+                        logical_child_size,
+                    ),
+                    last: physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(7.0),
+                        logical_child_size,
+                    ),
+                },
+            );
+            let last_child = ComputeOutputOf::from_sizes_and_baselines(
+                physical_child_size,
+                physical_child_size,
+                BaselinesOf {
+                    first: physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(12.0),
+                        logical_child_size,
+                    ),
+                    last: physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(8.0),
+                        logical_child_size,
+                    ),
+                },
+            );
 
-struct AssertLogicalGridLanesAxesBaselinesPhaseL6148<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertLogicalGridLanesAxesBaselinesPhaseL6148<S>
-where
-    OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
-{
-    const RUN: AssertLogicalGridLanesAxesBaselinesPhaseL6148Run = || {
-        let scalar = S::from_f64;
-        let logical_container_size = LogicalSizeOf::new(scalar(70.0), scalar(110.0));
-        let logical_child_size = LogicalSizeOf::new(scalar(10.0), scalar(20.0));
-
-        for writing_mode in [
-            WritingMode::HorizontalTb,
-            WritingMode::VerticalRl,
-            WritingMode::VerticalLr,
-            WritingMode::SidewaysRl,
-            WritingMode::SidewaysLr,
-        ] {
-            for direction in [Direction::Ltr, Direction::Rtl] {
-                let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
-                let physical_container_size = flow_axes.physical_size(logical_container_size);
-                let physical_child_size = flow_axes.physical_size(logical_child_size);
-                let first_child = ComputeOutputOf::from_sizes_and_baselines(
-                    physical_child_size,
-                    physical_child_size,
-                    BaselinesOf {
-                        first: physical_baseline_from_logical_block(
-                            flow_axes,
-                            scalar(13.0),
-                            logical_child_size,
-                        ),
-                        last: physical_baseline_from_logical_block(
-                            flow_axes,
-                            scalar(7.0),
-                            logical_child_size,
-                        ),
-                    },
-                );
-                let last_child = ComputeOutputOf::from_sizes_and_baselines(
-                    physical_child_size,
-                    physical_child_size,
-                    BaselinesOf {
-                        first: physical_baseline_from_logical_block(
-                            flow_axes,
-                            scalar(12.0),
-                            logical_child_size,
-                        ),
-                        last: physical_baseline_from_logical_block(
-                            flow_axes,
-                            scalar(8.0),
-                            logical_child_size,
-                        ),
-                    },
-                );
-
-                for (grid_auto_flow, expected_last_block) in [
-                    (GridAutoFlow::Row, scalar(8.0)),
-                    (GridAutoFlow::Column, scalar(58.0)),
-                ] {
-                    let mut tree = OracleTreeOf::<S>::new()
-                        .children(1, [2, 3])
-                        .children(2, [])
-                        .children(3, [])
-                        .style(
-                            1,
-                            NodeInputOf {
-                                display: Display::GridLanes,
-                                writing_mode,
-                                direction,
-                                size: physical_container_size.map(PreferredSizeOf::px),
-                                grid_auto_flow,
-                                grid_template_columns: vec![
-                                    TrackComponentOf::px(scalar(30.0)),
-                                    TrackComponentOf::px(scalar(40.0)),
-                                ],
-                                grid_template_rows: vec![
-                                    TrackComponentOf::px(scalar(50.0)),
-                                    TrackComponentOf::px(scalar(60.0)),
-                                ],
-                                justify_content: Some(AlignContent::Start),
-                                align_content: Some(AlignContent::Start),
-                                ..NodeInputOf::default()
-                            },
-                        )
-                        .style(
-                            2,
-                            NodeInputOf {
-                                writing_mode,
-                                direction,
-                                grid_column: if grid_auto_flow == GridAutoFlow::Row {
-                                    GridPlacement::try_line(1).expect("test grid column is valid")
-                                } else {
-                                    GridPlacement::AUTO
-                                },
-                                grid_row: if grid_auto_flow == GridAutoFlow::Column {
-                                    GridPlacement::try_line(1).expect("test grid row is valid")
-                                } else {
-                                    GridPlacement::AUTO
-                                },
-                                ..NodeInputOf::default()
-                            },
-                        )
-                        .style(
-                            3,
-                            NodeInputOf {
-                                writing_mode,
-                                direction,
-                                grid_column: if grid_auto_flow == GridAutoFlow::Row {
-                                    GridPlacement::try_line(2).expect("test grid column is valid")
-                                } else {
-                                    GridPlacement::AUTO
-                                },
-                                grid_row: if grid_auto_flow == GridAutoFlow::Column {
-                                    GridPlacement::try_line(2).expect("test grid row is valid")
-                                } else {
-                                    GridPlacement::AUTO
-                                },
-                                ..NodeInputOf::default()
-                            },
-                        )
-                        .measure(2, first_child)
-                        .measure(3, last_child);
-
-                    let output = crate::compute_grid(
-                        &mut tree,
+            for (grid_auto_flow, expected_last_block) in [
+                (GridAutoFlow::Row, scalar(8.0)),
+                (GridAutoFlow::Column, scalar(58.0)),
+            ] {
+                let mut tree = OracleTreeOf::<S>::new()
+                    .children(1, [2, 3])
+                    .children(2, [])
+                    .children(3, [])
+                    .style(
                         1,
-                        ComputeInputOf::for_child(
-                            RunMode::PerformLayout,
-                            SizingMode::InherentSize,
-                            RequestedAxis::Both,
-                            Size::NONE,
-                            physical_container_size.map(Some),
-                            crate::ContainingLayoutContext::new(
-                                crate::geometry::FlowAxes::new(
-                                    WritingMode::HorizontalTb,
-                                    Direction::Ltr,
-                                ),
-                                crate::ParentFormattingContext::NoParent,
-                            ),
-                            physical_container_size.map(AvailableOf::definite),
-                        ),
+                        NodeInputOf {
+                            display: Display::GridLanes,
+                            writing_mode,
+                            direction,
+                            size: physical_container_size.map(PreferredSizeOf::px),
+                            grid_auto_flow,
+                            grid_template_columns: vec![
+                                TrackComponentOf::px(scalar(30.0)),
+                                TrackComponentOf::px(scalar(40.0)),
+                            ],
+                            grid_template_rows: vec![
+                                TrackComponentOf::px(scalar(50.0)),
+                                TrackComponentOf::px(scalar(60.0)),
+                            ],
+                            justify_content: Some(AlignContent::Start),
+                            align_content: Some(AlignContent::Start),
+                            ..NodeInputOf::default()
+                        },
                     )
-                    .expect("logical grid-lanes baseline layout succeeds");
+                    .style(
+                        2,
+                        NodeInputOf {
+                            writing_mode,
+                            direction,
+                            grid_column: if grid_auto_flow == GridAutoFlow::Row {
+                                GridPlacement::try_line(1).expect("test grid column is valid")
+                            } else {
+                                GridPlacement::AUTO
+                            },
+                            grid_row: if grid_auto_flow == GridAutoFlow::Column {
+                                GridPlacement::try_line(1).expect("test grid row is valid")
+                            } else {
+                                GridPlacement::AUTO
+                            },
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        3,
+                        NodeInputOf {
+                            writing_mode,
+                            direction,
+                            grid_column: if grid_auto_flow == GridAutoFlow::Row {
+                                GridPlacement::try_line(2).expect("test grid column is valid")
+                            } else {
+                                GridPlacement::AUTO
+                            },
+                            grid_row: if grid_auto_flow == GridAutoFlow::Column {
+                                GridPlacement::try_line(2).expect("test grid row is valid")
+                            } else {
+                                GridPlacement::AUTO
+                            },
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .measure(2, first_child)
+                    .measure(3, last_child);
 
-                    assert_eq!(
-                        output.first_baselines,
-                        physical_baseline_from_logical_block(
-                            flow_axes,
-                            scalar(13.0),
-                            logical_container_size,
+                let output = crate::compute_grid(
+                    &mut tree,
+                    1,
+                    ComputeInputOf::for_child(
+                        RunMode::PerformLayout,
+                        SizingMode::InherentSize,
+                        RequestedAxis::Both,
+                        Size::NONE,
+                        physical_container_size.map(Some),
+                        crate::ContainingLayoutContext::new(
+                            crate::geometry::FlowAxes::new(
+                                WritingMode::HorizontalTb,
+                                Direction::Ltr,
+                            ),
+                            crate::ParentFormattingContext::NoParent,
                         ),
-                        "{writing_mode:?} {direction:?} {grid_auto_flow:?} must project the first lane baseline on the container block axis"
-                    );
-                    assert_eq!(
-                        output.last_baselines,
-                        physical_baseline_from_logical_block(
-                            flow_axes,
-                            expected_last_block,
-                            logical_container_size,
-                        ),
-                        "{writing_mode:?} {direction:?} {grid_auto_flow:?} must project the last lane baseline on the container block axis"
-                    );
-                }
+                        physical_container_size.map(AvailableOf::definite),
+                    ),
+                )
+                .expect("logical grid-lanes baseline layout succeeds");
+
+                assert_eq!(
+                    output.first_baselines,
+                    physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(13.0),
+                        logical_container_size,
+                    ),
+                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} must project the first lane baseline on the container block axis"
+                );
+                assert_eq!(
+                    output.last_baselines,
+                    physical_baseline_from_logical_block(
+                        flow_axes,
+                        expected_last_block,
+                        logical_container_size,
+                    ),
+                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} must project the last lane baseline on the container block axis"
+                );
             }
         }
-    };
+    }
 }
 
 #[test]
@@ -6415,239 +6291,222 @@ fn assert_logical_ordinary_grid_in_flow_placement_baselines_and_extents<S: Layou
 where
     OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
 {
-    (AssertLogicalOrdinaryGridInFlowPlacementBaselinesAndExtentsPhaseL6322::<S>::RUN)()
-}
+    let scalar = S::from_f64;
+    let logical_container_size = LogicalSizeOf::new(scalar(70.0), scalar(110.0));
+    let logical_child_size = LogicalSizeOf::new(scalar(10.0), scalar(20.0));
 
-type AssertLogicalOrdinaryGridInFlowPlacementBaselinesAndExtentsPhaseL6322Run = fn();
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+            let physical_container_size = flow_axes.physical_size(logical_container_size);
+            let physical_child_size = flow_axes.physical_size(logical_child_size);
 
-struct AssertLogicalOrdinaryGridInFlowPlacementBaselinesAndExtentsPhaseL6322<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertLogicalOrdinaryGridInFlowPlacementBaselinesAndExtentsPhaseL6322<S>
-where
-    OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
-{
-    const RUN: AssertLogicalOrdinaryGridInFlowPlacementBaselinesAndExtentsPhaseL6322Run = || {
-        let scalar = S::from_f64;
-        let logical_container_size = LogicalSizeOf::new(scalar(70.0), scalar(110.0));
-        let logical_child_size = LogicalSizeOf::new(scalar(10.0), scalar(20.0));
-
-        for writing_mode in [
-            WritingMode::HorizontalTb,
-            WritingMode::VerticalRl,
-            WritingMode::VerticalLr,
-            WritingMode::SidewaysRl,
-            WritingMode::SidewaysLr,
-        ] {
-            for direction in [Direction::Ltr, Direction::Rtl] {
-                let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
-                let physical_container_size = flow_axes.physical_size(logical_container_size);
-                let physical_child_size = flow_axes.physical_size(logical_child_size);
-
-                for (alignment, child_locations, shared_baseline) in [
-                    (AlignItems::Baseline, [scalar(6.0), S::ZERO], scalar(14.0)),
-                    (
-                        AlignItems::LastBaseline,
-                        [scalar(24.0), scalar(30.0)],
-                        scalar(40.0),
-                    ),
-                ] {
-                    let (first_baselines, last_baselines) = match alignment {
-                        AlignItems::Baseline => ([scalar(8.0), scalar(14.0)], [None, None]),
-                        AlignItems::LastBaseline => {
-                            ([S::ZERO, S::ZERO], [Some(scalar(16.0)), Some(scalar(10.0))])
-                        }
-                        _ => unreachable!("the test only uses baseline item alignment"),
-                    };
-                    let child_outputs = [
-                        ComputeOutputOf::from_sizes_and_baselines(
-                            physical_child_size,
-                            flow_axes.physical_size(LogicalSizeOf::new(scalar(10.0), scalar(20.0))),
-                            BaselinesOf {
-                                first: physical_baseline_from_logical_block(
-                                    flow_axes,
-                                    first_baselines[0],
-                                    logical_child_size,
-                                ),
-                                last: last_baselines[0].map_or(Point::NONE, |last| {
-                                    physical_baseline_from_logical_block(
-                                        flow_axes,
-                                        last,
-                                        logical_child_size,
-                                    )
-                                }),
-                            },
-                        ),
-                        ComputeOutputOf::from_sizes_and_baselines(
-                            physical_child_size,
-                            flow_axes
-                                .physical_size(LogicalSizeOf::new(scalar(80.0), scalar(120.0))),
-                            BaselinesOf {
-                                first: physical_baseline_from_logical_block(
-                                    flow_axes,
-                                    first_baselines[1],
-                                    logical_child_size,
-                                ),
-                                last: last_baselines[1].map_or(Point::NONE, |last| {
-                                    physical_baseline_from_logical_block(
-                                        flow_axes,
-                                        last,
-                                        logical_child_size,
-                                    )
-                                }),
-                            },
-                        ),
-                    ];
-                    let mut tree = OracleTreeOf::<S>::new()
-                        .children(1, [2, 3])
-                        .children(2, [])
-                        .children(3, [])
-                        .style(
-                            1,
-                            NodeInputOf {
-                                display: Display::Grid,
-                                writing_mode,
-                                direction,
-                                size: physical_container_size.map(PreferredSizeOf::px),
-                                grid_template_columns: vec![
-                                    TrackComponentOf::px(scalar(30.0)),
-                                    TrackComponentOf::px(scalar(40.0)),
-                                ],
-                                grid_template_rows: vec![
-                                    TrackComponentOf::px(scalar(50.0)),
-                                    TrackComponentOf::px(scalar(60.0)),
-                                ],
-                                justify_content: Some(AlignContent::Start),
-                                align_content: Some(AlignContent::Start),
-                                align_items: Some(alignment),
-                                ..NodeInputOf::default()
-                            },
-                        )
-                        .style(
-                            2,
-                            NodeInputOf {
-                                writing_mode,
-                                direction,
-                                ..NodeInputOf::default()
-                            },
-                        )
-                        .style(
-                            3,
-                            NodeInputOf {
-                                writing_mode,
-                                direction,
-                                grid_column: GridPlacement::try_line(2)
-                                    .expect("test grid line is valid"),
-                                ..NodeInputOf::default()
-                            },
-                        )
-                        .measure(2, child_outputs[0])
-                        .measure(3, child_outputs[1]);
-
-                    let output = crate::compute_grid(
-                        &mut tree,
-                        1,
-                        ComputeInputOf::for_child(
-                            RunMode::PerformLayout,
-                            SizingMode::InherentSize,
-                            RequestedAxis::Both,
-                            Size::NONE,
-                            physical_container_size.map(Some),
-                            crate::ContainingLayoutContext::new(
-                                crate::geometry::FlowAxes::new(
-                                    WritingMode::HorizontalTb,
-                                    Direction::Ltr,
-                                ),
-                                crate::ParentFormattingContext::NoParent,
-                            ),
-                            physical_container_size.map(AvailableOf::definite),
-                        ),
-                    )
-                    .expect("logical ordinary-grid baseline layout succeeds");
-
-                    for (index, (inline, block)) in [
-                        (S::ZERO, child_locations[0]),
-                        (scalar(30.0), child_locations[1]),
-                    ]
-                    .into_iter()
-                    .enumerate()
-                    {
-                        assert_eq!(
-                            tree.layout(index as u32 + 2)
-                                .expect("grid child layout is staged")
-                                .location,
-                            flow_axes.physical_point(
-                                crate::geometry::LogicalPointOf::new(inline, block),
-                                logical_child_size,
-                                physical_container_size,
-                            ),
-                            "{writing_mode:?} {direction:?} {alignment:?} child {} must align on the container block axis",
-                            index + 1
-                        );
+            for (alignment, child_locations, shared_baseline) in [
+                (AlignItems::Baseline, [scalar(6.0), S::ZERO], scalar(14.0)),
+                (
+                    AlignItems::LastBaseline,
+                    [scalar(24.0), scalar(30.0)],
+                    scalar(40.0),
+                ),
+            ] {
+                let (first_baselines, last_baselines) = match alignment {
+                    AlignItems::Baseline => ([scalar(8.0), scalar(14.0)], [None, None]),
+                    AlignItems::LastBaseline => {
+                        ([S::ZERO, S::ZERO], [Some(scalar(16.0)), Some(scalar(10.0))])
                     }
-                    let (minimum, maximum) = [2, 3].into_iter().fold(
-                        (Point::<S>::ZERO, Point::<S>::ZERO),
-                        |(mut minimum, mut maximum): (Point<S>, Point<S>), node| {
-                            let child = tree.layout(node).expect("grid child layout is staged");
-                            let geometry = child
-                                .scroll_geometry
-                                .expect("grid child retains canonical geometry");
-                            let border = geometry.border_box();
-                            let border_origin = Point::new(
-                                child.location.x + border.origin().x,
-                                child.location.y + border.origin().y,
-                            );
-                            minimum.x = minimum.x.min(border_origin.x);
-                            minimum.y = minimum.y.min(border_origin.y);
-                            maximum.x = maximum.x.max(border_origin.x + border.size().width);
-                            maximum.y = maximum.y.max(border_origin.y + border.size().height);
-                            let descendants = geometry.propagatable_descendant_intervals();
-                            if let Some(interval) = descendants.at(PhysicalAxis::Horizontal) {
-                                minimum.x = minimum.x.min(child.location.x + interval.minimum());
-                                maximum.x = maximum.x.max(child.location.x + interval.maximum());
-                            }
-                            if let Some(interval) = descendants.at(PhysicalAxis::Vertical) {
-                                minimum.y = minimum.y.min(child.location.y + interval.minimum());
-                                maximum.y = maximum.y.max(child.location.y + interval.maximum());
-                            }
-                            (minimum, maximum)
+                    _ => unreachable!("the test only uses baseline item alignment"),
+                };
+                let child_outputs = [
+                    ComputeOutputOf::from_sizes_and_baselines(
+                        physical_child_size,
+                        flow_axes.physical_size(LogicalSizeOf::new(scalar(10.0), scalar(20.0))),
+                        BaselinesOf {
+                            first: physical_baseline_from_logical_block(
+                                flow_axes,
+                                first_baselines[0],
+                                logical_child_size,
+                            ),
+                            last: last_baselines[0].map_or(Point::NONE, |last| {
+                                physical_baseline_from_logical_block(
+                                    flow_axes,
+                                    last,
+                                    logical_child_size,
+                                )
+                            }),
                         },
-                    );
-                    let legacy_visible_extent = Size::new(
-                        physical_container_size.width.max(maximum.x - minimum.x),
-                        physical_container_size.height.max(maximum.y - minimum.y),
-                    );
-                    let canonical_visible_extent = output
-                        .scroll_geometry
-                        .expect("performed ordinary grid publishes geometry")
-                        .canonical_content_size()
-                        .expect("ordinary grid canonical content extent is valid");
-                    let expected_visible_extent =
-                        legacy_visible_extent.max(canonical_visible_extent);
-                    let expected_baseline = physical_baseline_from_logical_block(
-                        flow_axes,
-                        shared_baseline,
-                        logical_container_size,
-                    );
-                    let actual_baseline = match alignment {
-                        AlignItems::Baseline => output.first_baselines,
-                        AlignItems::LastBaseline => output.last_baselines,
-                        _ => unreachable!("the test only uses baseline item alignment"),
-                    };
+                    ),
+                    ComputeOutputOf::from_sizes_and_baselines(
+                        physical_child_size,
+                        flow_axes.physical_size(LogicalSizeOf::new(scalar(80.0), scalar(120.0))),
+                        BaselinesOf {
+                            first: physical_baseline_from_logical_block(
+                                flow_axes,
+                                first_baselines[1],
+                                logical_child_size,
+                            ),
+                            last: last_baselines[1].map_or(Point::NONE, |last| {
+                                physical_baseline_from_logical_block(
+                                    flow_axes,
+                                    last,
+                                    logical_child_size,
+                                )
+                            }),
+                        },
+                    ),
+                ];
+                let mut tree = OracleTreeOf::<S>::new()
+                    .children(1, [2, 3])
+                    .children(2, [])
+                    .children(3, [])
+                    .style(
+                        1,
+                        NodeInputOf {
+                            display: Display::Grid,
+                            writing_mode,
+                            direction,
+                            size: physical_container_size.map(PreferredSizeOf::px),
+                            grid_template_columns: vec![
+                                TrackComponentOf::px(scalar(30.0)),
+                                TrackComponentOf::px(scalar(40.0)),
+                            ],
+                            grid_template_rows: vec![
+                                TrackComponentOf::px(scalar(50.0)),
+                                TrackComponentOf::px(scalar(60.0)),
+                            ],
+                            justify_content: Some(AlignContent::Start),
+                            align_content: Some(AlignContent::Start),
+                            align_items: Some(alignment),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        2,
+                        NodeInputOf {
+                            writing_mode,
+                            direction,
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        3,
+                        NodeInputOf {
+                            writing_mode,
+                            direction,
+                            grid_column: GridPlacement::try_line(2)
+                                .expect("test grid line is valid"),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .measure(2, child_outputs[0])
+                    .measure(3, child_outputs[1]);
 
+                let output = crate::compute_grid(
+                    &mut tree,
+                    1,
+                    ComputeInputOf::for_child(
+                        RunMode::PerformLayout,
+                        SizingMode::InherentSize,
+                        RequestedAxis::Both,
+                        Size::NONE,
+                        physical_container_size.map(Some),
+                        crate::ContainingLayoutContext::new(
+                            crate::geometry::FlowAxes::new(
+                                WritingMode::HorizontalTb,
+                                Direction::Ltr,
+                            ),
+                            crate::ParentFormattingContext::NoParent,
+                        ),
+                        physical_container_size.map(AvailableOf::definite),
+                    ),
+                )
+                .expect("logical ordinary-grid baseline layout succeeds");
+
+                for (index, (inline, block)) in [
+                    (S::ZERO, child_locations[0]),
+                    (scalar(30.0), child_locations[1]),
+                ]
+                .into_iter()
+                .enumerate()
+                {
                     assert_eq!(
-                        actual_baseline, expected_baseline,
-                        "{writing_mode:?} {direction:?} {alignment:?} must publish its baseline on the container block axis"
-                    );
-                    assert_eq!(
-                        output.content_size, expected_visible_extent,
-                        "{writing_mode:?} {direction:?} must retain visible content extents physically after projection"
+                        tree.layout(index as u32 + 2)
+                            .expect("grid child layout is staged")
+                            .location,
+                        flow_axes.physical_point(
+                            crate::geometry::LogicalPointOf::new(inline, block),
+                            logical_child_size,
+                            physical_container_size,
+                        ),
+                        "{writing_mode:?} {direction:?} {alignment:?} child {} must align on the container block axis",
+                        index + 1
                     );
                 }
+                let (minimum, maximum) = [2, 3].into_iter().fold(
+                    (Point::<S>::ZERO, Point::<S>::ZERO),
+                    |(mut minimum, mut maximum): (Point<S>, Point<S>), node| {
+                        let child = tree.layout(node).expect("grid child layout is staged");
+                        let geometry = child
+                            .scroll_geometry
+                            .expect("grid child retains canonical geometry");
+                        let border = geometry.border_box();
+                        let border_origin = Point::new(
+                            child.location.x + border.origin().x,
+                            child.location.y + border.origin().y,
+                        );
+                        minimum.x = minimum.x.min(border_origin.x);
+                        minimum.y = minimum.y.min(border_origin.y);
+                        maximum.x = maximum.x.max(border_origin.x + border.size().width);
+                        maximum.y = maximum.y.max(border_origin.y + border.size().height);
+                        let descendants = geometry.propagatable_descendant_intervals();
+                        if let Some(interval) = descendants.at(PhysicalAxis::Horizontal) {
+                            minimum.x = minimum.x.min(child.location.x + interval.minimum());
+                            maximum.x = maximum.x.max(child.location.x + interval.maximum());
+                        }
+                        if let Some(interval) = descendants.at(PhysicalAxis::Vertical) {
+                            minimum.y = minimum.y.min(child.location.y + interval.minimum());
+                            maximum.y = maximum.y.max(child.location.y + interval.maximum());
+                        }
+                        (minimum, maximum)
+                    },
+                );
+                let legacy_visible_extent = Size::new(
+                    physical_container_size.width.max(maximum.x - minimum.x),
+                    physical_container_size.height.max(maximum.y - minimum.y),
+                );
+                let canonical_visible_extent = output
+                    .scroll_geometry
+                    .expect("performed ordinary grid publishes geometry")
+                    .canonical_content_size()
+                    .expect("ordinary grid canonical content extent is valid");
+                let expected_visible_extent = legacy_visible_extent.max(canonical_visible_extent);
+                let expected_baseline = physical_baseline_from_logical_block(
+                    flow_axes,
+                    shared_baseline,
+                    logical_container_size,
+                );
+                let actual_baseline = match alignment {
+                    AlignItems::Baseline => output.first_baselines,
+                    AlignItems::LastBaseline => output.last_baselines,
+                    _ => unreachable!("the test only uses baseline item alignment"),
+                };
+
+                assert_eq!(
+                    actual_baseline, expected_baseline,
+                    "{writing_mode:?} {direction:?} {alignment:?} must publish its baseline on the container block axis"
+                );
+                assert_eq!(
+                    output.content_size, expected_visible_extent,
+                    "{writing_mode:?} {direction:?} must retain visible content extents physically after projection"
+                );
             }
         }
-    };
+    }
 }
 
 #[test]
@@ -6664,194 +6523,177 @@ fn assert_logical_inherited_grid_axis_contexts<S: LayoutScalar>()
 where
     OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
 {
-    (AssertLogicalInheritedGridAxisContextsPhaseL6554::<S>::RUN)()
-}
-
-type AssertLogicalInheritedGridAxisContextsPhaseL6554Run = fn();
-
-struct AssertLogicalInheritedGridAxisContextsPhaseL6554<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertLogicalInheritedGridAxisContextsPhaseL6554<S>
-where
-    OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
-{
-    const RUN: AssertLogicalInheritedGridAxisContextsPhaseL6554Run = || {
-        let scalar = S::from_f64;
-        let parent_columns = [scalar(30.0), scalar(40.0)];
-        let parent_rows = [scalar(50.0), scalar(60.0)];
-        let parent_gap = LogicalSizeOf::new(scalar(7.0), scalar(11.0));
-        let parent_area_size = LogicalSizeOf::new(scalar(77.0), scalar(121.0));
-        let parent_named_columns = named::NamedGridLines::new(GridAxisKind::Column, 2);
-        let parent_named_rows = named::NamedGridLines::new(GridAxisKind::Row, 2);
-        let parent_baseline_groups = GridBaselineGroups {
-            rows: vec![TrackBaselineGroup::default(); 2],
-            columns: vec![TrackBaselineGroup::default(); 2],
-        };
-
-        for writing_mode in [
-            WritingMode::HorizontalTb,
-            WritingMode::VerticalRl,
-            WritingMode::VerticalLr,
-            WritingMode::SidewaysRl,
-            WritingMode::SidewaysLr,
-        ] {
-            for direction in [Direction::Ltr, Direction::Rtl] {
-                let parent_direction = match direction {
-                    Direction::Ltr => Direction::Rtl,
-                    Direction::Rtl => Direction::Ltr,
-                };
-                let parent_style = NodeInputOf {
-                    display: Display::Grid,
-                    writing_mode: WritingMode::HorizontalTb,
-                    direction: parent_direction,
-                    ..NodeInputOf::default()
-                };
-                let child_style = NodeInputOf {
-                    display: Display::Grid,
-                    writing_mode,
-                    direction,
-                    grid_template_columns: subgrid_track_of(),
-                    grid_template_rows: subgrid_track_of(),
-                    ..NodeInputOf::default()
-                };
-                let parent_flow_axes = crate::geometry::FlowAxes::new(
-                    parent_style.writing_mode,
-                    parent_style.direction,
-                );
-                let child_flow_axes =
-                    crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
-                let parent_physical_size = parent_flow_axes.physical_size(parent_area_size);
-                let item = SubgridItemReport {
-                    node: 1,
-                    column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
-                    row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
-                };
-                let column_mapping = item
-                    .column
-                    .mapping
-                    .expect("column subgrid axis mapping must resolve");
-                let row_mapping = item
-                    .row
-                    .mapping
-                    .expect("row subgrid axis mapping must resolve");
-                assert_eq!(column_mapping.queried_axis, GridAxisKind::Column);
-                assert_eq!(column_mapping.child_axis, GridAxisKind::Column);
-                assert_eq!(row_mapping.queried_axis, GridAxisKind::Row);
-                assert_eq!(row_mapping.child_axis, GridAxisKind::Row);
-
-                let mut context = subgrid_child_parent_context(SubgridChildParentContextInput {
-                    item,
-                    child_style: &child_style,
-                    area: GridArea {
-                        row: 0,
-                        column: 0,
-                        row_end: 2,
-                        column_end: 2,
-                        size: parent_area_size,
-                    },
-                    content_box_size: parent_physical_size,
-                    columns: &parent_columns,
-                    rows: &parent_rows,
-                    gap: parent_gap,
-                    parent_named_columns: &parent_named_columns,
-                    parent_named_rows: &parent_named_rows,
-                    parent_area_facts: None,
-                    parent_baseline_groups: &parent_baseline_groups,
-                    margin: Edges::all(Some(S::ZERO)),
-                    border: Edges::ZERO,
-                    padding: Edges::ZERO,
-                })
-                .expect("subgrid inherited context must resolve");
-                let columns = context
-                    .columns
-                    .as_mut()
-                    .expect("columns subgrid axis must inherit");
-                columns.offset = scalar(13.0);
-                let rows = context
-                    .rows
-                    .as_mut()
-                    .expect("rows subgrid axis must inherit");
-                rows.offset = scalar(17.0);
-
-                let columns = context
-                    .columns
-                    .as_ref()
-                    .expect("columns subgrid axis must remain inherited");
-                let rows = context
-                    .rows
-                    .as_ref()
-                    .expect("rows subgrid axis must remain inherited");
-                let inherited_logical_size = LogicalSizeOf::new(
-                    track_sum(&columns.tracks, columns.gap),
-                    track_sum(&rows.tracks, rows.gap),
-                );
-                assert_eq!(
-                    child_flow_axes.physical_size(inherited_logical_size),
-                    parent_physical_size,
-                    "{writing_mode:?} {direction:?} must retain parent physical extent through child logical axes"
-                );
-                assert_eq!(
-                    grid_axis_logical_offsets(
-                        &columns.tracks,
-                        Some(columns.offset),
-                        S::ZERO,
-                        GridAlignment {
-                            start: S::ZERO,
-                            gap: columns.gap,
-                        },
-                    )[0],
-                    scalar(13.0),
-                    "{writing_mode:?} {direction:?} must retain the inherited inline offset logically"
-                );
-                assert_eq!(
-                    grid_axis_logical_offsets(
-                        &rows.tracks,
-                        Some(rows.offset),
-                        S::ZERO,
-                        GridAlignment {
-                            start: S::ZERO,
-                            gap: rows.gap,
-                        },
-                    )[0],
-                    scalar(17.0),
-                    "{writing_mode:?} {direction:?} must retain the inherited block offset logically"
-                );
-
-                let mut tree = OracleTreeOf::<S>::new()
-                    .children(1, [])
-                    .style(1, child_style);
-                let output = compute_grid_with_context(
-                    &mut tree,
-                    1,
-                    ComputeInputOf::for_child(
-                        RunMode::PerformLayout,
-                        SizingMode::InherentSize,
-                        RequestedAxis::Both,
-                        Size::NONE,
-                        parent_physical_size.map(Some),
-                        crate::ContainingLayoutContext::new(
-                            parent_flow_axes,
-                            crate::ParentFormattingContext::NoParent,
-                        ),
-                        parent_physical_size.map(AvailableOf::definite),
-                    ),
-                    context,
-                )
-                .expect("inherited grid sizing must complete");
-
-                assert_eq!(
-                    output.size, parent_physical_size,
-                    "{writing_mode:?} {direction:?} must project inherited track totals to physical output"
-                );
-                assert_eq!(
-                    output.content_size, parent_physical_size,
-                    "{writing_mode:?} {direction:?} must retain inherited content geometry physically"
-                );
-            }
-        }
+    let scalar = S::from_f64;
+    let parent_columns = [scalar(30.0), scalar(40.0)];
+    let parent_rows = [scalar(50.0), scalar(60.0)];
+    let parent_gap = LogicalSizeOf::new(scalar(7.0), scalar(11.0));
+    let parent_area_size = LogicalSizeOf::new(scalar(77.0), scalar(121.0));
+    let parent_named_columns = named::NamedGridLines::new(GridAxisKind::Column, 2);
+    let parent_named_rows = named::NamedGridLines::new(GridAxisKind::Row, 2);
+    let parent_baseline_groups = GridBaselineGroups {
+        rows: vec![TrackBaselineGroup::default(); 2],
+        columns: vec![TrackBaselineGroup::default(); 2],
     };
+
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let parent_direction = match direction {
+                Direction::Ltr => Direction::Rtl,
+                Direction::Rtl => Direction::Ltr,
+            };
+            let parent_style = NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::HorizontalTb,
+                direction: parent_direction,
+                ..NodeInputOf::default()
+            };
+            let child_style = NodeInputOf {
+                display: Display::Grid,
+                writing_mode,
+                direction,
+                grid_template_columns: subgrid_track_of(),
+                grid_template_rows: subgrid_track_of(),
+                ..NodeInputOf::default()
+            };
+            let parent_flow_axes =
+                crate::geometry::FlowAxes::new(parent_style.writing_mode, parent_style.direction);
+            let child_flow_axes =
+                crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
+            let parent_physical_size = parent_flow_axes.physical_size(parent_area_size);
+            let item = SubgridItemReport {
+                node: 1,
+                column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
+                row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+            };
+            let column_mapping = item
+                .column
+                .mapping
+                .expect("column subgrid axis mapping must resolve");
+            let row_mapping = item
+                .row
+                .mapping
+                .expect("row subgrid axis mapping must resolve");
+            assert_eq!(column_mapping.queried_axis, GridAxisKind::Column);
+            assert_eq!(column_mapping.child_axis, GridAxisKind::Column);
+            assert_eq!(row_mapping.queried_axis, GridAxisKind::Row);
+            assert_eq!(row_mapping.child_axis, GridAxisKind::Row);
+
+            let mut context = subgrid_child_parent_context(SubgridChildParentContextInput {
+                item,
+                child_style: &child_style,
+                area: GridArea {
+                    row: 0,
+                    column: 0,
+                    row_end: 2,
+                    column_end: 2,
+                    size: parent_area_size,
+                },
+                content_box_size: parent_physical_size,
+                columns: &parent_columns,
+                rows: &parent_rows,
+                gap: parent_gap,
+                parent_named_columns: &parent_named_columns,
+                parent_named_rows: &parent_named_rows,
+                parent_area_facts: None,
+                parent_baseline_groups: &parent_baseline_groups,
+                margin: Edges::all(Some(S::ZERO)),
+                border: Edges::ZERO,
+                padding: Edges::ZERO,
+            })
+            .expect("subgrid inherited context must resolve");
+            let columns = context
+                .columns
+                .as_mut()
+                .expect("columns subgrid axis must inherit");
+            columns.offset = scalar(13.0);
+            let rows = context
+                .rows
+                .as_mut()
+                .expect("rows subgrid axis must inherit");
+            rows.offset = scalar(17.0);
+
+            let columns = context
+                .columns
+                .as_ref()
+                .expect("columns subgrid axis must remain inherited");
+            let rows = context
+                .rows
+                .as_ref()
+                .expect("rows subgrid axis must remain inherited");
+            let inherited_logical_size = LogicalSizeOf::new(
+                track_sum(&columns.tracks, columns.gap),
+                track_sum(&rows.tracks, rows.gap),
+            );
+            assert_eq!(
+                child_flow_axes.physical_size(inherited_logical_size),
+                parent_physical_size,
+                "{writing_mode:?} {direction:?} must retain parent physical extent through child logical axes"
+            );
+            assert_eq!(
+                grid_axis_logical_offsets(
+                    &columns.tracks,
+                    Some(columns.offset),
+                    S::ZERO,
+                    GridAlignment {
+                        start: S::ZERO,
+                        gap: columns.gap,
+                    },
+                )[0],
+                scalar(13.0),
+                "{writing_mode:?} {direction:?} must retain the inherited inline offset logically"
+            );
+            assert_eq!(
+                grid_axis_logical_offsets(
+                    &rows.tracks,
+                    Some(rows.offset),
+                    S::ZERO,
+                    GridAlignment {
+                        start: S::ZERO,
+                        gap: rows.gap,
+                    },
+                )[0],
+                scalar(17.0),
+                "{writing_mode:?} {direction:?} must retain the inherited block offset logically"
+            );
+
+            let mut tree = OracleTreeOf::<S>::new()
+                .children(1, [])
+                .style(1, child_style);
+            let output = compute_grid_with_context(
+                &mut tree,
+                1,
+                ComputeInputOf::for_child(
+                    RunMode::PerformLayout,
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
+                    Size::NONE,
+                    parent_physical_size.map(Some),
+                    crate::ContainingLayoutContext::new(
+                        parent_flow_axes,
+                        crate::ParentFormattingContext::NoParent,
+                    ),
+                    parent_physical_size.map(AvailableOf::definite),
+                ),
+                context,
+            )
+            .expect("inherited grid sizing must complete");
+
+            assert_eq!(
+                output.size, parent_physical_size,
+                "{writing_mode:?} {direction:?} must project inherited track totals to physical output"
+            );
+            assert_eq!(
+                output.content_size, parent_physical_size,
+                "{writing_mode:?} {direction:?} must retain inherited content geometry physically"
+            );
+        }
+    }
 }
 
 #[test]
@@ -7933,141 +7775,125 @@ fn grid_flex_child_with_subgrid_tracks_lays_out_as_flex_child() {
 }
 
 fn assert_non_grid_child_with_subgrid_tracks_lays_out_as_ordinary_child(display: Display) {
-    (AssertNonGridChildWithSubgridTracksLaysOutAsOrdinaryChildPhaseL7809::RUN)(display)
-}
+    #[derive(Default)]
+    struct RecursiveTree {
+        children: HashMap<u32, Vec<u32>>,
+        styles: HashMap<u32, NodeInput>,
+        layouts: HashMap<u32, NodeOutput>,
+    }
 
-type AssertNonGridChildWithSubgridTracksLaysOutAsOrdinaryChildPhaseL7809Run = fn(Display);
-
-struct AssertNonGridChildWithSubgridTracksLaysOutAsOrdinaryChildPhaseL7809;
-
-impl AssertNonGridChildWithSubgridTracksLaysOutAsOrdinaryChildPhaseL7809 {
-    const RUN: AssertNonGridChildWithSubgridTracksLaysOutAsOrdinaryChildPhaseL7809Run =
-        |display: Display| {
-            #[derive(Default)]
-            struct RecursiveTree {
-                children: HashMap<u32, Vec<u32>>,
-                styles: HashMap<u32, NodeInput>,
-                layouts: HashMap<u32, NodeOutput>,
+    impl RecursiveTree {
+        fn compute_node(
+            &mut self,
+            node: u32,
+            input: ComputeInput,
+        ) -> LayoutResultOf<u32, ComputeOutput, Scalar> {
+            let node_input = self.styles[&node].clone();
+            if self.children[&node].is_empty() {
+                return Ok(ComputeOutput::from_outer_size(Size::new(30.0, 12.0)));
             }
 
-            impl RecursiveTree {
-                fn compute_node(
-                    &mut self,
-                    node: u32,
-                    input: ComputeInput,
-                ) -> LayoutResultOf<u32, ComputeOutput, Scalar> {
-                    let node_input = self.styles[&node].clone();
-                    if self.children[&node].is_empty() {
-                        return Ok(ComputeOutput::from_outer_size(Size::new(30.0, 12.0)));
-                    }
-
-                    match node_input.display.inner_display() {
-                        Display::Grid | Display::GridLanes => {
-                            crate::compute_grid(self, node, input)
-                        }
-                        Display::Block => crate::compute_block(self, node, input),
-                        Display::Flex => compute_flex(self, node, input),
-                        Display::None => Ok(ComputeOutput::HIDDEN),
-                        Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
-                            unreachable!("inner_display removes inline display variants")
-                        }
-                    }
+            match node_input.display.inner_display() {
+                Display::Grid | Display::GridLanes => crate::compute_grid(self, node, input),
+                Display::Block => crate::compute_block(self, node, input),
+                Display::Flex => compute_flex(self, node, input),
+                Display::None => Ok(ComputeOutput::HIDDEN),
+                Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
+                    unreachable!("inner_display removes inline display variants")
                 }
             }
+        }
+    }
 
-            impl Traverse for RecursiveTree {
-                type Node = u32;
+    impl Traverse for RecursiveTree {
+        type Node = u32;
 
-                type Scalar = Scalar;
-                type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+        type Scalar = Scalar;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
-                fn children(&self, node: Self::Node) -> Self::Children<'_> {
-                    self.children[&node].iter().copied()
-                }
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
+        }
 
-                fn child_count(&self, node: Self::Node) -> usize {
-                    self.children[&node].len()
-                }
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
+        }
 
-                fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-                    self.children[&node][index]
-                }
-            }
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
 
-            impl Compute for RecursiveTree {
-                fn node_input(&self, node: Self::Node) -> &NodeInput {
-                    &self.styles[&node]
-                }
+    impl Compute for RecursiveTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            &self.styles[&node]
+        }
 
-                fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-                    LayoutInputOf::box_input(self.node_input(node).clone())
-                }
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::box_input(self.node_input(node).clone())
+        }
 
-                fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-                    self.layouts.insert(node, layout);
-                }
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.layouts.insert(node, layout);
+        }
 
-                fn compute_child(
-                    &mut self,
-                    node: Self::Node,
-                    input: ComputeInput,
-                ) -> crate::LayoutResultOf<
-                    Self::Node,
-                    crate::ComputeOutputOf<Self::Scalar>,
-                    Self::Scalar,
-                > {
-                    self.compute_node(node, input)
-                }
-            }
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            self.compute_node(node, input)
+        }
+    }
 
-            let mut tree = RecursiveTree::default();
-            tree.children.insert(1, vec![2]);
-            tree.children.insert(2, vec![3]);
-            tree.children.insert(3, vec![]);
-            tree.styles.insert(
-                1,
-                NodeInput {
-                    display: Display::Grid,
-                    grid_template_columns: vec![TrackComponent::px(40.0)],
-                    grid_template_rows: vec![TrackComponent::AUTO],
-                    ..NodeInput::default()
-                },
-            );
-            tree.styles.insert(
-                2,
-                NodeInput {
-                    display,
-                    grid_template_columns: vec![empty_subgrid_track()],
-                    grid_template_rows: vec![TrackComponent::AUTO],
-                    ..NodeInput::default()
-                },
-            );
-            tree.styles.insert(3, NodeInput::default());
+    let mut tree = RecursiveTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![3]);
+    tree.children.insert(3, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            grid_template_columns: vec![TrackComponent::px(40.0)],
+            grid_template_rows: vec![TrackComponent::AUTO],
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display,
+            grid_template_columns: vec![empty_subgrid_track()],
+            grid_template_rows: vec![TrackComponent::AUTO],
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(3, NodeInput::default());
 
-            crate::compute_grid(
-                &mut tree,
-                1,
-                ComputeInput::for_child(
-                    RunMode::PerformLayout,
-                    SizingMode::InherentSize,
-                    RequestedAxis::Both,
-                    Size::NONE,
-                    Size::NONE,
-                    crate::ContainingLayoutContext::new(
-                        crate::geometry::FlowAxes::new(
-                            crate::WritingMode::HorizontalTb,
-                            crate::Direction::Ltr,
-                        ),
-                        crate::ParentFormattingContext::NoParent,
-                    ),
-                    Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+    crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
                 ),
-            )
-            .unwrap();
+                crate::ParentFormattingContext::NoParent,
+            ),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
+    )
+    .unwrap();
 
-            assert_eq!(tree.layouts[&2].size.width, 40.0);
-            assert_eq!(tree.layouts[&3].size, Size::new(30.0, 12.0));
-        };
+    assert_eq!(tree.layouts[&2].size.width, 40.0);
+    assert_eq!(tree.layouts[&3].size, Size::new(30.0, 12.0));
 }
 
 #[test]
@@ -8223,161 +8049,146 @@ fn assert_real_row_subgrid_baseline_projection<S: LayoutScalar>(writing_mode: Wr
 where
     OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
 {
-    (AssertRealRowSubgridBaselineProjectionPhaseL8080::<S>::RUN)(writing_mode)
-}
+    let flow_axes = FlowAxes::new(writing_mode, Direction::Ltr);
+    let root_size =
+        flow_axes.physical_size(LogicalSizeOf::new(S::from_f64(120.0), S::from_f64(80.0)));
+    let physical_baseline = |coordinate: S| match flow_axes.block_axis() {
+        PhysicalAxis::Horizontal => Point::new(Some(coordinate), None),
+        PhysicalAxis::Vertical => Point::new(None, Some(coordinate)),
+    };
+    let baseline_output = |coordinate: S| {
+        ComputeOutputOf::from_sizes_and_baselines(
+            flow_axes.physical_size(LogicalSizeOf::new(S::from_f64(30.0), S::from_f64(20.0))),
+            flow_axes.physical_size(LogicalSizeOf::new(S::from_f64(30.0), S::from_f64(20.0))),
+            BaselinesOf {
+                first: physical_baseline(coordinate),
+                last: physical_baseline(coordinate),
+            },
+        )
+    };
 
-type AssertRealRowSubgridBaselineProjectionPhaseL8080Run = fn(WritingMode);
-
-struct AssertRealRowSubgridBaselineProjectionPhaseL8080<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertRealRowSubgridBaselineProjectionPhaseL8080<S>
-where
-    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
-{
-    const RUN: AssertRealRowSubgridBaselineProjectionPhaseL8080Run = |writing_mode: WritingMode| {
-        let flow_axes = FlowAxes::new(writing_mode, Direction::Ltr);
-        let root_size =
-            flow_axes.physical_size(LogicalSizeOf::new(S::from_f64(120.0), S::from_f64(80.0)));
-        let physical_baseline = |coordinate: S| match flow_axes.block_axis() {
-            PhysicalAxis::Horizontal => Point::new(Some(coordinate), None),
-            PhysicalAxis::Vertical => Point::new(None, Some(coordinate)),
-        };
-        let baseline_output = |coordinate: S| {
-            ComputeOutputOf::from_sizes_and_baselines(
-                flow_axes.physical_size(LogicalSizeOf::new(S::from_f64(30.0), S::from_f64(20.0))),
-                flow_axes.physical_size(LogicalSizeOf::new(S::from_f64(30.0), S::from_f64(20.0))),
-                BaselinesOf {
-                    first: physical_baseline(coordinate),
-                    last: physical_baseline(coordinate),
+    for alignment in [AlignItems::Baseline, AlignItems::LastBaseline] {
+        let mut tree = OracleTreeOf::<S>::new()
+            .children(1, [2, 3])
+            .children(2, [])
+            .children(3, [4])
+            .children(4, [])
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode,
+                    size: root_size.map(PreferredSizeOf::px),
+                    grid_template_columns: vec![
+                        TrackComponentOf::px(S::from_f64(60.0)),
+                        TrackComponentOf::px(S::from_f64(60.0)),
+                    ],
+                    grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
+                    align_items: Some(alignment),
+                    ..NodeInputOf::default()
                 },
             )
-        };
-
-        for alignment in [AlignItems::Baseline, AlignItems::LastBaseline] {
-            let mut tree = OracleTreeOf::<S>::new()
-                .children(1, [2, 3])
-                .children(2, [])
-                .children(3, [4])
-                .children(4, [])
-                .style(
-                    1,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        writing_mode,
-                        size: root_size.map(PreferredSizeOf::px),
-                        grid_template_columns: vec![
-                            TrackComponentOf::px(S::from_f64(60.0)),
-                            TrackComponentOf::px(S::from_f64(60.0)),
-                        ],
-                        grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
-                        align_items: Some(alignment),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .style(
-                    2,
-                    NodeInputOf {
-                        writing_mode,
-                        align_self: Some(alignment),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .style(
-                    3,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        writing_mode,
-                        grid_column: GridPlacement::try_line(2).expect("valid grid line"),
-                        grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
-                        grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
-                            name_components: Vec::new(),
-                        })],
-                        ..NodeInputOf::default()
-                    },
-                )
-                .style(
-                    4,
-                    NodeInputOf {
-                        writing_mode,
-                        align_self: Some(alignment),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .measure(2, baseline_output(S::from_f64(14.0)))
-                .measure(4, baseline_output(S::from_f64(8.0)));
-
-            let output = compute_grid(
-                &mut tree,
-                1,
-                ComputeInputOf::for_child(
-                    RunMode::PerformLayout,
-                    SizingMode::InherentSize,
-                    RequestedAxis::Both,
-                    Size::NONE,
-                    root_size.map(Some),
-                    crate::ContainingLayoutContext::new(
-                        flow_axes,
-                        crate::ParentFormattingContext::NoParent,
-                    ),
-                    root_size.map(AvailableOf::definite),
-                ),
+            .style(
+                2,
+                NodeInputOf {
+                    writing_mode,
+                    align_self: Some(alignment),
+                    ..NodeInputOf::default()
+                },
             )
-            .expect("nested row subgrid baseline layout succeeds");
-            let root_baseline = match alignment {
-                AlignItems::Baseline => output.first_baselines,
-                AlignItems::LastBaseline => output.last_baselines,
-                _ => unreachable!("the test only uses baseline alignments"),
-            };
-            let root_baseline_coordinate = if writing_mode == WritingMode::VerticalRl {
+            .style(
+                3,
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode,
+                    grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                    grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
+                    grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
+                        name_components: Vec::new(),
+                    })],
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                4,
+                NodeInputOf {
+                    writing_mode,
+                    align_self: Some(alignment),
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(2, baseline_output(S::from_f64(14.0)))
+            .measure(4, baseline_output(S::from_f64(8.0)));
+
+        let output = compute_grid(
+            &mut tree,
+            1,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                root_size.map(Some),
+                crate::ContainingLayoutContext::new(
+                    flow_axes,
+                    crate::ParentFormattingContext::NoParent,
+                ),
+                root_size.map(AvailableOf::definite),
+            ),
+        )
+        .expect("nested row subgrid baseline layout succeeds");
+        let root_baseline = match alignment {
+            AlignItems::Baseline => output.first_baselines,
+            AlignItems::LastBaseline => output.last_baselines,
+            _ => unreachable!("the test only uses baseline alignments"),
+        };
+        let root_baseline_coordinate = if writing_mode == WritingMode::VerticalRl {
+            if alignment == AlignItems::Baseline {
+                S::from_f64(68.0)
+            } else {
+                S::from_f64(14.0)
+            }
+        } else if alignment == AlignItems::Baseline {
+            S::from_f64(14.0)
+        } else {
+            S::from_f64(68.0)
+        };
+        assert_eq!(
+            root_baseline,
+            physical_baseline(root_baseline_coordinate),
+            "{writing_mode:?} {alignment:?}"
+        );
+        let descendant = tree.layout(4).expect("nested descendant was laid out");
+        let sibling = tree.layout(2).expect("baseline sibling was laid out");
+        let (descendant_block_offset, sibling_block_offset) =
+            if writing_mode == WritingMode::VerticalRl {
                 if alignment == AlignItems::Baseline {
-                    S::from_f64(68.0)
+                    (S::from_f64(60.0), S::from_f64(54.0))
                 } else {
-                    S::from_f64(14.0)
+                    (S::from_f64(6.0), S::ZERO)
                 }
             } else if alignment == AlignItems::Baseline {
-                S::from_f64(14.0)
+                (S::from_f64(6.0), S::ZERO)
             } else {
-                S::from_f64(68.0)
+                (S::from_f64(60.0), S::from_f64(54.0))
             };
-            assert_eq!(
-                root_baseline,
-                physical_baseline(root_baseline_coordinate),
-                "{writing_mode:?} {alignment:?}"
-            );
-            let descendant = tree.layout(4).expect("nested descendant was laid out");
-            let sibling = tree.layout(2).expect("baseline sibling was laid out");
-            let (descendant_block_offset, sibling_block_offset) =
-                if writing_mode == WritingMode::VerticalRl {
-                    if alignment == AlignItems::Baseline {
-                        (S::from_f64(60.0), S::from_f64(54.0))
-                    } else {
-                        (S::from_f64(6.0), S::ZERO)
-                    }
-                } else if alignment == AlignItems::Baseline {
-                    (S::from_f64(6.0), S::ZERO)
-                } else {
-                    (S::from_f64(60.0), S::from_f64(54.0))
-                };
-            match flow_axes.block_axis() {
-                PhysicalAxis::Horizontal => {
-                    assert_eq!(
-                        descendant.location.x, descendant_block_offset,
-                        "descendant={descendant:?} sibling={sibling:?} root={root_baseline:?}"
-                    );
-                    assert_eq!(sibling.location.x, sibling_block_offset);
-                }
-                PhysicalAxis::Vertical => {
-                    assert_eq!(
-                        descendant.location.y, descendant_block_offset,
-                        "descendant={descendant:?} sibling={sibling:?} root={root_baseline:?}"
-                    );
-                    assert_eq!(sibling.location.y, sibling_block_offset);
-                }
+        match flow_axes.block_axis() {
+            PhysicalAxis::Horizontal => {
+                assert_eq!(
+                    descendant.location.x, descendant_block_offset,
+                    "descendant={descendant:?} sibling={sibling:?} root={root_baseline:?}"
+                );
+                assert_eq!(sibling.location.x, sibling_block_offset);
+            }
+            PhysicalAxis::Vertical => {
+                assert_eq!(
+                    descendant.location.y, descendant_block_offset,
+                    "descendant={descendant:?} sibling={sibling:?} root={root_baseline:?}"
+                );
+                assert_eq!(sibling.location.y, sibling_block_offset);
             }
         }
-    };
+    }
 }
 
 #[test]
@@ -8667,130 +8478,114 @@ fn assert_published_baseline_group_order_keeps_compatible_axis<S: LayoutScalar>(
 ) where
     lts::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
 {
-    (AssertPublishedBaselineGroupOrderKeepsCompatibleAxisPhaseL8508::<S>::RUN)(incompatible_first)
-}
-
-type AssertPublishedBaselineGroupOrderKeepsCompatibleAxisPhaseL8508Run = fn(bool);
-
-struct AssertPublishedBaselineGroupOrderKeepsCompatibleAxisPhaseL8508<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertPublishedBaselineGroupOrderKeepsCompatibleAxisPhaseL8508<S>
-where
-    lts::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
-{
-    const RUN: AssertPublishedBaselineGroupOrderKeepsCompatibleAxisPhaseL8508Run =
-        |incompatible_first: bool| {
-            let root_children = if incompatible_first { [2, 3] } else { [3, 2] };
-            let incompatible_baselines = ComputeOutputOf::from_sizes_and_baselines(
-                Size::new(S::from_f64(30.0), S::from_f64(20.0)),
-                Size::new(S::from_f64(30.0), S::from_f64(20.0)),
-                BaselinesOf {
-                    first: Point::new(Some(S::from_f64(15.0)), None),
-                    last: Point::NONE,
-                },
-            );
-            let compatible_baselines = ComputeOutputOf::from_sizes_and_baselines(
-                Size::new(S::from_f64(30.0), S::from_f64(20.0)),
-                Size::new(S::from_f64(30.0), S::from_f64(20.0)),
-                BaselinesOf {
-                    first: Point::new(None, Some(S::from_f64(14.0))),
-                    last: Point::NONE,
-                },
-            );
-            let mut tree = lts::layout_tree::OracleTreeOf::<S>::new()
-                .children(1, root_children)
-                .children(2, [4])
-                .children(3, [5])
-                .children(4, [])
-                .children(5, [])
-                .style(
-                    1,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        size: Size::new(
-                            PreferredSizeOf::px(S::from_f64(120.0)),
-                            PreferredSizeOf::px(S::from_f64(80.0)),
-                        ),
-                        grid_template_columns: vec![
-                            TrackComponentOf::px(S::from_f64(60.0)),
-                            TrackComponentOf::px(S::from_f64(60.0)),
-                        ],
-                        grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
-                        align_items: Some(AlignItems::Start),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .style(
-                    2,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        writing_mode: WritingMode::VerticalRl,
-                        grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
-                        grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
-                            name_components: Vec::new(),
-                        })],
-                        ..NodeInputOf::default()
-                    },
-                )
-                .style(
-                    3,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        grid_column: GridPlacement::try_line(2).expect("valid grid line"),
-                        grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
-                        grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
-                            name_components: Vec::new(),
-                        })],
-                        ..NodeInputOf::default()
-                    },
-                )
-                .style(
-                    4,
-                    NodeInputOf {
-                        writing_mode: WritingMode::VerticalRl,
-                        align_self: Some(AlignItems::Baseline),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .style(
-                    5,
-                    NodeInputOf {
-                        align_self: Some(AlignItems::Baseline),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .measure(4, incompatible_baselines)
-                .measure(5, compatible_baselines);
-
-            let output = compute_grid(
-                &mut tree,
-                1,
-                ComputeInputOf::for_child(
-                    RunMode::PerformLayout,
-                    SizingMode::InherentSize,
-                    RequestedAxis::Both,
-                    Size::NONE,
-                    Size::new(Some(S::from_f64(120.0)), Some(S::from_f64(80.0))),
-                    crate::ContainingLayoutContext::new(
-                        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                        crate::ParentFormattingContext::NoParent,
-                    ),
-                    Size::new(
-                        AvailableOf::definite(S::from_f64(120.0)),
-                        AvailableOf::definite(S::from_f64(80.0)),
-                    ),
+    let root_children = if incompatible_first { [2, 3] } else { [3, 2] };
+    let incompatible_baselines = ComputeOutputOf::from_sizes_and_baselines(
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        BaselinesOf {
+            first: Point::new(Some(S::from_f64(15.0)), None),
+            last: Point::NONE,
+        },
+    );
+    let compatible_baselines = ComputeOutputOf::from_sizes_and_baselines(
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        BaselinesOf {
+            first: Point::new(None, Some(S::from_f64(14.0))),
+            last: Point::NONE,
+        },
+    );
+    let mut tree = lts::layout_tree::OracleTreeOf::<S>::new()
+        .children(1, root_children)
+        .children(2, [4])
+        .children(3, [5])
+        .children(4, [])
+        .children(5, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(120.0)),
+                    PreferredSizeOf::px(S::from_f64(80.0)),
                 ),
-            )
-            .expect("sibling subgrid layout succeeds");
+                grid_template_columns: vec![
+                    TrackComponentOf::px(S::from_f64(60.0)),
+                    TrackComponentOf::px(S::from_f64(60.0)),
+                ],
+                grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
+                align_items: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
+                    name_components: Vec::new(),
+                })],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
+                    name_components: Vec::new(),
+                })],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalRl,
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            5,
+            NodeInputOf {
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(4, incompatible_baselines)
+        .measure(5, compatible_baselines);
 
-            assert_eq!(
-                output.first_baselines,
-                Point::new(Some(S::from_f64(15.0)), Some(S::from_f64(14.0)))
-            );
-            assert_eq!(output.last_baselines, Point::new(None, Some(S::ZERO)));
-        };
+    let output = compute_grid(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(120.0)), Some(S::from_f64(80.0))),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
+            Size::new(
+                AvailableOf::definite(S::from_f64(120.0)),
+                AvailableOf::definite(S::from_f64(80.0)),
+            ),
+        ),
+    )
+    .expect("sibling subgrid layout succeeds");
+
+    assert_eq!(
+        output.first_baselines,
+        Point::new(Some(S::from_f64(15.0)), Some(S::from_f64(14.0)))
+    );
+    assert_eq!(output.last_baselines, Point::new(None, Some(S::ZERO)));
 }
 
 #[test]
@@ -9331,10 +9126,6 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
 
 #[test]
 fn grid_absolute_child_does_not_consume_auto_placement_cell() {
-    (GRID_ABSOLUTE_CHILD_DOES_NOT_CONSUME_AUTO_PLACEMENT_CELL_PHASE)();
-}
-
-const GRID_ABSOLUTE_CHILD_DOES_NOT_CONSUME_AUTO_PLACEMENT_CELL_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -9460,7 +9251,7 @@ const GRID_ABSOLUTE_CHILD_DOES_NOT_CONSUME_AUTO_PLACEMENT_CELL_PHASE: fn() = || 
         normal_layout_input.known(),
         Size::new(Some(80.0), Some(40.0))
     );
-};
+}
 
 #[test]
 fn named_grid_absolute_child_uses_resolved_raw_placement() {
@@ -10174,10 +9965,6 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
 
 #[test]
 fn grid_absolute_child_expands_vertical_auto_margins() {
-    (GRID_ABSOLUTE_CHILD_EXPANDS_VERTICAL_AUTO_MARGINS_PHASE)();
-}
-
-const GRID_ABSOLUTE_CHILD_EXPANDS_VERTICAL_AUTO_MARGINS_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -10291,7 +10078,7 @@ const GRID_ABSOLUTE_CHILD_EXPANDS_VERTICAL_AUTO_MARGINS_PHASE: fn() = || {
     assert_eq!(tree.layouts[&2].margin.top, 40.0);
     assert_eq!(tree.layouts[&2].margin.bottom, 40.0);
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 20.0));
-};
+}
 
 #[test]
 fn grid_absolute_child_percent_size_resolves_against_grid_area() {
@@ -11955,10 +11742,6 @@ fn grid_content_size_mode_ignores_authored_size() {
 
 #[test]
 fn grid_item_margins_reduce_stretched_grid_area() {
-    (GRID_ITEM_MARGINS_REDUCE_STRETCHED_GRID_AREA_PHASE)();
-}
-
-const GRID_ITEM_MARGINS_REDUCE_STRETCHED_GRID_AREA_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -12076,7 +11859,7 @@ const GRID_ITEM_MARGINS_REDUCE_STRETCHED_GRID_AREA_PHASE: fn() = || {
     assert_eq!(tree.layouts[&2].margin.right, 7.0);
     assert_eq!(tree.layouts[&2].margin.top, 3.0);
     assert_eq!(tree.layouts[&2].margin.bottom, 5.0);
-};
+}
 
 #[test]
 fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() {
@@ -12412,10 +12195,6 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
 
 #[test]
 fn grid_definite_column_line_places_item_in_explicit_track() {
-    (GRID_DEFINITE_COLUMN_LINE_PLACES_ITEM_IN_EXPLICIT_TRACK_PHASE)();
-}
-
-const GRID_DEFINITE_COLUMN_LINE_PLACES_ITEM_IN_EXPLICIT_TRACK_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -12540,7 +12319,7 @@ const GRID_DEFINITE_COLUMN_LINE_PLACES_ITEM_IN_EXPLICIT_TRACK_PHASE: fn() = || {
     );
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&3].size, Size::new(80.0, 40.0));
-};
+}
 
 #[test]
 fn grid_definite_row_line_places_item_in_explicit_track() {
@@ -12866,10 +12645,6 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
 
 #[test]
 fn grid_column_span_auto_places_across_multiple_free_tracks() {
-    (GRID_COLUMN_SPAN_AUTO_PLACES_ACROSS_MULTIPLE_FREE_TRACKS_PHASE)();
-}
-
-const GRID_COLUMN_SPAN_AUTO_PLACES_ACROSS_MULTIPLE_FREE_TRACKS_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -13008,14 +12783,10 @@ const GRID_COLUMN_SPAN_AUTO_PLACES_ACROSS_MULTIPLE_FREE_TRACKS_PHASE: fn() = || 
         tree.layouts[&3].size,
         Size::new(expected_second_columns.size, 20.0)
     );
-};
+}
 
 #[test]
 fn grid_dense_auto_flow_backfills_earlier_free_cells() {
-    (GRID_DENSE_AUTO_FLOW_BACKFILLS_EARLIER_FREE_CELLS_PHASE)();
-}
-
-const GRID_DENSE_AUTO_FLOW_BACKFILLS_EARLIER_FREE_CELLS_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -13182,14 +12953,10 @@ const GRID_DENSE_AUTO_FLOW_BACKFILLS_EARLIER_FREE_CELLS_PHASE: fn() = || {
         tree.layouts[&4].size,
         Size::new(fourth_columns.size, fourth_rows.size)
     );
-};
+}
 
 #[test]
 fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
-    (GRID_DENSE_ROW_FLOW_PLACES_DEFINITE_ROW_ITEMS_BEFORE_AUTO_ITEMS_PHASE)();
-}
-
-const GRID_DENSE_ROW_FLOW_PLACES_DEFINITE_ROW_ITEMS_BEFORE_AUTO_ITEMS_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -13321,7 +13088,7 @@ const GRID_DENSE_ROW_FLOW_PLACES_DEFINITE_ROW_ITEMS_BEFORE_AUTO_ITEMS_PHASE: fn(
     assert_eq!(tree.layouts[&4].location, Point::new(0.0, 80.0));
     assert_eq!(tree.layouts[&7].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&9].location, Point::new(40.0, 0.0));
-};
+}
 
 #[test]
 fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
@@ -13432,10 +13199,6 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
 
 #[test]
 fn grid_definite_column_line_span_resolves_from_start_line() {
-    (GRID_DEFINITE_COLUMN_LINE_SPAN_RESOLVES_FROM_START_LINE_PHASE)();
-}
-
-const GRID_DEFINITE_COLUMN_LINE_SPAN_RESOLVES_FROM_START_LINE_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -13561,14 +13324,10 @@ const GRID_DEFINITE_COLUMN_LINE_SPAN_RESOLVES_FROM_START_LINE_PHASE: fn() = || {
         tree.layouts[&2].size,
         Size::new(expected_column_area.size, 20.0)
     );
-};
+}
 
 #[test]
 fn grid_definite_column_span_line_resolves_to_end_line() {
-    (GRID_DEFINITE_COLUMN_SPAN_LINE_RESOLVES_TO_END_LINE_PHASE)();
-}
-
-const GRID_DEFINITE_COLUMN_SPAN_LINE_RESOLVES_TO_END_LINE_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -13694,7 +13453,7 @@ const GRID_DEFINITE_COLUMN_SPAN_LINE_RESOLVES_TO_END_LINE_PHASE: fn() = || {
         tree.layouts[&2].size,
         Size::new(expected_column_area.size, 20.0)
     );
-};
+}
 
 #[test]
 fn grid_mixed_positive_negative_line_span_counts_actual_tracks_for_auto_growth() {
@@ -14717,10 +14476,6 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
 
 #[test]
 fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
-    (GRID_FRACTION_TRACKS_SHARE_LEFTOVER_SPACE_AFTER_FIXED_TRACKS_AND_GAPS_PHASE)();
-}
-
-const GRID_FRACTION_TRACKS_SHARE_LEFTOVER_SPACE_AFTER_FIXED_TRACKS_AND_GAPS_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -14841,7 +14596,7 @@ const GRID_FRACTION_TRACKS_SHARE_LEFTOVER_SPACE_AFTER_FIXED_TRACKS_AND_GAPS_PHAS
     assert!((tree.layouts[&3].size.width - expected.final_tracks[1].size).abs() < 0.000_001);
     assert!((tree.layouts[&4].location.x - expected.final_tracks[2].offset).abs() < 0.000_001);
     assert!((tree.layouts[&4].size.width - expected.final_tracks[2].size).abs() < 0.000_001);
-};
+}
 
 #[test]
 fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
@@ -15159,10 +14914,6 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
 
 #[test]
 fn grid_stretch_distributes_free_space_to_auto_tracks() {
-    (GRID_STRETCH_DISTRIBUTES_FREE_SPACE_TO_AUTO_TRACKS_PHASE)();
-}
-
-const GRID_STRETCH_DISTRIBUTES_FREE_SPACE_TO_AUTO_TRACKS_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -15281,14 +15032,10 @@ const GRID_STRETCH_DISTRIBUTES_FREE_SPACE_TO_AUTO_TRACKS_PHASE: fn() = || {
         tree.layouts[&3].size,
         Size::new(expected.final_tracks[1].size, 20.0)
     );
-};
+}
 
 #[test]
 fn grid_auto_track_uses_single_item_intrinsic_contribution() {
-    (GRID_AUTO_TRACK_USES_SINGLE_ITEM_INTRINSIC_CONTRIBUTION_PHASE)();
-}
-
-const GRID_AUTO_TRACK_USES_SINGLE_ITEM_INTRINSIC_CONTRIBUTION_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -15446,7 +15193,7 @@ const GRID_AUTO_TRACK_USES_SINGLE_ITEM_INTRINSIC_CONTRIBUTION_PHASE: fn() = || {
             Some(expected_rows.final_tracks[0].size)
         )
     );
-};
+}
 
 #[test]
 fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
@@ -15879,115 +15626,110 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
 
 #[test]
 fn nested_subgrid_percent_columns_rerun_rows_after_inherited_width_and_margin() {
-    (NESTED_SUBGRID_PERCENT_COLUMNS_RERUN_ROWS_AFTER_INHERITED_WIDTH_AND_MARGIN_PHASE)();
-}
-
-const NESTED_SUBGRID_PERCENT_COLUMNS_RERUN_ROWS_AFTER_INHERITED_WIDTH_AND_MARGIN_PHASE: fn() =
-    || {
-        let mut tree = OracleTree::new()
-            .children(1, [2])
-            .children(2, [3])
-            .children(3, [4])
-            .children(4, [])
-            .style(
-                1,
-                NodeInput {
-                    display: Display::InlineGrid,
-                    grid_template_columns: vec![TrackComponent::px(100.0)],
-                    ..NodeInput::DEFAULT
-                },
-            )
-            .style(
-                2,
-                NodeInput {
-                    display: Display::Grid,
-                    grid_template_columns: vec![empty_subgrid_track()],
-                    grid_template_rows: vec![empty_subgrid_track()],
-                    margin: Edges {
-                        left: LengthAuto::px(10.0),
-                        right: LengthAuto::px(5.0),
-                        ..Edges::all(LengthAuto::ZERO)
-                    },
-                    ..NodeInput::DEFAULT
-                },
-            )
-            .style(
-                3,
-                NodeInput {
-                    display: Display::Grid,
-                    grid_template_columns: vec![TrackComponent::percent(1.0)],
-                    grid_template_rows: vec![empty_subgrid_track()],
-                    margin: Edges {
-                        right: LengthAuto::px(5.0),
-                        ..Edges::all(LengthAuto::ZERO)
-                    },
-                    ..NodeInput::DEFAULT
-                },
-            )
-            .style(4, NodeInput::default())
-            .measure_when(
-                4,
-                OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(100.0, 64.0)))
-                    .run_mode(RunMode::ComputeSize)
-                    .known(Size::new(None, None))
-                    .available(Size::new(
-                        Available::Definite(100.0),
-                        Available::MAX_CONTENT,
-                    )),
-            )
-            .measure_when(
-                4,
-                OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(80.0, 96.0)))
-                    .run_mode(RunMode::ComputeSize)
-                    .known(Size::new(Some(80.0), None))
-                    .available(Size::new(Available::Definite(80.0), Available::MAX_CONTENT)),
-            )
-            .measure_when(
-                4,
-                OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(80.0, 96.0)))
-                    .run_mode(RunMode::PerformLayout)
-                    .known(Size::new(None, None))
-                    .available(Size::new(
-                        Available::Definite(80.0),
-                        Available::Definite(96.0),
-                    )),
-            )
-            .measure(4, ComputeOutput::from_outer_size(Size::new(100.0, 64.0)));
-
-        let output = crate::compute_grid(
-            &mut tree,
+    let mut tree = OracleTree::new()
+        .children(1, [2])
+        .children(2, [3])
+        .children(3, [4])
+        .children(4, [])
+        .style(
             1,
-            ComputeInput::for_child(
-                RunMode::PerformLayout,
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                Size::NONE,
-                Size::NONE,
-                crate::ContainingLayoutContext::new(
-                    crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
-                    ),
-                    crate::ParentFormattingContext::NoParent,
-                ),
-                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            ),
-        )
-        .unwrap();
-        tree.set_unrounded(
-            1,
-            NodeOutput {
-                size: output.size,
-                content_size: output.content_size,
-                ..NodeOutput::new()
+            NodeInput {
+                display: Display::InlineGrid,
+                grid_template_columns: vec![TrackComponent::px(100.0)],
+                ..NodeInput::DEFAULT
             },
-        );
-        round_layout(&mut tree, 1).unwrap();
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![empty_subgrid_track()],
+                grid_template_rows: vec![empty_subgrid_track()],
+                margin: Edges {
+                    left: LengthAuto::px(10.0),
+                    right: LengthAuto::px(5.0),
+                    ..Edges::all(LengthAuto::ZERO)
+                },
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::percent(1.0)],
+                grid_template_rows: vec![empty_subgrid_track()],
+                margin: Edges {
+                    right: LengthAuto::px(5.0),
+                    ..Edges::all(LengthAuto::ZERO)
+                },
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(4, NodeInput::default())
+        .measure_when(
+            4,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(100.0, 64.0)))
+                .run_mode(RunMode::ComputeSize)
+                .known(Size::new(None, None))
+                .available(Size::new(
+                    Available::Definite(100.0),
+                    Available::MAX_CONTENT,
+                )),
+        )
+        .measure_when(
+            4,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(80.0, 96.0)))
+                .run_mode(RunMode::ComputeSize)
+                .known(Size::new(Some(80.0), None))
+                .available(Size::new(Available::Definite(80.0), Available::MAX_CONTENT)),
+        )
+        .measure_when(
+            4,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(80.0, 96.0)))
+                .run_mode(RunMode::PerformLayout)
+                .known(Size::new(None, None))
+                .available(Size::new(
+                    Available::Definite(80.0),
+                    Available::Definite(96.0),
+                )),
+        )
+        .measure(4, ComputeOutput::from_outer_size(Size::new(100.0, 64.0)));
 
-        assert_eq!(output.size.height, 96.0);
-        assert_eq!(tree.final_layout(2).unwrap().size, Size::new(85.0, 96.0));
-        assert_eq!(tree.final_layout(3).unwrap().size, Size::new(80.0, 96.0));
-    };
+    let output = crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
+    )
+    .unwrap();
+    tree.set_unrounded(
+        1,
+        NodeOutput {
+            size: output.size,
+            content_size: output.content_size,
+            ..NodeOutput::new()
+        },
+    );
+    round_layout(&mut tree, 1).unwrap();
+
+    assert_eq!(output.size.height, 96.0);
+    assert_eq!(tree.final_layout(2).unwrap().size, Size::new(85.0, 96.0));
+    assert_eq!(tree.final_layout(3).unwrap().size, Size::new(80.0, 96.0));
+}
 
 #[test]
 fn row_subgrid_percent_column_leaf_uses_spanned_inline_size_for_row_contribution() {
@@ -16303,101 +16045,42 @@ fn assert_logical_ordinary_grid_intrinsic_reruns_fake_measurements<S: LayoutScal
 where
     OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
 {
-    (AssertLogicalOrdinaryGridIntrinsicRerunsFakeMeasurementsPhaseL16129::<S>::RUN)()
-}
+    let scalar = S::from_f64;
+    let measured_size = Size::new(scalar(17.0), scalar(31.0));
+    let relationships = [
+        (
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            "parallel",
+        ),
+        (
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            "opposing",
+        ),
+        (
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            "parent-horizontal-child-vertical",
+        ),
+        (
+            WritingMode::VerticalLr,
+            Direction::Ltr,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            "parent-vertical-child-horizontal",
+        ),
+    ];
 
-type AssertLogicalOrdinaryGridIntrinsicRerunsFakeMeasurementsPhaseL16129Run = fn();
-
-struct AssertLogicalOrdinaryGridIntrinsicRerunsFakeMeasurementsPhaseL16129<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertLogicalOrdinaryGridIntrinsicRerunsFakeMeasurementsPhaseL16129<S>
-where
-    OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
-{
-    const RUN: AssertLogicalOrdinaryGridIntrinsicRerunsFakeMeasurementsPhaseL16129Run = || {
-        let scalar = S::from_f64;
-        let measured_size = Size::new(scalar(17.0), scalar(31.0));
-        let relationships = [
-            (
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-                "parallel",
-            ),
-            (
-                WritingMode::HorizontalTb,
-                Direction::Rtl,
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-                "opposing",
-            ),
-            (
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-                WritingMode::VerticalRl,
-                Direction::Ltr,
-                "parent-horizontal-child-vertical",
-            ),
-            (
-                WritingMode::VerticalLr,
-                Direction::Ltr,
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-                "parent-vertical-child-horizontal",
-            ),
-        ];
-
-        for (parent_writing_mode, parent_direction, child_writing_mode, child_direction, label) in
-            relationships
-        {
-            let mut tree = OracleTreeOf::<S>::new()
-                .children(1, [2])
-                .children(2, [])
-                .style(
-                    1,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        writing_mode: parent_writing_mode,
-                        direction: parent_direction,
-                        grid_template_columns: vec![TrackComponentOf::AUTO],
-                        grid_template_rows: vec![TrackComponentOf::AUTO],
-                        ..NodeInputOf::default()
-                    },
-                )
-                .style(
-                    2,
-                    NodeInputOf {
-                        writing_mode: child_writing_mode,
-                        direction: child_direction,
-                        ..NodeInputOf::default()
-                    },
-                )
-                .measure(2, ComputeOutputOf::from_outer_size(measured_size));
-
-            let output = crate::compute_grid(
-                &mut tree,
-                1,
-                ComputeInputOf::for_child(
-                    RunMode::PerformLayout,
-                    SizingMode::InherentSize,
-                    RequestedAxis::Both,
-                    Size::NONE,
-                    Size::NONE,
-                    crate::ContainingLayoutContext::new(
-                        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                        crate::ParentFormattingContext::NoParent,
-                    ),
-                    Size::splat(AvailableOf::MAX_CONTENT),
-                ),
-            )
-            .expect("ordinary grid fake measurement layout succeeds");
-
-            assert_eq!(output.size, measured_size, "{label}");
-        }
-
+    for (parent_writing_mode, parent_direction, child_writing_mode, child_direction, label) in
+        relationships
+    {
         let mut tree = OracleTreeOf::<S>::new()
             .children(1, [2])
             .children(2, [])
@@ -16405,26 +16088,22 @@ where
                 1,
                 NodeInputOf {
                     display: Display::Grid,
-                    writing_mode: WritingMode::VerticalLr,
-                    size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(80.0))),
-                    grid_template_columns: vec![TrackComponentOf::percent(scalar(1.0))],
+                    writing_mode: parent_writing_mode,
+                    direction: parent_direction,
+                    grid_template_columns: vec![TrackComponentOf::AUTO],
                     grid_template_rows: vec![TrackComponentOf::AUTO],
-                    justify_content: Some(AlignContent::Start),
-                    align_content: Some(AlignContent::Start),
                     ..NodeInputOf::default()
                 },
             )
             .style(
                 2,
                 NodeInputOf {
-                    writing_mode: WritingMode::HorizontalTb,
+                    writing_mode: child_writing_mode,
+                    direction: child_direction,
                     ..NodeInputOf::default()
                 },
             )
-            .measure(
-                2,
-                ComputeOutputOf::from_outer_size(Size::new(scalar(40.0), scalar(96.0))),
-            );
+            .measure(2, ComputeOutputOf::from_outer_size(measured_size));
 
         let output = crate::compute_grid(
             &mut tree,
@@ -16442,35 +16121,83 @@ where
                 Size::splat(AvailableOf::MAX_CONTENT),
             ),
         )
-        .expect("ordinary grid percentage rerun succeeds");
+        .expect("ordinary grid fake measurement layout succeeds");
 
-        assert_eq!(output.size, Size::new(scalar(40.0), scalar(80.0)));
-        let child_inputs = tree.inputs(2);
-        assert!(
-            child_inputs.iter().any(|input| {
-                input.run_mode() == RunMode::ComputeSize
-                    && input.known() == Size::new(None, Some(scalar(80.0)))
-                    && input.available()
-                        == Size::new(
-                            AvailableOf::MAX_CONTENT,
-                            AvailableOf::definite(scalar(80.0)),
-                        )
-            }),
-            "constrained row sizing must map the resolved logical inline track to the child's physical height: {child_inputs:?}"
+        assert_eq!(output.size, measured_size, "{label}");
+    }
+
+    let mut tree = OracleTreeOf::<S>::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(80.0))),
+                grid_template_columns: vec![TrackComponentOf::percent(scalar(1.0))],
+                grid_template_rows: vec![TrackComponentOf::AUTO],
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                writing_mode: WritingMode::HorizontalTb,
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(
+            2,
+            ComputeOutputOf::from_outer_size(Size::new(scalar(40.0), scalar(96.0))),
         );
-        assert!(
-            child_inputs.iter().any(|input| {
-                input.run_mode() == RunMode::ComputeSize
-                    && input.known() == Size::new(Some(scalar(40.0)), None)
-                    && input.available()
-                        == Size::new(
-                            AvailableOf::definite(scalar(40.0)),
-                            AvailableOf::MIN_CONTENT,
-                        )
-            }),
-            "constrained column sizing must map the resolved logical block track to the child's physical width: {child_inputs:?}"
-        );
-    };
+
+    let output = crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
+            Size::splat(AvailableOf::MAX_CONTENT),
+        ),
+    )
+    .expect("ordinary grid percentage rerun succeeds");
+
+    assert_eq!(output.size, Size::new(scalar(40.0), scalar(80.0)));
+    let child_inputs = tree.inputs(2);
+    assert!(
+        child_inputs.iter().any(|input| {
+            input.run_mode() == RunMode::ComputeSize
+                && input.known() == Size::new(None, Some(scalar(80.0)))
+                && input.available()
+                    == Size::new(
+                        AvailableOf::MAX_CONTENT,
+                        AvailableOf::definite(scalar(80.0)),
+                    )
+        }),
+        "constrained row sizing must map the resolved logical inline track to the child's physical height: {child_inputs:?}"
+    );
+    assert!(
+        child_inputs.iter().any(|input| {
+            input.run_mode() == RunMode::ComputeSize
+                && input.known() == Size::new(Some(scalar(40.0)), None)
+                && input.available()
+                    == Size::new(
+                        AvailableOf::definite(scalar(40.0)),
+                        AvailableOf::MIN_CONTENT,
+                    )
+        }),
+        "constrained column sizing must map the resolved logical block track to the child's physical width: {child_inputs:?}"
+    );
 }
 
 #[test]
@@ -16809,18 +16536,6 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
 #[test]
 fn grid_intrinsic_column_sizing_resolves_horizontal_percent_margins_against_containing_inline_size()
 {
-    (GridIntrinsicColumnSizingResolvesHorizontalPercentMarginsAgainstContainingInlineSizePhaseL16622::RUN)()
-}
-
-type GridIntrinsicColumnSizingResolvesHorizontalPercentMarginsAgainstContainingInlineSizePhaseL16622Run =
-    fn();
-
-struct GridIntrinsicColumnSizingResolvesHorizontalPercentMarginsAgainstContainingInlineSizePhaseL16622;
-
-impl
-    GridIntrinsicColumnSizingResolvesHorizontalPercentMarginsAgainstContainingInlineSizePhaseL16622
-{
-    const RUN: GridIntrinsicColumnSizingResolvesHorizontalPercentMarginsAgainstContainingInlineSizePhaseL16622Run = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -16934,15 +16649,10 @@ impl
     .unwrap();
 
     assert_eq!(output.content_size.width, 220.0);
-};
 }
 
 #[test]
 fn grid_nested_stretch_resolves_block_padding_percent_against_inline_size() {
-    (GRID_NESTED_STRETCH_RESOLVES_BLOCK_PADDING_PERCENT_AGAINST_INLINE_SIZE_PHASE)();
-}
-
-const GRID_NESTED_STRETCH_RESOLVES_BLOCK_PADDING_PERCENT_AGAINST_INLINE_SIZE_PHASE: fn() = || {
     #[derive(Default)]
     struct RecursiveTree {
         children: HashMap<u32, Vec<u32>>,
@@ -17082,14 +16792,10 @@ const GRID_NESTED_STRETCH_RESOLVES_BLOCK_PADDING_PERCENT_AGAINST_INLINE_SIZE_PHA
     assert_eq!(output.size, Size::new(200.0, 40.0));
     assert_eq!(tree.layouts[&2].size, Size::new(200.0, 40.0));
     assert_eq!(tree.layouts[&3].size, Size::new(200.0, 40.0));
-};
+}
 
 #[test]
 fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
-    (GRID_NESTED_PERCENT_MARGINS_RESOLVE_AGAINST_RESOLVED_NESTED_INLINE_SIZE_PHASE)();
-}
-
-const GRID_NESTED_PERCENT_MARGINS_RESOLVE_AGAINST_RESOLVED_NESTED_INLINE_SIZE_PHASE: fn() = || {
     #[derive(Default)]
     struct RecursiveTree {
         children: HashMap<u32, Vec<u32>>,
@@ -17227,7 +16933,7 @@ const GRID_NESTED_PERCENT_MARGINS_RESOLVE_AGAINST_RESOLVED_NESTED_INLINE_SIZE_PH
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 10.0));
     assert_eq!(tree.layouts[&3].location, Point::new(5.0, 5.0));
     assert_eq!(tree.layouts[&3].size, Size::new(45.0, 0.0));
-};
+}
 
 #[test]
 fn grid_recomputes_min_content_columns_from_resolved_row_height() {
@@ -17347,10 +17053,6 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
 
 #[test]
 fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
-    (GRID_SPANNING_ITEM_REDISTRIBUTES_BEYOND_FIT_CONTENT_LIMIT_PHASE)();
-}
-
-const GRID_SPANNING_ITEM_REDISTRIBUTES_BEYOND_FIT_CONTENT_LIMIT_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -17487,14 +17189,10 @@ const GRID_SPANNING_ITEM_REDISTRIBUTES_BEYOND_FIT_CONTENT_LIMIT_PHASE: fn() = ||
     assert_eq!(tree.layouts[&3].location, Point::new(60.0, 0.0));
     assert_eq!(tree.layouts[&3].size, Size::new(20.0, 40.0));
     assert_eq!(tree.layouts[&4].size, Size::new(80.0, 40.0));
-};
+}
 
 #[test]
 fn grid_spanning_item_grows_auto_track_after_min_content_track() {
-    (GRID_SPANNING_ITEM_GROWS_AUTO_TRACK_AFTER_MIN_CONTENT_TRACK_PHASE)();
-}
-
-const GRID_SPANNING_ITEM_GROWS_AUTO_TRACK_AFTER_MIN_CONTENT_TRACK_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -17608,137 +17306,128 @@ const GRID_SPANNING_ITEM_GROWS_AUTO_TRACK_AFTER_MIN_CONTENT_TRACK_PHASE: fn() = 
     assert_eq!(tree.layouts[&3].size, Size::new(60.0, 40.0));
     assert_eq!(tree.layouts[&4].location, Point::new(0.0, 40.0));
     assert_eq!(tree.layouts[&4].size, Size::new(80.0, 10.0));
-};
+}
 
 #[test]
 fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
-    (GRID_CLIPPED_SPANNING_ITEM_DISTRIBUTES_ACROSS_MIN_CONTENT_AND_AUTO_TRACKS_PHASE)();
-}
+    #[derive(Default)]
+    struct GridTree {
+        children: HashMap<u32, Vec<u32>>,
+        styles: HashMap<u32, NodeInput>,
+        layouts: HashMap<u32, NodeOutput>,
+    }
 
-const GRID_CLIPPED_SPANNING_ITEM_DISTRIBUTES_ACROSS_MIN_CONTENT_AND_AUTO_TRACKS_PHASE: fn() =
-    || {
-        #[derive(Default)]
-        struct GridTree {
-            children: HashMap<u32, Vec<u32>>,
-            styles: HashMap<u32, NodeInput>,
-            layouts: HashMap<u32, NodeOutput>,
+    impl Traverse for GridTree {
+        type Node = u32;
+
+        type Scalar = Scalar;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
         }
 
-        impl Traverse for GridTree {
-            type Node = u32;
-
-            type Scalar = Scalar;
-            type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-            fn children(&self, node: Self::Node) -> Self::Children<'_> {
-                self.children[&node].iter().copied()
-            }
-
-            fn child_count(&self, node: Self::Node) -> usize {
-                self.children[&node].len()
-            }
-
-            fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-                self.children[&node][index]
-            }
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
         }
 
-        impl Compute for GridTree {
-            fn node_input(&self, node: Self::Node) -> &NodeInput {
-                &self.styles[&node]
-            }
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
 
-            fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-                LayoutInputOf::box_input(self.node_input(node).clone())
-            }
-
-            fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-                self.layouts.insert(node, layout);
-            }
-
-            fn compute_child(
-                &mut self,
-                node: Self::Node,
-                input: ComputeInput,
-            ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-            {
-                let node_input = self.styles[&node].clone();
-                compute_leaf(input, &node_input, |measure_input| {
-                    let available = measure_input
-                        .available_content_size()
-                        .map(MeasurementAvailable::into_available);
-                    if node == 4 && available.width == Available::MIN_CONTENT {
-                        Ok::<_, core::convert::Infallible>(Size::new(40.0, 10.0))
-                    } else if node == 4 {
-                        Ok::<_, core::convert::Infallible>(Size::new(80.0, 10.0))
-                    } else {
-                        Ok::<_, core::convert::Infallible>(Size::ZERO)
-                    }
-                })
-                .map_err(|error| fake_leaf_error(node, error))
-            }
+    impl Compute for GridTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            &self.styles[&node]
         }
 
-        let mut tree = GridTree::default();
-        tree.children.insert(1, vec![2, 3, 4]);
-        tree.children.insert(2, vec![]);
-        tree.children.insert(3, vec![]);
-        tree.children.insert(4, vec![]);
-        tree.styles.insert(
-            1,
-            NodeInput {
-                display: Display::Grid,
-                grid_template_columns: vec![TrackComponent::MIN_CONTENT, TrackComponent::AUTO],
-                grid_template_rows: vec![TrackComponent::px(40.0)],
-                ..NodeInput::default()
-            },
-        );
-        tree.styles.insert(2, NodeInput::default());
-        tree.styles.insert(3, NodeInput::default());
-        tree.styles.insert(
-            4,
-            NodeInput {
-                overflow: computed_overflow(Overflow::Clip, Overflow::Clip),
-                grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
-                ..NodeInput::default()
-            },
-        );
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::box_input(self.node_input(node).clone())
+        }
 
-        let output = crate::compute_grid(
-            &mut tree,
-            1,
-            ComputeInput::for_child(
-                RunMode::PerformLayout,
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                Size::NONE,
-                Size::NONE,
-                crate::ContainingLayoutContext::new(
-                    crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
-                    ),
-                    crate::ParentFormattingContext::NoParent,
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            let node_input = self.styles[&node].clone();
+            compute_leaf(input, &node_input, |measure_input| {
+                let available = measure_input
+                    .available_content_size()
+                    .map(MeasurementAvailable::into_available);
+                if node == 4 && available.width == Available::MIN_CONTENT {
+                    Ok::<_, core::convert::Infallible>(Size::new(40.0, 10.0))
+                } else if node == 4 {
+                    Ok::<_, core::convert::Infallible>(Size::new(80.0, 10.0))
+                } else {
+                    Ok::<_, core::convert::Infallible>(Size::ZERO)
+                }
+            })
+            .map_err(|error| fake_leaf_error(node, error))
+        }
+    }
+
+    let mut tree = GridTree::default();
+    tree.children.insert(1, vec![2, 3, 4]);
+    tree.children.insert(2, vec![]);
+    tree.children.insert(3, vec![]);
+    tree.children.insert(4, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            grid_template_columns: vec![TrackComponent::MIN_CONTENT, TrackComponent::AUTO],
+            grid_template_rows: vec![TrackComponent::px(40.0)],
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(2, NodeInput::default());
+    tree.styles.insert(3, NodeInput::default());
+    tree.styles.insert(
+        4,
+        NodeInput {
+            overflow: computed_overflow(Overflow::Clip, Overflow::Clip),
+            grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
+            ..NodeInput::default()
+        },
+    );
+
+    let output = crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
                 ),
-                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+                crate::ParentFormattingContext::NoParent,
             ),
-        )
-        .unwrap();
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
+    )
+    .unwrap();
 
-        assert_eq!(output.size, Size::new(80.0, 50.0));
-        assert_eq!(tree.layouts[&2].size, Size::new(40.0, 40.0));
-        assert_eq!(tree.layouts[&3].location, Point::new(40.0, 0.0));
-        assert_eq!(tree.layouts[&3].size, Size::new(40.0, 40.0));
-        assert_eq!(tree.layouts[&4].location, Point::new(0.0, 40.0));
-        assert_eq!(tree.layouts[&4].size, Size::new(80.0, 10.0));
-    };
+    assert_eq!(output.size, Size::new(80.0, 50.0));
+    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 40.0));
+    assert_eq!(tree.layouts[&3].location, Point::new(40.0, 0.0));
+    assert_eq!(tree.layouts[&3].size, Size::new(40.0, 40.0));
+    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 40.0));
+    assert_eq!(tree.layouts[&4].size, Size::new(80.0, 10.0));
+}
 
 #[test]
 fn grid_spanning_item_grows_underfilled_auto_track_first() {
-    (GRID_SPANNING_ITEM_GROWS_UNDERFILLED_AUTO_TRACK_FIRST_PHASE)();
-}
-
-const GRID_SPANNING_ITEM_GROWS_UNDERFILLED_AUTO_TRACK_FIRST_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -17872,14 +17561,10 @@ const GRID_SPANNING_ITEM_GROWS_UNDERFILLED_AUTO_TRACK_FIRST_PHASE: fn() = || {
     assert_eq!(tree.layouts[&3].size, Size::new(40.0, 30.0));
     assert_eq!(tree.layouts[&4].location, Point::new(0.0, 50.0));
     assert_eq!(tree.layouts[&4].size, Size::new(120.0, 20.0));
-};
+}
 
 #[test]
 fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
-    (GRID_SPANNING_ITEM_RESERVES_PERCENT_TRACK_FROM_MAX_CONTENT_SIZE_PHASE)();
-}
-
-const GRID_SPANNING_ITEM_RESERVES_PERCENT_TRACK_FROM_MAX_CONTENT_SIZE_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -18028,172 +17713,164 @@ const GRID_SPANNING_ITEM_RESERVES_PERCENT_TRACK_FROM_MAX_CONTENT_SIZE_PHASE: fn(
     assert_eq!(tree.rounded[&7].size, Size::new(10.0, 40.0));
     assert_eq!(tree.rounded[&8].location, Point::new(128.0, 40.0));
     assert_eq!(tree.rounded[&8].size, Size::new(32.0, 40.0));
-};
+}
 
 #[test]
 fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_tracks() {
-    (GRID_SPANNING_ITEM_COUNTS_DEFINITE_MINMAX_FLOORS_WHEN_RESERVING_PERCENT_TRACKS_PHASE)();
-}
+    #[derive(Default)]
+    struct GridTree {
+        children: HashMap<u32, Vec<u32>>,
+        styles: HashMap<u32, NodeInput>,
+        unrounded: HashMap<u32, NodeOutput>,
+        rounded: HashMap<u32, NodeOutput>,
+    }
 
-const GRID_SPANNING_ITEM_COUNTS_DEFINITE_MINMAX_FLOORS_WHEN_RESERVING_PERCENT_TRACKS_PHASE: fn() =
-    || {
-        #[derive(Default)]
-        struct GridTree {
-            children: HashMap<u32, Vec<u32>>,
-            styles: HashMap<u32, NodeInput>,
-            unrounded: HashMap<u32, NodeOutput>,
-            rounded: HashMap<u32, NodeOutput>,
+    impl Traverse for GridTree {
+        type Node = u32;
+
+        type Scalar = Scalar;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
         }
 
-        impl Traverse for GridTree {
-            type Node = u32;
-
-            type Scalar = Scalar;
-            type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-            fn children(&self, node: Self::Node) -> Self::Children<'_> {
-                self.children[&node].iter().copied()
-            }
-
-            fn child_count(&self, node: Self::Node) -> usize {
-                self.children[&node].len()
-            }
-
-            fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-                self.children[&node][index]
-            }
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
         }
 
-        impl Compute for GridTree {
-            fn node_input(&self, node: Self::Node) -> &NodeInput {
-                &self.styles[&node]
-            }
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
 
-            fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-                LayoutInputOf::box_input(self.node_input(node).clone())
-            }
-
-            fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-                self.unrounded.insert(node, layout);
-            }
-
-            fn compute_child(
-                &mut self,
-                node: Self::Node,
-                input: ComputeInput,
-            ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-            {
-                let node_input = self.styles[&node].clone();
-                compute_leaf(input, &node_input, |measure_input| {
-                    let available = measure_input
-                        .available_content_size()
-                        .map(MeasurementAvailable::into_available);
-                    if node == 2 && available.width == Available::MIN_CONTENT {
-                        Ok::<_, core::convert::Infallible>(Size::new(160.0, 40.0))
-                    } else if node == 2 {
-                        Ok::<_, core::convert::Infallible>(Size::new(320.0, 40.0))
-                    } else {
-                        Ok::<_, core::convert::Infallible>(Size::ZERO)
-                    }
-                })
-                .map_err(|error| fake_leaf_error(node, error))
-            }
+    impl Compute for GridTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            &self.styles[&node]
         }
 
-        impl Round for GridTree {
-            fn unrounded(
-                &self,
-                node: Self::Node,
-            ) -> crate::LayoutResultOf<Self::Node, NodeOutput, Self::Scalar> {
-                Ok(self.unrounded[&node])
-            }
-
-            fn set_final(&mut self, node: Self::Node, layout: NodeOutput) {
-                self.rounded.insert(node, layout);
-            }
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
-        let mut tree = GridTree::default();
-        tree.children.insert(1, (2..=15).collect());
-        for node in 2..=15 {
-            tree.children.insert(node, vec![]);
-        }
-        tree.styles.insert(
-            1,
-            NodeInput {
-                display: Display::Grid,
-                grid_template_columns: vec![
-                    TrackComponent::MIN_CONTENT,
-                    TrackComponent::MAX_CONTENT,
-                    TrackComponent::Track(crate::TrackSizing::fit_content(
-                        SizingCalculation::value(lp(20.0, 0.0)),
-                    )),
-                    TrackComponent::AUTO,
-                    TrackComponent::px(10.0),
-                    TrackComponent::percent(0.2),
-                    TrackComponent::minmax(MinTrackSizing::px(2.0), MaxTrackSizing::AUTO),
-                    TrackComponent::minmax(MinTrackSizing::px(2.0), MaxTrackSizing::px(4.0)),
-                    TrackComponent::minmax(MinTrackSizing::px(2.0), MaxTrackSizing::MIN_CONTENT),
-                    TrackComponent::minmax(MinTrackSizing::px(2.0), MaxTrackSizing::MAX_CONTENT),
-                    TrackComponent::minmax(
-                        MinTrackSizing::MIN_CONTENT,
-                        MaxTrackSizing::MAX_CONTENT,
-                    ),
-                    TrackComponent::minmax(MinTrackSizing::MIN_CONTENT, MaxTrackSizing::AUTO),
-                    TrackComponent::minmax(MinTrackSizing::MAX_CONTENT, MaxTrackSizing::AUTO),
-                ],
-                grid_template_rows: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
-                ..NodeInput::default()
-            },
-        );
-        tree.styles.insert(
-            2,
-            NodeInput {
-                grid_column: GridPlacement::try_line_span(1, 13).expect("valid grid line span"),
-                ..NodeInput::default()
-            },
-        );
-        for node in 3..=15 {
-            tree.styles.insert(node, NodeInput::default());
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.unrounded.insert(node, layout);
         }
 
-        let output = crate::compute_grid(
-            &mut tree,
-            1,
-            ComputeInput::for_child(
-                RunMode::PerformLayout,
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                Size::NONE,
-                Size::NONE,
-                crate::ContainingLayoutContext::new(
-                    crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
-                    ),
-                    crate::ParentFormattingContext::NoParent,
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            let node_input = self.styles[&node].clone();
+            compute_leaf(input, &node_input, |measure_input| {
+                let available = measure_input
+                    .available_content_size()
+                    .map(MeasurementAvailable::into_available);
+                if node == 2 && available.width == Available::MIN_CONTENT {
+                    Ok::<_, core::convert::Infallible>(Size::new(160.0, 40.0))
+                } else if node == 2 {
+                    Ok::<_, core::convert::Infallible>(Size::new(320.0, 40.0))
+                } else {
+                    Ok::<_, core::convert::Infallible>(Size::ZERO)
+                }
+            })
+            .map_err(|error| fake_leaf_error(node, error))
+        }
+    }
+
+    impl Round for GridTree {
+        fn unrounded(
+            &self,
+            node: Self::Node,
+        ) -> crate::LayoutResultOf<Self::Node, NodeOutput, Self::Scalar> {
+            Ok(self.unrounded[&node])
+        }
+
+        fn set_final(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.rounded.insert(node, layout);
+        }
+    }
+
+    let mut tree = GridTree::default();
+    tree.children.insert(1, (2..=15).collect());
+    for node in 2..=15 {
+        tree.children.insert(node, vec![]);
+    }
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            grid_template_columns: vec![
+                TrackComponent::MIN_CONTENT,
+                TrackComponent::MAX_CONTENT,
+                TrackComponent::Track(crate::TrackSizing::fit_content(SizingCalculation::value(
+                    lp(20.0, 0.0),
+                ))),
+                TrackComponent::AUTO,
+                TrackComponent::px(10.0),
+                TrackComponent::percent(0.2),
+                TrackComponent::minmax(MinTrackSizing::px(2.0), MaxTrackSizing::AUTO),
+                TrackComponent::minmax(MinTrackSizing::px(2.0), MaxTrackSizing::px(4.0)),
+                TrackComponent::minmax(MinTrackSizing::px(2.0), MaxTrackSizing::MIN_CONTENT),
+                TrackComponent::minmax(MinTrackSizing::px(2.0), MaxTrackSizing::MAX_CONTENT),
+                TrackComponent::minmax(MinTrackSizing::MIN_CONTENT, MaxTrackSizing::MAX_CONTENT),
+                TrackComponent::minmax(MinTrackSizing::MIN_CONTENT, MaxTrackSizing::AUTO),
+                TrackComponent::minmax(MinTrackSizing::MAX_CONTENT, MaxTrackSizing::AUTO),
+            ],
+            grid_template_rows: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            grid_column: GridPlacement::try_line_span(1, 13).expect("valid grid line span"),
+            ..NodeInput::default()
+        },
+    );
+    for node in 3..=15 {
+        tree.styles.insert(node, NodeInput::default());
+    }
+
+    let output = crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
                 ),
-                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+                crate::ParentFormattingContext::NoParent,
             ),
-        )
-        .unwrap();
-        let mut root_layout = NodeOutput::new();
-        root_layout.size = output.size;
-        root_layout.content_size = output.content_size;
-        tree.unrounded.insert(1, root_layout);
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
+    )
+    .unwrap();
+    let mut root_layout = NodeOutput::new();
+    root_layout.size = output.size;
+    root_layout.content_size = output.content_size;
+    tree.unrounded.insert(1, root_layout);
 
-        round_layout(&mut tree, 1).unwrap();
-        let widths = (3..=15)
-            .map(|node| tree.rounded[&node].size.width)
-            .collect::<Vec<_>>();
-        assert_eq!(output.size, Size::new(322.0, 80.0));
-        assert_eq!(
-            widths,
-            vec![
-                11.0, 91.0, 11.0, 11.0, 10.0, 65.0, 2.0, 4.0, 2.0, 2.0, 11.0, 11.0, 91.0
-            ]
-        );
-    };
+    round_layout(&mut tree, 1).unwrap();
+    let widths = (3..=15)
+        .map(|node| tree.rounded[&node].size.width)
+        .collect::<Vec<_>>();
+    assert_eq!(output.size, Size::new(322.0, 80.0));
+    assert_eq!(
+        widths,
+        vec![
+            11.0, 91.0, 11.0, 11.0, 10.0, 65.0, 2.0, 4.0, 2.0, 2.0, 11.0, 11.0, 91.0
+        ]
+    );
+}
 
 #[test]
 fn grid_content_size_includes_visible_child_overflow_content() {
@@ -18408,140 +18085,132 @@ fn grid_content_size_for_later_column_uses_final_container_local_item_end() {
 
 #[test]
 fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content() {
-    (GRID_AUTO_SIZE_RE_RESOLVES_INDEFINITE_PERCENTAGE_TRACKS_FROM_VISIBLE_CONTENT_PHASE)();
-}
+    #[derive(Default)]
+    struct GridTree {
+        children: HashMap<u32, Vec<u32>>,
+        styles: HashMap<u32, NodeInput>,
+        layouts: HashMap<u32, NodeOutput>,
+    }
 
-const GRID_AUTO_SIZE_RE_RESOLVES_INDEFINITE_PERCENTAGE_TRACKS_FROM_VISIBLE_CONTENT_PHASE: fn() =
-    || {
-        #[derive(Default)]
-        struct GridTree {
-            children: HashMap<u32, Vec<u32>>,
-            styles: HashMap<u32, NodeInput>,
-            layouts: HashMap<u32, NodeOutput>,
+    impl Traverse for GridTree {
+        type Node = u32;
+
+        type Scalar = Scalar;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
         }
 
-        impl Traverse for GridTree {
-            type Node = u32;
-
-            type Scalar = Scalar;
-            type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-            fn children(&self, node: Self::Node) -> Self::Children<'_> {
-                self.children[&node].iter().copied()
-            }
-
-            fn child_count(&self, node: Self::Node) -> usize {
-                self.children[&node].len()
-            }
-
-            fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-                self.children[&node][index]
-            }
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
         }
 
-        impl Compute for GridTree {
-            fn node_input(&self, node: Self::Node) -> &NodeInput {
-                &self.styles[&node]
-            }
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
 
-            fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-                LayoutInputOf::box_input(self.node_input(node).clone())
-            }
-
-            fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-                self.layouts.insert(node, layout);
-            }
-
-            fn compute_child(
-                &mut self,
-                _node: Self::Node,
-                input: ComputeInput,
-            ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-            {
-                Ok({
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(100.0),
-                        input.known().height.unwrap_or(100.0),
-                    ))
-                })
-            }
+    impl Compute for GridTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            &self.styles[&node]
         }
 
-        let mut tree = GridTree::default();
-        tree.children.insert(1, vec![2, 3, 4]);
-        for node in 2..=4 {
-            tree.children.insert(node, vec![]);
-            tree.styles.insert(node, NodeInput::default());
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
-        tree.styles.insert(
-            1,
-            NodeInput {
-                display: Display::Grid,
-                grid_template_columns: vec![
-                    TrackComponent::percent(0.4),
-                    TrackComponent::percent(0.4),
-                    TrackComponent::percent(0.4),
-                ],
-                grid_template_rows: vec![
-                    TrackComponent::percent(0.5),
-                    TrackComponent::percent(0.8),
-                ],
-                ..NodeInput::default()
-            },
-        );
-        tree.styles.insert(
-            2,
-            NodeInput {
-                grid_column: GridPlacement::try_line(1).expect("valid grid line"),
-                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
-                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
-                ..NodeInput::default()
-            },
-        );
-        tree.styles.insert(
-            3,
-            NodeInput {
-                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
-                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
-                ..NodeInput::default()
-            },
-        );
-        tree.styles.insert(
-            4,
-            NodeInput {
-                grid_column: GridPlacement::try_line(3).expect("valid grid line"),
-                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
-                ..NodeInput::default()
-            },
-        );
 
-        let output = crate::compute_grid(
-            &mut tree,
-            1,
-            ComputeInput::for_child(
-                RunMode::PerformLayout,
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                Size::NONE,
-                Size::NONE,
-                crate::ContainingLayoutContext::new(
-                    crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
-                    ),
-                    crate::ParentFormattingContext::NoParent,
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known().width.unwrap_or(100.0),
+                    input.known().height.unwrap_or(100.0),
+                ))
+            })
+        }
+    }
+
+    let mut tree = GridTree::default();
+    tree.children.insert(1, vec![2, 3, 4]);
+    for node in 2..=4 {
+        tree.children.insert(node, vec![]);
+        tree.styles.insert(node, NodeInput::default());
+    }
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            grid_template_columns: vec![
+                TrackComponent::percent(0.4),
+                TrackComponent::percent(0.4),
+                TrackComponent::percent(0.4),
+            ],
+            grid_template_rows: vec![TrackComponent::percent(0.5), TrackComponent::percent(0.8)],
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            grid_column: GridPlacement::try_line(1).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        3,
+        NodeInput {
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        4,
+        NodeInput {
+            grid_column: GridPlacement::try_line(3).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(2).expect("valid grid line"),
+            ..NodeInput::default()
+        },
+    );
+
+    let output = crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
                 ),
-                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+                crate::ParentFormattingContext::NoParent,
             ),
-        )
-        .unwrap();
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
+    )
+    .unwrap();
 
-        assert_eq!(output.size, Size::new(100.0, 100.0));
-        assert_eq!(tree.layouts[&3].location, Point::new(40.0, 0.0));
-        assert_eq!(tree.layouts[&3].size, Size::new(40.0, 50.0));
-        assert_eq!(tree.layouts[&4].location, Point::new(80.0, 50.0));
-        assert_eq!(tree.layouts[&4].size, Size::new(40.0, 80.0));
-    };
+    assert_eq!(output.size, Size::new(100.0, 100.0));
+    assert_eq!(tree.layouts[&3].location, Point::new(40.0, 0.0));
+    assert_eq!(tree.layouts[&3].size, Size::new(40.0, 50.0));
+    assert_eq!(tree.layouts[&4].location, Point::new(80.0, 50.0));
+    assert_eq!(tree.layouts[&4].size, Size::new(40.0, 80.0));
+}
 
 #[test]
 fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns() {
@@ -18863,10 +18532,6 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
 
 #[test]
 fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
-    (GRID_SPANNING_ITEM_DISTRIBUTES_INTRINSIC_CONTRIBUTION_ACROSS_AUTO_TRACKS_PHASE)();
-}
-
-const GRID_SPANNING_ITEM_DISTRIBUTES_INTRINSIC_CONTRIBUTION_ACROSS_AUTO_TRACKS_PHASE: fn() = || {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -18998,7 +18663,7 @@ const GRID_SPANNING_ITEM_DISTRIBUTES_INTRINSIC_CONTRIBUTION_ACROSS_AUTO_TRACKS_P
     assert_eq!(output.content_size, Size::new(expected_width, 20.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(expected_width, 20.0));
-};
+}
 
 #[test]
 fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
@@ -21559,10 +21224,6 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
 
 #[test]
 fn shared_grid_contexts_accept_non_default_scalar() {
-    (SHARED_GRID_CONTEXTS_ACCEPT_NON_DEFAULT_SCALAR_PHASE)();
-}
-
-const SHARED_GRID_CONTEXTS_ACCEPT_NON_DEFAULT_SCALAR_PHASE: fn() = || {
     let named_lines = named::NamedGridLines::new(GridAxisKind::Column, 1);
     let inherited_axis = InheritedGridAxis::<f64> {
         offset: 0.25,
@@ -21694,7 +21355,7 @@ const SHARED_GRID_CONTEXTS_ACCEPT_NON_DEFAULT_SCALAR_PHASE: fn() = || {
         placements: &placements,
         containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState::INITIAL,
     };
-};
+}
 
 #[test]
 fn grid_child_pure_helpers_accept_non_default_scalar() {
@@ -21762,250 +21423,240 @@ fn grid_child_pure_helpers_accept_non_default_scalar() {
 
 #[test]
 fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar() {
-    (GRID_CHILD_PENDING_AND_SUBGRID_INHERITANCE_HELPERS_ACCEPT_NON_DEFAULT_SCALAR_PHASE)();
-}
-
-const GRID_CHILD_PENDING_AND_SUBGRID_INHERITANCE_HELPERS_ACCEPT_NON_DEFAULT_SCALAR_PHASE: fn() =
-    || {
-        let area = GridArea::<f64> {
-            column: 0,
-            row: 0,
-            column_end: 1,
-            row_end: 2,
-            size: LogicalSizeOf::new(40.0, 90.0),
-        };
-        let item = PendingGridItem::<_, f64> {
-            node: "child",
-            source_index: 0,
-            area,
-            output: ComputeOutputOf::<f64>::from_sizes_and_baselines(
-                Size::new(40.0, 30.0),
-                Size::new(40.0, 30.0),
-                BaselinesOf {
-                    first: Point::new(None, Some(8.0)),
-                    last: Point::new(None, Some(22.0)),
-                },
-            ),
-            horizontal_axis: ResolvedGridItemAxis::<f64> {
-                offset: 0.0,
-                margin_start: 0.0,
-                margin_end: 0.0,
-            },
-            vertical_axis: ResolvedGridItemAxis::<f64> {
-                offset: 0.0,
-                margin_start: 3.0,
-                margin_end: 5.0,
-            },
-            child_flow_axes: crate::geometry::FlowAxes::new(
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-            ),
-            logical_relative_offset: LogicalPointOf::new(0.0, 0.0),
-            first_baseline: BaselinesOf {
-                first: Point::new(None, Some(8.0)),
-                last: Point::NONE,
-            }
-            .first_block_baseline(crate::geometry::FlowAxes::new(
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-            ))
-            .expect("the test baseline is present"),
-            last_baseline: BaselinesOf {
-                first: Point::NONE,
-                last: Point::new(None, Some(22.0)),
-            }
-            .last_block_baseline(crate::geometry::FlowAxes::new(
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-            ))
-            .expect("the test baseline is present"),
-            location: Point::ZERO,
-            published_row_baselines: None,
-            block_offset: 0.0,
-            block_auto_margins: false,
-            baseline_participation: BaselineParticipation {
-                participates: true,
-                group: Some(BaselineGroupKind::Major),
-                synthesized: false,
-                fallback_alignment: None,
-            },
-            margin: Edges::new(3.0, 0.0, 5.0, 0.0),
-            border: Edges::ZERO,
-            padding: Edges::ZERO,
-            overflow: used_overflow(Overflow::Visible, Overflow::Visible),
-        };
-
-        let groups = baseline_groups(
-            std::slice::from_ref(&item),
-            2,
-            1,
-            horizontal_baseline_flow_axes(),
-        );
-        assert_eq!(
-            groups.rows[0].first,
-            Some(tagged_baseline(PhysicalAxis::Vertical, 11.0))
-        );
-        assert_eq!(
-            baseline_aligned_block_offset(
-                &item,
-                &groups,
-                &[40.0_f64, 40.0],
-                10.0,
-                horizontal_baseline_flow_axes(),
-            ),
-            Some(3.0)
-        );
-
-        let axis = InheritedGridAxis::<f64> {
-            offset: 0.0,
-            gap: 10.0,
-            tracks: vec![40.0, 40.0],
-            named_lines: named::NamedGridLines::new(GridAxisKind::Row, 2),
-            area_facts: None,
-            major_baselines: vec![None, None],
-            minor_baselines: vec![None, None],
-            parent_start: 0,
-            parent_end: 2,
-            reversed: false,
-            start_mbp: 1.5,
-            end_mbp: 2.5,
-            gap_difference: 0.25,
-        };
-        let published = publish_row_baseline_groups(&groups.rows, &axis, PhysicalAxis::Vertical);
-        assert_eq!(
-            published,
-            vec![PublishedTrackBaselineGroup::<f64> {
-                parent_index: 0,
-                group: tagged_group(PhysicalAxis::Vertical, Some(12.75), None),
-            }]
-        );
-
-        let inherited = inherit_subgrid_tracks(SubgridTrackInheritanceInput::<f64> {
-            parent_tracks: &[20.0, 30.0],
-            parent_span: GridTrackSpan::new(1, 3),
-            reversed: false,
-            start_mbp: 2.0,
-            end_mbp: 4.0,
-            parent_gap: 6.0,
-            subgrid_gap: ResolvedSubgridGap::Length(10.0),
-        })
-        .unwrap();
-        assert_eq!(inherited.gap_difference, 2.0);
-        assert_eq!(inherited.final_tracks, vec![16.0, 24.0]);
-
-        let inherited_baselines =
-            inherit_subgrid_baselines(SubgridBaselineInheritanceInput::<f64> {
-                parent_major: &[
-                    Some(tagged_baseline(PhysicalAxis::Vertical, 9.0)),
-                    Some(tagged_baseline(PhysicalAxis::Vertical, 17.0)),
-                ],
-                parent_minor: &[
-                    Some(tagged_baseline(PhysicalAxis::Vertical, 4.0)),
-                    Some(tagged_baseline(PhysicalAxis::Vertical, 6.0)),
-                ],
-                physical_axis: PhysicalAxis::Vertical,
-                parent_span: GridTrackSpan::new(1, 3),
-                reversed: false,
-                start_mbp: 2.0,
-                end_mbp: 4.0,
-                parent_gap: 6.0,
-                subgrid_gap: inherited.resolved_subgrid_gap,
-            })
-            .unwrap();
-        assert_eq!(inherited_baselines.gap_difference, 2.0);
-        assert_eq!(
-            inherited_baselines.final_major,
-            vec![
-                Some(tagged_baseline(PhysicalAxis::Vertical, 5.0)),
-                Some(tagged_baseline(PhysicalAxis::Vertical, 15.0)),
-            ]
-        );
-        assert_eq!(
-            inherited_baselines.final_minor,
-            vec![
-                Some(tagged_baseline(PhysicalAxis::Vertical, 2.0)),
-                Some(tagged_baseline(PhysicalAxis::Vertical, 0.0)),
-            ]
-        );
-
-        let (layout_tracks, layout_gap) =
-            inherited_subgrid_layout_tracks(GridAxisKind::Row, &inherited);
-        assert_eq!(layout_tracks, vec![16.0, 24.0]);
-        assert_eq!(layout_gap, 10.0);
-
-        let offset_style = NodeInputOf::<f64>::default();
-        let offsets = grid_axis_offsets(GridAxisOffsetsInput::<f64> {
-            style: &offset_style,
-            axis: GridAxisKind::Column,
-            tracks: &[12.5, 17.5],
-            inherited_offset: Some(1.25),
-            content_box_left: 0.0,
-            content_box_size: Size::new(60.0, 20.0),
-            content_box_inset: Edges::new(0.0, 0.0, 0.0, 2.0),
-            alignment: GridAlignment {
-                start: 0.5,
-                gap: 3.25,
-            },
-        });
-        assert_eq!(offsets, vec![3.75, 19.5]);
-
-        let child_style = NodeInputOf::<f64> {
-            display: Display::Grid,
-            grid_template_rows: subgrid_track_of(),
-            ..NodeInputOf::default()
-        };
-        let parent_context =
-            subgrid_child_parent_context(SubgridChildParentContextInput::<_, f64> {
-                item: SubgridItemReport {
-                    node: "child",
-                    column: SubgridAxisReport {
-                        mapping: Ok(GridAxisMappingReport {
-                            queried_axis: GridAxisKind::Column,
-                            parent_axis: GridAxisKind::Column,
-                            child_axis: GridAxisKind::Column,
-                            reversed: false,
-                        }),
-                        eligibility: SubgridEligibility {
-                            eligible: false,
-                            reason: Some(SubgridIneligibleReason::NotRequested),
-                        },
-                    },
-                    row: SubgridAxisReport {
-                        mapping: Ok(GridAxisMappingReport {
-                            queried_axis: GridAxisKind::Row,
-                            parent_axis: GridAxisKind::Row,
-                            child_axis: GridAxisKind::Row,
-                            reversed: false,
-                        }),
-                        eligibility: SubgridEligibility {
-                            eligible: true,
-                            reason: None,
-                        },
-                    },
-                },
-                child_style: &child_style,
-                area,
-                content_box_size: Size::new(40.0, 90.0),
-                columns: &[40.0],
-                rows: &[20.0, 30.0],
-                gap: LogicalSizeOf::new(0.0, 6.0),
-                parent_named_columns: &named::NamedGridLines::new(GridAxisKind::Column, 1),
-                parent_named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
-                parent_area_facts: None,
-                parent_baseline_groups: &GridBaselineGroups::<f64> {
-                    rows: groups.rows,
-                    columns: vec![TrackBaselineGroup::default()],
-                },
-                margin: Edges::ZERO.map(Some),
-                border: Edges::ZERO,
-                padding: Edges::ZERO,
-            })
-            .unwrap();
-
-        let rows = parent_context.rows.expect("row subgrid should inherit");
-        assert_eq!(rows.tracks, vec![20.0, 30.0]);
-        assert_eq!(rows.gap, 6.0);
+    let area = GridArea::<f64> {
+        column: 0,
+        row: 0,
+        column_end: 1,
+        row_end: 2,
+        size: LogicalSizeOf::new(40.0, 90.0),
     };
+    let item = PendingGridItem::<_, f64> {
+        node: "child",
+        source_index: 0,
+        area,
+        output: ComputeOutputOf::<f64>::from_sizes_and_baselines(
+            Size::new(40.0, 30.0),
+            Size::new(40.0, 30.0),
+            BaselinesOf {
+                first: Point::new(None, Some(8.0)),
+                last: Point::new(None, Some(22.0)),
+            },
+        ),
+        horizontal_axis: ResolvedGridItemAxis::<f64> {
+            offset: 0.0,
+            margin_start: 0.0,
+            margin_end: 0.0,
+        },
+        vertical_axis: ResolvedGridItemAxis::<f64> {
+            offset: 0.0,
+            margin_start: 3.0,
+            margin_end: 5.0,
+        },
+        child_flow_axes: crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        logical_relative_offset: LogicalPointOf::new(0.0, 0.0),
+        first_baseline: BaselinesOf {
+            first: Point::new(None, Some(8.0)),
+            last: Point::NONE,
+        }
+        .first_block_baseline(crate::geometry::FlowAxes::new(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+        ))
+        .expect("the test baseline is present"),
+        last_baseline: BaselinesOf {
+            first: Point::NONE,
+            last: Point::new(None, Some(22.0)),
+        }
+        .last_block_baseline(crate::geometry::FlowAxes::new(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+        ))
+        .expect("the test baseline is present"),
+        location: Point::ZERO,
+        published_row_baselines: None,
+        block_offset: 0.0,
+        block_auto_margins: false,
+        baseline_participation: BaselineParticipation {
+            participates: true,
+            group: Some(BaselineGroupKind::Major),
+            synthesized: false,
+            fallback_alignment: None,
+        },
+        margin: Edges::new(3.0, 0.0, 5.0, 0.0),
+        border: Edges::ZERO,
+        padding: Edges::ZERO,
+        overflow: used_overflow(Overflow::Visible, Overflow::Visible),
+    };
+
+    let groups = baseline_groups(
+        std::slice::from_ref(&item),
+        2,
+        1,
+        horizontal_baseline_flow_axes(),
+    );
+    assert_eq!(
+        groups.rows[0].first,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 11.0))
+    );
+    assert_eq!(
+        baseline_aligned_block_offset(
+            &item,
+            &groups,
+            &[40.0_f64, 40.0],
+            10.0,
+            horizontal_baseline_flow_axes(),
+        ),
+        Some(3.0)
+    );
+
+    let axis = InheritedGridAxis::<f64> {
+        offset: 0.0,
+        gap: 10.0,
+        tracks: vec![40.0, 40.0],
+        named_lines: named::NamedGridLines::new(GridAxisKind::Row, 2),
+        area_facts: None,
+        major_baselines: vec![None, None],
+        minor_baselines: vec![None, None],
+        parent_start: 0,
+        parent_end: 2,
+        reversed: false,
+        start_mbp: 1.5,
+        end_mbp: 2.5,
+        gap_difference: 0.25,
+    };
+    let published = publish_row_baseline_groups(&groups.rows, &axis, PhysicalAxis::Vertical);
+    assert_eq!(
+        published,
+        vec![PublishedTrackBaselineGroup::<f64> {
+            parent_index: 0,
+            group: tagged_group(PhysicalAxis::Vertical, Some(12.75), None),
+        }]
+    );
+
+    let inherited = inherit_subgrid_tracks(SubgridTrackInheritanceInput::<f64> {
+        parent_tracks: &[20.0, 30.0],
+        parent_span: GridTrackSpan::new(1, 3),
+        reversed: false,
+        start_mbp: 2.0,
+        end_mbp: 4.0,
+        parent_gap: 6.0,
+        subgrid_gap: ResolvedSubgridGap::Length(10.0),
+    })
+    .unwrap();
+    assert_eq!(inherited.gap_difference, 2.0);
+    assert_eq!(inherited.final_tracks, vec![16.0, 24.0]);
+
+    let inherited_baselines = inherit_subgrid_baselines(SubgridBaselineInheritanceInput::<f64> {
+        parent_major: &[
+            Some(tagged_baseline(PhysicalAxis::Vertical, 9.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 17.0)),
+        ],
+        parent_minor: &[
+            Some(tagged_baseline(PhysicalAxis::Vertical, 4.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 6.0)),
+        ],
+        physical_axis: PhysicalAxis::Vertical,
+        parent_span: GridTrackSpan::new(1, 3),
+        reversed: false,
+        start_mbp: 2.0,
+        end_mbp: 4.0,
+        parent_gap: 6.0,
+        subgrid_gap: inherited.resolved_subgrid_gap,
+    })
+    .unwrap();
+    assert_eq!(inherited_baselines.gap_difference, 2.0);
+    assert_eq!(
+        inherited_baselines.final_major,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 5.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 15.0)),
+        ]
+    );
+    assert_eq!(
+        inherited_baselines.final_minor,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 2.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 0.0)),
+        ]
+    );
+
+    let (layout_tracks, layout_gap) =
+        inherited_subgrid_layout_tracks(GridAxisKind::Row, &inherited);
+    assert_eq!(layout_tracks, vec![16.0, 24.0]);
+    assert_eq!(layout_gap, 10.0);
+
+    let offset_style = NodeInputOf::<f64>::default();
+    let offsets = grid_axis_offsets(GridAxisOffsetsInput::<f64> {
+        style: &offset_style,
+        axis: GridAxisKind::Column,
+        tracks: &[12.5, 17.5],
+        inherited_offset: Some(1.25),
+        content_box_left: 0.0,
+        content_box_size: Size::new(60.0, 20.0),
+        content_box_inset: Edges::new(0.0, 0.0, 0.0, 2.0),
+        alignment: GridAlignment {
+            start: 0.5,
+            gap: 3.25,
+        },
+    });
+    assert_eq!(offsets, vec![3.75, 19.5]);
+
+    let child_style = NodeInputOf::<f64> {
+        display: Display::Grid,
+        grid_template_rows: subgrid_track_of(),
+        ..NodeInputOf::default()
+    };
+    let parent_context = subgrid_child_parent_context(SubgridChildParentContextInput::<_, f64> {
+        item: SubgridItemReport {
+            node: "child",
+            column: SubgridAxisReport {
+                mapping: Ok(GridAxisMappingReport {
+                    queried_axis: GridAxisKind::Column,
+                    parent_axis: GridAxisKind::Column,
+                    child_axis: GridAxisKind::Column,
+                    reversed: false,
+                }),
+                eligibility: SubgridEligibility {
+                    eligible: false,
+                    reason: Some(SubgridIneligibleReason::NotRequested),
+                },
+            },
+            row: SubgridAxisReport {
+                mapping: Ok(GridAxisMappingReport {
+                    queried_axis: GridAxisKind::Row,
+                    parent_axis: GridAxisKind::Row,
+                    child_axis: GridAxisKind::Row,
+                    reversed: false,
+                }),
+                eligibility: SubgridEligibility {
+                    eligible: true,
+                    reason: None,
+                },
+            },
+        },
+        child_style: &child_style,
+        area,
+        content_box_size: Size::new(40.0, 90.0),
+        columns: &[40.0],
+        rows: &[20.0, 30.0],
+        gap: LogicalSizeOf::new(0.0, 6.0),
+        parent_named_columns: &named::NamedGridLines::new(GridAxisKind::Column, 1),
+        parent_named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
+        parent_area_facts: None,
+        parent_baseline_groups: &GridBaselineGroups::<f64> {
+            rows: groups.rows,
+            columns: vec![TrackBaselineGroup::default()],
+        },
+        margin: Edges::ZERO.map(Some),
+        border: Edges::ZERO,
+        padding: Edges::ZERO,
+    })
+    .unwrap();
+
+    let rows = parent_context.rows.expect("row subgrid should inherit");
+    assert_eq!(rows.tracks, vec![20.0, 30.0]);
+    assert_eq!(rows.gap, 6.0);
+}
 
 #[test]
 fn grid_alignment_accepts_f64_and_preserves_fractional_distribution() {
@@ -32001,166 +31652,141 @@ mod root_layout_oracle {
 
     #[test]
     fn subgrid_layout_oracle_matches_merged_local_and_inherited_area_lines() {
-        (SubgridLayoutOracleMatchesMergedLocalAndInheritedAreaLinesPhaseL31802::RUN)()
-    }
+        use grid::{NamedAxisPlacement, NamedGridLine, TrackSpan};
 
-    type SubgridLayoutOracleMatchesMergedLocalAndInheritedAreaLinesPhaseL31802Run = fn();
+        let parent_areas = grid::TemplateAreas::new([vec![".", "parent", "parent", "."]]).unwrap();
+        let parent_facts = grid::area_generated_facts(
+            &parent_areas,
+            grid::NamedGridLines::empty(GridAxis::Column, 4),
+            grid::NamedGridLines::empty(GridAxis::Row, 2),
+        )
+        .unwrap();
+        let inherited = grid::inherit_named_subgrid_lines(
+            &parent_facts.columns,
+            TrackSpan::new(2, 4),
+            false,
+            vec![vec![], vec![], vec![]],
+            Some(&parent_facts),
+        )
+        .unwrap();
+        let local_areas = grid::TemplateAreas::new([vec!["local", "local"]]).unwrap();
+        let merged_columns =
+            grid::area_generated_lines(GridAxis::Column, &local_areas, inherited.lines).unwrap();
 
-    struct SubgridLayoutOracleMatchesMergedLocalAndInheritedAreaLinesPhaseL31802;
+        let expected_local = grid::resolve_named_axis_placement(
+            &merged_columns,
+            NamedAxisPlacement {
+                start: NamedGridLine::BareIdent("local".to_string()),
+                end: NamedGridLine::BareIdent("local".to_string()),
+            },
+            None,
+        )
+        .unwrap()
+        .resolved;
+        let expected_parent = grid::resolve_named_axis_placement(
+            &merged_columns,
+            NamedAxisPlacement {
+                start: NamedGridLine::BareIdent("parent".to_string()),
+                end: NamedGridLine::BareIdent("parent".to_string()),
+            },
+            None,
+        )
+        .unwrap()
+        .resolved;
 
-    impl SubgridLayoutOracleMatchesMergedLocalAndInheritedAreaLinesPhaseL31802 {
-        const RUN: SubgridLayoutOracleMatchesMergedLocalAndInheritedAreaLinesPhaseL31802Run =
-            || {
-                use grid::{NamedAxisPlacement, NamedGridLine, TrackSpan};
-
-                let parent_areas =
-                    grid::TemplateAreas::new([vec![".", "parent", "parent", "."]]).unwrap();
-                let parent_facts = grid::area_generated_facts(
-                    &parent_areas,
-                    grid::NamedGridLines::empty(GridAxis::Column, 4),
-                    grid::NamedGridLines::empty(GridAxis::Row, 2),
-                )
-                .unwrap();
-                let inherited = grid::inherit_named_subgrid_lines(
-                    &parent_facts.columns,
-                    TrackSpan::new(2, 4),
-                    false,
-                    vec![vec![], vec![], vec![]],
-                    Some(&parent_facts),
-                )
-                .unwrap();
-                let local_areas = grid::TemplateAreas::new([vec!["local", "local"]]).unwrap();
-                let merged_columns =
-                    grid::area_generated_lines(GridAxis::Column, &local_areas, inherited.lines)
-                        .unwrap();
-
-                let expected_local = grid::resolve_named_axis_placement(
-                    &merged_columns,
-                    NamedAxisPlacement {
-                        start: NamedGridLine::BareIdent("local".to_string()),
-                        end: NamedGridLine::BareIdent("local".to_string()),
+        let mut tree = OracleTree::new()
+            .children(1, [2])
+            .children(2, [3, 4])
+            .style(
+                1,
+                NodeInput {
+                    display: Display::Grid,
+                    size: Size::new(PreferredSize::px(160.0), PreferredSize::px(40.0)),
+                    grid_template_columns: vec![
+                        TrackComponent::px(40.0),
+                        TrackComponent::px(40.0),
+                        TrackComponent::px(40.0),
+                        TrackComponent::px(40.0),
+                    ],
+                    grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(20.0)],
+                    grid_template_areas: GridTemplateAreas {
+                        rows: vec![GridTemplateAreaRow {
+                            cells: vec![
+                                None,
+                                Some("parent".to_string()),
+                                Some("parent".to_string()),
+                                None,
+                            ],
+                        }],
                     },
-                    None,
-                )
-                .unwrap()
-                .resolved;
-                let expected_parent = grid::resolve_named_axis_placement(
-                    &merged_columns,
-                    NamedAxisPlacement {
-                        start: NamedGridLine::BareIdent("parent".to_string()),
-                        end: NamedGridLine::BareIdent("parent".to_string()),
+                    ..NodeInput::DEFAULT
+                },
+            )
+            .style(
+                2,
+                NodeInput {
+                    display: Display::Grid,
+                    grid_column: GridPlacement::try_lines(2, 4).expect("valid grid placement"),
+                    grid_row: GridPlacement::try_lines(1, 3).expect("valid grid placement"),
+                    grid_template_columns: vec![TrackComponent::Subgrid(crate::SubgridTrack {
+                        name_components: Vec::new(),
+                    })],
+                    grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(20.0)],
+                    grid_template_areas: GridTemplateAreas {
+                        rows: vec![GridTemplateAreaRow {
+                            cells: vec![Some("local".to_string()), Some("local".to_string())],
+                        }],
                     },
-                    None,
-                )
-                .unwrap()
-                .resolved;
+                    ..NodeInput::DEFAULT
+                },
+            )
+            .style(
+                3,
+                NodeInput {
+                    raw_grid_column: RawGridPlacement::new(
+                        RawGridLine::BareIdent("local".to_string()),
+                        RawGridLine::BareIdent("local".to_string()),
+                    ),
+                    raw_grid_row: RawGridPlacement::line(1),
+                    ..NodeInput::DEFAULT
+                },
+            )
+            .style(
+                4,
+                NodeInput {
+                    raw_grid_column: RawGridPlacement::new(
+                        RawGridLine::BareIdent("parent".to_string()),
+                        RawGridLine::BareIdent("parent".to_string()),
+                    ),
+                    raw_grid_row: RawGridPlacement::line(2),
+                    ..NodeInput::DEFAULT
+                },
+            );
 
-                let mut tree = OracleTree::new()
-                    .children(1, [2])
-                    .children(2, [3, 4])
-                    .style(
-                        1,
-                        NodeInput {
-                            display: Display::Grid,
-                            size: Size::new(PreferredSize::px(160.0), PreferredSize::px(40.0)),
-                            grid_template_columns: vec![
-                                TrackComponent::px(40.0),
-                                TrackComponent::px(40.0),
-                                TrackComponent::px(40.0),
-                                TrackComponent::px(40.0),
-                            ],
-                            grid_template_rows: vec![
-                                TrackComponent::px(20.0),
-                                TrackComponent::px(20.0),
-                            ],
-                            grid_template_areas: GridTemplateAreas {
-                                rows: vec![GridTemplateAreaRow {
-                                    cells: vec![
-                                        None,
-                                        Some("parent".to_string()),
-                                        Some("parent".to_string()),
-                                        None,
-                                    ],
-                                }],
-                            },
-                            ..NodeInput::DEFAULT
-                        },
-                    )
-                    .style(
-                        2,
-                        NodeInput {
-                            display: Display::Grid,
-                            grid_column: GridPlacement::try_lines(2, 4)
-                                .expect("valid grid placement"),
-                            grid_row: GridPlacement::try_lines(1, 3).expect("valid grid placement"),
-                            grid_template_columns: vec![TrackComponent::Subgrid(
-                                crate::SubgridTrack {
-                                    name_components: Vec::new(),
-                                },
-                            )],
-                            grid_template_rows: vec![
-                                TrackComponent::px(20.0),
-                                TrackComponent::px(20.0),
-                            ],
-                            grid_template_areas: GridTemplateAreas {
-                                rows: vec![GridTemplateAreaRow {
-                                    cells: vec![
-                                        Some("local".to_string()),
-                                        Some("local".to_string()),
-                                    ],
-                                }],
-                            },
-                            ..NodeInput::DEFAULT
-                        },
-                    )
-                    .style(
-                        3,
-                        NodeInput {
-                            raw_grid_column: RawGridPlacement::new(
-                                RawGridLine::BareIdent("local".to_string()),
-                                RawGridLine::BareIdent("local".to_string()),
-                            ),
-                            raw_grid_row: RawGridPlacement::line(1),
-                            ..NodeInput::DEFAULT
-                        },
-                    )
-                    .style(
-                        4,
-                        NodeInput {
-                            raw_grid_column: RawGridPlacement::new(
-                                RawGridLine::BareIdent("parent".to_string()),
-                                RawGridLine::BareIdent("parent".to_string()),
-                            ),
-                            raw_grid_row: RawGridPlacement::line(2),
-                            ..NodeInput::DEFAULT
-                        },
-                    );
+        compute_root(
+            &mut tree,
+            1,
+            Size::new(Available::Definite(160.0), Available::Definite(40.0)),
+        )
+        .unwrap();
+        round_layout(&mut tree, 1).unwrap();
 
-                compute_root(
-                    &mut tree,
-                    1,
-                    Size::new(Available::Definite(160.0), Available::Definite(40.0)),
-                )
-                .unwrap();
-                round_layout(&mut tree, 1).unwrap();
-
-                for (node, expected, label) in [
-                    (3, expected_local, "local area"),
-                    (4, expected_parent, "inherited area"),
-                ] {
-                    let child = tree.final_layout(node).expect("child layout");
-                    assert_layout_close(
-                        child.location.x,
-                        (expected.start_line as f32 - 1.0) * 40.0,
-                        &format!("{label} x"),
-                    );
-                    assert_layout_close(
-                        child.size.width,
-                        expected.span as f32 * 40.0,
-                        &format!("{label} width"),
-                    );
-                }
-            };
+        for (node, expected, label) in [
+            (3, expected_local, "local area"),
+            (4, expected_parent, "inherited area"),
+        ] {
+            let child = tree.final_layout(node).expect("child layout");
+            assert_layout_close(
+                child.location.x,
+                (expected.start_line as f32 - 1.0) * 40.0,
+                &format!("{label} x"),
+            );
+            assert_layout_close(
+                child.size.width,
+                expected.span as f32 * 40.0,
+                &format!("{label} width"),
+            );
+        }
     }
 
     #[test]
@@ -33987,310 +33613,290 @@ mod root_layout_oracle {
 
     #[test]
     fn lanes_child_measurement_uses_resolved_grid_axis_span_size() {
-        (LanesChildMeasurementUsesResolvedGridAxisSpanSizePhaseL33763::RUN)()
-    }
-
-    type LanesChildMeasurementUsesResolvedGridAxisSpanSizePhaseL33763Run = fn();
-
-    struct LanesChildMeasurementUsesResolvedGridAxisSpanSizePhaseL33763;
-
-    impl LanesChildMeasurementUsesResolvedGridAxisSpanSizePhaseL33763 {
-        const RUN: LanesChildMeasurementUsesResolvedGridAxisSpanSizePhaseL33763Run = || {
-            let expected_columns = TrackSizingSlice::definite_columns(100.0, 0.0)
-                .track(GridTrack::fixed(100.0))
-                .solve();
-            let expected_rows = TrackSizingSlice::definite_rows(10.0, 0.0)
-                .track(GridTrack::fixed(10.0))
-                .solve();
-            let mut tree = OracleTree::new()
-                .children(1, [2])
-                .style(
-                    1,
-                    NodeInput {
-                        display: Display::GridLanes,
-                        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
-                        grid_template_columns: vec![TrackComponent::px(100.0)],
-                        grid_template_rows: vec![TrackComponent::px(10.0)],
-                        ..NodeInput::default()
-                    },
-                )
-                .style(2, NodeInput::default())
-                .measure_when(
-                    2,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(100.0, 60.0),
-                        Size::new(100.0, 60.0),
-                    ))
-                    .run_mode(RunMode::ComputeSize)
-                    .known(Size::new(Some(100.0), None))
-                    .parent(Size::new(Some(100.0), None))
-                    .available(Size::new(
-                        Available::Definite(100.0),
-                        Available::MAX_CONTENT,
-                    )),
-                )
-                .measure_when(
-                    2,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(100.0, 60.0),
-                        Size::new(100.0, 60.0),
-                    ))
-                    .run_mode(RunMode::ComputeSize)
-                    .known(Size::new(Some(100.0), None))
-                    .parent(Size::new(Some(100.0), Some(0.0)))
-                    .available(Size::new(
-                        Available::Definite(100.0),
-                        Available::MAX_CONTENT,
-                    )),
-                )
-                .measure_when(
-                    2,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(100.0, 60.0),
-                        Size::new(100.0, 60.0),
-                    ))
-                    .run_mode(RunMode::PerformLayout)
-                    .known(Size::new(Some(100.0), Some(60.0)))
-                    .parent(Size::new(Some(100.0), Some(60.0)))
-                    .available(Size::new(
-                        Available::Definite(100.0),
-                        Available::Definite(60.0),
-                    )),
-                );
-
-            let output = crate::compute_grid(
-                &mut tree,
+        let expected_columns = TrackSizingSlice::definite_columns(100.0, 0.0)
+            .track(GridTrack::fixed(100.0))
+            .solve();
+        let expected_rows = TrackSizingSlice::definite_rows(10.0, 0.0)
+            .track(GridTrack::fixed(10.0))
+            .solve();
+        let mut tree = OracleTree::new()
+            .children(1, [2])
+            .style(
                 1,
-                ComputeInput::for_child(
-                    RunMode::PerformLayout,
-                    SizingMode::InherentSize,
-                    RequestedAxis::Both,
-                    Size::NONE,
-                    Size::new(Some(100.0), Some(100.0)),
-                    crate::ContainingLayoutContext::new(
-                        crate::geometry::FlowAxes::new(
-                            crate::WritingMode::HorizontalTb,
-                            crate::Direction::Ltr,
-                        ),
-                        crate::ParentFormattingContext::NoParent,
-                    ),
-                    Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-                ),
+                NodeInput {
+                    display: Display::GridLanes,
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                    grid_template_columns: vec![TrackComponent::px(100.0)],
+                    grid_template_rows: vec![TrackComponent::px(10.0)],
+                    ..NodeInput::default()
+                },
             )
-            .unwrap();
-
-            assert_eq!(output.size, Size::new(100.0, 100.0));
-            let child = tree.layout(2).expect("lane child layout must be recorded");
-            assert_eq!(child.location, Point::new(0.0, 0.0));
-            assert_eq!(child.size, Size::new(100.0, 60.0));
-            let compute_size_inputs = tree
-                .inputs(2)
-                .iter()
-                .filter(|input| input.run_mode() == RunMode::ComputeSize)
-                .collect::<Vec<_>>();
-            assert!(
-                compute_size_inputs.iter().any(|input| {
-                    input.known() == Size::new(Some(100.0), None)
-                        && input.parent() == Size::new(Some(100.0), None)
-                        && input.available()
-                            == Size::new(Available::Definite(100.0), Available::MAX_CONTENT)
-                }),
-                "lane placement should measure child against resolved grid-axis span: {compute_size_inputs:#?}"
+            .style(2, NodeInput::default())
+            .measure_when(
+                2,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(100.0, 60.0),
+                    Size::new(100.0, 60.0),
+                ))
+                .run_mode(RunMode::ComputeSize)
+                .known(Size::new(Some(100.0), None))
+                .parent(Size::new(Some(100.0), None))
+                .available(Size::new(
+                    Available::Definite(100.0),
+                    Available::MAX_CONTENT,
+                )),
+            )
+            .measure_when(
+                2,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(100.0, 60.0),
+                    Size::new(100.0, 60.0),
+                ))
+                .run_mode(RunMode::ComputeSize)
+                .known(Size::new(Some(100.0), None))
+                .parent(Size::new(Some(100.0), Some(0.0)))
+                .available(Size::new(
+                    Available::Definite(100.0),
+                    Available::MAX_CONTENT,
+                )),
+            )
+            .measure_when(
+                2,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(100.0, 60.0),
+                    Size::new(100.0, 60.0),
+                ))
+                .run_mode(RunMode::PerformLayout)
+                .known(Size::new(Some(100.0), Some(60.0)))
+                .parent(Size::new(Some(100.0), Some(60.0)))
+                .available(Size::new(
+                    Available::Definite(100.0),
+                    Available::Definite(60.0),
+                )),
             );
 
-            GridLayoutComparison::new()
-                .root_display(crate::Display::GridLanes)
-                .container(Size::new(100.0, 100.0))
-                .columns(vec![TrackComponent::px(100.0)])
-                .rows(vec![TrackComponent::px(10.0)])
-                .expected_tracks(expected_columns, expected_rows)
-                .node(
-                    GridLayoutNode::auto_item(GridArea::new(1, 1, 1, 1))
-                        .measurement(Size::new(100.0, 60.0))
-                        .expect_layout(Point::new(0.0, 0.0), Size::new(100.0, 60.0)),
-                )
-                .assert_layout();
-        };
+        let output = crate::compute_grid(
+            &mut tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(100.0), Some(100.0)),
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
+        )
+        .unwrap();
+
+        assert_eq!(output.size, Size::new(100.0, 100.0));
+        let child = tree.layout(2).expect("lane child layout must be recorded");
+        assert_eq!(child.location, Point::new(0.0, 0.0));
+        assert_eq!(child.size, Size::new(100.0, 60.0));
+        let compute_size_inputs = tree
+            .inputs(2)
+            .iter()
+            .filter(|input| input.run_mode() == RunMode::ComputeSize)
+            .collect::<Vec<_>>();
+        assert!(
+            compute_size_inputs.iter().any(|input| {
+                input.known() == Size::new(Some(100.0), None)
+                    && input.parent() == Size::new(Some(100.0), None)
+                    && input.available()
+                        == Size::new(Available::Definite(100.0), Available::MAX_CONTENT)
+            }),
+            "lane placement should measure child against resolved grid-axis span: {compute_size_inputs:#?}"
+        );
+
+        GridLayoutComparison::new()
+            .root_display(crate::Display::GridLanes)
+            .container(Size::new(100.0, 100.0))
+            .columns(vec![TrackComponent::px(100.0)])
+            .rows(vec![TrackComponent::px(10.0)])
+            .expected_tracks(expected_columns, expected_rows)
+            .node(
+                GridLayoutNode::auto_item(GridArea::new(1, 1, 1, 1))
+                    .measurement(Size::new(100.0, 60.0))
+                    .expect_layout(Point::new(0.0, 0.0), Size::new(100.0, 60.0)),
+            )
+            .assert_layout();
     }
 
     #[test]
     fn lanes_auto_child_measurement_uses_final_auto_placement_span() {
-        (LanesAutoChildMeasurementUsesFinalAutoPlacementSpanPhaseL33881::RUN)()
-    }
-
-    type LanesAutoChildMeasurementUsesFinalAutoPlacementSpanPhaseL33881Run = fn();
-
-    struct LanesAutoChildMeasurementUsesFinalAutoPlacementSpanPhaseL33881;
-
-    impl LanesAutoChildMeasurementUsesFinalAutoPlacementSpanPhaseL33881 {
-        const RUN: LanesAutoChildMeasurementUsesFinalAutoPlacementSpanPhaseL33881Run = || {
-            let mut tree = OracleTree::new()
-                .children(1, [2, 3, 4])
-                .style(
-                    1,
-                    NodeInput {
-                        display: Display::GridLanes,
-                        size: Size::new(PreferredSize::px(140.0), PreferredSize::px(140.0)),
-                        grid_template_columns: vec![
-                            TrackComponent::px(40.0),
-                            TrackComponent::px(100.0),
-                        ],
-                        grid_template_rows: vec![TrackComponent::px(10.0)],
-                        grid_flow_tolerance: GridFlowTolerance::Length(Length::px(0.0)),
-                        ..NodeInput::default()
-                    },
-                )
-                .style(2, NodeInput::default())
-                .style(3, NodeInput::default())
-                .style(4, NodeInput::default());
-
-            tree = tree
-                .measure_when(
-                    2,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(40.0, 100.0),
-                        Size::new(40.0, 100.0),
-                    ))
-                    .run_mode(RunMode::ComputeSize)
-                    .available(Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT)),
-                )
-                .measure_when(
-                    3,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(100.0, 10.0),
-                        Size::new(100.0, 10.0),
-                    ))
-                    .run_mode(RunMode::ComputeSize)
-                    .available(Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT)),
-                )
-                .measure_when(
-                    4,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(40.0, 100.0),
-                        Size::new(40.0, 100.0),
-                    ))
-                    .run_mode(RunMode::ComputeSize)
-                    .available(Size::new(Available::Definite(40.0), Available::MAX_CONTENT)),
-                )
-                .measure_when(
-                    4,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(100.0, 10.0),
-                        Size::new(100.0, 10.0),
-                    ))
-                    .run_mode(RunMode::ComputeSize)
-                    .available(Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT)),
-                )
-                .measure_when(
-                    2,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(40.0, 100.0),
-                        Size::new(40.0, 100.0),
-                    ))
-                    .available(Size::new(Available::Definite(40.0), Available::MAX_CONTENT)),
-                )
-                .measure_when(
-                    3,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(100.0, 10.0),
-                        Size::new(100.0, 10.0),
-                    ))
-                    .available(Size::new(
-                        Available::Definite(100.0),
-                        Available::MAX_CONTENT,
-                    )),
-                )
-                .measure_when(
-                    4,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(100.0, 10.0),
-                        Size::new(100.0, 10.0),
-                    ))
-                    .available(Size::new(
-                        Available::Definite(100.0),
-                        Available::MAX_CONTENT,
-                    )),
-                )
-                .measure_when(
-                    2,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(40.0, 100.0),
-                        Size::new(40.0, 100.0),
-                    ))
-                    .run_mode(RunMode::PerformLayout)
-                    .available(Size::new(
-                        Available::Definite(40.0),
-                        Available::Definite(100.0),
-                    )),
-                )
-                .measure_when(
-                    3,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(100.0, 10.0),
-                        Size::new(100.0, 10.0),
-                    ))
-                    .run_mode(RunMode::PerformLayout)
-                    .available(Size::new(
-                        Available::Definite(100.0),
-                        Available::Definite(10.0),
-                    )),
-                )
-                .measure_when(
-                    4,
-                    OracleMeasurement::new(ComputeOutput::from_sizes(
-                        Size::new(100.0, 10.0),
-                        Size::new(100.0, 10.0),
-                    ))
-                    .run_mode(RunMode::PerformLayout)
-                    .available(Size::new(
-                        Available::Definite(100.0),
-                        Available::Definite(10.0),
-                    )),
-                );
-
-            crate::compute_grid(
-                &mut tree,
+        let mut tree = OracleTree::new()
+            .children(1, [2, 3, 4])
+            .style(
                 1,
-                ComputeInput::for_child(
-                    RunMode::PerformLayout,
-                    SizingMode::InherentSize,
-                    RequestedAxis::Both,
-                    Size::NONE,
-                    Size::new(Some(140.0), Some(140.0)),
-                    crate::ContainingLayoutContext::new(
-                        crate::geometry::FlowAxes::new(
-                            crate::WritingMode::HorizontalTb,
-                            crate::Direction::Ltr,
-                        ),
-                        crate::ParentFormattingContext::NoParent,
-                    ),
-                    Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-                ),
+                NodeInput {
+                    display: Display::GridLanes,
+                    size: Size::new(PreferredSize::px(140.0), PreferredSize::px(140.0)),
+                    grid_template_columns: vec![
+                        TrackComponent::px(40.0),
+                        TrackComponent::px(100.0),
+                    ],
+                    grid_template_rows: vec![TrackComponent::px(10.0)],
+                    grid_flow_tolerance: GridFlowTolerance::Length(Length::px(0.0)),
+                    ..NodeInput::default()
+                },
             )
-            .unwrap();
+            .style(2, NodeInput::default())
+            .style(3, NodeInput::default())
+            .style(4, NodeInput::default());
 
-            let first = tree.layout(2).expect("first child layout");
-            let second = tree.layout(3).expect("second child layout");
-            let third = tree.layout(4).expect("third child layout");
-            assert_eq!(first.location, Point::new(0.0, 0.0));
-            assert_eq!(first.size, Size::new(40.0, 100.0));
-            assert_eq!(second.location, Point::new(40.0, 0.0));
-            assert_eq!(second.size, Size::new(100.0, 10.0));
-            assert_eq!(third.location, Point::new(40.0, 10.0));
-            assert_eq!(third.size, Size::new(100.0, 10.0));
-
-            let third_compute_size_inputs = tree
-                .inputs(4)
-                .iter()
-                .filter(|input| input.run_mode() == RunMode::ComputeSize)
-                .collect::<Vec<_>>();
-            assert!(
-                third_compute_size_inputs
-                    .iter()
-                    .any(|input| input.available().width == Available::Definite(100.0)),
-                "third auto lane item should be measured against its final 100px column: {third_compute_size_inputs:#?}"
+        tree = tree
+            .measure_when(
+                2,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(40.0, 100.0),
+                    Size::new(40.0, 100.0),
+                ))
+                .run_mode(RunMode::ComputeSize)
+                .available(Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT)),
+            )
+            .measure_when(
+                3,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(100.0, 10.0),
+                    Size::new(100.0, 10.0),
+                ))
+                .run_mode(RunMode::ComputeSize)
+                .available(Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT)),
+            )
+            .measure_when(
+                4,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(40.0, 100.0),
+                    Size::new(40.0, 100.0),
+                ))
+                .run_mode(RunMode::ComputeSize)
+                .available(Size::new(Available::Definite(40.0), Available::MAX_CONTENT)),
+            )
+            .measure_when(
+                4,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(100.0, 10.0),
+                    Size::new(100.0, 10.0),
+                ))
+                .run_mode(RunMode::ComputeSize)
+                .available(Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT)),
+            )
+            .measure_when(
+                2,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(40.0, 100.0),
+                    Size::new(40.0, 100.0),
+                ))
+                .available(Size::new(Available::Definite(40.0), Available::MAX_CONTENT)),
+            )
+            .measure_when(
+                3,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(100.0, 10.0),
+                    Size::new(100.0, 10.0),
+                ))
+                .available(Size::new(
+                    Available::Definite(100.0),
+                    Available::MAX_CONTENT,
+                )),
+            )
+            .measure_when(
+                4,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(100.0, 10.0),
+                    Size::new(100.0, 10.0),
+                ))
+                .available(Size::new(
+                    Available::Definite(100.0),
+                    Available::MAX_CONTENT,
+                )),
+            )
+            .measure_when(
+                2,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(40.0, 100.0),
+                    Size::new(40.0, 100.0),
+                ))
+                .run_mode(RunMode::PerformLayout)
+                .available(Size::new(
+                    Available::Definite(40.0),
+                    Available::Definite(100.0),
+                )),
+            )
+            .measure_when(
+                3,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(100.0, 10.0),
+                    Size::new(100.0, 10.0),
+                ))
+                .run_mode(RunMode::PerformLayout)
+                .available(Size::new(
+                    Available::Definite(100.0),
+                    Available::Definite(10.0),
+                )),
+            )
+            .measure_when(
+                4,
+                OracleMeasurement::new(ComputeOutput::from_sizes(
+                    Size::new(100.0, 10.0),
+                    Size::new(100.0, 10.0),
+                ))
+                .run_mode(RunMode::PerformLayout)
+                .available(Size::new(
+                    Available::Definite(100.0),
+                    Available::Definite(10.0),
+                )),
             );
-        };
+
+        crate::compute_grid(
+            &mut tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(140.0), Some(140.0)),
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
+        )
+        .unwrap();
+
+        let first = tree.layout(2).expect("first child layout");
+        let second = tree.layout(3).expect("second child layout");
+        let third = tree.layout(4).expect("third child layout");
+        assert_eq!(first.location, Point::new(0.0, 0.0));
+        assert_eq!(first.size, Size::new(40.0, 100.0));
+        assert_eq!(second.location, Point::new(40.0, 0.0));
+        assert_eq!(second.size, Size::new(100.0, 10.0));
+        assert_eq!(third.location, Point::new(40.0, 10.0));
+        assert_eq!(third.size, Size::new(100.0, 10.0));
+
+        let third_compute_size_inputs = tree
+            .inputs(4)
+            .iter()
+            .filter(|input| input.run_mode() == RunMode::ComputeSize)
+            .collect::<Vec<_>>();
+        assert!(
+            third_compute_size_inputs
+                .iter()
+                .any(|input| input.available().width == Available::Definite(100.0)),
+            "third auto lane item should be measured against its final 100px column: {third_compute_size_inputs:#?}"
+        );
     }
 
     #[test]

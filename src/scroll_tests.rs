@@ -503,10 +503,6 @@ fn scroll_conversion_clamp_commutes_is_contained_and_idempotent_in_both_scalar_l
 
 #[test]
 fn scroll_coordinate_constructors_report_exact_semantic_errors() {
-    (SCROLL_COORDINATE_CONSTRUCTORS_REPORT_EXACT_SEMANTIC_ERRORS_PHASE)();
-}
-
-const SCROLL_COORDINATE_CONSTRUCTORS_REPORT_EXACT_SEMANTIC_ERRORS_PHASE: fn() = || {
     assert_eq!(
         PhysicalScrollOffsetOf::try_new(f32::INFINITY, 1.0),
         Err(ScrollCoordinateErrorOf::NonFinitePhysicalOffset {
@@ -625,7 +621,7 @@ const SCROLL_COORDINATE_CONSTRUCTORS_REPORT_EXACT_SEMANTIC_ERRORS_PHASE: fn() = 
             maximum: 2.0,
         })
     );
-};
+}
 
 #[test]
 fn scroll_coordinate_constructors_reject_f32_nan_with_typed_errors() {
@@ -1270,21 +1266,7 @@ fn source_rounding_rounds_rects_with_cumulative_origin() {
 
 #[test]
 fn scroll_geometry_projects_signed_ranges_for_all_flow_mappings_before_and_after_rounding() {
-    (SCROLL_GEOMETRY_PROJECTS_SIGNED_RANGES_FOR_ALL_FLOW_MAPPINGS_BEFORE_AND_AFTER_ROUNDING_PHASE)(
-    );
-}
-
-const SCROLL_GEOMETRY_PROJECTS_SIGNED_RANGES_FOR_ALL_FLOW_MAPPINGS_BEFORE_AND_AFTER_ROUNDING_PHASE: fn() = || {
     fn assert_scalar<S: crate::LayoutScalar>() {
-    (AssertScalarPhaseL1278::<S>::RUN)()
-}
-
-type AssertScalarPhaseL1278Run = fn();
-
-struct AssertScalarPhaseL1278<S: crate::LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: crate::LayoutScalar> AssertScalarPhaseL1278<S> {
-    const RUN: AssertScalarPhaseL1278Run = || {
         let cases = [
             (
                 WritingMode::HorizontalTb,
@@ -1388,9 +1370,8 @@ impl<S: crate::LayoutScalar> AssertScalarPhaseL1278<S> {
                 assert_eq!(range.y().maximum(), S::from_f64(y_maximum));
             }
         }
-    };
-}
+    }
 
     assert_scalar::<f32>();
     assert_scalar::<f64>();
-};
+}

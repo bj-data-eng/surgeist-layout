@@ -1178,11 +1178,6 @@ fn fri04_c04_leaf_block_positioned_assert_block_path_unsupported(
 
 #[test]
 fn fri04_c04_leaf_block_positioned_block_and_absolute_cover_all_unsupported_states() {
-    (FRI04_C04_LEAF_BLOCK_POSITIONED_BLOCK_AND_ABSOLUTE_COVER_ALL_UNSUPPORTED_STATES_PHASE)();
-}
-
-const FRI04_C04_LEAF_BLOCK_POSITIONED_BLOCK_AND_ABSOLUTE_COVER_ALL_UNSUPPORTED_STATES_PHASE:
-    fn() = || {
     let sizing = || {
         SizingCalculation::value(LengthPercentageOf::px(10.0).expect("finite sizing calculation"))
     };
@@ -1347,7 +1342,7 @@ const FRI04_C04_LEAF_BLOCK_POSITIONED_BLOCK_AND_ABSOLUTE_COVER_ALL_UNSUPPORTED_S
             );
         }
     }
-};
+}
 
 #[test]
 fn fri04_c04_leaf_block_positioned_block_and_absolute_calc_size_geometry() {
@@ -1456,140 +1451,122 @@ fn fri04_c04_leaf_block_positioned_absolute_grid_and_block_inner_displays_are_po
 
 #[test]
 fn parent_context_gates_only_block_boundary_collapse_in_both_scalar_lanes() {
-    (PARENT_CONTEXT_GATES_ONLY_BLOCK_BOUNDARY_COLLAPSE_IN_BOTH_SCALAR_LANES_PHASE)();
-}
-
-const PARENT_CONTEXT_GATES_ONLY_BLOCK_BOUNDARY_COLLAPSE_IN_BOTH_SCALAR_LANES_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>()
     where
         crate::test_support::layout_tree::OracleTreeOf<S>:
             Compute + Traverse<Node = u32, Scalar = S>,
     {
-        (AssertLanePhaseL1463::<S>::RUN)()
-    }
-
-    type AssertLanePhaseL1463Run = fn();
-
-    struct AssertLanePhaseL1463<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL1463<S>
-    where
-        crate::test_support::layout_tree::OracleTreeOf<S>:
-            Compute + Traverse<Node = u32, Scalar = S>,
-    {
-        const RUN: AssertLanePhaseL1463Run = || {
-            let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
-            for (parent_context, expected_collapse) in [
-                (ParentFormattingContext::BlockFlow, true),
-                (ParentFormattingContext::Flex, false),
-                (ParentFormattingContext::Grid, false),
-                (ParentFormattingContext::NoParent, false),
-            ] {
-                let mut child_output =
-                    ComputeOutputOf::from_outer_size(Size::new(S::from_f64(40.0), S::ZERO));
-                child_output.block_margin_collapse = PhysicalBlockMarginCollapseOf::from_block_flow(
-                    flow_axes,
-                    CollapsibleMarginOf::from_margin(S::from_f64(3.0)),
-                    CollapsibleMarginOf::from_margin(S::from_f64(5.0)),
-                    true,
-                );
-                let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
-                    .children(0, [1])
-                    .children(1, [])
-                    .style(
-                        0,
-                        NodeInputOf {
-                            display: Display::Block,
-                            size: Size::new(
-                                PreferredSizeOf::px(S::from_f64(40.0)),
-                                PreferredSizeOf::AUTO,
-                            ),
-                            ..NodeInputOf::default()
-                        },
-                    )
-                    .style(
-                        1,
-                        NodeInputOf {
-                            display: Display::Block,
-                            margin: Edges::new(
-                                LengthAutoOf::px(S::from_f64(3.0)),
-                                LengthAutoOf::ZERO,
-                                LengthAutoOf::px(S::from_f64(5.0)),
-                                LengthAutoOf::ZERO,
-                            ),
-                            ..NodeInputOf::default()
-                        },
-                    )
-                    .measure(1, child_output);
-                let output = crate::compute_block(
-                    &mut tree,
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        for (parent_context, expected_collapse) in [
+            (ParentFormattingContext::BlockFlow, true),
+            (ParentFormattingContext::Flex, false),
+            (ParentFormattingContext::Grid, false),
+            (ParentFormattingContext::NoParent, false),
+        ] {
+            let mut child_output =
+                ComputeOutputOf::from_outer_size(Size::new(S::from_f64(40.0), S::ZERO));
+            child_output.block_margin_collapse = PhysicalBlockMarginCollapseOf::from_block_flow(
+                flow_axes,
+                CollapsibleMarginOf::from_margin(S::from_f64(3.0)),
+                CollapsibleMarginOf::from_margin(S::from_f64(5.0)),
+                true,
+            );
+            let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+                .children(0, [1])
+                .children(1, [])
+                .style(
                     0,
-                    ComputeInputOf::for_child(
-                        RunMode::PerformLayout,
-                        SizingMode::InherentSize,
-                        RequestedAxis::Both,
-                        Size::NONE,
-                        Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(100.0))),
-                        ContainingLayoutContext::new(flow_axes, parent_context),
-                        Size::new(
-                            AvailableOf::definite(S::from_f64(100.0)),
-                            AvailableOf::MAX_CONTENT,
+                    NodeInputOf {
+                        display: Display::Block,
+                        size: Size::new(
+                            PreferredSizeOf::px(S::from_f64(40.0)),
+                            PreferredSizeOf::AUTO,
                         ),
-                    ),
+                        ..NodeInputOf::default()
+                    },
                 )
-                .expect("block layout succeeds");
-
-                let collapse = output.block_margin_collapse;
-                assert_eq!(
-                    collapse.at(flow_axes.block_start()).resolve(),
-                    if expected_collapse {
-                        S::from_f64(3.0)
-                    } else {
-                        S::ZERO
+                .style(
+                    1,
+                    NodeInputOf {
+                        display: Display::Block,
+                        margin: Edges::new(
+                            LengthAutoOf::px(S::from_f64(3.0)),
+                            LengthAutoOf::ZERO,
+                            LengthAutoOf::px(S::from_f64(5.0)),
+                            LengthAutoOf::ZERO,
+                        ),
+                        ..NodeInputOf::default()
                     },
-                    "unexpected block-start collapse for {parent_context:?}"
-                );
-                assert_eq!(
-                    collapse.at(flow_axes.block_end()).resolve(),
-                    if expected_collapse {
-                        S::from_f64(5.0)
-                    } else {
-                        S::ZERO
-                    },
-                    "unexpected block-end collapse for {parent_context:?}"
-                );
-                assert_eq!(
-                    collapse.can_collapse_through(flow_axes),
-                    expected_collapse,
-                    "unexpected boundary collapse for {parent_context:?}"
-                );
-            }
-
-            let mut root_tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
-                .children(0, [])
-                .style(0, NodeInputOf::default());
-            let root_output = crate::compute_block(
-                &mut root_tree,
+                )
+                .measure(1, child_output);
+            let output = crate::compute_block(
+                &mut tree,
                 0,
-                ComputeInputOf::root_layout(
+                ComputeInputOf::for_child(
+                    RunMode::PerformLayout,
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
                     Size::NONE,
                     Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(100.0))),
-                    ContainingLayoutContext::new(flow_axes, ParentFormattingContext::BlockFlow),
-                    Size::splat(AvailableOf::definite(S::from_f64(100.0))),
+                    ContainingLayoutContext::new(flow_axes, parent_context),
+                    Size::new(
+                        AvailableOf::definite(S::from_f64(100.0)),
+                        AvailableOf::MAX_CONTENT,
+                    ),
                 ),
             )
-            .expect("root-mode block layout succeeds");
-            assert!(
-                !root_output
-                    .block_margin_collapse
-                    .can_collapse_through(flow_axes)
+            .expect("block layout succeeds");
+
+            let collapse = output.block_margin_collapse;
+            assert_eq!(
+                collapse.at(flow_axes.block_start()).resolve(),
+                if expected_collapse {
+                    S::from_f64(3.0)
+                } else {
+                    S::ZERO
+                },
+                "unexpected block-start collapse for {parent_context:?}"
             );
-        };
+            assert_eq!(
+                collapse.at(flow_axes.block_end()).resolve(),
+                if expected_collapse {
+                    S::from_f64(5.0)
+                } else {
+                    S::ZERO
+                },
+                "unexpected block-end collapse for {parent_context:?}"
+            );
+            assert_eq!(
+                collapse.can_collapse_through(flow_axes),
+                expected_collapse,
+                "unexpected boundary collapse for {parent_context:?}"
+            );
+        }
+
+        let mut root_tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(0, [])
+            .style(0, NodeInputOf::default());
+        let root_output = crate::compute_block(
+            &mut root_tree,
+            0,
+            ComputeInputOf::root_layout(
+                Size::NONE,
+                Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(100.0))),
+                ContainingLayoutContext::new(flow_axes, ParentFormattingContext::BlockFlow),
+                Size::splat(AvailableOf::definite(S::from_f64(100.0))),
+            ),
+        )
+        .expect("root-mode block layout succeeds");
+        assert!(
+            !root_output
+                .block_margin_collapse
+                .can_collapse_through(flow_axes)
+        );
     }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 fn fri06_mr02_physical_edge_value<S: LayoutScalar>(edges: Edges<S>, side: PhysicalSide) -> S {
     match side {
@@ -2576,26 +2553,7 @@ fn fri06_c05_expected_shape_query<S: LayoutScalar>(
 #[test]
 fn fri06_c05_shape_band_empty_partial_full_clipped_zero_opposing_stacked_cleared_and_overwide_both_scalars()
  {
-    (Fri06C05ShapeBandEmptyPartialFullClippedZeroOpposingStackedClearedAndOverwideBothScalarsPhaseL2563::RUN)()
-}
-
-type Fri06C05ShapeBandEmptyPartialFullClippedZeroOpposingStackedClearedAndOverwideBothScalarsPhaseL2563Run =
-    fn();
-
-struct Fri06C05ShapeBandEmptyPartialFullClippedZeroOpposingStackedClearedAndOverwideBothScalarsPhaseL2563;
-
-impl Fri06C05ShapeBandEmptyPartialFullClippedZeroOpposingStackedClearedAndOverwideBothScalarsPhaseL2563 {
-    const RUN: Fri06C05ShapeBandEmptyPartialFullClippedZeroOpposingStackedClearedAndOverwideBothScalarsPhaseL2563Run = || {
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL2589::<S>::RUN)()
-}
-
-type AssertLanePhaseL2589Run = fn();
-
-struct AssertLanePhaseL2589<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL2589<S> {
-    const RUN: AssertLanePhaseL2589Run = || {
         let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
         let cases: [(ShapeProviderBehavior<S>, (f64, f64)); 6] = [
             (ShapeProviderBehavior::Empty, (0.0, 0.0)),
@@ -2737,12 +2695,10 @@ impl<S: LayoutScalar> AssertLanePhaseL2589<S> {
             public_final_output(&cleared_batch, 3).location,
             Point::new(scalar_value(-20.0), S::ZERO),
         );
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
 }
 
 #[test]
@@ -2946,115 +2902,110 @@ fn fri06_c05_shape_query_float_line_and_bfc_consumers_record_exact_candidate_onc
 
 #[test]
 fn fri06_c04_float_place_mapped_sides_and_clear_values_all_flows_both_scalars() {
-    (FRI06_C04_FLOAT_PLACE_MAPPED_SIDES_AND_CLEAR_VALUES_ALL_FLOWS_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C04_FLOAT_PLACE_MAPPED_SIDES_AND_CLEAR_VALUES_ALL_FLOWS_BOTH_SCALARS_PHASE: fn() =
-    || {
-        fn assert_lane<S: LayoutScalar>() {
-            let zero = crate::geometry::LogicalEdgesOf::new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
-            for (writing_mode, direction) in all_writing_mode_directions() {
-                let flow_axes = FlowAxes::new(writing_mode, direction);
-                let batch = fri06_c04_float_batch(
-                    flow_axes,
-                    [
-                        (
-                            1,
-                            fri06_c04_float_style(
-                                flow_axes,
-                                crate::geometry::LogicalSizeOf::new(
-                                    scalar_value(30.0),
-                                    scalar_value(20.0),
-                                ),
-                                Float::Left,
-                                Clear::None,
-                                zero,
-                            ),
-                        ),
-                        (
-                            2,
-                            fri06_c04_float_style(
-                                flow_axes,
-                                crate::geometry::LogicalSizeOf::new(
-                                    scalar_value(25.0),
-                                    scalar_value(30.0),
-                                ),
-                                Float::Right,
-                                Clear::None,
-                                zero,
-                            ),
-                        ),
-                        (
-                            3,
-                            fri06_c04_float_style(
-                                flow_axes,
-                                crate::geometry::LogicalSizeOf::new(
-                                    scalar_value(20.0),
-                                    scalar_value(10.0),
-                                ),
-                                Float::Left,
-                                Clear::Left,
-                                zero,
-                            ),
-                        ),
-                        (
-                            4,
-                            fri06_c04_float_style(
-                                flow_axes,
-                                crate::geometry::LogicalSizeOf::new(
-                                    scalar_value(15.0),
-                                    scalar_value(10.0),
-                                ),
-                                Float::Right,
-                                Clear::Right,
-                                zero,
-                            ),
-                        ),
-                        (
-                            5,
-                            fri06_c04_float_style(
-                                flow_axes,
-                                crate::geometry::LogicalSizeOf::new(
-                                    scalar_value(10.0),
-                                    scalar_value(10.0),
-                                ),
-                                Float::Left,
-                                Clear::Both,
-                                zero,
-                            ),
-                        ),
-                    ],
-                );
-
-                for (node, inline, block, inline_size, block_size) in [
-                    (1, 0.0, 0.0, 30.0, 20.0),
-                    (2, 75.0, 0.0, 25.0, 30.0),
-                    (3, 0.0, 20.0, 20.0, 10.0),
-                    (4, 85.0, 30.0, 15.0, 10.0),
-                    (5, 0.0, 40.0, 10.0, 10.0),
-                ] {
-                    assert_eq!(
-                        public_final_output(&batch, node).location,
-                        fri06_c04_expected_float_location(
+    fn assert_lane<S: LayoutScalar>() {
+        let zero = crate::geometry::LogicalEdgesOf::new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+        for (writing_mode, direction) in all_writing_mode_directions() {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let batch = fri06_c04_float_batch(
+                flow_axes,
+                [
+                    (
+                        1,
+                        fri06_c04_float_style(
                             flow_axes,
-                            crate::geometry::LogicalPointOf::new(
-                                scalar_value(inline),
-                                scalar_value(block),
-                            ),
                             crate::geometry::LogicalSizeOf::new(
-                                scalar_value(inline_size),
-                                scalar_value(block_size),
+                                scalar_value(30.0),
+                                scalar_value(20.0),
                             ),
+                            Float::Left,
+                            Clear::None,
+                            zero,
                         ),
-                        "mapped float placement diverged for {writing_mode:?} {direction:?} node {node}",
-                    );
-                }
+                    ),
+                    (
+                        2,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(25.0),
+                                scalar_value(30.0),
+                            ),
+                            Float::Right,
+                            Clear::None,
+                            zero,
+                        ),
+                    ),
+                    (
+                        3,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(20.0),
+                                scalar_value(10.0),
+                            ),
+                            Float::Left,
+                            Clear::Left,
+                            zero,
+                        ),
+                    ),
+                    (
+                        4,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(15.0),
+                                scalar_value(10.0),
+                            ),
+                            Float::Right,
+                            Clear::Right,
+                            zero,
+                        ),
+                    ),
+                    (
+                        5,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(10.0),
+                                scalar_value(10.0),
+                            ),
+                            Float::Left,
+                            Clear::Both,
+                            zero,
+                        ),
+                    ),
+                ],
+            );
+
+            for (node, inline, block, inline_size, block_size) in [
+                (1, 0.0, 0.0, 30.0, 20.0),
+                (2, 75.0, 0.0, 25.0, 30.0),
+                (3, 0.0, 20.0, 20.0, 10.0),
+                (4, 85.0, 30.0, 15.0, 10.0),
+                (5, 0.0, 40.0, 10.0, 10.0),
+            ] {
+                assert_eq!(
+                    public_final_output(&batch, node).location,
+                    fri06_c04_expected_float_location(
+                        flow_axes,
+                        crate::geometry::LogicalPointOf::new(
+                            scalar_value(inline),
+                            scalar_value(block),
+                        ),
+                        crate::geometry::LogicalSizeOf::new(
+                            scalar_value(inline_size),
+                            scalar_value(block_size),
+                        ),
+                    ),
+                    "mapped float placement diverged for {writing_mode:?} {direction:?} node {node}",
+                );
             }
         }
+    }
 
-        assert_lane::<f32>();
-        assert_lane::<f64>();
-    };
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
 
 #[test]
 fn fri06_c04_float_place_margin_box_remains_physical_for_later_float_both_scalars() {
@@ -3495,178 +3446,168 @@ fn fri06_c04_float_progress_zero_band_exact_transition_and_overwide_side_both_sc
 }
 
 fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
-    (AssertOrdinaryBlockBoundariesPhaseL3462::<S>::RUN)()
-}
+    let scalar = scalar_value::<S>;
+    let container_size = Size::new(scalar(100.0), scalar(100.0));
+    let child_logical_size = crate::geometry::LogicalSizeOf::new(scalar(20.0), scalar(10.0));
 
-type AssertOrdinaryBlockBoundariesPhaseL3462Run = fn();
-
-struct AssertOrdinaryBlockBoundariesPhaseL3462<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertOrdinaryBlockBoundariesPhaseL3462<S> {
-    const RUN: AssertOrdinaryBlockBoundariesPhaseL3462Run = || {
-        let scalar = scalar_value::<S>;
-        let container_size = Size::new(scalar(100.0), scalar(100.0));
-        let child_logical_size = crate::geometry::LogicalSizeOf::new(scalar(20.0), scalar(10.0));
-
-        for (writing_mode, direction) in all_writing_mode_directions() {
-            let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
-            let child_size = flow_axes.physical_size(child_logical_size);
-            let relative_inset = flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
-                LengthAutoOf::px(scalar(3.0)),
-                LengthAutoOf::AUTO,
-                LengthAutoOf::px(scalar(5.0)),
-                LengthAutoOf::AUTO,
-            ));
-            let relative_expected = flow_axes.physical_point(
-                crate::geometry::LogicalPointOf::new(scalar(3.0), scalar(5.0)),
-                child_logical_size,
-                container_size,
+    for (writing_mode, direction) in all_writing_mode_directions() {
+        let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+        let child_size = flow_axes.physical_size(child_logical_size);
+        let relative_inset = flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+            LengthAutoOf::px(scalar(3.0)),
+            LengthAutoOf::AUTO,
+            LengthAutoOf::px(scalar(5.0)),
+            LengthAutoOf::AUTO,
+        ));
+        let relative_expected = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(scalar(3.0), scalar(5.0)),
+            child_logical_size,
+            container_size,
+        );
+        let relative_tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    position: Position::Relative,
+                    size: child_size.map(PreferredSizeOf::px),
+                    inset: relative_inset,
+                    ..NodeInputOf::default()
+                },
             );
-            let relative_tree = PublicBlockTree::default()
-                .with_children(0, [1])
-                .with_children(1, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: Size::new(
-                            PreferredSizeOf::px(scalar(100.0)),
-                            PreferredSizeOf::px(scalar(100.0)),
-                        ),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    1,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        position: Position::Relative,
-                        size: child_size.map(PreferredSizeOf::px),
-                        inset: relative_inset,
-                        ..NodeInputOf::default()
-                    },
-                );
-            let request =
-                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
-                    .expect("finite viewport is valid");
-            let relative =
-                compute_layout(&relative_tree, 0, request).expect("relative block layout succeeds");
+        let request =
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("finite viewport is valid");
+        let relative =
+            compute_layout(&relative_tree, 0, request).expect("relative block layout succeeds");
 
-            assert_eq!(
-                public_final_output(&relative, 1).location,
-                relative_expected
+        assert_eq!(
+            public_final_output(&relative, 1).location,
+            relative_expected
+        );
+
+        let inline_expected = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(S::ZERO, scalar(10.0)),
+            child_logical_size,
+            container_size,
+        );
+        let inline_tree = PublicBlockTree::default()
+            .with_children(0, [1, 2])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: child_size.map(PreferredSizeOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::InlineBlock,
+                    atomic_inline_participation: Some(fri06_atomic_participation()),
+                    writing_mode,
+                    direction,
+                    size: child_size.map(PreferredSizeOf::px),
+                    ..NodeInputOf::default()
+                },
             );
+        let request =
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("finite viewport is valid");
+        let inline =
+            compute_layout(&inline_tree, 0, request).expect("inline block layout succeeds");
 
-            let inline_expected = flow_axes.physical_point(
-                crate::geometry::LogicalPointOf::new(S::ZERO, scalar(10.0)),
-                child_logical_size,
-                container_size,
+        assert_eq!(public_final_output(&inline, 2).location, inline_expected);
+
+        let static_expected = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(S::ZERO, scalar(10.0)),
+            child_logical_size,
+            container_size,
+        );
+        let static_tree = PublicBlockTree::default()
+            .with_children(0, [1, 2])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: child_size.map(PreferredSizeOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    position: Position::Absolute,
+                    size: child_size.map(PreferredSizeOf::px),
+                    ..NodeInputOf::default()
+                },
             );
-            let inline_tree = PublicBlockTree::default()
-                .with_children(0, [1, 2])
-                .with_children(1, [])
-                .with_children(2, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: Size::new(
-                            PreferredSizeOf::px(scalar(100.0)),
-                            PreferredSizeOf::px(scalar(100.0)),
-                        ),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    1,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: child_size.map(PreferredSizeOf::px),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    2,
-                    NodeInputOf {
-                        display: Display::InlineBlock,
-                        atomic_inline_participation: Some(fri06_atomic_participation()),
-                        writing_mode,
-                        direction,
-                        size: child_size.map(PreferredSizeOf::px),
-                        ..NodeInputOf::default()
-                    },
-                );
-            let request =
-                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
-                    .expect("finite viewport is valid");
-            let inline =
-                compute_layout(&inline_tree, 0, request).expect("inline block layout succeeds");
+        let request =
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("finite viewport is valid");
+        let static_position =
+            compute_layout(&static_tree, 0, request).expect("static fallback layout succeeds");
 
-            assert_eq!(public_final_output(&inline, 2).location, inline_expected);
-
-            let static_expected = flow_axes.physical_point(
-                crate::geometry::LogicalPointOf::new(S::ZERO, scalar(10.0)),
-                child_logical_size,
-                container_size,
-            );
-            let static_tree = PublicBlockTree::default()
-                .with_children(0, [1, 2])
-                .with_children(1, [])
-                .with_children(2, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: Size::new(
-                            PreferredSizeOf::px(scalar(100.0)),
-                            PreferredSizeOf::px(scalar(100.0)),
-                        ),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    1,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: child_size.map(PreferredSizeOf::px),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    2,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        position: Position::Absolute,
-                        size: child_size.map(PreferredSizeOf::px),
-                        ..NodeInputOf::default()
-                    },
-                );
-            let request =
-                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
-                    .expect("finite viewport is valid");
-            let static_position =
-                compute_layout(&static_tree, 0, request).expect("static fallback layout succeeds");
-
-            assert_eq!(
-                public_final_output(&static_position, 2).location,
-                static_expected
-            );
-        }
-    };
+        assert_eq!(
+            public_final_output(&static_position, 2).location,
+            static_expected
+        );
+    }
 }
 
 #[test]
@@ -4171,38 +4112,70 @@ fn assert_ordinary_block_collapse_relationship<S: LayoutScalar>(
 }
 
 fn assert_ordinary_block_relationship_matrix<S: LayoutScalar>() {
-    (AssertOrdinaryBlockRelationshipMatrixPhaseL4128::<S>::RUN)()
-}
+    for measured_leaf in [false, true] {
+        assert_ordinary_block_collapse_relationship::<S>(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            measured_leaf,
+            scalar_value(60.0),
+        );
+        assert_ordinary_block_collapse_relationship::<S>(
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            measured_leaf,
+            scalar_value(60.0),
+        );
+        assert_ordinary_block_collapse_relationship::<S>(
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            measured_leaf,
+            scalar_value(100.0),
+        );
+    }
 
-type AssertOrdinaryBlockRelationshipMatrixPhaseL4128Run = fn();
-
-struct AssertOrdinaryBlockRelationshipMatrixPhaseL4128<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertOrdinaryBlockRelationshipMatrixPhaseL4128<S> {
-    const RUN: AssertOrdinaryBlockRelationshipMatrixPhaseL4128Run = || {
-        for measured_leaf in [false, true] {
-            assert_ordinary_block_collapse_relationship::<S>(
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
-                measured_leaf,
-                scalar_value(60.0),
+    for measured_leaf in [false, true] {
+        let scalar = scalar_value::<S>;
+        let mut tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: WritingMode::VerticalLr,
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(200.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: WritingMode::HorizontalTb,
+                    size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
+                    ..NodeInputOf::default()
+                },
             );
-            assert_ordinary_block_collapse_relationship::<S>(
-                WritingMode::HorizontalTb,
-                Direction::Rtl,
-                measured_leaf,
-                scalar_value(60.0),
-            );
-            assert_ordinary_block_collapse_relationship::<S>(
-                WritingMode::VerticalRl,
-                Direction::Ltr,
-                measured_leaf,
-                scalar_value(100.0),
-            );
+        if measured_leaf {
+            tree = tree.with_measurement(1, Size::new(scalar(5.0), scalar(10.0)));
         }
+        let request = LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(100.0)),
+            AvailableOf::definite(scalar(200.0)),
+        ))
+        .expect("finite viewport is valid");
 
+        let batch = compute_layout(&tree, 0, request).expect("orthogonal layout succeeds");
+        assert_eq!(
+            public_final_output(&batch, 1).size,
+            Size::new(scalar(100.0), scalar(10.0))
+        );
+    }
+
+    for child_direction in [Direction::Ltr, Direction::Rtl] {
         for measured_leaf in [false, true] {
             let scalar = scalar_value::<S>;
             let mut tree = PublicBlockTree::default()
@@ -4224,13 +4197,14 @@ impl<S: LayoutScalar> AssertOrdinaryBlockRelationshipMatrixPhaseL4128<S> {
                     1,
                     NodeInputOf {
                         display: Display::Block,
-                        writing_mode: WritingMode::HorizontalTb,
-                        size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
+                        writing_mode: WritingMode::VerticalLr,
+                        direction: child_direction,
+                        size: Size::new(PreferredSizeOf::px(scalar(10.0)), PreferredSizeOf::AUTO),
                         ..NodeInputOf::default()
                     },
                 );
             if measured_leaf {
-                tree = tree.with_measurement(1, Size::new(scalar(5.0), scalar(10.0)));
+                tree = tree.with_measurement(1, Size::new(scalar(10.0), scalar(5.0)));
             }
             let request = LayoutRootRequestOf::viewport(Size::new(
                 AvailableOf::definite(scalar(100.0)),
@@ -4238,61 +4212,13 @@ impl<S: LayoutScalar> AssertOrdinaryBlockRelationshipMatrixPhaseL4128<S> {
             ))
             .expect("finite viewport is valid");
 
-            let batch = compute_layout(&tree, 0, request).expect("orthogonal layout succeeds");
+            let batch = compute_layout(&tree, 0, request).expect("parallel layout succeeds");
             assert_eq!(
                 public_final_output(&batch, 1).size,
-                Size::new(scalar(100.0), scalar(10.0))
+                Size::new(scalar(10.0), scalar(200.0))
             );
         }
-
-        for child_direction in [Direction::Ltr, Direction::Rtl] {
-            for measured_leaf in [false, true] {
-                let scalar = scalar_value::<S>;
-                let mut tree = PublicBlockTree::default()
-                    .with_children(0, [1])
-                    .with_children(1, [])
-                    .with_style(
-                        0,
-                        NodeInputOf {
-                            display: Display::Block,
-                            writing_mode: WritingMode::VerticalLr,
-                            size: Size::new(
-                                PreferredSizeOf::px(scalar(100.0)),
-                                PreferredSizeOf::px(scalar(200.0)),
-                            ),
-                            ..NodeInputOf::default()
-                        },
-                    )
-                    .with_style(
-                        1,
-                        NodeInputOf {
-                            display: Display::Block,
-                            writing_mode: WritingMode::VerticalLr,
-                            direction: child_direction,
-                            size: Size::new(
-                                PreferredSizeOf::px(scalar(10.0)),
-                                PreferredSizeOf::AUTO,
-                            ),
-                            ..NodeInputOf::default()
-                        },
-                    );
-                if measured_leaf {
-                    tree = tree.with_measurement(1, Size::new(scalar(10.0), scalar(5.0)));
-                }
-                let request = LayoutRootRequestOf::viewport(Size::new(
-                    AvailableOf::definite(scalar(100.0)),
-                    AvailableOf::definite(scalar(200.0)),
-                ))
-                .expect("finite viewport is valid");
-
-                let batch = compute_layout(&tree, 0, request).expect("parallel layout succeeds");
-                assert_eq!(
-                    public_final_output(&batch, 1).size,
-                    Size::new(scalar(10.0), scalar(200.0))
-                );
-            }
-        }
-    };
+    }
 }
 
 fn assert_ordinary_block_opposing_flow_collapse<S: LayoutScalar>(measured_leaf: bool) {
@@ -4977,10 +4903,6 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
 
 #[test]
 fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
-    (BLOCK_SCROLL_GEOMETRY_INCLUDES_SEGMENTED_INLINE_OVERFLOW_RECTS_PHASE)();
-}
-
-const BLOCK_SCROLL_GEOMETRY_INCLUDES_SEGMENTED_INLINE_OVERFLOW_RECTS_PHASE: fn() = || {
     let metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
     let mut tree = ScrollBlockTree::default();
     tree.children.insert(1, vec![2, 3, 4, 5]);
@@ -5128,7 +5050,7 @@ const BLOCK_SCROLL_GEOMETRY_INCLUDES_SEGMENTED_INLINE_OVERFLOW_RECTS_PHASE: fn()
         geometry.scrollable_overflow().size(),
         Size::new(107.0, 80.0)
     );
-};
+}
 
 #[test]
 fn block_scroll_geometry_includes_float_child_overflow_rect() {
@@ -8579,10 +8501,6 @@ fn block_definite_compute_size_keeps_non_empty_flex_child_baselines() {
 
 #[test]
 fn block_layout_stacks_in_flow_children_vertically() {
-    (BLOCK_LAYOUT_STACKS_IN_FLOW_CHILDREN_VERTICALLY_PHASE)();
-}
-
-const BLOCK_LAYOUT_STACKS_IN_FLOW_CHILDREN_VERTICALLY_PHASE: fn() = || {
     #[derive(Default)]
     struct BlockTree {
         children: HashMap<u32, Vec<u32>>,
@@ -8721,7 +8639,7 @@ const BLOCK_LAYOUT_STACKS_IN_FLOW_CHILDREN_VERTICALLY_PHASE: fn() = || {
     assert_eq!(tree.layouts[&3].size, Size::new(30.0, 12.0));
     assert_eq!(tree.inputs[&2][0].parent(), Size::new(Some(82.0), None));
     assert_eq!(tree.inputs[&3][0].parent(), Size::new(Some(82.0), None));
-};
+}
 
 #[test]
 fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
@@ -9530,10 +9448,6 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
 
 #[test]
 fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
-    (BLOCK_LAYOUT_COLLAPSES_ADJACENT_IN_FLOW_VERTICAL_MARGINS_PHASE)();
-}
-
-const BLOCK_LAYOUT_COLLAPSES_ADJACENT_IN_FLOW_VERTICAL_MARGINS_PHASE: fn() = || {
     #[derive(Default)]
     struct BlockTree {
         children: HashMap<u32, Vec<u32>>,
@@ -9652,7 +9566,7 @@ const BLOCK_LAYOUT_COLLAPSES_ADJACENT_IN_FLOW_VERTICAL_MARGINS_PHASE: fn() = || 
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 20.0));
     assert_eq!(output.size, Size::new(100.0, 30.0));
     assert_eq!(output.content_size, Size::new(100.0, 30.0));
-};
+}
 
 #[test]
 fn block_layout_collapses_first_child_top_margin_through_parent() {
@@ -9771,10 +9685,6 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
 
 #[test]
 fn block_scroll_container_keeps_first_child_top_margin_inside() {
-    (BLOCK_SCROLL_CONTAINER_KEEPS_FIRST_CHILD_TOP_MARGIN_INSIDE_PHASE)();
-}
-
-const BLOCK_SCROLL_CONTAINER_KEEPS_FIRST_CHILD_TOP_MARGIN_INSIDE_PHASE: fn() = || {
     #[derive(Default)]
     struct BlockTree {
         children: HashMap<u32, Vec<u32>>,
@@ -9893,7 +9803,7 @@ const BLOCK_SCROLL_CONTAINER_KEEPS_FIRST_CHILD_TOP_MARGIN_INSIDE_PHASE: fn() = |
             .block_margin_collapse
             .can_collapse_through(FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr))
     );
-};
+}
 
 #[test]
 fn block_rtl_scrollbar_gutter_uses_left_inset() {
@@ -10215,10 +10125,6 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
 
 #[test]
 fn block_layout_collapses_margins_through_empty_in_flow_child() {
-    (BLOCK_LAYOUT_COLLAPSES_MARGINS_THROUGH_EMPTY_IN_FLOW_CHILD_PHASE)();
-}
-
-const BLOCK_LAYOUT_COLLAPSES_MARGINS_THROUGH_EMPTY_IN_FLOW_CHILD_PHASE: fn() = || {
     #[derive(Default)]
     struct BlockTree {
         children: HashMap<u32, Vec<u32>>,
@@ -10348,7 +10254,7 @@ const BLOCK_LAYOUT_COLLAPSES_MARGINS_THROUGH_EMPTY_IN_FLOW_CHILD_PHASE: fn() = |
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 11.0));
     assert_eq!(output.size, Size::new(100.0, 22.0));
     assert_eq!(output.content_size, Size::new(100.0, 20.0));
-};
+}
 
 #[test]
 fn block_empty_auto_height_can_collapse_through() {
@@ -11247,10 +11153,6 @@ fn block_layout_stretches_auto_width_in_flow_children() {
 
 #[test]
 fn block_compute_size_uses_in_flow_children_for_auto_height() {
-    (BLOCK_COMPUTE_SIZE_USES_IN_FLOW_CHILDREN_FOR_AUTO_HEIGHT_PHASE)();
-}
-
-const BLOCK_COMPUTE_SIZE_USES_IN_FLOW_CHILDREN_FOR_AUTO_HEIGHT_PHASE: fn() = || {
     #[derive(Default)]
     struct BlockTree {
         children: HashMap<u32, Vec<u32>>,
@@ -11364,7 +11266,7 @@ const BLOCK_COMPUTE_SIZE_USES_IN_FLOW_CHILDREN_FOR_AUTO_HEIGHT_PHASE: fn() = || 
     assert_eq!(output.size, Size::new(100.0, 26.0));
     assert_eq!(output.content_size, Size::ZERO);
     assert!(tree.layouts.is_empty());
-};
+}
 
 #[test]
 fn block_compute_size_uses_definite_min_max_without_measuring_children() {
@@ -11864,10 +11766,6 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
 
 #[test]
 fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_display_none() {
-    (BLOCK_LAYOUT_LAYS_OUT_ABSOLUTE_CHILDREN_WITHOUT_FLOW_CONTRIBUTION_AND_HIDES_DISPLAY_NONE_PHASE)();
-}
-
-const BLOCK_LAYOUT_LAYS_OUT_ABSOLUTE_CHILDREN_WITHOUT_FLOW_CONTRIBUTION_AND_HIDES_DISPLAY_NONE_PHASE: fn() = || {
     #[derive(Default)]
     struct BlockTree {
         children: HashMap<u32, Vec<u32>>,
@@ -12015,14 +11913,10 @@ const BLOCK_LAYOUT_LAYS_OUT_ABSOLUTE_CHILDREN_WITHOUT_FLOW_CONTRIBUTION_AND_HIDE
             crate::ParentFormattingContext::BlockFlow
         ))]
     );
-};
+}
 
 #[test]
 fn block_absolute_child_without_insets_uses_static_position_after_flow() {
-    (BLOCK_ABSOLUTE_CHILD_WITHOUT_INSETS_USES_STATIC_POSITION_AFTER_FLOW_PHASE)();
-}
-
-const BLOCK_ABSOLUTE_CHILD_WITHOUT_INSETS_USES_STATIC_POSITION_AFTER_FLOW_PHASE: fn() = || {
     #[derive(Default)]
     struct BlockTree {
         children: HashMap<u32, Vec<u32>>,
@@ -12136,7 +12030,7 @@ const BLOCK_ABSOLUTE_CHILD_WITHOUT_INSETS_USES_STATIC_POSITION_AFTER_FLOW_PHASE:
     assert_eq!(tree.layouts[&2].location, Point::new(1.0, 1.0));
     assert_eq!(tree.layouts[&3].location, Point::new(1.0, 11.0));
     assert_eq!(tree.layouts[&3].size, Size::new(20.0, 5.0));
-};
+}
 
 #[test]
 fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
@@ -12468,10 +12362,6 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
 
 #[test]
 fn block_absolute_child_expands_horizontal_auto_margins() {
-    (BLOCK_ABSOLUTE_CHILD_EXPANDS_HORIZONTAL_AUTO_MARGINS_PHASE)();
-}
-
-const BLOCK_ABSOLUTE_CHILD_EXPANDS_HORIZONTAL_AUTO_MARGINS_PHASE: fn() = || {
     #[derive(Default)]
     struct BlockTree {
         children: HashMap<u32, Vec<u32>>,
@@ -12587,14 +12477,10 @@ const BLOCK_ABSOLUTE_CHILD_EXPANDS_HORIZONTAL_AUTO_MARGINS_PHASE: fn() = || {
     assert_eq!(tree.layouts[&2].margin.right, 40.0);
     assert_eq!(tree.layouts[&2].location, Point::new(40.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
-};
+}
 
 #[test]
 fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
-    (BLOCK_ABSOLUTE_CHILD_LARGE_WIDTH_KEEPS_HORIZONTAL_AUTO_MARGINS_ZERO_PHASE)();
-}
-
-const BLOCK_ABSOLUTE_CHILD_LARGE_WIDTH_KEEPS_HORIZONTAL_AUTO_MARGINS_ZERO_PHASE: fn() = || {
     #[derive(Default)]
     struct BlockTree {
         children: HashMap<u32, Vec<u32>>,
@@ -12710,7 +12596,7 @@ const BLOCK_ABSOLUTE_CHILD_LARGE_WIDTH_KEEPS_HORIZONTAL_AUTO_MARGINS_ZERO_PHASE:
     assert_eq!(tree.layouts[&2].margin.right, 0.0);
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(70.0, 10.0));
-};
+}
 
 #[test]
 fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
@@ -13496,116 +13382,111 @@ fn fri05_c03_block_tiny_max_size_below_raw_edges_keeps_layout_geometry_coherent(
 
 #[test]
 fn fri05_c03_block_tiny_max_inline_size_below_raw_edges_keeps_child_space_zero() {
-    (FRI05_C03_BLOCK_TINY_MAX_INLINE_SIZE_BELOW_RAW_EDGES_KEEPS_CHILD_SPACE_ZERO_PHASE)();
-}
-
-const FRI05_C03_BLOCK_TINY_MAX_INLINE_SIZE_BELOW_RAW_EDGES_KEEPS_CHILD_SPACE_ZERO_PHASE: fn() =
-    || {
-        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
-        let mut tree = Fri05C03BlockPassTree::default();
-        tree.children.insert(0, vec![1]);
-        tree.children.insert(1, vec![]);
-        tree.styles.insert(
-            0,
-            NodeInput {
-                display: Display::Block,
-                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
-                scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
-                size: Size::new(PreferredSize::AUTO, PreferredSize::px(20.0)),
-                max_size: Size::new(MaxSize::px(12.0), MaxSize::NONE),
-                border: Edges {
-                    right: Length::px(10.0),
-                    left: Length::px(10.0),
-                    ..Edges::all(Length::ZERO)
-                },
-                padding: Edges {
-                    right: Length::px(5.0),
-                    left: Length::px(5.0),
-                    ..Edges::all(Length::ZERO)
-                },
-                ..NodeInput::default()
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let mut tree = Fri05C03BlockPassTree::default();
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Block,
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(20.0)),
+            max_size: Size::new(MaxSize::px(12.0), MaxSize::NONE),
+            border: Edges {
+                right: Length::px(10.0),
+                left: Length::px(10.0),
+                ..Edges::all(Length::ZERO)
             },
-        );
-        tree.styles.insert(
-            1,
-            NodeInput {
-                display: Display::Block,
-                ..NodeInput::default()
+            padding: Edges {
+                right: Length::px(5.0),
+                left: Length::px(5.0),
+                ..Edges::all(Length::ZERO)
             },
-        );
-        tree.child_output = Some(ComputeOutput::from_outer_size(Size::ZERO));
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            ..NodeInput::default()
+        },
+    );
+    tree.child_output = Some(ComputeOutput::from_outer_size(Size::ZERO));
 
-        let output = crate::compute_block(
-            &mut tree,
-            0,
-            ComputeInput::for_child(
-                RunMode::PerformLayout,
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                Size::new(None, Some(20.0)),
-                Size::new(None, Some(20.0)),
-                ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
-                Size::new(Available::MAX_CONTENT, Available::definite(20.0)),
-            ),
-        )
-        .expect("raw inline edges larger than max size remain supported");
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(None, Some(20.0)),
+            Size::new(None, Some(20.0)),
+            ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+            Size::new(Available::MAX_CONTENT, Available::definite(20.0)),
+        ),
+    )
+    .expect("raw inline edges larger than max size remain supported");
 
-        assert_eq!(
-            tree.child_inputs
-                .iter()
-                .map(|input| {
-                    let state = input.settled_auto_scrollbars();
-                    (
-                        state.at(PhysicalAxis::Horizontal),
-                        state.at(PhysicalAxis::Vertical),
-                    )
-                })
-                .collect::<Vec<_>>(),
-            [(false, false), (false, false)]
-        );
-        assert_eq!(
-            tree.child_inputs
-                .iter()
-                .map(|input| {
-                    let state = input.containing_auto_scrollbar_pass();
-                    (
-                        state.at(PhysicalAxis::Horizontal),
-                        state.at(PhysicalAxis::Vertical),
-                    )
-                })
-                .collect::<Vec<_>>(),
-            [(false, false), (false, false)]
-        );
-        assert_eq!(
-            tree.child_inputs[0].available().width,
-            Available::MAX_CONTENT
-        );
-        assert_eq!(tree.child_inputs[1].known().width, Some(0.0));
-        assert_eq!(
-            tree.child_inputs[1].available().width,
-            Available::definite(0.0)
-        );
-        let child = tree
-            .layouts
+    assert_eq!(
+        tree.child_inputs
             .iter()
-            .find_map(|(node, layout)| (*node == 1).then_some(*layout))
-            .expect("the final coherent pass stages its child");
-        assert_eq!(child.location, Point::new(15.0, 0.0));
+            .map(|input| {
+                let state = input.settled_auto_scrollbars();
+                (
+                    state.at(PhysicalAxis::Horizontal),
+                    state.at(PhysicalAxis::Vertical),
+                )
+            })
+            .collect::<Vec<_>>(),
+        [(false, false), (false, false)]
+    );
+    assert_eq!(
+        tree.child_inputs
+            .iter()
+            .map(|input| {
+                let state = input.containing_auto_scrollbar_pass();
+                (
+                    state.at(PhysicalAxis::Horizontal),
+                    state.at(PhysicalAxis::Vertical),
+                )
+            })
+            .collect::<Vec<_>>(),
+        [(false, false), (false, false)]
+    );
+    assert_eq!(
+        tree.child_inputs[0].available().width,
+        Available::MAX_CONTENT
+    );
+    assert_eq!(tree.child_inputs[1].known().width, Some(0.0));
+    assert_eq!(
+        tree.child_inputs[1].available().width,
+        Available::definite(0.0)
+    );
+    let child = tree
+        .layouts
+        .iter()
+        .find_map(|(node, layout)| (*node == 1).then_some(*layout))
+        .expect("the final coherent pass stages its child");
+    assert_eq!(child.location, Point::new(15.0, 0.0));
 
-        assert_eq!(output.size, Size::new(30.0, 20.0));
-        let geometry = output
-            .scroll_geometry
-            .expect("performed block emits canonical geometry");
-        assert_eq!(geometry.border_box().size(), output.size);
-        assert_eq!(geometry.padding_box().origin(), Point::new(10.0, 0.0));
-        assert_eq!(geometry.padding_box().size(), Size::new(10.0, 20.0));
-        assert_eq!(geometry.content_box().origin(), Point::new(15.0, 0.0));
-        assert_eq!(geometry.content_box().size(), Size::new(0.0, 20.0));
-        assert_eq!(geometry.scrollport(), geometry.padding_box());
-        assert_eq!(geometry.physical_range().x().maximum(), 0.0);
-        assert_eq!(geometry.physical_range().y().maximum(), 0.0);
-        assert_eq!(geometry.scrollbar_size(), Size::ZERO);
-    };
+    assert_eq!(output.size, Size::new(30.0, 20.0));
+    let geometry = output
+        .scroll_geometry
+        .expect("performed block emits canonical geometry");
+    assert_eq!(geometry.border_box().size(), output.size);
+    assert_eq!(geometry.padding_box().origin(), Point::new(10.0, 0.0));
+    assert_eq!(geometry.padding_box().size(), Size::new(10.0, 20.0));
+    assert_eq!(geometry.content_box().origin(), Point::new(15.0, 0.0));
+    assert_eq!(geometry.content_box().size(), Size::new(0.0, 20.0));
+    assert_eq!(geometry.scrollport(), geometry.padding_box());
+    assert_eq!(geometry.physical_range().x().maximum(), 0.0);
+    assert_eq!(geometry.physical_range().y().maximum(), 0.0);
+    assert_eq!(geometry.scrollbar_size(), Size::ZERO);
+}
 
 fn fri05_c03_block_union_content_size<S: LayoutScalar>(output: NodeOutputOf<S>) -> Size<S> {
     let geometry = output
@@ -13628,11 +13509,6 @@ fn fri05_c03_block_union_content_size<S: LayoutScalar>(output: NodeOutputOf<S>) 
 
 #[test]
 fn fri05_c03_block_contribution_current_sources_retain_targets_and_union_content_size() {
-    (FRI05_C03_BLOCK_CONTRIBUTION_CURRENT_SOURCES_RETAIN_TARGETS_AND_UNION_CONTENT_SIZE_PHASE)();
-}
-
-const FRI05_C03_BLOCK_CONTRIBUTION_CURRENT_SOURCES_RETAIN_TARGETS_AND_UNION_CONTENT_SIZE_PHASE:
-    fn() = || {
     #[derive(Clone, Copy)]
     enum ChildKind {
         InFlow,
@@ -13740,7 +13616,7 @@ const FRI05_C03_BLOCK_CONTRIBUTION_CURRENT_SOURCES_RETAIN_TARGETS_AND_UNION_CONT
         assert_eq!(target.snap_align(), snap_align);
         assert_eq!(target.snap_stop(), ScrollSnapStop::Always);
     }
-};
+}
 
 fn fri05_c03_block_contribution_fallback_child(
     display: Display,
@@ -14315,27 +14191,11 @@ fn fri05_c03_block_negative_margin_families_use_only_positive_outsets() {
 
 #[test]
 fn fri05_c03_integration_padding_seed_direct_block_retains_gutter_area_in_both_scalar_lanes() {
-    (FRI05_C03_INTEGRATION_PADDING_SEED_DIRECT_BLOCK_RETAINS_GUTTER_AREA_IN_BOTH_SCALAR_LANES_PHASE)();
-}
-
-const FRI05_C03_INTEGRATION_PADDING_SEED_DIRECT_BLOCK_RETAINS_GUTTER_AREA_IN_BOTH_SCALAR_LANES_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>()
     where
         crate::test_support::layout_tree::OracleTreeOf<S>:
             Compute + Traverse<Node = u32, Scalar = S>,
     {
-    (AssertLanePhaseL14262::<S>::RUN)()
-}
-
-type AssertLanePhaseL14262Run = fn();
-
-struct AssertLanePhaseL14262<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL14262<S>
-where
-        crate::test_support::layout_tree::OracleTreeOf<S>:
-            Compute + Traverse<Node = u32, Scalar = S>, {
-    const RUN: AssertLanePhaseL14262Run = || {
         fn gutter_at<S: LayoutScalar>(
             gutters: ScrollbarGutterRectsOf<S>,
             side: PhysicalSide,
@@ -14461,43 +14321,20 @@ where
                 assert_eq!(geometry.target().border_box(), geometry.border_box());
             }
         }
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri05_c03_integration_absolute_top_gutter_offsets_reduced_area_margin_contribution_and_tiny_origins()
  {
-    (Fri05C03IntegrationAbsoluteTopGutterOffsetsReducedAreaMarginContributionAndTinyOriginsPhaseL14399::RUN)()
-}
-
-type Fri05C03IntegrationAbsoluteTopGutterOffsetsReducedAreaMarginContributionAndTinyOriginsPhaseL14399Run =
-    fn();
-
-struct Fri05C03IntegrationAbsoluteTopGutterOffsetsReducedAreaMarginContributionAndTinyOriginsPhaseL14399;
-
-impl Fri05C03IntegrationAbsoluteTopGutterOffsetsReducedAreaMarginContributionAndTinyOriginsPhaseL14399 {
-    const RUN: Fri05C03IntegrationAbsoluteTopGutterOffsetsReducedAreaMarginContributionAndTinyOriginsPhaseL14399Run = || {
     fn assert_lane<S: LayoutScalar>()
     where
         crate::test_support::layout_tree::OracleTreeOf<S>:
             Compute + Traverse<Node = u32, Scalar = S>,
     {
-    (AssertLanePhaseL14474::<S>::RUN)()
-}
-
-type AssertLanePhaseL14474Run = fn();
-
-struct AssertLanePhaseL14474<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL14474<S>
-where
-        crate::test_support::layout_tree::OracleTreeOf<S>:
-            Compute + Traverse<Node = u32, Scalar = S>, {
-    const RUN: AssertLanePhaseL14474Run = || {
         let scalar = scalar_value::<S>;
         let top_gutter_flows = [
             FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
@@ -14688,10 +14525,8 @@ where
                 Size::splat(AvailableOf::definite(S::ZERO))
             );
         }
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
 }

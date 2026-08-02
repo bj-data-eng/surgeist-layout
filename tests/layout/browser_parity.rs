@@ -837,125 +837,114 @@ fn flex_axis_fixture_matrix_rejects_missing_duplicate_misplaced_and_leaf_lowered
 
 #[test]
 fn grid_axis_fixture_matrix_rejects_invalid_paths_and_topology() {
-    (GridAxisFixtureMatrixRejectsInvalidPathsAndTopologyPhaseL839::RUN)()
-}
+    let expected = grid_axis_expected_paths();
 
-type GridAxisFixtureMatrixRejectsInvalidPathsAndTopologyPhaseL839Run = fn();
+    assert!(grid_axis_fixture_paths(expected.iter().skip(1).cloned()).is_err());
 
-struct GridAxisFixtureMatrixRejectsInvalidPathsAndTopologyPhaseL839;
+    let mut duplicate = expected.clone();
+    duplicate.push(expected[0].clone());
+    assert!(grid_axis_fixture_paths(duplicate).is_err());
 
-impl GridAxisFixtureMatrixRejectsInvalidPathsAndTopologyPhaseL839 {
-    const RUN: GridAxisFixtureMatrixRejectsInvalidPathsAndTopologyPhaseL839Run = || {
-        let expected = grid_axis_expected_paths();
+    let mut misplaced = expected.clone();
+    misplaced[0] = PathBuf::from("xml/other/grid_axes_horizontal_tb_parallel__border_box_ltr.xml");
+    assert!(grid_axis_fixture_paths(misplaced).is_err());
 
-        assert!(grid_axis_fixture_paths(expected.iter().skip(1).cloned()).is_err());
+    let mut extra = expected.clone();
+    extra.push(PathBuf::from(
+        "xml/grid/grid_axes_extra__border_box_ltr.xml",
+    ));
+    assert!(grid_axis_fixture_paths(extra).is_err());
 
-        let mut duplicate = expected.clone();
-        duplicate.push(expected[0].clone());
-        assert!(grid_axis_fixture_paths(duplicate).is_err());
-
-        let mut misplaced = expected.clone();
-        misplaced[0] =
-            PathBuf::from("xml/other/grid_axes_horizontal_tb_parallel__border_box_ltr.xml");
-        assert!(grid_axis_fixture_paths(misplaced).is_err());
-
-        let mut extra = expected.clone();
-        extra.push(PathBuf::from(
-            "xml/grid/grid_axes_extra__border_box_ltr.xml",
-        ));
-        assert!(grid_axis_fixture_paths(extra).is_err());
-
-        for (description, root_style, first_child, second_child) in [
-            (
-                "non-grid root",
-                "display=\"block\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
-                "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-                "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
-            ),
-            (
-                "subgrid root",
-                "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"subgrid\" grid-template-rows=\"50px 60px\"",
-                "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-                "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
-            ),
-            (
-                "grid-lanes root",
-                "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"lanes 30px 40px\" grid-template-rows=\"50px 60px\"",
-                "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-                "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
-            ),
-            (
-                "absolute topology",
-                "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
-                "display=\"block\" position=\"absolute\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-                "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
-            ),
-            (
-                "hidden-only topology",
-                "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
-                "display=\"none\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-                "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
-            ),
-            (
-                "equal totals",
-                "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"30px 40px\"",
-                "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-                "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
-            ),
-            (
-                "indefinite placement",
-                "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px auto\" grid-template-rows=\"50px 60px\"",
-                "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-                "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
-            ),
-            (
-                "overlapping placement",
-                "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
-                "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-                "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-            ),
-        ] {
-            let golden = grid_axis_test_golden(root_style, first_child, second_child, false);
-            assert!(
-                assert_grid_axis_fixture_topology(
-                    &golden,
-                    Path::new("xml/grid/grid_axes_horizontal_tb_parallel__border_box_ltr.xml"),
-                )
-                .is_err(),
-                "{description} must be rejected"
-            );
-        }
-
-        let text_only = grid_axis_test_golden(
-            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+    for (description, root_style, first_child, second_child) in [
+        (
+            "non-grid root",
+            "display=\"block\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
             "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
             "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
-            true,
-        );
+        ),
+        (
+            "subgrid root",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"subgrid\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "grid-lanes root",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"lanes 30px 40px\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "absolute topology",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" position=\"absolute\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "hidden-only topology",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+            "display=\"none\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "equal totals",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"30px 40px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "indefinite placement",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px auto\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "overlapping placement",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+        ),
+    ] {
+        let golden = grid_axis_test_golden(root_style, first_child, second_child, false);
         assert!(
             assert_grid_axis_fixture_topology(
-                &text_only,
+                &golden,
                 Path::new("xml/grid/grid_axes_horizontal_tb_parallel__border_box_ltr.xml"),
             )
             .is_err(),
-            "text-only topology must be rejected"
+            "{description} must be rejected"
         );
+    }
 
-        let wrong_flow = grid_axis_test_golden(
-            "display=\"grid\" writing-mode=\"vertical-rl\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
-            "display=\"block\" writing-mode=\"vertical-rl\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
-            "display=\"block\" writing-mode=\"vertical-rl\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
-            false,
-        );
-        assert!(
-            assert_grid_axis_fixture_topology(
-                &wrong_flow,
-                Path::new("xml/grid/grid_axes_vertical_opposing__border_box_ltr.xml"),
-            )
-            .is_err(),
-            "wrong named parent/child flow relationship must be rejected"
-        );
-    };
+    let text_only = grid_axis_test_golden(
+        "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+        "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+        "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        true,
+    );
+    assert!(
+        assert_grid_axis_fixture_topology(
+            &text_only,
+            Path::new("xml/grid/grid_axes_horizontal_tb_parallel__border_box_ltr.xml"),
+        )
+        .is_err(),
+        "text-only topology must be rejected"
+    );
+
+    let wrong_flow = grid_axis_test_golden(
+        "display=\"grid\" writing-mode=\"vertical-rl\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+        "display=\"block\" writing-mode=\"vertical-rl\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+        "display=\"block\" writing-mode=\"vertical-rl\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        false,
+    );
+    assert!(
+        assert_grid_axis_fixture_topology(
+            &wrong_flow,
+            Path::new("xml/grid/grid_axes_vertical_opposing__border_box_ltr.xml"),
+        )
+        .is_err(),
+        "wrong named parent/child flow relationship must be rejected"
+    );
 }
 
 #[test]
@@ -3633,22 +3622,11 @@ fn fri06_c08r_fixture_input_anonymous_wrapper_xml(
 
 #[test]
 fn fri06_c08r_fixture_input_parser_rejects_unknown_partial_malformed_and_payload_forms() {
-    (Fri06C08rFixtureInputParserRejectsUnknownPartialMalformedAndPayloadFormsPhaseL3624::RUN)()
-}
-
-type Fri06C08rFixtureInputParserRejectsUnknownPartialMalformedAndPayloadFormsPhaseL3624Run = fn();
-
-struct Fri06C08rFixtureInputParserRejectsUnknownPartialMalformedAndPayloadFormsPhaseL3624;
-
-impl Fri06C08rFixtureInputParserRejectsUnknownPartialMalformedAndPayloadFormsPhaseL3624 {
-    const RUN:
-        Fri06C08rFixtureInputParserRejectsUnknownPartialMalformedAndPayloadFormsPhaseL3624Run =
-        || {
-            let valid = fri06_c08r_fixture_input_explicit_boundary_xml(
-                "arbitrary_explicit_fixture",
-                "<node><node /><node /></node>",
-            );
-            for (label, malformed, expected) in [
+    let valid = fri06_c08r_fixture_input_explicit_boundary_xml(
+        "arbitrary_explicit_fixture",
+        "<node><node /><node /></node>",
+    );
+    for (label, malformed, expected) in [
         (
             "unknown attribute",
             valid.replacen(
@@ -3745,7 +3723,6 @@ impl Fri06C08rFixtureInputParserRejectsUnknownPartialMalformedAndPayloadFormsPha
             "{label}: expected {expected:?}, got {error}"
         );
     }
-        };
 }
 
 #[test]

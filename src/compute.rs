@@ -2175,24 +2175,14 @@ struct LeafResolvedValues<S: LayoutScalar> {
     aspect_ratio: Option<AspectRatioOf<S>>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct LeafResolvedBoxEdges<S: LayoutScalar> {
-    margin: Edges<S>,
-    padding: Edges<S>,
-    border: Edges<S>,
-    box_sizing_adjustment: Size<S>,
-}
-
-fn resolve_leaf_box_edges<S, ResolveAuto, ResolveLength>(
+fn resolve_leaf_values<S>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
-    resolve_auto: ResolveAuto,
-    resolve_length: ResolveLength,
-) -> Result<LeafResolvedBoxEdges<S>, SizingResolutionError<S>>
+    resolve_auto: impl Fn(super::LengthAutoOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
+    resolve_length: impl Fn(super::LengthOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
+) -> Result<LeafResolvedValues<S>, SizingResolutionError<S>>
 where
     S: LayoutScalar,
-    ResolveAuto: Fn(super::LengthAutoOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
-    ResolveLength: Fn(super::LengthOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
 {
     let margin = transpose_leaf_edges(
         input
@@ -2209,34 +2199,13 @@ where
             .containing_flow_axes()
             .zip_physical_edges_with_inline_extent(style.border, input.parent(), resolve_length),
     )?;
+    let padding_border = padding + border;
+    let padding_border_size = padding_border.sum_axes();
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
-        (padding + border).sum_axes()
+        padding_border_size
     } else {
         Size::ZERO
     };
-    Ok(LeafResolvedBoxEdges {
-        margin,
-        padding,
-        border,
-        box_sizing_adjustment,
-    })
-}
-
-fn resolve_leaf_values<S>(
-    input: ComputeInputOf<S>,
-    style: &NodeInputOf<S>,
-    resolve_auto: impl Fn(super::LengthAutoOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
-    resolve_length: impl Fn(super::LengthOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
-) -> Result<LeafResolvedValues<S>, SizingResolutionError<S>>
-where
-    S: LayoutScalar,
-{
-    let LeafResolvedBoxEdges {
-        margin,
-        padding,
-        border,
-        box_sizing_adjustment,
-    } = resolve_leaf_box_edges(input, style, resolve_auto, resolve_length)?;
 
     let (node_size, node_min_size, node_max_size, preferred_intrinsic_availability, aspect_ratio) =
         match input.sizing_mode() {
@@ -2389,12 +2358,40 @@ where
     Node: Copy,
     S: LayoutScalar,
 {
-    let prevents_margin_collapse = leaf_prevents_margin_collapse(input, style, resolved);
-    let padding_border_size = (resolved.padding + resolved.border).sum_axes();
-    let node_size = resolved.node_size;
-    let node_min_size = resolved.node_min_size;
-    let node_max_size = resolved.node_max_size;
+    let LeafResolvedValues {
+        padding,
+        border,
+        node_size,
+        node_min_size,
+        node_max_size,
+        ..
+    } = resolved;
+    let padding_border = padding + border;
+    let padding_border_size = padding_border.sum_axes();
     let leaf_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let block_start = leaf_flow_axes.block_start();
+    let block_end = leaf_flow_axes.block_end();
+    let node_block_size = match leaf_flow_axes.block_axis() {
+        PhysicalAxis::Horizontal => node_size.width,
+        PhysicalAxis::Vertical => node_size.height,
+    };
+    let node_min_block_size = match leaf_flow_axes.block_axis() {
+        PhysicalAxis::Horizontal => node_min_size.width,
+        PhysicalAxis::Vertical => node_min_size.height,
+    };
+
+    let prevents_margin_collapse = input.parent_formatting_context()
+        != super::ParentFormattingContext::BlockFlow
+        || style.display != super::Display::Block
+        || !style.item_is_replaced && style.overflow.establishes_independent_formatting_context()
+        || style.position == Position::Absolute
+        || padding.at_physical_side(block_start) > S::ZERO
+        || padding.at_physical_side(block_end) > S::ZERO
+        || border.at_physical_side(block_start) > S::ZERO
+        || border.at_physical_side(block_end) > S::ZERO
+        || matches!(node_block_size, Some(size) if size > S::ZERO)
+        || matches!(node_min_block_size, Some(size) if size > S::ZERO);
+
     if input.run_mode() == RunMode::ComputeSize
         && prevents_margin_collapse
         && let Size {
@@ -2489,35 +2486,6 @@ where
         reusable_measurement = Some((pass.measurement_input, measured));
         pass_input = pass_input.with_settled_auto_scrollbars(next_state);
     }
-}
-
-fn leaf_prevents_margin_collapse<S: LayoutScalar>(
-    input: ComputeInputOf<S>,
-    style: &NodeInputOf<S>,
-    resolved: LeafResolvedValues<S>,
-) -> bool {
-    let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
-    let block_start = flow_axes.block_start();
-    let block_end = flow_axes.block_end();
-    let block_size = match flow_axes.block_axis() {
-        PhysicalAxis::Horizontal => resolved.node_size.width,
-        PhysicalAxis::Vertical => resolved.node_size.height,
-    };
-    let min_block_size = match flow_axes.block_axis() {
-        PhysicalAxis::Horizontal => resolved.node_min_size.width,
-        PhysicalAxis::Vertical => resolved.node_min_size.height,
-    };
-
-    input.parent_formatting_context() != super::ParentFormattingContext::BlockFlow
-        || style.display != super::Display::Block
-        || !style.item_is_replaced && style.overflow.establishes_independent_formatting_context()
-        || style.position == Position::Absolute
-        || resolved.padding.at_physical_side(block_start) > S::ZERO
-        || resolved.padding.at_physical_side(block_end) > S::ZERO
-        || resolved.border.at_physical_side(block_start) > S::ZERO
-        || resolved.border.at_physical_side(block_end) > S::ZERO
-        || matches!(block_size, Some(size) if size > S::ZERO)
-        || matches!(min_block_size, Some(size) if size > S::ZERO)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

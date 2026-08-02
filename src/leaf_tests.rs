@@ -878,176 +878,171 @@ fn fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
 
 #[test]
 fn fri04_c04_leaf_block_positioned_leaf_front_door_covers_all_unsupported_states() {
-    (FRI04_C04_LEAF_BLOCK_POSITIONED_LEAF_FRONT_DOOR_COVERS_ALL_UNSUPPORTED_STATES_PHASE)();
-}
-
-const FRI04_C04_LEAF_BLOCK_POSITIONED_LEAF_FRONT_DOOR_COVERS_ALL_UNSUPPORTED_STATES_PHASE: fn() =
-    || {
-        let calculation = || {
-            SizingCalculation::value(
-                LengthPercentageOf::px(10.0).expect("finite fit-content calculation"),
-            )
-        };
-        for (value, behavior) in [
-            (PreferredSize::STRETCH, SizingBehavior::Stretch),
-            (PreferredSize::FIT_CONTENT, SizingBehavior::FitContent),
-            (PreferredSize::CONTAIN, SizingBehavior::Contain),
-            (
-                PreferredSize::fit_content_function(calculation()),
-                SizingBehavior::FitContentFunction,
-            ),
-        ] {
-            fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
-                NodeInput {
-                    size: Size::new(value, PreferredSize::AUTO),
-                    ..NodeInput::default()
-                },
-                SizingProperty::Preferred,
-                behavior,
-                PhysicalAxis::Horizontal,
-            );
-        }
-        for (value, behavior) in [
-            (MinSize::MIN_CONTENT, SizingBehavior::MinContent),
-            (MinSize::MAX_CONTENT, SizingBehavior::MaxContent),
-            (MinSize::STRETCH, SizingBehavior::Stretch),
-            (MinSize::FIT_CONTENT, SizingBehavior::FitContent),
-            (MinSize::CONTAIN, SizingBehavior::Contain),
-            (
-                MinSize::fit_content_function(calculation()),
-                SizingBehavior::FitContentFunction,
-            ),
-        ] {
-            fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
-                NodeInput {
-                    min_size: Size::new(MinSize::AUTO, value),
-                    ..NodeInput::default()
-                },
-                SizingProperty::Minimum,
-                behavior,
-                PhysicalAxis::Vertical,
-            );
-        }
-        for (value, behavior) in [
-            (MaxSize::MIN_CONTENT, SizingBehavior::MinContent),
-            (MaxSize::MAX_CONTENT, SizingBehavior::MaxContent),
-            (MaxSize::STRETCH, SizingBehavior::Stretch),
-            (MaxSize::FIT_CONTENT, SizingBehavior::FitContent),
-            (MaxSize::CONTAIN, SizingBehavior::Contain),
-            (
-                MaxSize::fit_content_function(calculation()),
-                SizingBehavior::FitContentFunction,
-            ),
-        ] {
-            fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
-                NodeInput {
-                    max_size: Size::new(value, MaxSize::NONE),
-                    ..NodeInput::default()
-                },
-                SizingProperty::Maximum,
-                behavior,
-                PhysicalAxis::Horizontal,
-            );
-        }
-
-        let calc = || CalcSizeCalculation::value(LengthPercentageOf::ZERO);
-        for (basis, expected) in [
-            (PreferredSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
-            (
-                PreferredSizeCalcBasis::MinContent,
-                CalcSizeBehaviorBasis::MinContent,
-            ),
-            (
-                PreferredSizeCalcBasis::MaxContent,
-                CalcSizeBehaviorBasis::MaxContent,
-            ),
-            (
-                PreferredSizeCalcBasis::Stretch,
-                CalcSizeBehaviorBasis::Stretch,
-            ),
-            (
-                PreferredSizeCalcBasis::FitContent,
-                CalcSizeBehaviorBasis::FitContent,
-            ),
-            (
-                PreferredSizeCalcBasis::Contain,
-                CalcSizeBehaviorBasis::Contain,
-            ),
-        ] {
-            fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
-                NodeInput {
-                    size: Size::new(
-                        PreferredSize::AUTO,
-                        PreferredSize::calc_size(basis, calc()).expect("valid calc-size"),
-                    ),
-                    ..NodeInput::default()
-                },
-                SizingProperty::Preferred,
-                SizingBehavior::CalcSize(expected),
-                PhysicalAxis::Vertical,
-            );
-        }
-        for (basis, expected) in [
-            (MinSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
-            (
-                MinSizeCalcBasis::MinContent,
-                CalcSizeBehaviorBasis::MinContent,
-            ),
-            (
-                MinSizeCalcBasis::MaxContent,
-                CalcSizeBehaviorBasis::MaxContent,
-            ),
-            (MinSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
-            (
-                MinSizeCalcBasis::FitContent,
-                CalcSizeBehaviorBasis::FitContent,
-            ),
-            (MinSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
-        ] {
-            fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
-                NodeInput {
-                    min_size: Size::new(
-                        MinSize::calc_size(basis, calc()).expect("valid calc-size"),
-                        MinSize::AUTO,
-                    ),
-                    ..NodeInput::default()
-                },
-                SizingProperty::Minimum,
-                SizingBehavior::CalcSize(expected),
-                PhysicalAxis::Horizontal,
-            );
-        }
-        for (basis, expected) in [
-            (MaxSizeCalcBasis::None, CalcSizeBehaviorBasis::None),
-            (
-                MaxSizeCalcBasis::MinContent,
-                CalcSizeBehaviorBasis::MinContent,
-            ),
-            (
-                MaxSizeCalcBasis::MaxContent,
-                CalcSizeBehaviorBasis::MaxContent,
-            ),
-            (MaxSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
-            (
-                MaxSizeCalcBasis::FitContent,
-                CalcSizeBehaviorBasis::FitContent,
-            ),
-            (MaxSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
-        ] {
-            fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
-                NodeInput {
-                    max_size: Size::new(
-                        MaxSize::NONE,
-                        MaxSize::calc_size(basis, calc()).expect("valid calc-size"),
-                    ),
-                    ..NodeInput::default()
-                },
-                SizingProperty::Maximum,
-                SizingBehavior::CalcSize(expected),
-                PhysicalAxis::Vertical,
-            );
-        }
+    let calculation = || {
+        SizingCalculation::value(
+            LengthPercentageOf::px(10.0).expect("finite fit-content calculation"),
+        )
     };
+    for (value, behavior) in [
+        (PreferredSize::STRETCH, SizingBehavior::Stretch),
+        (PreferredSize::FIT_CONTENT, SizingBehavior::FitContent),
+        (PreferredSize::CONTAIN, SizingBehavior::Contain),
+        (
+            PreferredSize::fit_content_function(calculation()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                size: Size::new(value, PreferredSize::AUTO),
+                ..NodeInput::default()
+            },
+            SizingProperty::Preferred,
+            behavior,
+            PhysicalAxis::Horizontal,
+        );
+    }
+    for (value, behavior) in [
+        (MinSize::MIN_CONTENT, SizingBehavior::MinContent),
+        (MinSize::MAX_CONTENT, SizingBehavior::MaxContent),
+        (MinSize::STRETCH, SizingBehavior::Stretch),
+        (MinSize::FIT_CONTENT, SizingBehavior::FitContent),
+        (MinSize::CONTAIN, SizingBehavior::Contain),
+        (
+            MinSize::fit_content_function(calculation()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                min_size: Size::new(MinSize::AUTO, value),
+                ..NodeInput::default()
+            },
+            SizingProperty::Minimum,
+            behavior,
+            PhysicalAxis::Vertical,
+        );
+    }
+    for (value, behavior) in [
+        (MaxSize::MIN_CONTENT, SizingBehavior::MinContent),
+        (MaxSize::MAX_CONTENT, SizingBehavior::MaxContent),
+        (MaxSize::STRETCH, SizingBehavior::Stretch),
+        (MaxSize::FIT_CONTENT, SizingBehavior::FitContent),
+        (MaxSize::CONTAIN, SizingBehavior::Contain),
+        (
+            MaxSize::fit_content_function(calculation()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                max_size: Size::new(value, MaxSize::NONE),
+                ..NodeInput::default()
+            },
+            SizingProperty::Maximum,
+            behavior,
+            PhysicalAxis::Horizontal,
+        );
+    }
+
+    let calc = || CalcSizeCalculation::value(LengthPercentageOf::ZERO);
+    for (basis, expected) in [
+        (PreferredSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+        (
+            PreferredSizeCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            PreferredSizeCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (
+            PreferredSizeCalcBasis::Stretch,
+            CalcSizeBehaviorBasis::Stretch,
+        ),
+        (
+            PreferredSizeCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (
+            PreferredSizeCalcBasis::Contain,
+            CalcSizeBehaviorBasis::Contain,
+        ),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                size: Size::new(
+                    PreferredSize::AUTO,
+                    PreferredSize::calc_size(basis, calc()).expect("valid calc-size"),
+                ),
+                ..NodeInput::default()
+            },
+            SizingProperty::Preferred,
+            SizingBehavior::CalcSize(expected),
+            PhysicalAxis::Vertical,
+        );
+    }
+    for (basis, expected) in [
+        (MinSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+        (
+            MinSizeCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            MinSizeCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (MinSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+        (
+            MinSizeCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (MinSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                min_size: Size::new(
+                    MinSize::calc_size(basis, calc()).expect("valid calc-size"),
+                    MinSize::AUTO,
+                ),
+                ..NodeInput::default()
+            },
+            SizingProperty::Minimum,
+            SizingBehavior::CalcSize(expected),
+            PhysicalAxis::Horizontal,
+        );
+    }
+    for (basis, expected) in [
+        (MaxSizeCalcBasis::None, CalcSizeBehaviorBasis::None),
+        (
+            MaxSizeCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            MaxSizeCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (MaxSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+        (
+            MaxSizeCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (MaxSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                max_size: Size::new(
+                    MaxSize::NONE,
+                    MaxSize::calc_size(basis, calc()).expect("valid calc-size"),
+                ),
+                ..NodeInput::default()
+            },
+            SizingProperty::Maximum,
+            SizingBehavior::CalcSize(expected),
+            PhysicalAxis::Vertical,
+        );
+    }
+}
 
 #[test]
 fn fri04_c04_leaf_block_positioned_missing_full_percentage_preserves_property_fallbacks() {
@@ -1189,10 +1184,6 @@ fn fri05_c03_leaf_all_flow_axes() -> [FlowAxes; 10] {
 
 #[test]
 fn fri05_c03_leaf_geometry_direct_emits_flow_clip_and_target_geometry() {
-    (FRI05_C03_LEAF_GEOMETRY_DIRECT_EMITS_FLOW_CLIP_AND_TARGET_GEOMETRY_PHASE)();
-}
-
-const FRI05_C03_LEAF_GEOMETRY_DIRECT_EMITS_FLOW_CLIP_AND_TARGET_GEOMETRY_PHASE: fn() = || {
     for flow_axes in fri05_c03_leaf_all_flow_axes() {
         let overflow = match flow_axes.block_axis() {
             PhysicalAxis::Horizontal => computed_overflow(Overflow::Scroll, Overflow::Hidden),
@@ -1399,7 +1390,7 @@ const FRI05_C03_LEAF_GEOMETRY_DIRECT_EMITS_FLOW_CLIP_AND_TARGET_GEOMETRY_PHASE: 
         .expect("only x is clipped");
     assert_eq!((x_clip.minimum(), x_clip.maximum()), (-2.0, 42.0));
     assert_eq!(reverse_partial.overflow_clip().y(), None);
-};
+}
 
 fn fri05_c03_leaf_auto_case(
     style: NodeInput,
@@ -1600,26 +1591,7 @@ fn fri05_c03_leaf_auto_compute_size_keeps_zero_call_fast_path_and_no_geometry() 
 #[test]
 fn fri05_c03_integration_padding_seed_direct_measured_leaf_retains_gutter_area_in_both_scalar_lanes()
  {
-    (Fri05C03IntegrationPaddingSeedDirectMeasuredLeafRetainsGutterAreaInBothScalarLanesPhaseL1601::RUN)()
-}
-
-type Fri05C03IntegrationPaddingSeedDirectMeasuredLeafRetainsGutterAreaInBothScalarLanesPhaseL1601Run =
-    fn();
-
-struct Fri05C03IntegrationPaddingSeedDirectMeasuredLeafRetainsGutterAreaInBothScalarLanesPhaseL1601;
-
-impl Fri05C03IntegrationPaddingSeedDirectMeasuredLeafRetainsGutterAreaInBothScalarLanesPhaseL1601 {
-    const RUN: Fri05C03IntegrationPaddingSeedDirectMeasuredLeafRetainsGutterAreaInBothScalarLanesPhaseL1601Run = || {
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL1613::<S>::RUN)()
-}
-
-type AssertLanePhaseL1613Run = fn();
-
-struct AssertLanePhaseL1613<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL1613<S> {
-    const RUN: AssertLanePhaseL1613Run = || {
         fn gutter_at<S: LayoutScalar>(
             gutters: ScrollbarGutterRectsOf<S>,
             side: PhysicalSide,
@@ -1776,10 +1748,8 @@ impl<S: LayoutScalar> AssertLanePhaseL1613<S> {
                 assert_eq!(geometry.target().border_box(), geometry.border_box());
             }
         }
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
 }

@@ -558,16 +558,6 @@ fn fri06_c03_projection_batch<S: LayoutScalar>(
 #[test]
 fn fri06_c03_projection_soft_and_forced_unequal_atomic_lines_align_per_line_in_all_flows_both_scalars()
  {
-    (Fri06C03ProjectionSoftAndForcedUnequalAtomicLinesAlignPerLineInAllFlowsBothScalarsPhaseL559::RUN)()
-}
-
-type Fri06C03ProjectionSoftAndForcedUnequalAtomicLinesAlignPerLineInAllFlowsBothScalarsPhaseL559Run =
-    fn();
-
-struct Fri06C03ProjectionSoftAndForcedUnequalAtomicLinesAlignPerLineInAllFlowsBothScalarsPhaseL559;
-
-impl Fri06C03ProjectionSoftAndForcedUnequalAtomicLinesAlignPerLineInAllFlowsBothScalarsPhaseL559 {
-    const RUN: Fri06C03ProjectionSoftAndForcedUnequalAtomicLinesAlignPerLineInAllFlowsBothScalarsPhaseL559Run = || {
     fn expected_offset(
         align: TextAlign,
         decreases: bool,
@@ -584,15 +574,6 @@ impl Fri06C03ProjectionSoftAndForcedUnequalAtomicLinesAlignPerLineInAllFlowsBoth
     }
 
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL586::<S>::RUN)()
-}
-
-type AssertLanePhaseL586Run = fn();
-
-struct AssertLanePhaseL586<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL586<S> {
-    const RUN: AssertLanePhaseL586Run = || {
         for (writing_mode, direction) in fri06_c02_flow_mappings() {
             let flow = FlowAxes::new(writing_mode, direction);
             let decreases = fri06_c02_inline_decreases(writing_mode, direction);
@@ -697,12 +678,10 @@ impl<S: LayoutScalar> AssertLanePhaseL586<S> {
                 }
             }
         }
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
 }
 
 fn fri06_c03_nested_atomic_baseline_batch<S: LayoutScalar>(
@@ -832,163 +811,143 @@ impl<S: LayoutScalar> LayoutTree for Fri06C03CachedAtomicTree<S> {
 
 #[test]
 fn fri06_c03_atomic_baseline_visible_inner_and_non_visible_margin_edge_both_scalars() {
-    (FRI06_C03_ATOMIC_BASELINE_VISIBLE_INNER_AND_NON_VISIBLE_MARGIN_EDGE_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C03_ATOMIC_BASELINE_VISIBLE_INNER_AND_NON_VISIBLE_MARGIN_EDGE_BOTH_SCALARS_PHASE:
-    fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-        (AssertLanePhaseL819::<S>::RUN)()
-    }
+        let parallel = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let opposing_parent = FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
+        let opposing_child = FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr);
 
-    type AssertLanePhaseL819Run = fn();
-
-    struct AssertLanePhaseL819<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL819<S> {
-        const RUN: AssertLanePhaseL819Run = || {
-            let parallel = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
-            let opposing_parent = FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
-            let opposing_child = FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr);
-
-            for (parent_flow, child_flow, atomic_block_start, baseline, block_extent) in [
-                (parallel, parallel, 4.0, 8.0, 26.0),
-                (opposing_parent, opposing_child, 1.0, 17.0, 23.0),
-            ] {
-                let batch = fri06_c03_nested_atomic_baseline_batch::<S>(
-                    parent_flow,
-                    child_flow,
-                    Overflow::Visible,
-                    false,
-                );
-                let root = fri06_c02_final_node(&batch, 0);
-                let atomic = fri06_c02_final_node(&batch, 2);
-                let parent_fragment = fri06_c03_fragment(&batch, 1);
-                assert_eq!(
-                    fri06_c03_logical_block_start(parent_flow, atomic, root.size),
-                    S::from_f64(atomic_block_start),
-                    "visible inner first baseline in {parent_flow:?}/{child_flow:?}"
-                );
-                assert_eq!(
-                    parent_flow
-                        .logical_point(parent_fragment.baseline(), Size::ZERO, root.size)
-                        .block,
-                    S::from_f64(baseline),
-                    "container baseline in {parent_flow:?}/{child_flow:?}"
-                );
-                assert_eq!(
-                    parent_flow.logical_size(root.size).block,
-                    S::from_f64(block_extent),
-                    "visible inner descent in {parent_flow:?}/{child_flow:?}"
-                );
-            }
-
-            for overflow in [
-                Overflow::Clip,
-                Overflow::Hidden,
-                Overflow::Scroll,
-                Overflow::Auto,
-            ] {
-                let batch = fri06_c03_nested_atomic_baseline_batch::<S>(
-                    parallel, parallel, overflow, false,
-                );
-                let root = fri06_c02_final_node(&batch, 0);
-                let atomic = fri06_c02_final_node(&batch, 2);
-                let parent_fragment = fri06_c03_fragment(&batch, 1);
-                assert_eq!(
-                    fri06_c03_logical_block_start(parallel, atomic, root.size),
-                    S::from_f64(1.0),
-                    "{overflow:?} falls back to the block-end margin edge"
-                );
-                assert_eq!(parent_fragment.baseline().y, S::from_f64(23.0));
-                assert_eq!(root.size.height, S::from_f64(25.0));
-            }
-
-            let replaced_hidden = fri06_c03_nested_atomic_baseline_batch::<S>(
-                parallel,
-                parallel,
-                Overflow::Hidden,
-                true,
+        for (parent_flow, child_flow, atomic_block_start, baseline, block_extent) in [
+            (parallel, parallel, 4.0, 8.0, 26.0),
+            (opposing_parent, opposing_child, 1.0, 17.0, 23.0),
+        ] {
+            let batch = fri06_c03_nested_atomic_baseline_batch::<S>(
+                parent_flow,
+                child_flow,
+                Overflow::Visible,
+                false,
             );
-            let root = fri06_c02_final_node(&replaced_hidden, 0);
+            let root = fri06_c02_final_node(&batch, 0);
+            let atomic = fri06_c02_final_node(&batch, 2);
+            let parent_fragment = fri06_c03_fragment(&batch, 1);
             assert_eq!(
-                fri06_c03_fragment(&replaced_hidden, 1).baseline().y,
-                S::from_f64(23.0)
+                fri06_c03_logical_block_start(parent_flow, atomic, root.size),
+                S::from_f64(atomic_block_start),
+                "visible inner first baseline in {parent_flow:?}/{child_flow:?}"
             );
+            assert_eq!(
+                parent_flow
+                    .logical_point(parent_fragment.baseline(), Size::ZERO, root.size)
+                    .block,
+                S::from_f64(baseline),
+                "container baseline in {parent_flow:?}/{child_flow:?}"
+            );
+            assert_eq!(
+                parent_flow.logical_size(root.size).block,
+                S::from_f64(block_extent),
+                "visible inner descent in {parent_flow:?}/{child_flow:?}"
+            );
+        }
+
+        for overflow in [
+            Overflow::Clip,
+            Overflow::Hidden,
+            Overflow::Scroll,
+            Overflow::Auto,
+        ] {
+            let batch =
+                fri06_c03_nested_atomic_baseline_batch::<S>(parallel, parallel, overflow, false);
+            let root = fri06_c02_final_node(&batch, 0);
+            let atomic = fri06_c02_final_node(&batch, 2);
+            let parent_fragment = fri06_c03_fragment(&batch, 1);
+            assert_eq!(
+                fri06_c03_logical_block_start(parallel, atomic, root.size),
+                S::from_f64(1.0),
+                "{overflow:?} falls back to the block-end margin edge"
+            );
+            assert_eq!(parent_fragment.baseline().y, S::from_f64(23.0));
             assert_eq!(root.size.height, S::from_f64(25.0));
+        }
 
-            let atomic_style = NodeInputOf {
-                display: Display::InlineBlock,
-                size: Size::new(
-                    PreferredSizeOf::px(S::from_f64(10.0)),
-                    PreferredSizeOf::px(S::from_f64(20.0)),
-                ),
-                margin: Edges {
-                    top: LengthAutoOf::px(S::from_f64(1.0)),
-                    bottom: LengthAutoOf::px(S::from_f64(2.0)),
-                    ..Edges::all(LengthAutoOf::ZERO)
-                },
-                atomic_inline_participation: Some(fri06_c03_atomic_participation(
-                    0,
-                    InlineBreakOpportunityOf::prohibited(),
-                )),
-                ..NodeInputOf::default()
-            };
-            let root_style = NodeInputOf {
-                display: Display::Block,
-                ..NodeInputOf::default()
-            };
-            let tree = Fri06C03CachedAtomicTree {
-                tree: Fri06C02TextTree {
-                    inputs: HashMap::from([
-                        (0, LayoutInputOf::box_input(root_style.clone())),
-                        (
-                            1,
-                            fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(
-                                703, 10.0, 8.0, 2.0,
-                            )]),
-                        ),
-                        (2, LayoutInputOf::box_input(atomic_style.clone())),
-                    ]),
-                    node_inputs: HashMap::from([
-                        (0, root_style),
-                        (1, NodeInputOf::non_box()),
-                        (2, atomic_style),
-                    ]),
-                    children: HashMap::from([(0, vec![1, 2]), (1, Vec::new()), (2, Vec::new())]),
-                },
-                atomic_output: ComputeOutputOf::from_sizes_and_baselines(
-                    Size::new(S::from_f64(10.0), S::from_f64(20.0)),
-                    Size::new(S::from_f64(10.0), S::from_f64(20.0)),
-                    BaselinesOf::from_block_coordinates(parallel, None, Some(S::from_f64(6.0))),
-                ),
-            };
-            let last_only = compute_layout(
-                &tree,
+        let replaced_hidden =
+            fri06_c03_nested_atomic_baseline_batch::<S>(parallel, parallel, Overflow::Hidden, true);
+        let root = fri06_c02_final_node(&replaced_hidden, 0);
+        assert_eq!(
+            fri06_c03_fragment(&replaced_hidden, 1).baseline().y,
+            S::from_f64(23.0)
+        );
+        assert_eq!(root.size.height, S::from_f64(25.0));
+
+        let atomic_style = NodeInputOf {
+            display: Display::InlineBlock,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(10.0)),
+                PreferredSizeOf::px(S::from_f64(20.0)),
+            ),
+            margin: Edges {
+                top: LengthAutoOf::px(S::from_f64(1.0)),
+                bottom: LengthAutoOf::px(S::from_f64(2.0)),
+                ..Edges::all(LengthAutoOf::ZERO)
+            },
+            atomic_inline_participation: Some(fri06_c03_atomic_participation(
                 0,
-                LayoutRootRequestOf::viewport(Size::new(
-                    AvailableOf::definite(S::from_f64(100.0)),
-                    AvailableOf::MAX_CONTENT,
-                ))
-                .unwrap(),
-            )
-            .unwrap();
-            let root = fri06_c02_final_node(&last_only, 0);
-            assert_eq!(
-                fri06_c02_final_node(&last_only, 2).location.y,
-                S::from_f64(2.0)
-            );
-            assert_eq!(
-                fri06_c03_fragment(&last_only, 1).baseline().y,
-                S::from_f64(8.0)
-            );
-            assert_eq!(root.size.height, S::from_f64(24.0));
+                InlineBreakOpportunityOf::prohibited(),
+            )),
+            ..NodeInputOf::default()
         };
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            ..NodeInputOf::default()
+        };
+        let tree = Fri06C03CachedAtomicTree {
+            tree: Fri06C02TextTree {
+                inputs: HashMap::from([
+                    (0, LayoutInputOf::box_input(root_style.clone())),
+                    (
+                        1,
+                        fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(
+                            703, 10.0, 8.0, 2.0,
+                        )]),
+                    ),
+                    (2, LayoutInputOf::box_input(atomic_style.clone())),
+                ]),
+                node_inputs: HashMap::from([
+                    (0, root_style),
+                    (1, NodeInputOf::non_box()),
+                    (2, atomic_style),
+                ]),
+                children: HashMap::from([(0, vec![1, 2]), (1, Vec::new()), (2, Vec::new())]),
+            },
+            atomic_output: ComputeOutputOf::from_sizes_and_baselines(
+                Size::new(S::from_f64(10.0), S::from_f64(20.0)),
+                Size::new(S::from_f64(10.0), S::from_f64(20.0)),
+                BaselinesOf::from_block_coordinates(parallel, None, Some(S::from_f64(6.0))),
+            ),
+        };
+        let last_only = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::new(
+                AvailableOf::definite(S::from_f64(100.0)),
+                AvailableOf::MAX_CONTENT,
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        let root = fri06_c02_final_node(&last_only, 0);
+        assert_eq!(
+            fri06_c02_final_node(&last_only, 2).location.y,
+            S::from_f64(2.0)
+        );
+        assert_eq!(
+            fri06_c03_fragment(&last_only, 1).baseline().y,
+            S::from_f64(8.0)
+        );
+        assert_eq!(root.size.height, S::from_f64(24.0));
     }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c03_atomic_baseline_absent_inner_uses_positive_and_negative_margin_edges_once() {
@@ -1051,169 +1010,147 @@ fn fri06_c03_atomic_baseline_absent_inner_uses_positive_and_negative_margin_edge
 
 #[test]
 fn fri06_c03_top_bottom_mixed_atomics_and_metric_controls_expand_one_line_both_scalars() {
-    (FRI06_C03_TOP_BOTTOM_MIXED_ATOMICS_AND_METRIC_CONTROLS_EXPAND_ONE_LINE_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C03_TOP_BOTTOM_MIXED_ATOMICS_AND_METRIC_CONTROLS_EXPAND_ONE_LINE_BOTH_SCALARS_PHASE:
-    fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-        (AssertLanePhaseL1023::<S>::RUN)()
-    }
-
-    type AssertLanePhaseL1023Run = fn();
-
-    struct AssertLanePhaseL1023<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL1023<S> {
-        const RUN: AssertLanePhaseL1023Run = || {
-            let text =
-                fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(720, 10.0, 8.0, 2.0)]);
-            let top_with_margins = NodeInputOf {
-                vertical_align: VerticalAlign::Top,
-                margin: Edges {
-                    top: LengthAutoOf::px(S::from_f64(2.0)),
-                    bottom: LengthAutoOf::px(S::from_f64(3.0)),
-                    ..Edges::all(LengthAutoOf::ZERO)
-                },
-                ..fri06_c03_atomic_style(
-                    10.0,
-                    20.0,
-                    0.0,
-                    0.0,
-                    0,
-                    InlineBreakOpportunityOf::prohibited(),
-                )
-            };
-            let top = NodeInputOf {
-                vertical_align: VerticalAlign::Top,
-                ..fri06_c03_atomic_style(
-                    10.0,
-                    25.0,
-                    0.0,
-                    0.0,
-                    0,
-                    InlineBreakOpportunityOf::prohibited(),
-                )
-            };
-            let bottom_with_margins = NodeInputOf {
-                vertical_align: VerticalAlign::Bottom,
-                margin: Edges {
-                    top: LengthAutoOf::px(S::from_f64(1.0)),
-                    bottom: LengthAutoOf::px(S::from_f64(4.0)),
-                    ..Edges::all(LengthAutoOf::ZERO)
-                },
-                ..fri06_c03_atomic_style(
-                    10.0,
-                    30.0,
-                    0.0,
-                    0.0,
-                    0,
-                    InlineBreakOpportunityOf::prohibited(),
-                )
-            };
-            let bottom = NodeInputOf {
-                vertical_align: VerticalAlign::Bottom,
-                ..fri06_c03_atomic_style(
-                    10.0,
-                    35.0,
-                    0.0,
-                    0.0,
-                    0,
-                    InlineBreakOpportunityOf::prohibited(),
-                )
-            };
-            let top_metrics =
-                InlineMetricsOf::from_line_height_and_baseline(S::from_f64(22.0), S::from_f64(6.0))
-                    .unwrap();
-            let bottom_metrics = InlineMetricsOf::from_line_height_and_baseline(
-                S::from_f64(32.0),
-                S::from_f64(20.0),
+        let text = fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(720, 10.0, 8.0, 2.0)]);
+        let top_with_margins = NodeInputOf {
+            vertical_align: VerticalAlign::Top,
+            margin: Edges {
+                top: LengthAutoOf::px(S::from_f64(2.0)),
+                bottom: LengthAutoOf::px(S::from_f64(3.0)),
+                ..Edges::all(LengthAutoOf::ZERO)
+            },
+            ..fri06_c03_atomic_style(
+                10.0,
+                20.0,
+                0.0,
+                0.0,
+                0,
+                InlineBreakOpportunityOf::prohibited(),
             )
-            .unwrap();
-            let break_metrics =
-                InlineMetricsOf::from_line_height_and_baseline(S::from_f64(10.0), S::from_f64(8.0))
-                    .unwrap();
-            let batch = fri06_c03_mixed_batch(
-                vec![
-                    (1, text, NodeInputOf::non_box()),
-                    (
-                        2,
-                        LayoutInputOf::box_input(top_with_margins.clone()),
-                        top_with_margins,
-                    ),
-                    (3, LayoutInputOf::box_input(top.clone()), top),
-                    (
-                        4,
-                        LayoutInputOf::box_input(bottom_with_margins.clone()),
-                        bottom_with_margins,
-                    ),
-                    (5, LayoutInputOf::box_input(bottom.clone()), bottom),
-                    (
-                        6,
-                        LayoutInputOf::inline_boundary(
-                            InlineBoundaryInputOf::new(InlineBoundaryKind::Start, top_metrics)
-                                .with_vertical_align(VerticalAlign::Top),
-                        ),
-                        NodeInputOf::non_box(),
-                    ),
-                    (
-                        7,
-                        LayoutInputOf::inline_boundary(
-                            InlineBoundaryInputOf::new(InlineBoundaryKind::End, bottom_metrics)
-                                .with_vertical_align(VerticalAlign::Bottom),
-                        ),
-                        NodeInputOf::non_box(),
-                    ),
-                    (
-                        8,
-                        LayoutInputOf::line_break(
-                            LineBreakInputOf::new().with_metrics(break_metrics),
-                        ),
-                        NodeInputOf::non_box(),
-                    ),
-                    (
-                        9,
-                        fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(
-                            721, 10.0, 4.0, 6.0,
-                        )]),
-                        NodeInputOf::non_box(),
-                    ),
-                ],
-                AvailableOf::definite(S::from_f64(100.0)),
-            );
-
-            let root = fri06_c02_final_node(&batch, 0);
-            assert_eq!(root.size.height, S::from_f64(49.0));
-            assert_eq!(
-                fri06_c03_fragment(&batch, 1).baseline().y,
-                S::from_f64(18.0)
-            );
-            assert_eq!(
-                fri06_c03_fragment(&batch, 9).baseline().y,
-                S::from_f64(43.0)
-            );
-            assert_eq!(
-                fri06_c02_final_node(&batch, 2).location.y,
-                S::from_f64(-2.0)
-            );
-            assert_eq!(fri06_c02_final_node(&batch, 3).location.y, S::ZERO);
-            assert_eq!(fri06_c02_final_node(&batch, 4).location.y, S::from_f64(1.0));
-            assert_eq!(fri06_c02_final_node(&batch, 5).location.y, S::ZERO);
-            assert_eq!(fri06_c02_final_node(&batch, 6).location.y, S::from_f64(6.0));
-            assert_eq!(
-                fri06_c02_final_node(&batch, 7).location.y,
-                S::from_f64(23.0)
-            );
-            assert_eq!(
-                fri06_c02_final_node(&batch, 8).location.y,
-                S::from_f64(18.0)
-            );
         };
+        let top = NodeInputOf {
+            vertical_align: VerticalAlign::Top,
+            ..fri06_c03_atomic_style(
+                10.0,
+                25.0,
+                0.0,
+                0.0,
+                0,
+                InlineBreakOpportunityOf::prohibited(),
+            )
+        };
+        let bottom_with_margins = NodeInputOf {
+            vertical_align: VerticalAlign::Bottom,
+            margin: Edges {
+                top: LengthAutoOf::px(S::from_f64(1.0)),
+                bottom: LengthAutoOf::px(S::from_f64(4.0)),
+                ..Edges::all(LengthAutoOf::ZERO)
+            },
+            ..fri06_c03_atomic_style(
+                10.0,
+                30.0,
+                0.0,
+                0.0,
+                0,
+                InlineBreakOpportunityOf::prohibited(),
+            )
+        };
+        let bottom = NodeInputOf {
+            vertical_align: VerticalAlign::Bottom,
+            ..fri06_c03_atomic_style(
+                10.0,
+                35.0,
+                0.0,
+                0.0,
+                0,
+                InlineBreakOpportunityOf::prohibited(),
+            )
+        };
+        let top_metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(22.0), S::from_f64(6.0))
+                .unwrap();
+        let bottom_metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(32.0), S::from_f64(20.0))
+                .unwrap();
+        let break_metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(10.0), S::from_f64(8.0))
+                .unwrap();
+        let batch = fri06_c03_mixed_batch(
+            vec![
+                (1, text, NodeInputOf::non_box()),
+                (
+                    2,
+                    LayoutInputOf::box_input(top_with_margins.clone()),
+                    top_with_margins,
+                ),
+                (3, LayoutInputOf::box_input(top.clone()), top),
+                (
+                    4,
+                    LayoutInputOf::box_input(bottom_with_margins.clone()),
+                    bottom_with_margins,
+                ),
+                (5, LayoutInputOf::box_input(bottom.clone()), bottom),
+                (
+                    6,
+                    LayoutInputOf::inline_boundary(
+                        InlineBoundaryInputOf::new(InlineBoundaryKind::Start, top_metrics)
+                            .with_vertical_align(VerticalAlign::Top),
+                    ),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    7,
+                    LayoutInputOf::inline_boundary(
+                        InlineBoundaryInputOf::new(InlineBoundaryKind::End, bottom_metrics)
+                            .with_vertical_align(VerticalAlign::Bottom),
+                    ),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    8,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(break_metrics)),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    9,
+                    fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(721, 10.0, 4.0, 6.0)]),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+            AvailableOf::definite(S::from_f64(100.0)),
+        );
+
+        let root = fri06_c02_final_node(&batch, 0);
+        assert_eq!(root.size.height, S::from_f64(49.0));
+        assert_eq!(
+            fri06_c03_fragment(&batch, 1).baseline().y,
+            S::from_f64(18.0)
+        );
+        assert_eq!(
+            fri06_c03_fragment(&batch, 9).baseline().y,
+            S::from_f64(43.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&batch, 2).location.y,
+            S::from_f64(-2.0)
+        );
+        assert_eq!(fri06_c02_final_node(&batch, 3).location.y, S::ZERO);
+        assert_eq!(fri06_c02_final_node(&batch, 4).location.y, S::from_f64(1.0));
+        assert_eq!(fri06_c02_final_node(&batch, 5).location.y, S::ZERO);
+        assert_eq!(fri06_c02_final_node(&batch, 6).location.y, S::from_f64(6.0));
+        assert_eq!(
+            fri06_c02_final_node(&batch, 7).location.y,
+            S::from_f64(23.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&batch, 8).location.y,
+            S::from_f64(18.0)
+        );
     }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c03_percentage_definite_physical_and_logical_block_basis_without_indefinite_substitute() {
@@ -1300,20 +1237,7 @@ fn fri06_c03_percentage_definite_physical_and_logical_block_basis_without_indefi
 
 #[test]
 fn fri06_c03_control_mixed_break_boundary_and_hidden_output_publish_from_one_source_both_scalars() {
-    (FRI06_C03_CONTROL_MIXED_BREAK_BOUNDARY_AND_HIDDEN_OUTPUT_PUBLISH_FROM_ONE_SOURCE_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C03_CONTROL_MIXED_BREAK_BOUNDARY_AND_HIDDEN_OUTPUT_PUBLISH_FROM_ONE_SOURCE_BOTH_SCALARS_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL1254::<S>::RUN)()
-}
-
-type AssertLanePhaseL1254Run = fn();
-
-struct AssertLanePhaseL1254<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL1254<S> {
-    const RUN: AssertLanePhaseL1254Run = || {
         let boundary_metrics =
             InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(15.0))
                 .unwrap();
@@ -1421,12 +1345,11 @@ impl<S: LayoutScalar> AssertLanePhaseL1254<S> {
             fri06_c02_final_node(&batch, 5).location.x,
             S::from_f64(30.0)
         );
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c03_control_forced_break_splits_min_content_indivisible_groups_both_scalars() {
@@ -1536,186 +1459,165 @@ fn fri06_c03_strut_adjacent_final_breaks_preserve_empty_following_line_both_scal
 
 #[test]
 fn fri06_c03_control_leading_trailing_only_child_and_boundary_edges_both_scalars() {
-    (FRI06_C03_CONTROL_LEADING_TRAILING_ONLY_CHILD_AND_BOUNDARY_EDGES_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C03_CONTROL_LEADING_TRAILING_ONLY_CHILD_AND_BOUNDARY_EDGES_BOTH_SCALARS_PHASE: fn() =
-    || {
-        fn assert_lane<S: LayoutScalar>() {
-            (AssertLanePhaseL1481::<S>::RUN)()
-        }
-
-        type AssertLanePhaseL1481Run = fn();
-
-        struct AssertLanePhaseL1481<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-        impl<S: LayoutScalar> AssertLanePhaseL1481<S> {
-            const RUN: AssertLanePhaseL1481Run = || {
-                let metrics = InlineMetricsOf::from_line_height_and_baseline(
-                    S::from_f64(20.0),
-                    S::from_f64(15.0),
-                )
+    fn assert_lane<S: LayoutScalar>() {
+        let metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(15.0))
                 .unwrap();
-                let text = || {
-                    (
-                        2,
-                        fri06_c03_text_input(vec![fri06_c02_segment(
-                            451,
-                            10.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )]),
-                        NodeInputOf::non_box(),
-                    )
-                };
+        let text = || {
+            (
+                2,
+                fri06_c03_text_input(vec![fri06_c02_segment(
+                    451,
+                    10.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                )]),
+                NodeInputOf::non_box(),
+            )
+        };
 
-                let leading = fri06_c03_mixed_batch(
-                    vec![
-                        (
-                            1,
-                            LayoutInputOf::line_break(
-                                LineBreakInputOf::new().with_metrics(metrics),
-                            ),
-                            NodeInputOf::non_box(),
-                        ),
-                        text(),
-                    ],
-                    AvailableOf::MAX_CONTENT,
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&leading, 0).size.height,
-                    S::from_f64(40.0)
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&leading, 1).location.y,
-                    S::from_f64(15.0)
-                );
+        let leading = fri06_c03_mixed_batch(
+            vec![
+                (
+                    1,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                    NodeInputOf::non_box(),
+                ),
+                text(),
+            ],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&leading, 0).size.height,
+            S::from_f64(40.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&leading, 1).location.y,
+            S::from_f64(15.0)
+        );
 
-                let trailing = fri06_c03_mixed_batch(
-                    vec![
-                        text(),
-                        (
-                            3,
-                            LayoutInputOf::line_break(
-                                LineBreakInputOf::new().with_metrics(metrics),
-                            ),
-                            NodeInputOf::non_box(),
-                        ),
-                    ],
-                    AvailableOf::MAX_CONTENT,
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&trailing, 0).size.height,
-                    S::from_f64(40.0)
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&trailing, 3).location,
-                    Point::new(S::from_f64(10.0), S::from_f64(15.0))
-                );
+        let trailing = fri06_c03_mixed_batch(
+            vec![
+                text(),
+                (
+                    3,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&trailing, 0).size.height,
+            S::from_f64(40.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&trailing, 3).location,
+            Point::new(S::from_f64(10.0), S::from_f64(15.0))
+        );
 
-                let only_break = fri06_c03_mixed_batch(
-                    vec![(
-                        1,
-                        LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
-                        NodeInputOf::non_box(),
-                    )],
-                    AvailableOf::MAX_CONTENT,
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&only_break, 0).size.height,
-                    S::from_f64(40.0)
-                );
+        let only_break = fri06_c03_mixed_batch(
+            vec![(
+                1,
+                LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                NodeInputOf::non_box(),
+            )],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&only_break, 0).size.height,
+            S::from_f64(40.0)
+        );
 
-                let only_boundary = fri06_c03_mixed_batch(
-                    vec![(
-                        1,
-                        LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
-                            InlineBoundaryKind::Start,
-                            metrics,
-                        )),
-                        NodeInputOf::non_box(),
-                    )],
-                    AvailableOf::MAX_CONTENT,
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&only_boundary, 0).size.height,
-                    S::from_f64(20.0)
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&only_boundary, 1).location,
-                    Point::new(S::ZERO, S::from_f64(15.0))
-                );
+        let only_boundary = fri06_c03_mixed_batch(
+            vec![(
+                1,
+                LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                    InlineBoundaryKind::Start,
+                    metrics,
+                )),
+                NodeInputOf::non_box(),
+            )],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&only_boundary, 0).size.height,
+            S::from_f64(20.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&only_boundary, 1).location,
+            Point::new(S::ZERO, S::from_f64(15.0))
+        );
 
-                let adjacent_boundaries = fri06_c03_mixed_batch(
-                    vec![
-                        (
-                            1,
-                            LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
-                                InlineBoundaryKind::Start,
-                                metrics,
-                            )),
-                            NodeInputOf::non_box(),
-                        ),
-                        (
-                            2,
-                            LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
-                                InlineBoundaryKind::End,
-                                metrics,
-                            )),
-                            NodeInputOf::non_box(),
-                        ),
-                    ],
-                    AvailableOf::MAX_CONTENT,
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&adjacent_boundaries, 1).location,
-                    Point::new(S::ZERO, S::from_f64(15.0))
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&adjacent_boundaries, 2).location,
-                    Point::new(S::ZERO, S::from_f64(15.0))
-                );
+        let adjacent_boundaries = fri06_c03_mixed_batch(
+            vec![
+                (
+                    1,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::Start,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    2,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::End,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&adjacent_boundaries, 1).location,
+            Point::new(S::ZERO, S::from_f64(15.0))
+        );
+        assert_eq!(
+            fri06_c02_final_node(&adjacent_boundaries, 2).location,
+            Point::new(S::ZERO, S::from_f64(15.0))
+        );
 
-                let boundaries = fri06_c03_mixed_batch(
-                    vec![
-                        (
-                            1,
-                            LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
-                                InlineBoundaryKind::Start,
-                                metrics,
-                            )),
-                            NodeInputOf::non_box(),
-                        ),
-                        text(),
-                        (
-                            3,
-                            LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
-                                InlineBoundaryKind::End,
-                                metrics,
-                            )),
-                            NodeInputOf::non_box(),
-                        ),
-                    ],
-                    AvailableOf::MAX_CONTENT,
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&boundaries, 0).size.height,
-                    S::from_f64(20.0)
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&boundaries, 1).location,
-                    Point::new(S::ZERO, S::from_f64(15.0))
-                );
-                assert_eq!(
-                    fri06_c02_final_node(&boundaries, 3).location,
-                    Point::new(S::from_f64(10.0), S::from_f64(15.0))
-                );
-            };
-        }
+        let boundaries = fri06_c03_mixed_batch(
+            vec![
+                (
+                    1,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::Start,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+                text(),
+                (
+                    3,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::End,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&boundaries, 0).size.height,
+            S::from_f64(20.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&boundaries, 1).location,
+            Point::new(S::ZERO, S::from_f64(15.0))
+        );
+        assert_eq!(
+            fri06_c02_final_node(&boundaries, 3).location,
+            Point::new(S::from_f64(10.0), S::from_f64(15.0))
+        );
+    }
 
-        assert_lane::<f32>();
-        assert_lane::<f64>();
-    };
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
 
 #[test]
 fn fri06_c03_control_visible_break_uses_each_unequal_lines_alignment_both_scalars() {
@@ -1889,398 +1791,373 @@ impl<S: LayoutScalar> Compute<()> for Fri06C07DirectTree<S> {
 
 #[test]
 fn fri06_c07_logical_clear_vertical_control_and_float_projection_both_scalars() {
-    (FRI06_C07_LOGICAL_CLEAR_VERTICAL_CONTROL_AND_FLOAT_PROJECTION_BOTH_SCALARS_PHASE)();
-}
+    #[derive(Clone, Copy)]
+    enum Family {
+        VerticalBreak,
+        LogicalFloat,
+    }
 
-const FRI06_C07_LOGICAL_CLEAR_VERTICAL_CONTROL_AND_FLOAT_PROJECTION_BOTH_SCALARS_PHASE: fn() =
-    || {
-        #[derive(Clone, Copy)]
-        enum Family {
-            VerticalBreak,
-            LogicalFloat,
-        }
+    #[derive(Clone, Copy)]
+    struct Row {
+        source: &'static str,
+        variant: &'static str,
+        family: Family,
+        direction: Direction,
+        box_sizing: BoxSizing,
+    }
 
-        #[derive(Clone, Copy)]
-        struct Row {
-            source: &'static str,
-            variant: &'static str,
-            family: Family,
-            direction: Direction,
-            box_sizing: BoxSizing,
-        }
+    const ROWS: [Row; 8] = [
+        Row {
+            source: "html/block/fri06_vertical_break_clear.html",
+            variant: "border_box_ltr",
+            family: Family::VerticalBreak,
+            direction: Direction::Ltr,
+            box_sizing: BoxSizing::BorderBox,
+        },
+        Row {
+            source: "html/block/fri06_vertical_break_clear.html",
+            variant: "content_box_ltr",
+            family: Family::VerticalBreak,
+            direction: Direction::Ltr,
+            box_sizing: BoxSizing::ContentBox,
+        },
+        Row {
+            source: "html/block/fri06_vertical_break_clear.html",
+            variant: "border_box_rtl",
+            family: Family::VerticalBreak,
+            direction: Direction::Rtl,
+            box_sizing: BoxSizing::BorderBox,
+        },
+        Row {
+            source: "html/block/fri06_vertical_break_clear.html",
+            variant: "content_box_rtl",
+            family: Family::VerticalBreak,
+            direction: Direction::Rtl,
+            box_sizing: BoxSizing::ContentBox,
+        },
+        Row {
+            source: "html/float/fri06_float_logical_clear.html",
+            variant: "border_box_ltr",
+            family: Family::LogicalFloat,
+            direction: Direction::Ltr,
+            box_sizing: BoxSizing::BorderBox,
+        },
+        Row {
+            source: "html/float/fri06_float_logical_clear.html",
+            variant: "content_box_ltr",
+            family: Family::LogicalFloat,
+            direction: Direction::Ltr,
+            box_sizing: BoxSizing::ContentBox,
+        },
+        Row {
+            source: "html/float/fri06_float_logical_clear.html",
+            variant: "border_box_rtl",
+            family: Family::LogicalFloat,
+            direction: Direction::Rtl,
+            box_sizing: BoxSizing::BorderBox,
+        },
+        Row {
+            source: "html/float/fri06_float_logical_clear.html",
+            variant: "content_box_rtl",
+            family: Family::LogicalFloat,
+            direction: Direction::Rtl,
+            box_sizing: BoxSizing::ContentBox,
+        },
+    ];
 
-        const ROWS: [Row; 8] = [
-            Row {
-                source: "html/block/fri06_vertical_break_clear.html",
-                variant: "border_box_ltr",
-                family: Family::VerticalBreak,
-                direction: Direction::Ltr,
-                box_sizing: BoxSizing::BorderBox,
-            },
-            Row {
-                source: "html/block/fri06_vertical_break_clear.html",
-                variant: "content_box_ltr",
-                family: Family::VerticalBreak,
-                direction: Direction::Ltr,
-                box_sizing: BoxSizing::ContentBox,
-            },
-            Row {
-                source: "html/block/fri06_vertical_break_clear.html",
-                variant: "border_box_rtl",
-                family: Family::VerticalBreak,
-                direction: Direction::Rtl,
-                box_sizing: BoxSizing::BorderBox,
-            },
-            Row {
-                source: "html/block/fri06_vertical_break_clear.html",
-                variant: "content_box_rtl",
-                family: Family::VerticalBreak,
-                direction: Direction::Rtl,
-                box_sizing: BoxSizing::ContentBox,
-            },
-            Row {
-                source: "html/float/fri06_float_logical_clear.html",
-                variant: "border_box_ltr",
-                family: Family::LogicalFloat,
-                direction: Direction::Ltr,
-                box_sizing: BoxSizing::BorderBox,
-            },
-            Row {
-                source: "html/float/fri06_float_logical_clear.html",
-                variant: "content_box_ltr",
-                family: Family::LogicalFloat,
-                direction: Direction::Ltr,
-                box_sizing: BoxSizing::ContentBox,
-            },
-            Row {
-                source: "html/float/fri06_float_logical_clear.html",
-                variant: "border_box_rtl",
-                family: Family::LogicalFloat,
-                direction: Direction::Rtl,
-                box_sizing: BoxSizing::BorderBox,
-            },
-            Row {
-                source: "html/float/fri06_float_logical_clear.html",
-                variant: "content_box_rtl",
-                family: Family::LogicalFloat,
-                direction: Direction::Rtl,
-                box_sizing: BoxSizing::ContentBox,
-            },
-        ];
-
-        fn vertical_break_batch<S: LayoutScalar>(
-            row: Row,
-        ) -> (CompletedLayoutBatchOf<u32, S>, ComputeOutputOf<S>) {
-            let flow_axes = FlowAxes::new(WritingMode::VerticalRl, row.direction);
-            let root_style = NodeInputOf {
-                display: Display::Block,
-                writing_mode: WritingMode::VerticalRl,
-                direction: row.direction,
-                box_sizing: row.box_sizing,
-                size: Size::new(
-                    PreferredSizeOf::px(S::from_f64(40.0)),
-                    PreferredSizeOf::px(S::from_f64(40.0)),
-                ),
-                ..NodeInputOf::default()
-            };
-            let float_style = fri06_c04_line_box(
-                flow_axes,
-                LogicalSizeOf::new(S::ZERO, S::from_f64(20.0)),
-                Float::Left,
-                None,
-            );
-            let text = fri06_c03_text_input(vec![fri06_c02_segment(
-                470,
-                10.0,
-                InlineWhitespaceEdge::Preserve,
-                InlineBreakOpportunityOf::prohibited(),
-            )]);
-            let metrics = InlineMetricsOf::from_line_height_and_baseline(
-                S::from_f64(20.0),
-                S::from_f64(15.0),
-            )
-            .unwrap();
-
-            let break_input = LineBreakInputOf::new()
-                .with_writing_mode(WritingMode::VerticalRl)
-                .with_direction(row.direction)
-                .with_metrics(metrics)
-                .with_clear(Clear::Left);
-            let tree = Fri06C02TextTree {
-                inputs: HashMap::from([
-                    (0, LayoutInputOf::box_input(root_style.clone())),
-                    (1, LayoutInputOf::box_input(float_style.clone())),
-                    (2, text),
-                    (3, LayoutInputOf::line_break(break_input)),
-                ]),
-                node_inputs: HashMap::from([
-                    (0, root_style),
-                    (1, float_style),
-                    (2, NodeInputOf::non_box()),
-                    (3, NodeInputOf::non_box()),
-                ]),
-                children: HashMap::from([
-                    (0, vec![1, 2, 3]),
-                    (1, Vec::new()),
-                    (2, Vec::new()),
-                    (3, Vec::new()),
-                ]),
-            };
-            let available = flow_axes.physical_size(LogicalSizeOf::new(
-                AvailableOf::definite(S::from_f64(40.0)),
-                AvailableOf::definite(S::from_f64(40.0)),
-            ));
-            let batch = compute_layout(&tree, 0, LayoutRootRequestOf::viewport(available).unwrap())
+    fn vertical_break_batch<S: LayoutScalar>(
+        row: Row,
+    ) -> (CompletedLayoutBatchOf<u32, S>, ComputeOutputOf<S>) {
+        let flow_axes = FlowAxes::new(WritingMode::VerticalRl, row.direction);
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::VerticalRl,
+            direction: row.direction,
+            box_sizing: row.box_sizing,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(40.0)),
+                PreferredSizeOf::px(S::from_f64(40.0)),
+            ),
+            ..NodeInputOf::default()
+        };
+        let float_style = fri06_c04_line_box(
+            flow_axes,
+            LogicalSizeOf::new(S::ZERO, S::from_f64(20.0)),
+            Float::Left,
+            None,
+        );
+        let text = fri06_c03_text_input(vec![fri06_c02_segment(
+            470,
+            10.0,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )]);
+        let metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(15.0))
                 .unwrap();
-            let mut direct_tree = Fri06C07DirectTree(tree);
-            let root_output = compute_block(
-                &mut direct_tree,
-                0,
-                ComputeInputOf::root_layout(
-                    Size::NONE,
-                    available.map(AvailableOf::into_option),
-                    ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
-                    available,
+
+        let break_input = LineBreakInputOf::new()
+            .with_writing_mode(WritingMode::VerticalRl)
+            .with_direction(row.direction)
+            .with_metrics(metrics)
+            .with_clear(Clear::Left);
+        let tree = Fri06C02TextTree {
+            inputs: HashMap::from([
+                (0, LayoutInputOf::box_input(root_style.clone())),
+                (1, LayoutInputOf::box_input(float_style.clone())),
+                (2, text),
+                (3, LayoutInputOf::line_break(break_input)),
+            ]),
+            node_inputs: HashMap::from([
+                (0, root_style),
+                (1, float_style),
+                (2, NodeInputOf::non_box()),
+                (3, NodeInputOf::non_box()),
+            ]),
+            children: HashMap::from([
+                (0, vec![1, 2, 3]),
+                (1, Vec::new()),
+                (2, Vec::new()),
+                (3, Vec::new()),
+            ]),
+        };
+        let available = flow_axes.physical_size(LogicalSizeOf::new(
+            AvailableOf::definite(S::from_f64(40.0)),
+            AvailableOf::definite(S::from_f64(40.0)),
+        ));
+        let batch =
+            compute_layout(&tree, 0, LayoutRootRequestOf::viewport(available).unwrap()).unwrap();
+        let mut direct_tree = Fri06C07DirectTree(tree);
+        let root_output = compute_block(
+            &mut direct_tree,
+            0,
+            ComputeInputOf::root_layout(
+                Size::NONE,
+                available.map(AvailableOf::into_option),
+                ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+                available,
+            ),
+        )
+        .unwrap();
+
+        (batch, root_output)
+    }
+
+    fn logical_float_batch<S: LayoutScalar>(
+        row: Row,
+        float_side: Float,
+        clear: Clear,
+        float_logical_size: LogicalSizeOf<S>,
+    ) -> CompletedLayoutBatchOf<u32, S> {
+        let flow_axes = FlowAxes::new(WritingMode::VerticalRl, row.direction);
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::VerticalRl,
+            direction: row.direction,
+            box_sizing: row.box_sizing,
+            size: flow_axes
+                .physical_size(LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(160.0)))
+                .map(PreferredSizeOf::px),
+            ..NodeInputOf::default()
+        };
+        let float_style = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::VerticalRl,
+            direction: row.direction,
+            float: float_side,
+            size: flow_axes
+                .physical_size(float_logical_size)
+                .map(PreferredSizeOf::px),
+            ..NodeInputOf::default()
+        };
+        let cleared_style = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::VerticalRl,
+            direction: row.direction,
+            clear,
+            size: flow_axes
+                .physical_size(LogicalSizeOf::new(S::from_f64(50.0), S::from_f64(10.0)))
+                .map(PreferredSizeOf::px),
+            ..NodeInputOf::default()
+        };
+
+        fri06_c04_front_door_batch(
+            root_style,
+            LogicalSizeOf::new(
+                AvailableOf::definite(S::from_f64(100.0)),
+                AvailableOf::definite(S::from_f64(160.0)),
+            ),
+            vec![1, 2],
+            vec![
+                (
+                    1,
+                    LayoutInputOf::box_input(float_style.clone()),
+                    float_style,
+                    Vec::new(),
                 ),
-            )
-            .unwrap();
-
-            (batch, root_output)
-        }
-
-        fn logical_float_batch<S: LayoutScalar>(
-            row: Row,
-            float_side: Float,
-            clear: Clear,
-            float_logical_size: LogicalSizeOf<S>,
-        ) -> CompletedLayoutBatchOf<u32, S> {
-            let flow_axes = FlowAxes::new(WritingMode::VerticalRl, row.direction);
-            let root_style = NodeInputOf {
-                display: Display::Block,
-                writing_mode: WritingMode::VerticalRl,
-                direction: row.direction,
-                box_sizing: row.box_sizing,
-                size: flow_axes
-                    .physical_size(LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(160.0)))
-                    .map(PreferredSizeOf::px),
-                ..NodeInputOf::default()
-            };
-            let float_style = NodeInputOf {
-                display: Display::Block,
-                writing_mode: WritingMode::VerticalRl,
-                direction: row.direction,
-                float: float_side,
-                size: flow_axes
-                    .physical_size(float_logical_size)
-                    .map(PreferredSizeOf::px),
-                ..NodeInputOf::default()
-            };
-            let cleared_style = NodeInputOf {
-                display: Display::Block,
-                writing_mode: WritingMode::VerticalRl,
-                direction: row.direction,
-                clear,
-                size: flow_axes
-                    .physical_size(LogicalSizeOf::new(S::from_f64(50.0), S::from_f64(10.0)))
-                    .map(PreferredSizeOf::px),
-                ..NodeInputOf::default()
-            };
-
-            fri06_c04_front_door_batch(
-                root_style,
-                LogicalSizeOf::new(
-                    AvailableOf::definite(S::from_f64(100.0)),
-                    AvailableOf::definite(S::from_f64(160.0)),
+                (
+                    2,
+                    LayoutInputOf::box_input(cleared_style.clone()),
+                    cleared_style,
+                    Vec::new(),
                 ),
-                vec![1, 2],
-                vec![
-                    (
-                        1,
-                        LayoutInputOf::box_input(float_style.clone()),
-                        float_style,
-                        Vec::new(),
-                    ),
-                    (
-                        2,
-                        LayoutInputOf::box_input(cleared_style.clone()),
-                        cleared_style,
-                        Vec::new(),
-                    ),
-                ],
-            )
-        }
+            ],
+        )
+    }
 
-        fn assert_lane<S: LayoutScalar>() {
-            (AssertLanePhaseL2036::<S>::RUN)()
-        }
+    fn assert_lane<S: LayoutScalar>() {
+        let unique = ROWS
+            .iter()
+            .map(|row| (row.source, row.variant))
+            .collect::<HashSet<_>>();
+        assert_eq!(ROWS.len(), 8);
+        assert_eq!(unique.len(), 8);
 
-        type AssertLanePhaseL2036Run = fn();
-
-        struct AssertLanePhaseL2036<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-        impl<S: LayoutScalar> AssertLanePhaseL2036<S> {
-            const RUN: AssertLanePhaseL2036Run = || {
-                let unique = ROWS
-                    .iter()
-                    .map(|row| (row.source, row.variant))
-                    .collect::<HashSet<_>>();
-                assert_eq!(ROWS.len(), 8);
-                assert_eq!(unique.len(), 8);
-
-                for row in ROWS {
-                    match row.family {
-                        Family::VerticalBreak => {
-                            let (batch, root_output) = vertical_break_batch::<S>(row);
-                            let break_output = fri06_c02_final_node(&batch, 3);
-                            let expected_break = match row.direction {
-                                Direction::Ltr => Point::new(S::from_f64(25.0), S::from_f64(10.0)),
-                                Direction::Rtl => Point::new(S::from_f64(25.0), S::from_f64(30.0)),
-                            };
-                            assert_eq!(
-                                break_output.location, expected_break,
-                                "{} {}",
-                                row.source, row.variant
-                            );
-                            assert_eq!(break_output.size, Size::ZERO);
-                            let expected_exclusion = match row.direction {
-                                Direction::Ltr => Point::new(S::from_f64(20.0), S::ZERO),
-                                Direction::Rtl => Point::new(S::from_f64(20.0), S::from_f64(40.0)),
-                            };
-                            assert_eq!(
-                                fri06_c02_final_node(&batch, 1).location,
-                                expected_exclusion
-                            );
-                            assert_eq!(
-                                fri06_c02_final_node(&batch, 1).size,
-                                Size::new(S::from_f64(20.0), S::ZERO)
-                            );
-                            let root_node_output = fri06_c02_final_node(&batch, 0);
-                            assert_eq!(root_node_output.size, Size::splat(S::from_f64(40.0)));
-                            assert_eq!(root_output.size, Size::splat(S::from_f64(40.0)));
-                            let baselines = root_output.baselines();
-                            assert_eq!(
-                                baselines,
-                                BaselinesOf {
-                                    first: Point::new(Some(S::from_f64(25.0)), None),
-                                    last: Point::new(Some(S::from_f64(5.0)), None),
-                                },
-                                "{} {} root baselines",
-                                row.source,
-                                row.variant,
-                            );
-                            assert_eq!(
-                                root_output.size.width - baselines.first.x.unwrap(),
-                                S::from_f64(15.0),
-                                "{} {} break logical block baseline",
-                                row.source,
-                                row.variant,
-                            );
-                            assert_eq!(
-                                root_output.size.width - baselines.last.x.unwrap(),
-                                S::from_f64(35.0),
-                                "{} {} following-strut logical block baseline",
-                                row.source,
-                                row.variant,
-                            );
-                        }
-                        Family::LogicalFloat => {
-                            let line_start = logical_float_batch::<S>(
-                                row,
-                                Float::Left,
-                                Clear::Left,
-                                LogicalSizeOf::new(S::from_f64(20.0), S::from_f64(20.0)),
-                            );
-                            let line_end = logical_float_batch::<S>(
-                                row,
-                                Float::Right,
-                                Clear::Right,
-                                LogicalSizeOf::new(S::from_f64(30.0), S::from_f64(40.0)),
-                            );
-                            assert_eq!(
-                                fri06_c02_final_node(&line_start, 0).size,
-                                Size::new(S::from_f64(160.0), S::from_f64(100.0)),
-                            );
-                            assert_eq!(
-                                fri06_c02_final_node(&line_end, 0).size,
-                                Size::new(S::from_f64(160.0), S::from_f64(100.0)),
-                            );
-                            let expected_start_float = match row.direction {
-                                Direction::Ltr => Point::new(S::from_f64(140.0), S::ZERO),
-                                Direction::Rtl => Point::new(S::from_f64(140.0), S::from_f64(80.0)),
-                            };
-                            let expected_end_float = match row.direction {
-                                Direction::Ltr => Point::new(S::from_f64(120.0), S::from_f64(70.0)),
-                                Direction::Rtl => Point::new(S::from_f64(120.0), S::ZERO),
-                            };
-                            assert_eq!(
-                                fri06_c02_final_node(&line_start, 1).location,
-                                expected_start_float,
-                                "{} {} line-start float",
-                                row.source,
-                                row.variant,
-                            );
-                            assert_eq!(
-                                fri06_c02_final_node(&line_end, 1).location,
-                                expected_end_float,
-                                "{} {} line-end float",
-                                row.source,
-                                row.variant,
-                            );
-                            assert_eq!(
-                                fri06_c02_final_node(&line_start, 1).size,
-                                Size::splat(S::from_f64(20.0))
-                            );
-                            assert_eq!(
-                                fri06_c02_final_node(&line_end, 1).size,
-                                Size::new(S::from_f64(40.0), S::from_f64(30.0))
-                            );
-                            let expected_start = match row.direction {
-                                Direction::Ltr => Point::new(S::from_f64(130.0), S::ZERO),
-                                Direction::Rtl => Point::new(S::from_f64(130.0), S::from_f64(50.0)),
-                            };
-                            let expected_end = match row.direction {
-                                Direction::Ltr => Point::new(S::from_f64(110.0), S::ZERO),
-                                Direction::Rtl => Point::new(S::from_f64(110.0), S::from_f64(50.0)),
-                            };
-                            assert_eq!(
-                                fri06_c02_final_node(&line_start, 2).location,
-                                expected_start,
-                                "{} {} line-start clear",
-                                row.source,
-                                row.variant
-                            );
-                            assert_eq!(
-                                fri06_c02_final_node(&line_end, 2).location,
-                                expected_end,
-                                "{} {} line-end clear",
-                                row.source,
-                                row.variant
-                            );
-                            assert_eq!(
-                                fri06_c02_final_node(&line_start, 2).size,
-                                Size::new(S::from_f64(10.0), S::from_f64(50.0))
-                            );
-                            assert_eq!(
-                                fri06_c02_final_node(&line_end, 2).size,
-                                Size::new(S::from_f64(10.0), S::from_f64(50.0))
-                            );
-                        }
-                    }
+        for row in ROWS {
+            match row.family {
+                Family::VerticalBreak => {
+                    let (batch, root_output) = vertical_break_batch::<S>(row);
+                    let break_output = fri06_c02_final_node(&batch, 3);
+                    let expected_break = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(25.0), S::from_f64(10.0)),
+                        Direction::Rtl => Point::new(S::from_f64(25.0), S::from_f64(30.0)),
+                    };
+                    assert_eq!(
+                        break_output.location, expected_break,
+                        "{} {}",
+                        row.source, row.variant
+                    );
+                    assert_eq!(break_output.size, Size::ZERO);
+                    let expected_exclusion = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(20.0), S::ZERO),
+                        Direction::Rtl => Point::new(S::from_f64(20.0), S::from_f64(40.0)),
+                    };
+                    assert_eq!(fri06_c02_final_node(&batch, 1).location, expected_exclusion);
+                    assert_eq!(
+                        fri06_c02_final_node(&batch, 1).size,
+                        Size::new(S::from_f64(20.0), S::ZERO)
+                    );
+                    let root_node_output = fri06_c02_final_node(&batch, 0);
+                    assert_eq!(root_node_output.size, Size::splat(S::from_f64(40.0)));
+                    assert_eq!(root_output.size, Size::splat(S::from_f64(40.0)));
+                    let baselines = root_output.baselines();
+                    assert_eq!(
+                        baselines,
+                        BaselinesOf {
+                            first: Point::new(Some(S::from_f64(25.0)), None),
+                            last: Point::new(Some(S::from_f64(5.0)), None),
+                        },
+                        "{} {} root baselines",
+                        row.source,
+                        row.variant,
+                    );
+                    assert_eq!(
+                        root_output.size.width - baselines.first.x.unwrap(),
+                        S::from_f64(15.0),
+                        "{} {} break logical block baseline",
+                        row.source,
+                        row.variant,
+                    );
+                    assert_eq!(
+                        root_output.size.width - baselines.last.x.unwrap(),
+                        S::from_f64(35.0),
+                        "{} {} following-strut logical block baseline",
+                        row.source,
+                        row.variant,
+                    );
                 }
-            };
+                Family::LogicalFloat => {
+                    let line_start = logical_float_batch::<S>(
+                        row,
+                        Float::Left,
+                        Clear::Left,
+                        LogicalSizeOf::new(S::from_f64(20.0), S::from_f64(20.0)),
+                    );
+                    let line_end = logical_float_batch::<S>(
+                        row,
+                        Float::Right,
+                        Clear::Right,
+                        LogicalSizeOf::new(S::from_f64(30.0), S::from_f64(40.0)),
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 0).size,
+                        Size::new(S::from_f64(160.0), S::from_f64(100.0)),
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 0).size,
+                        Size::new(S::from_f64(160.0), S::from_f64(100.0)),
+                    );
+                    let expected_start_float = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(140.0), S::ZERO),
+                        Direction::Rtl => Point::new(S::from_f64(140.0), S::from_f64(80.0)),
+                    };
+                    let expected_end_float = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(120.0), S::from_f64(70.0)),
+                        Direction::Rtl => Point::new(S::from_f64(120.0), S::ZERO),
+                    };
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 1).location,
+                        expected_start_float,
+                        "{} {} line-start float",
+                        row.source,
+                        row.variant,
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 1).location,
+                        expected_end_float,
+                        "{} {} line-end float",
+                        row.source,
+                        row.variant,
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 1).size,
+                        Size::splat(S::from_f64(20.0))
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 1).size,
+                        Size::new(S::from_f64(40.0), S::from_f64(30.0))
+                    );
+                    let expected_start = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(130.0), S::ZERO),
+                        Direction::Rtl => Point::new(S::from_f64(130.0), S::from_f64(50.0)),
+                    };
+                    let expected_end = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(110.0), S::ZERO),
+                        Direction::Rtl => Point::new(S::from_f64(110.0), S::from_f64(50.0)),
+                    };
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 2).location,
+                        expected_start,
+                        "{} {} line-start clear",
+                        row.source,
+                        row.variant
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 2).location,
+                        expected_end,
+                        "{} {} line-end clear",
+                        row.source,
+                        row.variant
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 2).size,
+                        Size::new(S::from_f64(10.0), S::from_f64(50.0))
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 2).size,
+                        Size::new(S::from_f64(10.0), S::from_f64(50.0))
+                    );
+                }
+            }
         }
+    }
 
-        assert_lane::<f32>();
-        assert_lane::<f64>();
-    };
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
 
 #[test]
 fn fri06_c04_line_band_text_atomic_control_rewrap_transition_and_progress_both_scalars() {
-    (FRI06_C04_LINE_BAND_TEXT_ATOMIC_CONTROL_REWRAP_TRANSITION_AND_PROGRESS_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C04_LINE_BAND_TEXT_ATOMIC_CONTROL_REWRAP_TRANSITION_AND_PROGRESS_BOTH_SCALARS_PHASE:
-    fn() = || {
     fn atomic_participation<S: LayoutScalar>(
         following_break: InlineBreakOpportunityOf<S>,
     ) -> AtomicInlineParticipationOf<S> {
@@ -2288,279 +2165,256 @@ const FRI06_C04_LINE_BAND_TEXT_ATOMIC_CONTROL_REWRAP_TRANSITION_AND_PROGRESS_BOT
     }
 
     fn assert_lane<S: LayoutScalar>() {
-        (AssertLanePhaseL2200::<S>::RUN)()
-    }
-
-    type AssertLanePhaseL2200Run = fn();
-
-    struct AssertLanePhaseL2200<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL2200<S> {
-        const RUN: AssertLanePhaseL2200Run = || {
-            let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
-            let float = |node, side, inline, block| {
-                let style = fri06_c04_line_box(
-                    flow_axes,
-                    LogicalSizeOf::new(S::from_f64(inline), S::from_f64(block)),
-                    side,
-                    None,
-                );
-                (node, LayoutInputOf::box_input(style.clone()), style)
-            };
-            let atomic = |node, inline, block, following_break| {
-                let style = fri06_c04_line_box(
-                    flow_axes,
-                    LogicalSizeOf::new(S::from_f64(inline), S::from_f64(block)),
-                    Float::None,
-                    Some(atomic_participation(following_break)),
-                );
-                (node, LayoutInputOf::box_input(style.clone()), style)
-            };
-            let metrics =
-                InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap();
-
-            let mixed = fri06_c04_line_batch(
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let float = |node, side, inline, block| {
+            let style = fri06_c04_line_box(
                 flow_axes,
-                TextAlign::Auto,
-                vec![
-                    float(1, Float::Left, 30.0, 30.0),
-                    (
-                        2,
-                        fri06_c03_text_input(vec![fri06_c02_segment(
-                            601,
-                            20.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )]),
-                        NodeInputOf::non_box(),
-                    ),
-                    atomic(3, 10.0, 10.0, InlineBreakOpportunityOf::prohibited()),
-                    (
-                        4,
-                        LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
-                            InlineBoundaryKind::End,
-                            metrics,
-                        )),
-                        NodeInputOf::non_box(),
-                    ),
-                ],
+                LogicalSizeOf::new(S::from_f64(inline), S::from_f64(block)),
+                side,
+                None,
             );
-            let fragment = fri06_c03_fragment(&mixed, 2);
-            assert_eq!(fragment.line_index(), 0);
-            assert_eq!(fragment.visual_index(), 0);
-            assert_eq!(fragment.rect().origin().x, S::from_f64(30.0));
-            assert_eq!(
-                fri06_c02_final_node(&mixed, 3).location.x,
-                S::from_f64(50.0)
-            );
-            assert_eq!(
-                fri06_c02_final_node(&mixed, 4).location.x,
-                S::from_f64(60.0)
-            );
-            assert_eq!(fri06_c02_final_node(&mixed, 4).size, Size::ZERO);
-            assert_eq!(fri06_c02_final_node(&mixed, 0).location, Point::ZERO);
-            assert_eq!(
-                fri06_c02_final_node(&mixed, 0).size.width,
-                S::from_f64(100.0)
-            );
-
-            let right = fri06_c04_line_batch(
-                flow_axes,
-                TextAlign::Auto,
-                vec![
-                    float(1, Float::Right, 30.0, 20.0),
-                    (
-                        2,
-                        fri06_c03_text_input(vec![fri06_c02_segment(
-                            602,
-                            20.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )]),
-                        NodeInputOf::non_box(),
-                    ),
-                    atomic(3, 20.0, 10.0, InlineBreakOpportunityOf::prohibited()),
-                    (
-                        4,
-                        LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
-                            InlineBoundaryKind::End,
-                            metrics,
-                        )),
-                        NodeInputOf::non_box(),
-                    ),
-                ],
-            );
-            assert_eq!(fri06_c03_fragment(&right, 2).rect().origin().x, S::ZERO);
-            assert_eq!(
-                fri06_c02_final_node(&right, 3).location.x,
-                S::from_f64(20.0)
-            );
-            assert_eq!(
-                fri06_c02_final_node(&right, 4).location.x,
-                S::from_f64(40.0)
-            );
-
-            let opposing = fri06_c04_line_batch(
-                flow_axes,
-                TextAlign::Auto,
-                vec![
-                    float(1, Float::Left, 30.0, 20.0),
-                    float(2, Float::Right, 20.0, 20.0),
-                    (
-                        3,
-                        fri06_c03_text_input(vec![fri06_c02_segment(
-                            603,
-                            20.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )]),
-                        NodeInputOf::non_box(),
-                    ),
-                    atomic(4, 30.0, 10.0, InlineBreakOpportunityOf::prohibited()),
-                    (
-                        5,
-                        LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
-                            InlineBoundaryKind::End,
-                            metrics,
-                        )),
-                        NodeInputOf::non_box(),
-                    ),
-                ],
-            );
-            assert_eq!(
-                fri06_c03_fragment(&opposing, 3).rect().origin().x,
-                S::from_f64(30.0)
-            );
-            assert_eq!(
-                fri06_c02_final_node(&opposing, 4).location.x,
-                S::from_f64(50.0)
-            );
-            assert_eq!(
-                fri06_c02_final_node(&opposing, 5).location.x,
-                S::from_f64(80.0)
-            );
-
-            let rewrapped = fri06_c04_line_batch(
-                flow_axes,
-                TextAlign::Auto,
-                vec![
-                    float(1, Float::Left, 60.0, 10.0),
-                    (
-                        2,
-                        fri06_c03_text_input(vec![
-                            fri06_c02_segment(
-                                611,
-                                30.0,
-                                InlineWhitespaceEdge::Preserve,
-                                InlineBreakOpportunityOf::allowed(),
-                            ),
-                            fri06_c02_segment(
-                                612,
-                                30.0,
-                                InlineWhitespaceEdge::Preserve,
-                                InlineBreakOpportunityOf::allowed(),
-                            ),
-                            fri06_c02_segment(
-                                613,
-                                30.0,
-                                InlineWhitespaceEdge::Preserve,
-                                InlineBreakOpportunityOf::prohibited(),
-                            ),
-                        ]),
-                        NodeInputOf::non_box(),
-                    ),
-                ],
-            );
-            let fragments = rewrapped
-                .final_inline_fragments()
-                .iter()
-                .filter(|entry| entry.node() == 2)
-                .map(|entry| entry.fragment())
-                .collect::<Vec<_>>();
-            assert_eq!(fragments.len(), 3);
-            assert_eq!(fragments[0].line_index(), 0);
-            assert_eq!(
-                fragments[0].rect().origin(),
-                Point::new(S::from_f64(60.0), S::ZERO)
-            );
-            assert_eq!(fragments[1].line_index(), 1);
-            assert_eq!(
-                fragments[1].rect().origin(),
-                Point::new(S::ZERO, S::from_f64(10.0))
-            );
-            assert_eq!(fragments[2].line_index(), 1);
-            assert_eq!(
-                fragments[2].rect().origin(),
-                Point::new(S::from_f64(30.0), S::from_f64(10.0))
-            );
-
-            let forced = fri06_c04_line_batch(
-                flow_axes,
-                TextAlign::Auto,
-                vec![
-                    float(1, Float::Left, 30.0, 15.0),
-                    atomic(2, 20.0, 20.0, InlineBreakOpportunityOf::prohibited()),
-                    (
-                        3,
-                        LayoutInputOf::line_break(
-                            LineBreakInputOf::new().with_metrics(
-                                InlineMetricsOf::from_line_height_and_baseline(
-                                    S::from_f64(20.0),
-                                    S::from_f64(15.0),
-                                )
-                                .unwrap(),
-                            ),
-                        ),
-                        NodeInputOf::non_box(),
-                    ),
-                    atomic(4, 10.0, 10.0, InlineBreakOpportunityOf::prohibited()),
-                ],
-            );
-            assert_eq!(
-                fri06_c02_final_node(&forced, 2).location.x,
-                S::from_f64(30.0)
-            );
-            assert_eq!(
-                fri06_c02_final_node(&forced, 4).location,
-                Point::new(S::ZERO, S::from_f64(30.0))
-            );
-
-            let no_space = fri06_c04_line_batch(
-                flow_axes,
-                TextAlign::Auto,
-                vec![
-                    float(1, Float::Left, 50.0, 20.0),
-                    float(2, Float::Right, 50.0, 20.0),
-                    atomic(3, 120.0, 10.0, InlineBreakOpportunityOf::prohibited()),
-                ],
-            );
-            assert_eq!(
-                fri06_c02_final_node(&no_space, 3).location,
-                Point::new(S::ZERO, S::from_f64(20.0))
-            );
+            (node, LayoutInputOf::box_input(style.clone()), style)
         };
+        let atomic = |node, inline, block, following_break| {
+            let style = fri06_c04_line_box(
+                flow_axes,
+                LogicalSizeOf::new(S::from_f64(inline), S::from_f64(block)),
+                Float::None,
+                Some(atomic_participation(following_break)),
+            );
+            (node, LayoutInputOf::box_input(style.clone()), style)
+        };
+        let metrics =
+            InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap();
+
+        let mixed = fri06_c04_line_batch(
+            flow_axes,
+            TextAlign::Auto,
+            vec![
+                float(1, Float::Left, 30.0, 30.0),
+                (
+                    2,
+                    fri06_c03_text_input(vec![fri06_c02_segment(
+                        601,
+                        20.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
+                ),
+                atomic(3, 10.0, 10.0, InlineBreakOpportunityOf::prohibited()),
+                (
+                    4,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::End,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+        );
+        let fragment = fri06_c03_fragment(&mixed, 2);
+        assert_eq!(fragment.line_index(), 0);
+        assert_eq!(fragment.visual_index(), 0);
+        assert_eq!(fragment.rect().origin().x, S::from_f64(30.0));
+        assert_eq!(
+            fri06_c02_final_node(&mixed, 3).location.x,
+            S::from_f64(50.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&mixed, 4).location.x,
+            S::from_f64(60.0)
+        );
+        assert_eq!(fri06_c02_final_node(&mixed, 4).size, Size::ZERO);
+        assert_eq!(fri06_c02_final_node(&mixed, 0).location, Point::ZERO);
+        assert_eq!(
+            fri06_c02_final_node(&mixed, 0).size.width,
+            S::from_f64(100.0)
+        );
+
+        let right = fri06_c04_line_batch(
+            flow_axes,
+            TextAlign::Auto,
+            vec![
+                float(1, Float::Right, 30.0, 20.0),
+                (
+                    2,
+                    fri06_c03_text_input(vec![fri06_c02_segment(
+                        602,
+                        20.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
+                ),
+                atomic(3, 20.0, 10.0, InlineBreakOpportunityOf::prohibited()),
+                (
+                    4,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::End,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+        );
+        assert_eq!(fri06_c03_fragment(&right, 2).rect().origin().x, S::ZERO);
+        assert_eq!(
+            fri06_c02_final_node(&right, 3).location.x,
+            S::from_f64(20.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&right, 4).location.x,
+            S::from_f64(40.0)
+        );
+
+        let opposing = fri06_c04_line_batch(
+            flow_axes,
+            TextAlign::Auto,
+            vec![
+                float(1, Float::Left, 30.0, 20.0),
+                float(2, Float::Right, 20.0, 20.0),
+                (
+                    3,
+                    fri06_c03_text_input(vec![fri06_c02_segment(
+                        603,
+                        20.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
+                ),
+                atomic(4, 30.0, 10.0, InlineBreakOpportunityOf::prohibited()),
+                (
+                    5,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::End,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+        );
+        assert_eq!(
+            fri06_c03_fragment(&opposing, 3).rect().origin().x,
+            S::from_f64(30.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&opposing, 4).location.x,
+            S::from_f64(50.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&opposing, 5).location.x,
+            S::from_f64(80.0)
+        );
+
+        let rewrapped = fri06_c04_line_batch(
+            flow_axes,
+            TextAlign::Auto,
+            vec![
+                float(1, Float::Left, 60.0, 10.0),
+                (
+                    2,
+                    fri06_c03_text_input(vec![
+                        fri06_c02_segment(
+                            611,
+                            30.0,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::allowed(),
+                        ),
+                        fri06_c02_segment(
+                            612,
+                            30.0,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::allowed(),
+                        ),
+                        fri06_c02_segment(
+                            613,
+                            30.0,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::prohibited(),
+                        ),
+                    ]),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+        );
+        let fragments = rewrapped
+            .final_inline_fragments()
+            .iter()
+            .filter(|entry| entry.node() == 2)
+            .map(|entry| entry.fragment())
+            .collect::<Vec<_>>();
+        assert_eq!(fragments.len(), 3);
+        assert_eq!(fragments[0].line_index(), 0);
+        assert_eq!(
+            fragments[0].rect().origin(),
+            Point::new(S::from_f64(60.0), S::ZERO)
+        );
+        assert_eq!(fragments[1].line_index(), 1);
+        assert_eq!(
+            fragments[1].rect().origin(),
+            Point::new(S::ZERO, S::from_f64(10.0))
+        );
+        assert_eq!(fragments[2].line_index(), 1);
+        assert_eq!(
+            fragments[2].rect().origin(),
+            Point::new(S::from_f64(30.0), S::from_f64(10.0))
+        );
+
+        let forced = fri06_c04_line_batch(
+            flow_axes,
+            TextAlign::Auto,
+            vec![
+                float(1, Float::Left, 30.0, 15.0),
+                atomic(2, 20.0, 20.0, InlineBreakOpportunityOf::prohibited()),
+                (
+                    3,
+                    LayoutInputOf::line_break(
+                        LineBreakInputOf::new().with_metrics(
+                            InlineMetricsOf::from_line_height_and_baseline(
+                                S::from_f64(20.0),
+                                S::from_f64(15.0),
+                            )
+                            .unwrap(),
+                        ),
+                    ),
+                    NodeInputOf::non_box(),
+                ),
+                atomic(4, 10.0, 10.0, InlineBreakOpportunityOf::prohibited()),
+            ],
+        );
+        assert_eq!(
+            fri06_c02_final_node(&forced, 2).location.x,
+            S::from_f64(30.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&forced, 4).location,
+            Point::new(S::ZERO, S::from_f64(30.0))
+        );
+
+        let no_space = fri06_c04_line_batch(
+            flow_axes,
+            TextAlign::Auto,
+            vec![
+                float(1, Float::Left, 50.0, 20.0),
+                float(2, Float::Right, 50.0, 20.0),
+                atomic(3, 120.0, 10.0, InlineBreakOpportunityOf::prohibited()),
+            ],
+        );
+        assert_eq!(
+            fri06_c02_final_node(&no_space, 3).location,
+            Point::new(S::ZERO, S::from_f64(20.0))
+        );
     }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c04_line_band_ordinary_block_keeps_outer_edge_and_inherits_parent_float_both_scalars() {
-    (FRI06_C04_LINE_BAND_ORDINARY_BLOCK_KEEPS_OUTER_EDGE_AND_INHERITS_PARENT_FLOAT_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C04_LINE_BAND_ORDINARY_BLOCK_KEEPS_OUTER_EDGE_AND_INHERITS_PARENT_FLOAT_BOTH_SCALARS_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL2454::<S>::RUN)()
-}
-
-type AssertLanePhaseL2454Run = fn();
-
-struct AssertLanePhaseL2454<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL2454<S> {
-    const RUN: AssertLanePhaseL2454Run = || {
         for child_direction in [Direction::Ltr, Direction::Rtl] {
             let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
             let root_style = NodeInputOf {
@@ -2682,12 +2536,11 @@ impl<S: LayoutScalar> AssertLanePhaseL2454<S> {
                 );
             }
         }
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c04_line_band_nested_local_float_keeps_combined_ledger_order_both_scalars() {
@@ -2989,427 +2842,398 @@ fn fri06_c04_line_alignment_legacy_values_use_each_final_band_all_flows_both_sca
 
 #[test]
 fn fri06_c04_bfc_role_exact_positive_and_negative_matrix_both_scalars() {
-    (FRI06_C04_BFC_ROLE_EXACT_POSITIVE_AND_NEGATIVE_MATRIX_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C04_BFC_ROLE_EXACT_POSITIVE_AND_NEGATIVE_MATRIX_BOTH_SCALARS_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-        (AssertLanePhaseL2886::<S>::RUN)()
-    }
-
-    type AssertLanePhaseL2886Run = fn();
-
-    struct AssertLanePhaseL2886<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL2886<S> {
-        const RUN: AssertLanePhaseL2886Run = || {
-            for flow_axes in [
-                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
-            ] {
-                let sized = |display, overflow, item_is_replaced, position, float| {
-                    let mut style = NodeInputOf {
-                        display,
-                        writing_mode: flow_axes.writing_mode(),
-                        direction: flow_axes.direction(),
-                        overflow,
-                        item_is_replaced,
-                        position,
-                        float,
-                        size: flow_axes.physical_size(LogicalSizeOf::new(
-                            PreferredSizeOf::px(S::from_f64(20.0)),
-                            PreferredSizeOf::px(S::from_f64(10.0)),
-                        )),
-                        ..NodeInputOf::default()
-                    };
-                    if display.is_inline_level() {
-                        style.atomic_inline_participation = Some(fri06_c03_atomic_participation(
-                            0,
-                            InlineBreakOpportunityOf::prohibited(),
-                        ));
-                    }
-                    style
-                };
-                let float_style = sized(
-                    Display::Block,
-                    ComputedOverflow::VISIBLE,
-                    false,
-                    Position::Relative,
-                    Float::Left,
-                );
-                let float_style = NodeInputOf {
-                    size: flow_axes.physical_size(LogicalSizeOf::new(
-                        PreferredSizeOf::px(S::from_f64(40.0)),
-                        PreferredSizeOf::px(S::from_f64(30.0)),
-                    )),
-                    ..float_style
-                };
-                let hidden = computed_overflow(Overflow::Hidden, Overflow::Hidden);
-                let scroll = computed_overflow(Overflow::Scroll, Overflow::Scroll);
-                let auto = computed_overflow(Overflow::Auto, Overflow::Auto);
-                let clip = computed_overflow(Overflow::Clip, Overflow::Clip);
-
-                let positive = [
-                    ("flex", Display::Flex, ComputedOverflow::VISIBLE, false),
-                    (
-                        "replaced-flex",
-                        Display::Flex,
-                        ComputedOverflow::VISIBLE,
-                        true,
-                    ),
-                    ("grid", Display::Grid, ComputedOverflow::VISIBLE, false),
-                    (
-                        "replaced-grid",
-                        Display::Grid,
-                        ComputedOverflow::VISIBLE,
-                        true,
-                    ),
-                    (
-                        "grid-lanes",
-                        Display::GridLanes,
-                        ComputedOverflow::VISIBLE,
-                        false,
-                    ),
-                    (
-                        "replaced-grid-lanes",
-                        Display::GridLanes,
-                        ComputedOverflow::VISIBLE,
-                        true,
-                    ),
-                    ("block-hidden", Display::Block, hidden, false),
-                    ("block-scroll", Display::Block, scroll, false),
-                    ("block-auto", Display::Block, auto, false),
-                ];
-                for (label, display, overflow, item_is_replaced) in positive {
-                    let subject = sized(
-                        display,
-                        overflow,
-                        item_is_replaced,
-                        Position::Relative,
-                        Float::None,
-                    );
-                    let batch = fri06_c04_bfc_batch(
-                        flow_axes,
-                        vec![1, 2],
-                        vec![
-                            (1, float_style.clone(), Vec::new()),
-                            (2, subject, Vec::new()),
-                        ],
-                    );
-                    let output = fri06_c02_final_node(&batch, 2);
-                    let origin = fri06_c04_logical_origin(flow_axes, output);
-                    assert_eq!(
-                        origin,
-                        LogicalPointOf::new(S::from_f64(40.0), S::ZERO),
-                        "positive BFC role {label} did not avoid the active float in {flow_axes:?}",
-                    );
-                    assert_eq!(
-                        flow_axes.logical_size(output.size).inline,
-                        S::from_f64(20.0),
-                        "positive BFC role {label} changed its definite size in {flow_axes:?}",
-                    );
-                }
-
-                let ordinary_negative = [
-                    ("block-visible", ComputedOverflow::VISIBLE, false),
-                    ("block-clip", clip, false),
-                    ("replaced-block-hidden", hidden, true),
-                    ("replaced-block-scroll", scroll, true),
-                    ("replaced-block-auto", auto, true),
-                ];
-                for (label, overflow, item_is_replaced) in ordinary_negative {
-                    let subject = sized(
-                        Display::Block,
-                        overflow,
-                        item_is_replaced,
-                        Position::Relative,
-                        Float::None,
-                    );
-                    let batch = fri06_c04_bfc_batch(
-                        flow_axes,
-                        vec![1, 2],
-                        vec![
-                            (1, float_style.clone(), Vec::new()),
-                            (2, subject, Vec::new()),
-                        ],
-                    );
-                    assert_eq!(
-                        fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&batch, 2)),
-                        LogicalPointOf::new(S::ZERO, S::ZERO),
-                        "negative BFC role {label} moved its ordinary outer edge in {flow_axes:?}",
-                    );
-                }
-
-                for display in [
-                    Display::InlineBlock,
-                    Display::InlineGrid,
-                    Display::InlineGridLanes,
-                ] {
-                    let subject = sized(display, hidden, false, Position::Relative, Float::None);
-                    let batch = fri06_c04_bfc_batch(
-                        flow_axes,
-                        vec![1, 2],
-                        vec![
-                            (1, float_style.clone(), Vec::new()),
-                            (2, subject, Vec::new()),
-                        ],
-                    );
-                    let output = fri06_c02_final_node(&batch, 2);
-                    assert_eq!(
-                        fri06_c04_logical_origin(flow_axes, output),
-                        LogicalPointOf::new(S::from_f64(40.0), S::ZERO),
-                        "{display:?} must participate in the float-adjusted inline line",
-                    );
-                    assert_eq!(
-                        flow_axes.logical_size(output.size).inline,
-                        S::from_f64(20.0)
-                    );
-                }
-
-                let absolute = sized(
-                    Display::Flex,
-                    hidden,
-                    false,
-                    Position::Absolute,
-                    Float::None,
-                );
-                let floating = sized(
-                    Display::Flex,
-                    hidden,
-                    false,
-                    Position::Relative,
-                    Float::Left,
-                );
-                let none = sized(
-                    Display::None,
-                    hidden,
-                    false,
-                    Position::Relative,
-                    Float::None,
-                );
-                for (label, subject, expected_origin, expected_inline_size) in [
-                    ("absolute", absolute, S::ZERO, S::from_f64(20.0)),
-                    ("floating", floating, S::from_f64(40.0), S::from_f64(20.0)),
-                    ("display-none", none, S::ZERO, S::ZERO),
-                ] {
-                    let batch = fri06_c04_bfc_batch(
-                        flow_axes,
-                        vec![1, 2],
-                        vec![
-                            (1, float_style.clone(), Vec::new()),
-                            (2, subject, Vec::new()),
-                        ],
-                    );
-                    let output = fri06_c02_final_node(&batch, 2);
-                    if label == "display-none" {
-                        assert_eq!(output.location, Point::ZERO);
-                    } else {
-                        assert_eq!(
-                            fri06_c04_logical_origin(flow_axes, output).inline,
-                            expected_origin,
-                            "{label} entered block-child BFC avoidance in {flow_axes:?}",
-                        );
-                    }
-                    assert_eq!(
-                        flow_axes.logical_size(output.size).inline,
-                        expected_inline_size,
-                        "{label} changed size in {flow_axes:?}",
-                    );
-                }
-            }
-        };
-    }
-
-    assert_lane::<f32>();
-    assert_lane::<f64>();
-};
-
-#[test]
-fn fri06_c04_bfc_size_auto_definite_zero_overwide_margin_boxes_and_clear_both_scalars() {
-    (FRI06_C04_BFC_SIZE_AUTO_DEFINITE_ZERO_OVERWIDE_MARGIN_BOXES_AND_CLEAR_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C04_BFC_SIZE_AUTO_DEFINITE_ZERO_OVERWIDE_MARGIN_BOXES_AND_CLEAR_BOTH_SCALARS_PHASE:
-    fn() = || {
-    fn assert_lane<S: LayoutScalar>() {
-        (AssertLanePhaseL3114::<S>::RUN)()
-    }
-
-    type AssertLanePhaseL3114Run = fn();
-
-    struct AssertLanePhaseL3114<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL3114<S> {
-        const RUN: AssertLanePhaseL3114Run = || {
-            for flow_axes in [
-                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
-            ] {
-                let box_style = |inline: PreferredSizeOf<S>, block: f64| NodeInputOf {
-                    display: Display::Block,
+        for flow_axes in [
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        ] {
+            let sized = |display, overflow, item_is_replaced, position, float| {
+                let mut style = NodeInputOf {
+                    display,
                     writing_mode: flow_axes.writing_mode(),
                     direction: flow_axes.direction(),
-                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    overflow,
+                    item_is_replaced,
+                    position,
+                    float,
                     size: flow_axes.physical_size(LogicalSizeOf::new(
-                        inline,
-                        PreferredSizeOf::px(S::from_f64(block)),
+                        PreferredSizeOf::px(S::from_f64(20.0)),
+                        PreferredSizeOf::px(S::from_f64(10.0)),
                     )),
                     ..NodeInputOf::default()
                 };
-                let floated = |side, inline, block| NodeInputOf {
-                    float: side,
-                    overflow: ComputedOverflow::VISIBLE,
-                    ..box_style(PreferredSizeOf::px(S::from_f64(inline)), block)
-                };
-                let margin = |inline_start: f64, inline_end: f64| {
-                    flow_axes.physical_edges(
-                        crate::geometry::LogicalEdgesOf::new(
-                            S::from_f64(inline_start),
-                            S::from_f64(inline_end),
-                            S::ZERO,
-                            S::ZERO,
-                        )
-                        .map(LengthAutoOf::px),
-                    )
-                };
-                let run = |subject: NodeInputOf<S>, floats: Vec<NodeInputOf<S>>| {
-                    let mut children = Vec::new();
-                    let mut nodes = Vec::new();
-                    for (index, float) in floats.into_iter().enumerate() {
-                        let node = u32::try_from(index + 1).unwrap();
-                        children.push(node);
-                        nodes.push((node, float, Vec::new()));
-                    }
-                    let subject_node = u32::try_from(children.len() + 1).unwrap();
-                    children.push(subject_node);
-                    nodes.push((subject_node, subject, Vec::new()));
-                    let batch = fri06_c04_bfc_batch(flow_axes, children, nodes);
-                    fri06_c02_final_node(&batch, subject_node)
-                };
-
-                for (display, overflow) in [
-                    (
-                        Display::Block,
-                        computed_overflow(Overflow::Hidden, Overflow::Hidden),
-                    ),
-                    (Display::Flex, ComputedOverflow::VISIBLE),
-                    (Display::Grid, ComputedOverflow::VISIBLE),
-                    (Display::GridLanes, ComputedOverflow::VISIBLE),
-                ] {
-                    let auto = run(
-                        NodeInputOf {
-                            display,
-                            overflow,
-                            margin: margin(10.0, 10.0),
-                            ..box_style(PreferredSizeOf::AUTO, 10.0)
-                        },
-                        vec![floated(Float::Left, 40.0, 20.0)],
-                    );
-                    assert_eq!(
-                        fri06_c04_logical_origin(flow_axes, auto),
-                        LogicalPointOf::new(S::from_f64(50.0), S::ZERO),
-                        "{display:?} auto inline placement did not use its selected band",
-                    );
-                    assert_eq!(
-                        flow_axes.logical_size(auto.size).inline,
-                        S::from_f64(40.0),
-                        "{display:?} auto inline size was not saturated to its selected band",
-                    );
+                if display.is_inline_level() {
+                    style.atomic_inline_participation = Some(fri06_c03_atomic_participation(
+                        0,
+                        InlineBreakOpportunityOf::prohibited(),
+                    ));
                 }
+                style
+            };
+            let float_style = sized(
+                Display::Block,
+                ComputedOverflow::VISIBLE,
+                false,
+                Position::Relative,
+                Float::Left,
+            );
+            let float_style = NodeInputOf {
+                size: flow_axes.physical_size(LogicalSizeOf::new(
+                    PreferredSizeOf::px(S::from_f64(40.0)),
+                    PreferredSizeOf::px(S::from_f64(30.0)),
+                )),
+                ..float_style
+            };
+            let hidden = computed_overflow(Overflow::Hidden, Overflow::Hidden);
+            let scroll = computed_overflow(Overflow::Scroll, Overflow::Scroll);
+            let auto = computed_overflow(Overflow::Auto, Overflow::Auto);
+            let clip = computed_overflow(Overflow::Clip, Overflow::Clip);
 
-                let definite = run(
-                    NodeInputOf {
-                        margin: margin(5.0, 5.0),
-                        ..box_style(PreferredSizeOf::px(S::from_f64(50.0)), 10.0)
-                    },
-                    vec![floated(Float::Left, 40.0, 20.0)],
+            let positive = [
+                ("flex", Display::Flex, ComputedOverflow::VISIBLE, false),
+                (
+                    "replaced-flex",
+                    Display::Flex,
+                    ComputedOverflow::VISIBLE,
+                    true,
+                ),
+                ("grid", Display::Grid, ComputedOverflow::VISIBLE, false),
+                (
+                    "replaced-grid",
+                    Display::Grid,
+                    ComputedOverflow::VISIBLE,
+                    true,
+                ),
+                (
+                    "grid-lanes",
+                    Display::GridLanes,
+                    ComputedOverflow::VISIBLE,
+                    false,
+                ),
+                (
+                    "replaced-grid-lanes",
+                    Display::GridLanes,
+                    ComputedOverflow::VISIBLE,
+                    true,
+                ),
+                ("block-hidden", Display::Block, hidden, false),
+                ("block-scroll", Display::Block, scroll, false),
+                ("block-auto", Display::Block, auto, false),
+            ];
+            for (label, display, overflow, item_is_replaced) in positive {
+                let subject = sized(
+                    display,
+                    overflow,
+                    item_is_replaced,
+                    Position::Relative,
+                    Float::None,
                 );
-                assert_eq!(
-                    fri06_c04_logical_origin(flow_axes, definite),
-                    LogicalPointOf::new(S::from_f64(45.0), S::ZERO),
-                );
-
-                let spanning = run(
-                    box_style(PreferredSizeOf::px(S::from_f64(70.0)), 20.0),
+                let batch = fri06_c04_bfc_batch(
+                    flow_axes,
+                    vec![1, 2],
                     vec![
-                        floated(Float::Left, 20.0, 10.0),
-                        floated(Float::Right, 90.0, 20.0),
+                        (1, float_style.clone(), Vec::new()),
+                        (2, subject, Vec::new()),
                     ],
                 );
+                let output = fri06_c02_final_node(&batch, 2);
+                let origin = fri06_c04_logical_origin(flow_axes, output);
                 assert_eq!(
-                    fri06_c04_logical_origin(flow_axes, spanning),
-                    LogicalPointOf::new(S::ZERO, S::from_f64(30.0)),
-                    "complete-span collision must observe the later-starting float",
-                );
-
-                let zero = run(
-                    NodeInputOf {
-                        margin: margin(35.0, 35.0),
-                        ..box_style(PreferredSizeOf::px(S::ZERO), 10.0)
-                    },
-                    vec![floated(Float::Left, 40.0, 20.0)],
+                    origin,
+                    LogicalPointOf::new(S::from_f64(40.0), S::ZERO),
+                    "positive BFC role {label} did not avoid the active float in {flow_axes:?}",
                 );
                 assert_eq!(
-                    fri06_c04_logical_origin(flow_axes, zero),
-                    LogicalPointOf::new(S::from_f64(35.0), S::from_f64(20.0)),
-                );
-                assert_eq!(flow_axes.logical_size(zero.size).inline, S::ZERO);
-
-                let overwide = run(
-                    NodeInputOf {
-                        margin: margin(5.0, 5.0),
-                        ..box_style(PreferredSizeOf::px(S::from_f64(120.0)), 10.0)
-                    },
-                    vec![floated(Float::Left, 40.0, 20.0)],
-                );
-                assert_eq!(
-                    fri06_c04_logical_origin(flow_axes, overwide),
-                    LogicalPointOf::new(S::from_f64(5.0), S::from_f64(20.0)),
-                );
-
-                let cleared = run(
-                    NodeInputOf {
-                        clear: Clear::Left,
-                        margin: margin(10.0, 10.0),
-                        ..box_style(PreferredSizeOf::AUTO, 10.0)
-                    },
-                    vec![
-                        floated(Float::Left, 40.0, 20.0),
-                        floated(Float::Right, 30.0, 40.0),
-                    ],
-                );
-                assert_eq!(
-                    fri06_c04_logical_origin(flow_axes, cleared),
-                    LogicalPointOf::new(S::from_f64(10.0), S::from_f64(20.0)),
-                );
-                assert_eq!(
-                    flow_axes.logical_size(cleared.size).inline,
-                    S::from_f64(50.0),
-                );
-
-                let ordinary = run(
-                    NodeInputOf {
-                        overflow: ComputedOverflow::VISIBLE,
-                        margin: margin(10.0, 10.0),
-                        ..box_style(PreferredSizeOf::AUTO, 10.0)
-                    },
-                    vec![floated(Float::Left, 40.0, 20.0)],
-                );
-                assert_eq!(
-                    fri06_c04_logical_origin(flow_axes, ordinary),
-                    LogicalPointOf::new(S::from_f64(10.0), S::ZERO),
-                );
-                assert_eq!(
-                    flow_axes.logical_size(ordinary.size).inline,
-                    S::from_f64(80.0),
+                    flow_axes.logical_size(output.size).inline,
+                    S::from_f64(20.0),
+                    "positive BFC role {label} changed its definite size in {flow_axes:?}",
                 );
             }
-        };
+
+            let ordinary_negative = [
+                ("block-visible", ComputedOverflow::VISIBLE, false),
+                ("block-clip", clip, false),
+                ("replaced-block-hidden", hidden, true),
+                ("replaced-block-scroll", scroll, true),
+                ("replaced-block-auto", auto, true),
+            ];
+            for (label, overflow, item_is_replaced) in ordinary_negative {
+                let subject = sized(
+                    Display::Block,
+                    overflow,
+                    item_is_replaced,
+                    Position::Relative,
+                    Float::None,
+                );
+                let batch = fri06_c04_bfc_batch(
+                    flow_axes,
+                    vec![1, 2],
+                    vec![
+                        (1, float_style.clone(), Vec::new()),
+                        (2, subject, Vec::new()),
+                    ],
+                );
+                assert_eq!(
+                    fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&batch, 2)),
+                    LogicalPointOf::new(S::ZERO, S::ZERO),
+                    "negative BFC role {label} moved its ordinary outer edge in {flow_axes:?}",
+                );
+            }
+
+            for display in [
+                Display::InlineBlock,
+                Display::InlineGrid,
+                Display::InlineGridLanes,
+            ] {
+                let subject = sized(display, hidden, false, Position::Relative, Float::None);
+                let batch = fri06_c04_bfc_batch(
+                    flow_axes,
+                    vec![1, 2],
+                    vec![
+                        (1, float_style.clone(), Vec::new()),
+                        (2, subject, Vec::new()),
+                    ],
+                );
+                let output = fri06_c02_final_node(&batch, 2);
+                assert_eq!(
+                    fri06_c04_logical_origin(flow_axes, output),
+                    LogicalPointOf::new(S::from_f64(40.0), S::ZERO),
+                    "{display:?} must participate in the float-adjusted inline line",
+                );
+                assert_eq!(
+                    flow_axes.logical_size(output.size).inline,
+                    S::from_f64(20.0)
+                );
+            }
+
+            let absolute = sized(
+                Display::Flex,
+                hidden,
+                false,
+                Position::Absolute,
+                Float::None,
+            );
+            let floating = sized(
+                Display::Flex,
+                hidden,
+                false,
+                Position::Relative,
+                Float::Left,
+            );
+            let none = sized(
+                Display::None,
+                hidden,
+                false,
+                Position::Relative,
+                Float::None,
+            );
+            for (label, subject, expected_origin, expected_inline_size) in [
+                ("absolute", absolute, S::ZERO, S::from_f64(20.0)),
+                ("floating", floating, S::from_f64(40.0), S::from_f64(20.0)),
+                ("display-none", none, S::ZERO, S::ZERO),
+            ] {
+                let batch = fri06_c04_bfc_batch(
+                    flow_axes,
+                    vec![1, 2],
+                    vec![
+                        (1, float_style.clone(), Vec::new()),
+                        (2, subject, Vec::new()),
+                    ],
+                );
+                let output = fri06_c02_final_node(&batch, 2);
+                if label == "display-none" {
+                    assert_eq!(output.location, Point::ZERO);
+                } else {
+                    assert_eq!(
+                        fri06_c04_logical_origin(flow_axes, output).inline,
+                        expected_origin,
+                        "{label} entered block-child BFC avoidance in {flow_axes:?}",
+                    );
+                }
+                assert_eq!(
+                    flow_axes.logical_size(output.size).inline,
+                    expected_inline_size,
+                    "{label} changed size in {flow_axes:?}",
+                );
+            }
+        }
     }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
+
+#[test]
+fn fri06_c04_bfc_size_auto_definite_zero_overwide_margin_boxes_and_clear_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        for flow_axes in [
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        ] {
+            let box_style = |inline: PreferredSizeOf<S>, block: f64| NodeInputOf {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                size: flow_axes.physical_size(LogicalSizeOf::new(
+                    inline,
+                    PreferredSizeOf::px(S::from_f64(block)),
+                )),
+                ..NodeInputOf::default()
+            };
+            let floated = |side, inline, block| NodeInputOf {
+                float: side,
+                overflow: ComputedOverflow::VISIBLE,
+                ..box_style(PreferredSizeOf::px(S::from_f64(inline)), block)
+            };
+            let margin = |inline_start: f64, inline_end: f64| {
+                flow_axes.physical_edges(
+                    crate::geometry::LogicalEdgesOf::new(
+                        S::from_f64(inline_start),
+                        S::from_f64(inline_end),
+                        S::ZERO,
+                        S::ZERO,
+                    )
+                    .map(LengthAutoOf::px),
+                )
+            };
+            let run = |subject: NodeInputOf<S>, floats: Vec<NodeInputOf<S>>| {
+                let mut children = Vec::new();
+                let mut nodes = Vec::new();
+                for (index, float) in floats.into_iter().enumerate() {
+                    let node = u32::try_from(index + 1).unwrap();
+                    children.push(node);
+                    nodes.push((node, float, Vec::new()));
+                }
+                let subject_node = u32::try_from(children.len() + 1).unwrap();
+                children.push(subject_node);
+                nodes.push((subject_node, subject, Vec::new()));
+                let batch = fri06_c04_bfc_batch(flow_axes, children, nodes);
+                fri06_c02_final_node(&batch, subject_node)
+            };
+
+            for (display, overflow) in [
+                (
+                    Display::Block,
+                    computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                ),
+                (Display::Flex, ComputedOverflow::VISIBLE),
+                (Display::Grid, ComputedOverflow::VISIBLE),
+                (Display::GridLanes, ComputedOverflow::VISIBLE),
+            ] {
+                let auto = run(
+                    NodeInputOf {
+                        display,
+                        overflow,
+                        margin: margin(10.0, 10.0),
+                        ..box_style(PreferredSizeOf::AUTO, 10.0)
+                    },
+                    vec![floated(Float::Left, 40.0, 20.0)],
+                );
+                assert_eq!(
+                    fri06_c04_logical_origin(flow_axes, auto),
+                    LogicalPointOf::new(S::from_f64(50.0), S::ZERO),
+                    "{display:?} auto inline placement did not use its selected band",
+                );
+                assert_eq!(
+                    flow_axes.logical_size(auto.size).inline,
+                    S::from_f64(40.0),
+                    "{display:?} auto inline size was not saturated to its selected band",
+                );
+            }
+
+            let definite = run(
+                NodeInputOf {
+                    margin: margin(5.0, 5.0),
+                    ..box_style(PreferredSizeOf::px(S::from_f64(50.0)), 10.0)
+                },
+                vec![floated(Float::Left, 40.0, 20.0)],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, definite),
+                LogicalPointOf::new(S::from_f64(45.0), S::ZERO),
+            );
+
+            let spanning = run(
+                box_style(PreferredSizeOf::px(S::from_f64(70.0)), 20.0),
+                vec![
+                    floated(Float::Left, 20.0, 10.0),
+                    floated(Float::Right, 90.0, 20.0),
+                ],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, spanning),
+                LogicalPointOf::new(S::ZERO, S::from_f64(30.0)),
+                "complete-span collision must observe the later-starting float",
+            );
+
+            let zero = run(
+                NodeInputOf {
+                    margin: margin(35.0, 35.0),
+                    ..box_style(PreferredSizeOf::px(S::ZERO), 10.0)
+                },
+                vec![floated(Float::Left, 40.0, 20.0)],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, zero),
+                LogicalPointOf::new(S::from_f64(35.0), S::from_f64(20.0)),
+            );
+            assert_eq!(flow_axes.logical_size(zero.size).inline, S::ZERO);
+
+            let overwide = run(
+                NodeInputOf {
+                    margin: margin(5.0, 5.0),
+                    ..box_style(PreferredSizeOf::px(S::from_f64(120.0)), 10.0)
+                },
+                vec![floated(Float::Left, 40.0, 20.0)],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, overwide),
+                LogicalPointOf::new(S::from_f64(5.0), S::from_f64(20.0)),
+            );
+
+            let cleared = run(
+                NodeInputOf {
+                    clear: Clear::Left,
+                    margin: margin(10.0, 10.0),
+                    ..box_style(PreferredSizeOf::AUTO, 10.0)
+                },
+                vec![
+                    floated(Float::Left, 40.0, 20.0),
+                    floated(Float::Right, 30.0, 40.0),
+                ],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, cleared),
+                LogicalPointOf::new(S::from_f64(10.0), S::from_f64(20.0)),
+            );
+            assert_eq!(
+                flow_axes.logical_size(cleared.size).inline,
+                S::from_f64(50.0),
+            );
+
+            let ordinary = run(
+                NodeInputOf {
+                    overflow: ComputedOverflow::VISIBLE,
+                    margin: margin(10.0, 10.0),
+                    ..box_style(PreferredSizeOf::AUTO, 10.0)
+                },
+                vec![floated(Float::Left, 40.0, 20.0)],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, ordinary),
+                LogicalPointOf::new(S::from_f64(10.0), S::ZERO),
+            );
+            assert_eq!(
+                flow_axes.logical_size(ordinary.size).inline,
+                S::from_f64(80.0),
+            );
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
 
 #[test]
 fn fri06_c04_bfc_nested_bfc_floating_and_atomic_contexts_trap_internal_floats_both_scalars() {
@@ -3508,11 +3332,6 @@ fn fri06_c04_bfc_nested_bfc_floating_and_atomic_contexts_trap_internal_floats_bo
 
 #[test]
 fn fri06_c04_float_size_auto_block_encloses_inset_float_mixed_and_nested_both_scalars() {
-    (FRI06_C04_FLOAT_SIZE_AUTO_BLOCK_ENCLOSES_INSET_FLOAT_MIXED_AND_NESTED_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C04_FLOAT_SIZE_AUTO_BLOCK_ENCLOSES_INSET_FLOAT_MIXED_AND_NESTED_BOTH_SCALARS_PHASE:
-    fn() = || {
     fn float_style<S: LayoutScalar>(
         flow_axes: FlowAxes,
         inline: f64,
@@ -3541,185 +3360,174 @@ const FRI06_C04_FLOAT_SIZE_AUTO_BLOCK_ENCLOSES_INSET_FLOAT_MIXED_AND_NESTED_BOTH
     }
 
     fn assert_lane<S: LayoutScalar>() {
-        (AssertLanePhaseL3413::<S>::RUN)()
-    }
-
-    type AssertLanePhaseL3413Run = fn();
-
-    struct AssertLanePhaseL3413<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL3413<S> {
-        const RUN: AssertLanePhaseL3413Run = || {
-            for (writing_mode, direction) in root_writing_mode_directions() {
-                let flow_axes = FlowAxes::new(writing_mode, direction);
-                let padding = LogicalEdgesOf::new(
-                    S::from_f64(1.0),
-                    S::from_f64(1.0),
-                    S::from_f64(3.0),
-                    S::from_f64(5.0),
-                );
-                let border = LogicalEdgesOf::new(
-                    S::from_f64(1.0),
-                    S::from_f64(1.0),
-                    S::from_f64(2.0),
-                    S::from_f64(4.0),
-                );
-                let root_style = NodeInputOf {
-                    display: Display::Block,
-                    writing_mode,
-                    direction,
-                    size: flow_axes.physical_size(LogicalSizeOf::new(
-                        PreferredSizeOf::px(S::from_f64(80.0)),
-                        PreferredSizeOf::AUTO,
-                    )),
-                    padding: flow_axes.physical_edges(padding).map(LengthOf::px),
-                    border: flow_axes.physical_edges(border).map(LengthOf::px),
-                    ..NodeInputOf::default()
-                };
-                let float = float_style(flow_axes, 20.0, 10.0, Clear::None);
-                let float_only = fri06_c04_front_door_batch(
-                    root_style.clone(),
-                    LogicalSizeOf::new(
-                        AvailableOf::definite(S::from_f64(80.0)),
-                        AvailableOf::MAX_CONTENT,
-                    ),
-                    vec![1],
-                    vec![(
-                        1,
-                        LayoutInputOf::box_input(float.clone()),
-                        float.clone(),
-                        Vec::new(),
-                    )],
-                );
-                let root = fri06_c02_final_node(&float_only, 0);
-                assert_eq!(
-                    flow_axes.logical_size(root.size).block,
-                    S::from_f64(29.0),
-                    "float-only auto block size must count the five-unit start inset once for {flow_axes:?}",
-                );
-                let floated = fri06_c02_final_node(&float_only, 1);
-                let floated_origin =
-                    flow_axes.logical_point(floated.location, floated.size, root.size);
-                assert_eq!(floated_origin.block, S::from_f64(7.0));
-
-                let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
-                    940,
-                    20.0,
-                    InlineWhitespaceEdge::Preserve,
-                    InlineBreakOpportunityOf::prohibited(),
-                )])
-                .unwrap();
-                let mixed = fri06_c04_front_door_batch(
-                    root_style,
-                    LogicalSizeOf::new(
-                        AvailableOf::definite(S::from_f64(80.0)),
-                        AvailableOf::MAX_CONTENT,
-                    ),
-                    vec![1, 2],
-                    vec![
-                        (
-                            1,
-                            LayoutInputOf::box_input(float.clone()),
-                            float,
-                            Vec::new(),
-                        ),
-                        (
-                            2,
-                            LayoutInputOf::inline_text(text),
-                            NodeInputOf::non_box(),
-                            Vec::new(),
-                        ),
-                    ],
-                );
-                assert_eq!(
-                    flow_axes
-                        .logical_size(fri06_c02_final_node(&mixed, 0).size)
-                        .block,
-                    S::from_f64(29.0),
-                    "mixed normal flow must not hide the taller owned float for {flow_axes:?}",
-                );
-            }
-
-            let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        for (writing_mode, direction) in root_writing_mode_directions() {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let padding = LogicalEdgesOf::new(
+                S::from_f64(1.0),
+                S::from_f64(1.0),
+                S::from_f64(3.0),
+                S::from_f64(5.0),
+            );
+            let border = LogicalEdgesOf::new(
+                S::from_f64(1.0),
+                S::from_f64(1.0),
+                S::from_f64(2.0),
+                S::from_f64(4.0),
+            );
             let root_style = NodeInputOf {
                 display: Display::Block,
-                size: Size::new(
+                writing_mode,
+                direction,
+                size: flow_axes.physical_size(LogicalSizeOf::new(
                     PreferredSizeOf::px(S::from_f64(80.0)),
                     PreferredSizeOf::AUTO,
-                ),
+                )),
+                padding: flow_axes.physical_edges(padding).map(LengthOf::px),
+                border: flow_axes.physical_edges(border).map(LengthOf::px),
                 ..NodeInputOf::default()
             };
-            let nested_style = NodeInputOf {
-                display: Display::Block,
-                size: Size::new(
-                    PreferredSizeOf::px(S::from_f64(60.0)),
-                    PreferredSizeOf::AUTO,
+            let float = float_style(flow_axes, 20.0, 10.0, Clear::None);
+            let float_only = fri06_c04_front_door_batch(
+                root_style.clone(),
+                LogicalSizeOf::new(
+                    AvailableOf::definite(S::from_f64(80.0)),
+                    AvailableOf::MAX_CONTENT,
                 ),
-                padding: Edges {
-                    top: LengthOf::px(S::from_f64(4.0)),
-                    bottom: LengthOf::px(S::from_f64(6.0)),
-                    ..Edges::all(LengthOf::ZERO)
-                },
-                overflow: ComputedOverflow::try_new(Overflow::Hidden, Overflow::Hidden).unwrap(),
-                ..NodeInputOf::default()
-            };
-            let nested_float = NodeInputOf {
-                margin: Edges {
-                    top: LengthAutoOf::px(S::from_f64(1.0)),
-                    bottom: LengthAutoOf::px(S::from_f64(2.0)),
-                    ..Edges::all(LengthAutoOf::ZERO)
-                },
-                ..float_style(flow_axes, 20.0, 8.0, Clear::Both)
-            };
-            let following_text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
-                941,
-                10.0,
+                vec![1],
+                vec![(
+                    1,
+                    LayoutInputOf::box_input(float.clone()),
+                    float.clone(),
+                    Vec::new(),
+                )],
+            );
+            let root = fri06_c02_final_node(&float_only, 0);
+            assert_eq!(
+                flow_axes.logical_size(root.size).block,
+                S::from_f64(29.0),
+                "float-only auto block size must count the five-unit start inset once for {flow_axes:?}",
+            );
+            let floated = fri06_c02_final_node(&float_only, 1);
+            let floated_origin = flow_axes.logical_point(floated.location, floated.size, root.size);
+            assert_eq!(floated_origin.block, S::from_f64(7.0));
+
+            let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+                940,
+                20.0,
                 InlineWhitespaceEdge::Preserve,
                 InlineBreakOpportunityOf::prohibited(),
             )])
             .unwrap();
-            let nested = fri06_c04_front_door_batch(
+            let mixed = fri06_c04_front_door_batch(
                 root_style,
                 LogicalSizeOf::new(
                     AvailableOf::definite(S::from_f64(80.0)),
                     AvailableOf::MAX_CONTENT,
                 ),
-                vec![1, 3],
+                vec![1, 2],
                 vec![
                     (
                         1,
-                        LayoutInputOf::box_input(nested_style.clone()),
-                        nested_style,
-                        vec![2],
-                    ),
-                    (
-                        2,
-                        LayoutInputOf::box_input(nested_float.clone()),
-                        nested_float,
+                        LayoutInputOf::box_input(float.clone()),
+                        float,
                         Vec::new(),
                     ),
                     (
-                        3,
-                        LayoutInputOf::inline_text(following_text),
+                        2,
+                        LayoutInputOf::inline_text(text),
                         NodeInputOf::non_box(),
                         Vec::new(),
                     ),
                 ],
             );
-            let root = fri06_c02_final_node(&nested, 0);
-            let nested_output = fri06_c02_final_node(&nested, 1);
-            assert_eq!(nested_output.size.height, S::from_f64(21.0));
-            assert_eq!(root.size.height, S::from_f64(31.0));
             assert_eq!(
-                fri06_c02_final_node(&nested, 3).location,
-                Point::new(S::ZERO, S::from_f64(21.0))
+                flow_axes
+                    .logical_size(fri06_c02_final_node(&mixed, 0).size)
+                    .block,
+                S::from_f64(29.0),
+                "mixed normal flow must not hide the taller owned float for {flow_axes:?}",
             );
+        }
+
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(80.0)),
+                PreferredSizeOf::AUTO,
+            ),
+            ..NodeInputOf::default()
         };
+        let nested_style = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(60.0)),
+                PreferredSizeOf::AUTO,
+            ),
+            padding: Edges {
+                top: LengthOf::px(S::from_f64(4.0)),
+                bottom: LengthOf::px(S::from_f64(6.0)),
+                ..Edges::all(LengthOf::ZERO)
+            },
+            overflow: ComputedOverflow::try_new(Overflow::Hidden, Overflow::Hidden).unwrap(),
+            ..NodeInputOf::default()
+        };
+        let nested_float = NodeInputOf {
+            margin: Edges {
+                top: LengthAutoOf::px(S::from_f64(1.0)),
+                bottom: LengthAutoOf::px(S::from_f64(2.0)),
+                ..Edges::all(LengthAutoOf::ZERO)
+            },
+            ..float_style(flow_axes, 20.0, 8.0, Clear::Both)
+        };
+        let following_text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+            941,
+            10.0,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )])
+        .unwrap();
+        let nested = fri06_c04_front_door_batch(
+            root_style,
+            LogicalSizeOf::new(
+                AvailableOf::definite(S::from_f64(80.0)),
+                AvailableOf::MAX_CONTENT,
+            ),
+            vec![1, 3],
+            vec![
+                (
+                    1,
+                    LayoutInputOf::box_input(nested_style.clone()),
+                    nested_style,
+                    vec![2],
+                ),
+                (
+                    2,
+                    LayoutInputOf::box_input(nested_float.clone()),
+                    nested_float,
+                    Vec::new(),
+                ),
+                (
+                    3,
+                    LayoutInputOf::inline_text(following_text),
+                    NodeInputOf::non_box(),
+                    Vec::new(),
+                ),
+            ],
+        );
+        let root = fri06_c02_final_node(&nested, 0);
+        let nested_output = fri06_c02_final_node(&nested, 1);
+        assert_eq!(nested_output.size.height, S::from_f64(21.0));
+        assert_eq!(root.size.height, S::from_f64(31.0));
+        assert_eq!(
+            fri06_c02_final_node(&nested, 3).location,
+            Point::new(S::ZERO, S::from_f64(21.0))
+        );
     }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c04_float_size_intrinsics_keep_logical_clear_and_overwide_contributions_both_scalars() {
@@ -3783,131 +3591,116 @@ fn fri06_c04_float_size_intrinsics_keep_logical_clear_and_overwide_contributions
 
 #[test]
 fn fri06_c04_float_scroll_signed_fractional_geometry_and_source_order_both_scalars() {
-    (FRI06_C04_FLOAT_SCROLL_SIGNED_FRACTIONAL_GEOMETRY_AND_SOURCE_ORDER_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C04_FLOAT_SCROLL_SIGNED_FRACTIONAL_GEOMETRY_AND_SOURCE_ORDER_BOTH_SCALARS_PHASE:
-    fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-        (AssertLanePhaseL3650::<S>::RUN)()
-    }
-
-    type AssertLanePhaseL3650Run = fn();
-
-    struct AssertLanePhaseL3650<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL3650<S> {
-        const RUN: AssertLanePhaseL3650Run = || {
-            let root_style = NodeInputOf {
-                display: Display::Block,
-                direction: Direction::Rtl,
-                size: Size::new(
-                    PreferredSizeOf::px(S::from_f64(20.0)),
-                    PreferredSizeOf::px(S::from_f64(8.0)),
-                ),
-                overflow: ComputedOverflow::try_new(Overflow::Auto, Overflow::Auto).unwrap(),
-                ..NodeInputOf::default()
-            };
-            let float = NodeInputOf {
-                display: Display::Block,
-                direction: Direction::Rtl,
-                float: Float::Left,
-                size: Size::new(
-                    PreferredSizeOf::px(S::from_f64(30.5)),
-                    PreferredSizeOf::px(S::from_f64(8.25)),
-                ),
-                margin: Edges {
-                    top: LengthAutoOf::px(S::from_f64(0.25)),
-                    bottom: LengthAutoOf::px(S::from_f64(0.25)),
-                    ..Edges::all(LengthAutoOf::ZERO)
-                },
-                ..NodeInputOf::default()
-            };
-            let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
-                950,
-                5.25,
-                InlineWhitespaceEdge::Preserve,
-                InlineBreakOpportunityOf::prohibited(),
-            )])
-            .unwrap();
-            let batch = fri06_c04_front_door_batch(
-                root_style,
-                LogicalSizeOf::new(
-                    AvailableOf::definite(S::from_f64(20.0)),
-                    AvailableOf::definite(S::from_f64(8.0)),
-                ),
-                vec![1, 2],
-                vec![
-                    (
-                        1,
-                        LayoutInputOf::box_input(float.clone()),
-                        float,
-                        Vec::new(),
-                    ),
-                    (
-                        2,
-                        LayoutInputOf::inline_text(text),
-                        NodeInputOf::non_box(),
-                        Vec::new(),
-                    ),
-                ],
-            );
-            for entries in [batch.unrounded_entries(), batch.final_entries()] {
-                assert_eq!(
-                    entries
-                        .iter()
-                        .map(LayoutOutputEntryOf::node)
-                        .collect::<Vec<_>>(),
-                    vec![0, 1, 2],
-                );
-                assert_eq!(
-                    public_flow_output(entries, 1).source_index,
-                    SourceIndex::new(0)
-                );
-                assert_eq!(
-                    public_flow_output(entries, 2).source_index,
-                    SourceIndex::new(1)
-                );
-            }
-            let unrounded_float = public_flow_output(batch.unrounded_entries(), 1);
-            let rounded_float = public_flow_output(batch.final_entries(), 1);
-            assert_eq!(
-                unrounded_float.location,
-                Point::new(S::from_f64(-10.5), S::from_f64(0.25))
-            );
-            assert_eq!(
-                rounded_float.location,
-                Point::new(S::from_f64(-10.0), S::ZERO)
-            );
-            let unrounded_root = public_flow_output(batch.unrounded_entries(), 0);
-            let unrounded_geometry = unrounded_root.scroll_geometry.unwrap();
-            assert_eq!(
-                unrounded_geometry.scrollable_overflow().origin().x,
-                S::from_f64(-10.5)
-            );
-            assert_eq!(
-                unrounded_geometry.scrollable_overflow().size().width,
-                S::from_f64(30.5)
-            );
-            assert_eq!(
-                unrounded_geometry.physical_range().x().minimum(),
-                S::from_f64(-10.5)
-            );
-            assert_eq!(unrounded_geometry.physical_range().x().maximum(), S::ZERO);
-            let fragment = batch.unrounded_inline_fragments()[0].fragment();
-            assert_eq!(fragment.line_index(), 0);
-            assert_eq!(fragment.visual_index(), 0);
-            assert_eq!(fragment.rect().origin().y, S::from_f64(8.75));
-            let rounded_fragment = batch.final_inline_fragments()[0].fragment();
-            assert_eq!(rounded_fragment.line_index(), fragment.line_index());
-            assert_eq!(rounded_fragment.visual_index(), fragment.visual_index());
-            assert_eq!(rounded_fragment.rect().origin().y, S::from_f64(9.0));
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            direction: Direction::Rtl,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(20.0)),
+                PreferredSizeOf::px(S::from_f64(8.0)),
+            ),
+            overflow: ComputedOverflow::try_new(Overflow::Auto, Overflow::Auto).unwrap(),
+            ..NodeInputOf::default()
         };
+        let float = NodeInputOf {
+            display: Display::Block,
+            direction: Direction::Rtl,
+            float: Float::Left,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(30.5)),
+                PreferredSizeOf::px(S::from_f64(8.25)),
+            ),
+            margin: Edges {
+                top: LengthAutoOf::px(S::from_f64(0.25)),
+                bottom: LengthAutoOf::px(S::from_f64(0.25)),
+                ..Edges::all(LengthAutoOf::ZERO)
+            },
+            ..NodeInputOf::default()
+        };
+        let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+            950,
+            5.25,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )])
+        .unwrap();
+        let batch = fri06_c04_front_door_batch(
+            root_style,
+            LogicalSizeOf::new(
+                AvailableOf::definite(S::from_f64(20.0)),
+                AvailableOf::definite(S::from_f64(8.0)),
+            ),
+            vec![1, 2],
+            vec![
+                (
+                    1,
+                    LayoutInputOf::box_input(float.clone()),
+                    float,
+                    Vec::new(),
+                ),
+                (
+                    2,
+                    LayoutInputOf::inline_text(text),
+                    NodeInputOf::non_box(),
+                    Vec::new(),
+                ),
+            ],
+        );
+        for entries in [batch.unrounded_entries(), batch.final_entries()] {
+            assert_eq!(
+                entries
+                    .iter()
+                    .map(LayoutOutputEntryOf::node)
+                    .collect::<Vec<_>>(),
+                vec![0, 1, 2],
+            );
+            assert_eq!(
+                public_flow_output(entries, 1).source_index,
+                SourceIndex::new(0)
+            );
+            assert_eq!(
+                public_flow_output(entries, 2).source_index,
+                SourceIndex::new(1)
+            );
+        }
+        let unrounded_float = public_flow_output(batch.unrounded_entries(), 1);
+        let rounded_float = public_flow_output(batch.final_entries(), 1);
+        assert_eq!(
+            unrounded_float.location,
+            Point::new(S::from_f64(-10.5), S::from_f64(0.25))
+        );
+        assert_eq!(
+            rounded_float.location,
+            Point::new(S::from_f64(-10.0), S::ZERO)
+        );
+        let unrounded_root = public_flow_output(batch.unrounded_entries(), 0);
+        let unrounded_geometry = unrounded_root.scroll_geometry.unwrap();
+        assert_eq!(
+            unrounded_geometry.scrollable_overflow().origin().x,
+            S::from_f64(-10.5)
+        );
+        assert_eq!(
+            unrounded_geometry.scrollable_overflow().size().width,
+            S::from_f64(30.5)
+        );
+        assert_eq!(
+            unrounded_geometry.physical_range().x().minimum(),
+            S::from_f64(-10.5)
+        );
+        assert_eq!(unrounded_geometry.physical_range().x().maximum(), S::ZERO);
+        let fragment = batch.unrounded_inline_fragments()[0].fragment();
+        assert_eq!(fragment.line_index(), 0);
+        assert_eq!(fragment.visual_index(), 0);
+        assert_eq!(fragment.rect().origin().y, S::from_f64(8.75));
+        let rounded_fragment = batch.final_inline_fragments()[0].fragment();
+        assert_eq!(rounded_fragment.line_index(), fragment.line_index());
+        assert_eq!(rounded_fragment.visual_index(), fragment.visual_index());
+        assert_eq!(rounded_fragment.rect().origin().y, S::from_f64(9.0));
     }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c04_float_scroll_rounding_preserves_mapped_side_band_and_position_identity_all_flows_both_scalars()
@@ -4159,160 +3952,140 @@ fn fri06_c04_float_lifecycle_static_one_ledger_query_and_single_publication_path
 
 #[test]
 fn fri06_c03_mixed_text_atomic_source_gaps_and_repeat_both_scalars() {
-    (FRI06_C03_MIXED_TEXT_ATOMIC_SOURCE_GAPS_AND_REPEAT_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C03_MIXED_TEXT_ATOMIC_SOURCE_GAPS_AND_REPEAT_BOTH_SCALARS_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-        (AssertLanePhaseL4015::<S>::RUN)()
-    }
-
-    type AssertLanePhaseL4015Run = fn();
-
-    struct AssertLanePhaseL4015<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL4015<S> {
-        const RUN: AssertLanePhaseL4015Run = || {
-            let children = || {
-                let atomic = fri06_c03_atomic_style(
-                    20.0,
-                    6.0,
-                    2.0,
-                    3.0,
+        let children = || {
+            let atomic = fri06_c03_atomic_style(
+                20.0,
+                6.0,
+                2.0,
+                3.0,
+                0,
+                InlineBreakOpportunityOf::prohibited(),
+            );
+            let hidden = NodeInputOf {
+                display: Display::None,
+                ..NodeInputOf::default()
+            };
+            let absolute = NodeInputOf {
+                position: Position::Absolute,
+                ..fri06_c03_atomic_style(
+                    7.0,
+                    5.0,
+                    0.0,
+                    0.0,
                     0,
                     InlineBreakOpportunityOf::prohibited(),
-                );
-                let hidden = NodeInputOf {
-                    display: Display::None,
-                    ..NodeInputOf::default()
-                };
-                let absolute = NodeInputOf {
-                    position: Position::Absolute,
-                    ..fri06_c03_atomic_style(
-                        7.0,
-                        5.0,
-                        0.0,
-                        0.0,
-                        0,
-                        InlineBreakOpportunityOf::prohibited(),
-                    )
-                };
-                let floated = NodeInputOf {
-                    float: Float::Left,
-                    ..fri06_c03_atomic_style(
-                        8.0,
-                        4.0,
-                        0.0,
-                        0.0,
-                        0,
-                        InlineBreakOpportunityOf::prohibited(),
-                    )
-                };
-                vec![
-                    (
-                        1,
-                        fri06_c03_text_input(vec![fri06_c02_segment(
-                            101,
-                            10.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )]),
-                        NodeInputOf::non_box(),
-                    ),
-                    (2, LayoutInputOf::box_input(hidden.clone()), hidden),
-                    (3, LayoutInputOf::box_input(atomic.clone()), atomic),
-                    (4, LayoutInputOf::box_input(absolute.clone()), absolute),
-                    (
-                        5,
-                        fri06_c03_text_input(vec![fri06_c02_segment(
-                            102,
-                            10.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )]),
-                        NodeInputOf::non_box(),
-                    ),
-                    (6, LayoutInputOf::box_input(floated.clone()), floated),
-                    (
-                        7,
-                        fri06_c03_text_input(vec![fri06_c02_segment(
-                            103,
-                            5.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )]),
-                        NodeInputOf::non_box(),
-                    ),
-                ]
+                )
             };
-            let first =
-                fri06_c03_mixed_batch(children(), AvailableOf::definite(S::from_f64(100.0)));
-            let second =
-                fri06_c03_mixed_batch(children(), AvailableOf::definite(S::from_f64(100.0)));
-            assert_eq!(first.final_entries(), second.final_entries());
-            assert_eq!(
-                first.final_inline_fragments(),
-                second.final_inline_fragments()
-            );
-
-            let fragments = first.final_inline_fragments();
-            assert_eq!(fragments.len(), 3);
-            assert_eq!(fragments[0].node(), 1);
-            assert_eq!(
-                fragments[0].fragment().segment_id(),
-                InlineSegmentId::new(101)
-            );
-            assert_eq!(fragments[0].fragment().rect().origin().x, S::ZERO);
-            assert_eq!(fragments[1].node(), 5);
-            assert_eq!(
-                fragments[1].fragment().segment_id(),
-                InlineSegmentId::new(102)
-            );
-            assert_eq!(fragments[1].fragment().rect().origin().x, S::from_f64(35.0));
-            assert_eq!(fragments[2].node(), 7);
-            assert_eq!(
-                fragments[2].fragment().segment_id(),
-                InlineSegmentId::new(103)
-            );
-            assert_eq!(
-                fragments[2].fragment().rect().origin(),
-                Point::new(S::from_f64(8.0), S::from_f64(10.0))
-            );
-
-            let hidden = fri06_c02_final_node(&first, 2);
-            let atomic = fri06_c02_final_node(&first, 3);
-            let trailing_text = fri06_c02_final_node(&first, 5);
-            let float = fri06_c02_final_node(&first, 6);
-            let after_float = fri06_c02_final_node(&first, 7);
-            assert_eq!(hidden.source_index, SourceIndex::new(1));
-            assert_eq!(hidden.size, Size::ZERO);
-            assert_eq!(atomic.source_index, SourceIndex::new(2));
-            assert_eq!(atomic.location.x, S::from_f64(12.0));
-            assert_eq!(trailing_text.source_index, SourceIndex::new(4));
-            assert_eq!(float.source_index, SourceIndex::new(5));
-            assert_eq!(after_float.source_index, SourceIndex::new(6));
-            assert_eq!(
-                first
-                    .final_entries()
-                    .iter()
-                    .filter(|entry| entry.node() == 3)
-                    .count(),
-                1,
-                "one supplied atomic placeholder publishes exactly once"
-            );
+            let floated = NodeInputOf {
+                float: Float::Left,
+                ..fri06_c03_atomic_style(
+                    8.0,
+                    4.0,
+                    0.0,
+                    0.0,
+                    0,
+                    InlineBreakOpportunityOf::prohibited(),
+                )
+            };
+            vec![
+                (
+                    1,
+                    fri06_c03_text_input(vec![fri06_c02_segment(
+                        101,
+                        10.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
+                ),
+                (2, LayoutInputOf::box_input(hidden.clone()), hidden),
+                (3, LayoutInputOf::box_input(atomic.clone()), atomic),
+                (4, LayoutInputOf::box_input(absolute.clone()), absolute),
+                (
+                    5,
+                    fri06_c03_text_input(vec![fri06_c02_segment(
+                        102,
+                        10.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
+                ),
+                (6, LayoutInputOf::box_input(floated.clone()), floated),
+                (
+                    7,
+                    fri06_c03_text_input(vec![fri06_c02_segment(
+                        103,
+                        5.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
+                ),
+            ]
         };
+        let first = fri06_c03_mixed_batch(children(), AvailableOf::definite(S::from_f64(100.0)));
+        let second = fri06_c03_mixed_batch(children(), AvailableOf::definite(S::from_f64(100.0)));
+        assert_eq!(first.final_entries(), second.final_entries());
+        assert_eq!(
+            first.final_inline_fragments(),
+            second.final_inline_fragments()
+        );
+
+        let fragments = first.final_inline_fragments();
+        assert_eq!(fragments.len(), 3);
+        assert_eq!(fragments[0].node(), 1);
+        assert_eq!(
+            fragments[0].fragment().segment_id(),
+            InlineSegmentId::new(101)
+        );
+        assert_eq!(fragments[0].fragment().rect().origin().x, S::ZERO);
+        assert_eq!(fragments[1].node(), 5);
+        assert_eq!(
+            fragments[1].fragment().segment_id(),
+            InlineSegmentId::new(102)
+        );
+        assert_eq!(fragments[1].fragment().rect().origin().x, S::from_f64(35.0));
+        assert_eq!(fragments[2].node(), 7);
+        assert_eq!(
+            fragments[2].fragment().segment_id(),
+            InlineSegmentId::new(103)
+        );
+        assert_eq!(
+            fragments[2].fragment().rect().origin(),
+            Point::new(S::from_f64(8.0), S::from_f64(10.0))
+        );
+
+        let hidden = fri06_c02_final_node(&first, 2);
+        let atomic = fri06_c02_final_node(&first, 3);
+        let trailing_text = fri06_c02_final_node(&first, 5);
+        let float = fri06_c02_final_node(&first, 6);
+        let after_float = fri06_c02_final_node(&first, 7);
+        assert_eq!(hidden.source_index, SourceIndex::new(1));
+        assert_eq!(hidden.size, Size::ZERO);
+        assert_eq!(atomic.source_index, SourceIndex::new(2));
+        assert_eq!(atomic.location.x, S::from_f64(12.0));
+        assert_eq!(trailing_text.source_index, SourceIndex::new(4));
+        assert_eq!(float.source_index, SourceIndex::new(5));
+        assert_eq!(after_float.source_index, SourceIndex::new(6));
+        assert_eq!(
+            first
+                .final_entries()
+                .iter()
+                .filter(|entry| entry.node() == 3)
+                .count(),
+            1,
+            "one supplied atomic placeholder publishes exactly once"
+        );
     }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c03_atomic_break_opportunities_overwide_and_intrinsic_both_scalars() {
-    (FRI06_C03_ATOMIC_BREAK_OPPORTUNITIES_OVERWIDE_AND_INTRINSIC_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C03_ATOMIC_BREAK_OPPORTUNITIES_OVERWIDE_AND_INTRINSIC_BOTH_SCALARS_PHASE: fn() = || {
     fn text<S: LayoutScalar>(
         node: u32,
         id: u64,
@@ -4421,7 +4194,7 @@ const FRI06_C03_ATOMIC_BREAK_OPPORTUNITIES_OVERWIDE_AND_INTRINSIC_BOTH_SCALARS_P
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c03_mixed_bidi_reorders_complete_units_per_line_both_scalars() {
@@ -4532,154 +4305,141 @@ fn assert_fri06_c08_r1_mixed_unit_traversal<S: LayoutScalar>(
     flow_axes: FlowAxes,
     box_sizing: BoxSizing,
 ) {
-    (AssertFri06C08R1MixedUnitTraversalPhaseL4368::<S>::RUN)(flow_axes, box_sizing)
-}
+    let logical_root_size = LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(160.0));
+    let root_size = flow_axes.physical_size(logical_root_size);
+    let root_input = NodeInputOf {
+        display: Display::Block,
+        writing_mode: flow_axes.writing_mode(),
+        direction: flow_axes.direction(),
+        box_sizing,
+        size: root_size.map(PreferredSizeOf::px),
+        ..NodeInputOf::default()
+    };
+    let boundary_metrics =
+        InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap();
+    let boundary = |kind| {
+        InlineBoundaryInputOf::new(kind, boundary_metrics)
+            .with_writing_mode(flow_axes.writing_mode())
+            .with_direction(flow_axes.direction())
+    };
+    let atomic = fri06_c04_line_box(
+        flow_axes,
+        LogicalSizeOf::new(S::from_f64(5.0), S::from_f64(12.0)),
+        Float::None,
+        Some(fri06_c03_atomic_participation(
+            2,
+            InlineBreakOpportunityOf::prohibited(),
+        )),
+    );
+    let children = vec![
+        (
+            1,
+            fri06_c03_text_input(vec![fri06_c02_segment_with_level(
+                901,
+                10.0,
+                1,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )]),
+            NodeInputOf::non_box(),
+        ),
+        (
+            2,
+            LayoutInputOf::inline_boundary(boundary(InlineBoundaryKind::Start)),
+            NodeInputOf::non_box(),
+        ),
+        (3, LayoutInputOf::box_input(atomic.clone()), atomic),
+        (
+            4,
+            LayoutInputOf::inline_boundary(boundary(InlineBoundaryKind::End)),
+            NodeInputOf::non_box(),
+        ),
+        (
+            5,
+            fri06_c03_text_input(vec![fri06_c02_segment_with_level(
+                902,
+                7.0,
+                1,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )]),
+            NodeInputOf::non_box(),
+        ),
+    ];
+    let child_nodes = children
+        .iter()
+        .map(|(node, _, _)| *node)
+        .collect::<Vec<_>>();
+    let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
+    let mut node_inputs = HashMap::from([(0, root_input)]);
+    let mut tree_children = HashMap::from([(0, child_nodes)]);
+    for (node, layout_input, node_input) in children {
+        inputs.insert(node, layout_input);
+        node_inputs.insert(node, node_input);
+        tree_children.insert(node, Vec::new());
+    }
+    let tree = Fri06C02TextTree {
+        inputs,
+        node_inputs,
+        children: tree_children,
+    };
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(root_size.map(AvailableOf::definite)).unwrap(),
+    )
+    .unwrap();
 
-type AssertFri06C08R1MixedUnitTraversalPhaseL4368Run = fn(FlowAxes, BoxSizing);
+    let source_starts = if flow_axes.direction() == Direction::Rtl {
+        [12.0, 12.0, 7.0, 7.0, 0.0]
+    } else {
+        [0.0, 10.0, 10.0, 15.0, 15.0]
+    };
+    let logical_rects = [
+        (source_starts[0], 4.0, 10.0, 10.0),
+        (source_starts[1], 12.0, 0.0, 0.0),
+        (source_starts[2], 0.0, 5.0, 12.0),
+        (source_starts[3], 12.0, 0.0, 0.0),
+        (source_starts[4], 4.0, 7.0, 10.0),
+    ];
+    for (index, logical_rect) in logical_rects.into_iter().enumerate() {
+        let node = u32::try_from(index + 1).unwrap();
+        let output = fri06_c02_final_node(&batch, node);
+        let (expected_origin, expected_size) = fri06_c02_expected_physical_rect(
+            (flow_axes.writing_mode(), flow_axes.direction()),
+            logical_rect,
+            (100.0, 160.0),
+        );
+        assert_eq!(
+            (output.location, output.size, output.source_index.get()),
+            (expected_origin, expected_size, index),
+            "{flow_axes:?} {box_sizing:?} source unit {index}"
+        );
+    }
 
-struct AssertFri06C08R1MixedUnitTraversalPhaseL4368<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertFri06C08R1MixedUnitTraversalPhaseL4368<S> {
-    const RUN: AssertFri06C08R1MixedUnitTraversalPhaseL4368Run =
-        |flow_axes: FlowAxes, box_sizing: BoxSizing| {
-            let logical_root_size = LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(160.0));
-            let root_size = flow_axes.physical_size(logical_root_size);
-            let root_input = NodeInputOf {
-                display: Display::Block,
-                writing_mode: flow_axes.writing_mode(),
-                direction: flow_axes.direction(),
-                box_sizing,
-                size: root_size.map(PreferredSizeOf::px),
-                ..NodeInputOf::default()
-            };
-            let boundary_metrics =
-                InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap();
-            let boundary = |kind| {
-                InlineBoundaryInputOf::new(kind, boundary_metrics)
-                    .with_writing_mode(flow_axes.writing_mode())
-                    .with_direction(flow_axes.direction())
-            };
-            let atomic = fri06_c04_line_box(
-                flow_axes,
-                LogicalSizeOf::new(S::from_f64(5.0), S::from_f64(12.0)),
-                Float::None,
-                Some(fri06_c03_atomic_participation(
-                    2,
-                    InlineBreakOpportunityOf::prohibited(),
-                )),
-            );
-            let children = vec![
-                (
-                    1,
-                    fri06_c03_text_input(vec![fri06_c02_segment_with_level(
-                        901,
-                        10.0,
-                        1,
-                        InlineWhitespaceEdge::Preserve,
-                        InlineBreakOpportunityOf::prohibited(),
-                    )]),
-                    NodeInputOf::non_box(),
-                ),
-                (
-                    2,
-                    LayoutInputOf::inline_boundary(boundary(InlineBoundaryKind::Start)),
-                    NodeInputOf::non_box(),
-                ),
-                (3, LayoutInputOf::box_input(atomic.clone()), atomic),
-                (
-                    4,
-                    LayoutInputOf::inline_boundary(boundary(InlineBoundaryKind::End)),
-                    NodeInputOf::non_box(),
-                ),
-                (
-                    5,
-                    fri06_c03_text_input(vec![fri06_c02_segment_with_level(
-                        902,
-                        7.0,
-                        1,
-                        InlineWhitespaceEdge::Preserve,
-                        InlineBreakOpportunityOf::prohibited(),
-                    )]),
-                    NodeInputOf::non_box(),
-                ),
-            ];
-            let child_nodes = children
-                .iter()
-                .map(|(node, _, _)| *node)
-                .collect::<Vec<_>>();
-            let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
-            let mut node_inputs = HashMap::from([(0, root_input)]);
-            let mut tree_children = HashMap::from([(0, child_nodes)]);
-            for (node, layout_input, node_input) in children {
-                inputs.insert(node, layout_input);
-                node_inputs.insert(node, node_input);
-                tree_children.insert(node, Vec::new());
-            }
-            let tree = Fri06C02TextTree {
-                inputs,
-                node_inputs,
-                children: tree_children,
-            };
-            let batch = compute_layout(
-                &tree,
-                0,
-                LayoutRootRequestOf::viewport(root_size.map(AvailableOf::definite)).unwrap(),
-            )
-            .unwrap();
-
-            let source_starts = if flow_axes.direction() == Direction::Rtl {
-                [12.0, 12.0, 7.0, 7.0, 0.0]
-            } else {
-                [0.0, 10.0, 10.0, 15.0, 15.0]
-            };
-            let logical_rects = [
-                (source_starts[0], 4.0, 10.0, 10.0),
-                (source_starts[1], 12.0, 0.0, 0.0),
-                (source_starts[2], 0.0, 5.0, 12.0),
-                (source_starts[3], 12.0, 0.0, 0.0),
-                (source_starts[4], 4.0, 7.0, 10.0),
-            ];
-            for (index, logical_rect) in logical_rects.into_iter().enumerate() {
-                let node = u32::try_from(index + 1).unwrap();
-                let output = fri06_c02_final_node(&batch, node);
-                let (expected_origin, expected_size) = fri06_c02_expected_physical_rect(
-                    (flow_axes.writing_mode(), flow_axes.direction()),
-                    logical_rect,
-                    (100.0, 160.0),
-                );
-                assert_eq!(
-                    (output.location, output.size, output.source_index.get()),
-                    (expected_origin, expected_size, index),
-                    "{flow_axes:?} {box_sizing:?} source unit {index}"
-                );
-            }
-
-            assert_eq!(
-                batch
-                    .final_inline_fragments()
-                    .iter()
-                    .map(|entry| (
-                        entry.node(),
-                        entry.fragment().segment_id(),
-                        entry.fragment().visual_index(),
-                    ))
-                    .collect::<Vec<_>>(),
-                if flow_axes.direction() == Direction::Rtl {
-                    vec![
-                        (1, InlineSegmentId::new(901), 4),
-                        (5, InlineSegmentId::new(902), 0),
-                    ]
-                } else {
-                    vec![
-                        (1, InlineSegmentId::new(901), 0),
-                        (5, InlineSegmentId::new(902), 4),
-                    ]
-                },
-                "{flow_axes:?} {box_sizing:?} stable fragment identities"
-            );
-        };
+    assert_eq!(
+        batch
+            .final_inline_fragments()
+            .iter()
+            .map(|entry| (
+                entry.node(),
+                entry.fragment().segment_id(),
+                entry.fragment().visual_index(),
+            ))
+            .collect::<Vec<_>>(),
+        if flow_axes.direction() == Direction::Rtl {
+            vec![
+                (1, InlineSegmentId::new(901), 4),
+                (5, InlineSegmentId::new(902), 0),
+            ]
+        } else {
+            vec![
+                (1, InlineSegmentId::new(901), 0),
+                (5, InlineSegmentId::new(902), 4),
+            ]
+        },
+        "{flow_axes:?} {box_sizing:?} stable fragment identities"
+    );
 }
 
 #[test]
@@ -4897,176 +4657,158 @@ fn assert_fri06_c08_float_line_final_height<S: LayoutScalar>(
     direction: Direction,
     box_sizing: BoxSizing,
 ) {
-    (AssertFri06C08FloatLineFinalHeightPhaseL4720::<S>::RUN)(direction, box_sizing)
-}
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, direction);
+    let float = |side, inline, block| {
+        let mut style = fri06_c04_line_box(
+            flow_axes,
+            LogicalSizeOf::new(S::from_f64(inline), S::from_f64(block)),
+            side,
+            None,
+        );
+        style.box_sizing = box_sizing;
+        style
+    };
+    let atomic = |inline, following_break| {
+        let mut style = fri06_c04_line_box(
+            flow_axes,
+            LogicalSizeOf::new(S::from_f64(inline), S::from_f64(16.0)),
+            Float::None,
+            Some(fri06_c03_atomic_participation(
+                u8::from(direction == Direction::Rtl),
+                following_break,
+            )),
+        );
+        style.box_sizing = box_sizing;
+        style
+    };
+    let (physical_left_side, physical_right_side) = match direction {
+        Direction::Ltr => (Float::Left, Float::Right),
+        Direction::Rtl => (Float::Right, Float::Left),
+    };
+    let left_float = float(physical_left_side, 42.0, 42.0);
+    let right_float = float(physical_right_side, 50.0, 62.0);
+    let first_atomic = atomic(28.0, InlineBreakOpportunityOf::allowed());
+    let second_atomic = atomic(32.0, InlineBreakOpportunityOf::allowed());
+    let third_atomic = atomic(36.0, InlineBreakOpportunityOf::allowed());
+    let fourth_atomic = atomic(40.0, InlineBreakOpportunityOf::prohibited());
+    let line_strut = InlineBoundaryInputOf::new(
+        InlineBoundaryKind::Start,
+        InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(12.0))
+            .unwrap(),
+    )
+    .with_writing_mode(WritingMode::HorizontalTb)
+    .with_direction(direction);
+    let root = NodeInputOf {
+        display: Display::Block,
+        writing_mode: WritingMode::HorizontalTb,
+        direction,
+        box_sizing,
+        size: Size::new(
+            PreferredSizeOf::px(S::from_f64(180.0)),
+            PreferredSizeOf::AUTO,
+        ),
+        ..NodeInputOf::default()
+    };
+    let batch = fri06_c03_mixed_batch_with_root(
+        vec![
+            (1, LayoutInputOf::box_input(left_float.clone()), left_float),
+            (
+                2,
+                LayoutInputOf::box_input(right_float.clone()),
+                right_float,
+            ),
+            (
+                3,
+                fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(4, 40.0, 14.8, 5.2)]),
+                NodeInputOf::non_box(),
+            ),
+            (
+                8,
+                LayoutInputOf::inline_boundary(line_strut),
+                NodeInputOf::non_box(),
+            ),
+            (
+                4,
+                LayoutInputOf::box_input(first_atomic.clone()),
+                first_atomic,
+            ),
+            (
+                5,
+                LayoutInputOf::box_input(second_atomic.clone()),
+                second_atomic,
+            ),
+            (
+                6,
+                LayoutInputOf::box_input(third_atomic.clone()),
+                third_atomic,
+            ),
+            (
+                7,
+                LayoutInputOf::box_input(fourth_atomic.clone()),
+                fourth_atomic,
+            ),
+        ],
+        AvailableOf::definite(S::from_f64(180.0)),
+        root,
+    );
 
-type AssertFri06C08FloatLineFinalHeightPhaseL4720Run = fn(Direction, BoxSizing);
-
-struct AssertFri06C08FloatLineFinalHeightPhaseL4720<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertFri06C08FloatLineFinalHeightPhaseL4720<S> {
-    const RUN: AssertFri06C08FloatLineFinalHeightPhaseL4720Run =
-        |direction: Direction, box_sizing: BoxSizing| {
-            let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, direction);
-            let float = |side, inline, block| {
-                let mut style = fri06_c04_line_box(
-                    flow_axes,
-                    LogicalSizeOf::new(S::from_f64(inline), S::from_f64(block)),
-                    side,
-                    None,
-                );
-                style.box_sizing = box_sizing;
-                style
-            };
-            let atomic = |inline, following_break| {
-                let mut style = fri06_c04_line_box(
-                    flow_axes,
-                    LogicalSizeOf::new(S::from_f64(inline), S::from_f64(16.0)),
-                    Float::None,
-                    Some(fri06_c03_atomic_participation(
-                        u8::from(direction == Direction::Rtl),
-                        following_break,
-                    )),
-                );
-                style.box_sizing = box_sizing;
-                style
-            };
-            let (physical_left_side, physical_right_side) = match direction {
-                Direction::Ltr => (Float::Left, Float::Right),
-                Direction::Rtl => (Float::Right, Float::Left),
-            };
-            let left_float = float(physical_left_side, 42.0, 42.0);
-            let right_float = float(physical_right_side, 50.0, 62.0);
-            let first_atomic = atomic(28.0, InlineBreakOpportunityOf::allowed());
-            let second_atomic = atomic(32.0, InlineBreakOpportunityOf::allowed());
-            let third_atomic = atomic(36.0, InlineBreakOpportunityOf::allowed());
-            let fourth_atomic = atomic(40.0, InlineBreakOpportunityOf::prohibited());
-            let line_strut = InlineBoundaryInputOf::new(
-                InlineBoundaryKind::Start,
-                InlineMetricsOf::from_line_height_and_baseline(
-                    S::from_f64(20.0),
-                    S::from_f64(12.0),
-                )
-                .unwrap(),
-            )
-            .with_writing_mode(WritingMode::HorizontalTb)
-            .with_direction(direction);
-            let root = NodeInputOf {
-                display: Display::Block,
-                writing_mode: WritingMode::HorizontalTb,
-                direction,
-                box_sizing,
-                size: Size::new(
-                    PreferredSizeOf::px(S::from_f64(180.0)),
-                    PreferredSizeOf::AUTO,
-                ),
-                ..NodeInputOf::default()
-            };
-            let batch = fri06_c03_mixed_batch_with_root(
-                vec![
-                    (1, LayoutInputOf::box_input(left_float.clone()), left_float),
-                    (
-                        2,
-                        LayoutInputOf::box_input(right_float.clone()),
-                        right_float,
-                    ),
-                    (
-                        3,
-                        fri06_c03_text_input(vec![fri06_c02_segment_with_metrics(
-                            4, 40.0, 14.8, 5.2,
-                        )]),
-                        NodeInputOf::non_box(),
-                    ),
-                    (
-                        8,
-                        LayoutInputOf::inline_boundary(line_strut),
-                        NodeInputOf::non_box(),
-                    ),
-                    (
-                        4,
-                        LayoutInputOf::box_input(first_atomic.clone()),
-                        first_atomic,
-                    ),
-                    (
-                        5,
-                        LayoutInputOf::box_input(second_atomic.clone()),
-                        second_atomic,
-                    ),
-                    (
-                        6,
-                        LayoutInputOf::box_input(third_atomic.clone()),
-                        third_atomic,
-                    ),
-                    (
-                        7,
-                        LayoutInputOf::box_input(fourth_atomic.clone()),
-                        fourth_atomic,
-                    ),
-                ],
-                AvailableOf::definite(S::from_f64(180.0)),
-                root,
-            );
-
-            let (expected_left_float_x, expected_right_float_x) = (0.0, 130.0);
-            for entries in [batch.unrounded_entries(), batch.final_entries()] {
-                assert_eq!(
-                    public_flow_output(entries, 1).location,
-                    Point::new(S::from_f64(expected_left_float_x), S::ZERO),
-                    "{direction:?} {box_sizing:?} line-left float"
-                );
-                assert_eq!(
-                    public_flow_output(entries, 2).location,
-                    Point::new(S::from_f64(expected_right_float_x), S::ZERO),
-                    "{direction:?} {box_sizing:?} line-right float"
-                );
-            }
-            assert_eq!(
-                batch
-                    .final_inline_fragments()
-                    .iter()
-                    .map(|entry| entry.fragment().line_index())
-                    .collect::<Vec<_>>(),
-                [0],
-                "{direction:?} {box_sizing:?} shaped-text line"
-            );
-            assert_eq!(
-                [4, 5, 6, 7].map(|node| public_flow_output(batch.final_entries(), node).size),
-                [
-                    Size::new(S::from_f64(28.0), S::from_f64(16.0)),
-                    Size::new(S::from_f64(32.0), S::from_f64(16.0)),
-                    Size::new(S::from_f64(36.0), S::from_f64(16.0)),
-                    Size::new(S::from_f64(40.0), S::from_f64(16.0)),
-                ],
-                "{direction:?} {box_sizing:?} atomic sizes"
-            );
-            for (node, expected) in [4, 5, 6, 7].into_iter().zip([0.0, 21.2, 21.2, 42.0]) {
-                let actual = public_flow_output(batch.unrounded_entries(), node)
-                    .location
-                    .y;
-                assert!(
-                    (actual - S::from_f64(expected)).abs() <= S::from_f64(0.000_1),
-                    "{direction:?} {box_sizing:?} unrounded float-band line placement: \
+    let (expected_left_float_x, expected_right_float_x) = (0.0, 130.0);
+    for entries in [batch.unrounded_entries(), batch.final_entries()] {
+        assert_eq!(
+            public_flow_output(entries, 1).location,
+            Point::new(S::from_f64(expected_left_float_x), S::ZERO),
+            "{direction:?} {box_sizing:?} line-left float"
+        );
+        assert_eq!(
+            public_flow_output(entries, 2).location,
+            Point::new(S::from_f64(expected_right_float_x), S::ZERO),
+            "{direction:?} {box_sizing:?} line-right float"
+        );
+    }
+    assert_eq!(
+        batch
+            .final_inline_fragments()
+            .iter()
+            .map(|entry| entry.fragment().line_index())
+            .collect::<Vec<_>>(),
+        [0],
+        "{direction:?} {box_sizing:?} shaped-text line"
+    );
+    assert_eq!(
+        [4, 5, 6, 7].map(|node| public_flow_output(batch.final_entries(), node).size),
+        [
+            Size::new(S::from_f64(28.0), S::from_f64(16.0)),
+            Size::new(S::from_f64(32.0), S::from_f64(16.0)),
+            Size::new(S::from_f64(36.0), S::from_f64(16.0)),
+            Size::new(S::from_f64(40.0), S::from_f64(16.0)),
+        ],
+        "{direction:?} {box_sizing:?} atomic sizes"
+    );
+    for (node, expected) in [4, 5, 6, 7].into_iter().zip([0.0, 21.2, 21.2, 42.0]) {
+        let actual = public_flow_output(batch.unrounded_entries(), node)
+            .location
+            .y;
+        assert!(
+            (actual - S::from_f64(expected)).abs() <= S::from_f64(0.000_1),
+            "{direction:?} {box_sizing:?} unrounded float-band line placement: \
              node {node} expected {expected}, got {actual:?}"
-                );
-            }
-            assert_eq!(
-                public_flow_output(batch.unrounded_entries(), 7).location.x,
-                S::from_f64(90.0),
-                "{direction:?} {box_sizing:?} terminal atomic physical placement"
-            );
-            assert_eq!(
-                public_flow_output(batch.unrounded_entries(), 0).size,
-                Size::new(S::from_f64(180.0), S::from_f64(62.5)),
-                "{direction:?} {box_sizing:?} unrounded block geometry"
-            );
-            assert_eq!(
-                public_flow_output(batch.final_entries(), 0).size,
-                Size::new(S::from_f64(180.0), S::from_f64(63.0)),
-                "{direction:?} {box_sizing:?} final block geometry"
-            );
-        };
+        );
+    }
+    assert_eq!(
+        public_flow_output(batch.unrounded_entries(), 7).location.x,
+        S::from_f64(90.0),
+        "{direction:?} {box_sizing:?} terminal atomic physical placement"
+    );
+    assert_eq!(
+        public_flow_output(batch.unrounded_entries(), 0).size,
+        Size::new(S::from_f64(180.0), S::from_f64(62.5)),
+        "{direction:?} {box_sizing:?} unrounded block geometry"
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 0).size,
+        Size::new(S::from_f64(180.0), S::from_f64(63.0)),
+        "{direction:?} {box_sizing:?} final block geometry"
+    );
 }
 
 fn fri06_c08_float_line_control_batch<S: LayoutScalar>(
@@ -5372,487 +5114,447 @@ fn fri06_c08_recovery_characterization_segment<S: LayoutScalar>(
 
 #[test]
 fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lanes() {
-    (FRI06_C08_RECOVERY_CHARACTERIZATION_EXACT_PUBLIC_INPUTS_COVER_BOTH_SCALAR_LANES_PHASE)();
-}
-
-const FRI06_C08_RECOVERY_CHARACTERIZATION_EXACT_PUBLIC_INPUTS_COVER_BOTH_SCALAR_LANES_PHASE:
-    fn() = || {
     fn assert_percentage_lane<S: LayoutScalar>() {
-        (AssertPercentageLanePhaseL5186::<S>::RUN)()
+        for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
+            let text = |id, extent| {
+                fri06_c08_recovery_characterization_segment(
+                    id,
+                    extent,
+                    14.8,
+                    20.0,
+                    1,
+                    InlineBreakOpportunityOf::prohibited(),
+                )
+            };
+            let atomic = NodeInputOf {
+                display: Display::InlineBlock,
+                direction: Direction::Rtl,
+                box_sizing,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(20.0)),
+                    PreferredSizeOf::percent(S::from_f64(0.5)),
+                ),
+                atomic_inline_participation: Some(fri06_c03_atomic_participation(
+                    1,
+                    InlineBreakOpportunityOf::prohibited(),
+                )),
+                ..NodeInputOf::default()
+            };
+            let root = NodeInputOf {
+                display: Display::Block,
+                direction: Direction::Rtl,
+                box_sizing,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(180.0)),
+                    PreferredSizeOf::px(S::from_f64(80.0)),
+                ),
+                ..NodeInputOf::default()
+            };
+            let batch = fri06_c08_recovery_characterization_batch(
+                vec![
+                    (
+                        1,
+                        fri06_c03_text_input(vec![text(0, 57.796875)]),
+                        NodeInputOf::non_box(),
+                    ),
+                    (2, LayoutInputOf::box_input(atomic.clone()), atomic),
+                    (
+                        3,
+                        fri06_c03_text_input(vec![text(2, 86.703125)]),
+                        NodeInputOf::non_box(),
+                    ),
+                ],
+                root,
+            );
+
+            assert_eq!(
+                fri06_c02_final_node(&batch, 0).size,
+                Size::new(S::from_f64(180.0), S::from_f64(80.0))
+            );
+            let atomic = fri06_c02_final_node(&batch, 2);
+            let fragments = batch.unrounded_inline_fragments();
+            assert_eq!(fragments.len(), 2);
+            assert_eq!(
+                (
+                    fragments[0].fragment().baseline().x,
+                    atomic.location.x,
+                    fragments[1].fragment().baseline().x,
+                ),
+                (
+                    S::from_f64(73.296875),
+                    S::from_f64(73.0),
+                    S::from_f64(180.0),
+                ),
+                "{box_sizing:?} direct RTL visual starts"
+            );
+            assert_eq!(atomic.source_index, SourceIndex::new(1));
+            assert_eq!(
+                (atomic.location, atomic.size, atomic.content_size),
+                (
+                    Point::new(S::from_f64(73.0), S::ZERO),
+                    Size::new(S::from_f64(20.0), S::from_f64(40.0)),
+                    Size::new(S::from_f64(20.0), S::from_f64(40.0)),
+                ),
+                "{box_sizing:?} rounded percentage atomic geometry"
+            );
+            for (index, (node, id, x, width, baseline_x)) in [
+                (1, 0, 15.5, 57.796875, 73.296875),
+                (3, 2, 93.296875, 86.703125, 180.0),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let entry = fragments[index];
+                let fragment = entry.fragment();
+                assert_eq!(
+                    (entry.node(), fragment.segment_id()),
+                    (node, InlineSegmentId::new(id))
+                );
+                assert_eq!(fragment.line_index(), 0);
+                assert_eq!(
+                    fragment.rect(),
+                    ScrollRectOf::try_new(
+                        Point::new(S::from_f64(x), S::from_f64(25.2)),
+                        Size::new(S::from_f64(width), S::from_f64(20.0)),
+                    )
+                    .unwrap()
+                );
+                assert_eq!(
+                    fragment.baseline(),
+                    Point::new(S::from_f64(baseline_x), S::from_f64(40.0))
+                );
+            }
+        }
     }
 
-    type AssertPercentageLanePhaseL5186Run = fn();
-
-    struct AssertPercentageLanePhaseL5186<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertPercentageLanePhaseL5186<S> {
-        const RUN: AssertPercentageLanePhaseL5186Run = || {
-            for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
-                let text = |id, extent| {
-                    fri06_c08_recovery_characterization_segment(
-                        id,
-                        extent,
-                        14.8,
-                        20.0,
-                        1,
-                        InlineBreakOpportunityOf::prohibited(),
-                    )
-                };
-                let atomic = NodeInputOf {
-                    display: Display::InlineBlock,
-                    direction: Direction::Rtl,
+    fn assert_vertical_lane<S: LayoutScalar>() {
+        for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
+            for direction in [Direction::Ltr, Direction::Rtl] {
+                let axes = FlowAxes::new(WritingMode::VerticalRl, direction);
+                let bidi_level = u8::from(direction == Direction::Rtl);
+                let box_input = |display, width, height, float, clear, participation| NodeInputOf {
+                    display,
+                    writing_mode: WritingMode::VerticalRl,
+                    direction,
                     box_sizing,
+                    float,
+                    clear,
                     size: Size::new(
-                        PreferredSizeOf::px(S::from_f64(20.0)),
-                        PreferredSizeOf::percent(S::from_f64(0.5)),
+                        PreferredSizeOf::px(S::from_f64(width)),
+                        PreferredSizeOf::px(S::from_f64(height)),
                     ),
-                    atomic_inline_participation: Some(fri06_c03_atomic_participation(
-                        1,
-                        InlineBreakOpportunityOf::prohibited(),
-                    )),
+                    atomic_inline_participation: participation,
                     ..NodeInputOf::default()
                 };
+                let participation = || {
+                    Some(fri06_c03_atomic_participation(
+                        bidi_level,
+                        InlineBreakOpportunityOf::prohibited(),
+                    ))
+                };
+                let floating =
+                    box_input(Display::Block, 28.0, 36.0, Float::Left, Clear::None, None);
+                let first = box_input(
+                    Display::InlineBlock,
+                    18.0,
+                    42.0,
+                    Float::None,
+                    Clear::None,
+                    participation(),
+                );
+                let second = box_input(
+                    Display::InlineBlock,
+                    18.0,
+                    30.0,
+                    Float::None,
+                    Clear::None,
+                    participation(),
+                );
+                let cleared = box_input(Display::Block, 18.0, 18.0, Float::None, Clear::Left, None);
+                let line_break = LineBreakInputOf::new()
+                    .with_writing_mode(WritingMode::VerticalRl)
+                    .with_direction(direction)
+                    .with_metrics(
+                        InlineMetricsOf::from_line_height_and_baseline(
+                            S::from_f64(24.0),
+                            S::from_f64(16.8),
+                        )
+                        .unwrap(),
+                    );
                 let root = NodeInputOf {
                     display: Display::Block,
-                    direction: Direction::Rtl,
+                    writing_mode: WritingMode::VerticalRl,
+                    direction,
                     box_sizing,
+                    overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                    scrollbar_width: ScrollbarWidthOf::try_new(S::from_f64(15.0)).unwrap(),
                     size: Size::new(
-                        PreferredSizeOf::px(S::from_f64(180.0)),
-                        PreferredSizeOf::px(S::from_f64(80.0)),
+                        PreferredSizeOf::px(S::from_f64(96.0)),
+                        PreferredSizeOf::px(S::from_f64(140.0)),
                     ),
                     ..NodeInputOf::default()
                 };
                 let batch = fri06_c08_recovery_characterization_batch(
                     vec![
-                        (
-                            1,
-                            fri06_c03_text_input(vec![text(0, 57.796875)]),
-                            NodeInputOf::non_box(),
-                        ),
-                        (2, LayoutInputOf::box_input(atomic.clone()), atomic),
+                        (1, LayoutInputOf::box_input(floating.clone()), floating),
+                        (2, LayoutInputOf::box_input(first.clone()), first),
                         (
                             3,
-                            fri06_c03_text_input(vec![text(2, 86.703125)]),
+                            LayoutInputOf::line_break(line_break),
                             NodeInputOf::non_box(),
+                        ),
+                        (4, LayoutInputOf::box_input(second.clone()), second),
+                        (5, LayoutInputOf::box_input(cleared.clone()), cleared),
+                    ],
+                    root,
+                );
+                let (float_y, first_y, second_y, clear_y) = match direction {
+                    Direction::Ltr => (0.0, 36.0, 36.0, 0.0),
+                    Direction::Rtl => (104.0, 62.0, 74.0, 122.0),
+                };
+                assert_eq!(
+                    fri06_c02_final_node(&batch, 0).size,
+                    Size::new(S::from_f64(96.0), S::from_f64(140.0))
+                );
+                let mut mismatches = Vec::new();
+                for (node, x, y, width, height) in [
+                    (1, 68.0, float_y, 28.0, 36.0),
+                    (2, 75.0, first_y, 18.0, 42.0),
+                    (4, 51.0, second_y, 18.0, 30.0),
+                    (5, 30.0, clear_y, 18.0, 18.0),
+                ] {
+                    let output = fri06_c02_final_node(&batch, node);
+                    let expected = (
+                        Point::new(S::from_f64(x), S::from_f64(y)),
+                        Size::new(S::from_f64(width), S::from_f64(height)),
+                    );
+                    if (output.location, output.size) != expected {
+                        mismatches.push(format!(
+                            "source {node}: expected {expected:?}, got {:?}",
+                            (output.location, output.size)
+                        ));
+                    }
+                }
+                let control = batch
+                    .unrounded_entries()
+                    .iter()
+                    .find(|entry| entry.node() == 3)
+                    .expect("forced break publishes unrounded geometry")
+                    .output();
+                assert_eq!(control.size, Size::ZERO);
+                let control_block = axes
+                    .logical_point(
+                        control.location,
+                        control.size,
+                        Size::new(S::from_f64(96.0), S::from_f64(140.0)),
+                    )
+                    .block;
+                if (control_block - S::from_f64(16.8)).abs() > S::from_f64(0.000_1) {
+                    mismatches.push(format!(
+                        "forced-break metric baseline: expected 16.8, got {control_block:?}"
+                    ));
+                }
+                let clear_block = batch
+                    .unrounded_entries()
+                    .iter()
+                    .find(|entry| entry.node() == 5)
+                    .map(|entry| {
+                        let output = entry.output();
+                        axes.logical_point(
+                            output.location,
+                            output.size,
+                            Size::new(S::from_f64(96.0), S::from_f64(140.0)),
+                        )
+                        .block
+                    })
+                    .expect("cleared block publishes unrounded geometry");
+                if clear_block != S::from_f64(48.0) {
+                    mismatches.push(format!(
+                        "two resolved 24px line bands: expected 48, got {clear_block:?}"
+                    ));
+                }
+                assert!(
+                    mismatches.is_empty(),
+                    "{axes:?} {box_sizing:?} vertical line-band mismatches:\n{}",
+                    mismatches.join("\n")
+                );
+            }
+        }
+    }
+
+    fn assert_float_lane<S: LayoutScalar>() {
+        for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
+            for direction in [Direction::Ltr, Direction::Rtl] {
+                let axes = FlowAxes::new(WritingMode::HorizontalTb, direction);
+                let bidi_level = u8::from(direction == Direction::Rtl);
+                let floating = |physical_left: bool, width, height| {
+                    let side = match (direction, physical_left) {
+                        (Direction::Ltr, true) | (Direction::Rtl, false) => Float::Left,
+                        (Direction::Ltr, false) | (Direction::Rtl, true) => Float::Right,
+                    };
+                    let mut input = fri06_c04_line_box(
+                        axes,
+                        LogicalSizeOf::new(S::from_f64(width), S::from_f64(height)),
+                        side,
+                        None,
+                    );
+                    input.box_sizing = box_sizing;
+                    input
+                };
+                let atomic = |width, following_break| {
+                    let mut input = fri06_c04_line_box(
+                        axes,
+                        LogicalSizeOf::new(S::from_f64(width), S::from_f64(16.0)),
+                        Float::None,
+                        Some(fri06_c03_atomic_participation(bidi_level, following_break)),
+                    );
+                    input.box_sizing = box_sizing;
+                    input
+                };
+                let left = floating(true, 42.0, 42.0);
+                let right = floating(false, 50.0, 62.0);
+                let atomics = [
+                    atomic(28.0, InlineBreakOpportunityOf::allowed()),
+                    atomic(32.0, InlineBreakOpportunityOf::allowed()),
+                    atomic(36.0, InlineBreakOpportunityOf::allowed()),
+                    atomic(40.0, InlineBreakOpportunityOf::prohibited()),
+                ];
+                let segment = fri06_c08_recovery_characterization_segment(
+                    4,
+                    38.53125,
+                    14.8,
+                    20.0,
+                    bidi_level,
+                    InlineBreakOpportunityOf::allowed(),
+                );
+                let line_strut = InlineBoundaryInputOf::new(
+                    InlineBoundaryKind::Start,
+                    InlineMetricsOf::from_line_height_and_baseline(
+                        S::from_f64(20.0),
+                        S::from_f64(12.0),
+                    )
+                    .unwrap(),
+                )
+                .with_writing_mode(WritingMode::HorizontalTb)
+                .with_direction(direction);
+                let root = NodeInputOf {
+                    display: Display::Block,
+                    direction,
+                    box_sizing,
+                    size: Size::new(
+                        PreferredSizeOf::px(S::from_f64(180.0)),
+                        PreferredSizeOf::AUTO,
+                    ),
+                    ..NodeInputOf::default()
+                };
+                let batch = fri06_c08_recovery_characterization_batch(
+                    vec![
+                        (1, LayoutInputOf::box_input(left.clone()), left),
+                        (2, LayoutInputOf::box_input(right.clone()), right),
+                        (
+                            3,
+                            fri06_c03_text_input(vec![segment]),
+                            NodeInputOf::non_box(),
+                        ),
+                        (
+                            8,
+                            LayoutInputOf::inline_boundary(line_strut),
+                            NodeInputOf::non_box(),
+                        ),
+                        (
+                            4,
+                            LayoutInputOf::box_input(atomics[0].clone()),
+                            atomics[0].clone(),
+                        ),
+                        (
+                            5,
+                            LayoutInputOf::box_input(atomics[1].clone()),
+                            atomics[1].clone(),
+                        ),
+                        (
+                            6,
+                            LayoutInputOf::box_input(atomics[2].clone()),
+                            atomics[2].clone(),
+                        ),
+                        (
+                            7,
+                            LayoutInputOf::box_input(atomics[3].clone()),
+                            atomics[3].clone(),
                         ),
                     ],
                     root,
                 );
-
+                assert_eq!(
+                    public_flow_output(batch.unrounded_entries(), 0).size,
+                    Size::new(S::from_f64(180.0), S::from_f64(62.5))
+                );
                 assert_eq!(
                     fri06_c02_final_node(&batch, 0).size,
-                    Size::new(S::from_f64(180.0), S::from_f64(80.0))
+                    Size::new(S::from_f64(180.0), S::from_f64(63.0))
                 );
-                let atomic = fri06_c02_final_node(&batch, 2);
-                let fragments = batch.unrounded_inline_fragments();
-                assert_eq!(fragments.len(), 2);
-                assert_eq!(
-                    (
-                        fragments[0].fragment().baseline().x,
-                        atomic.location.x,
-                        fragments[1].fragment().baseline().x,
-                    ),
-                    (
-                        S::from_f64(73.296875),
-                        S::from_f64(73.0),
-                        S::from_f64(180.0),
-                    ),
-                    "{box_sizing:?} direct RTL visual starts"
-                );
-                assert_eq!(atomic.source_index, SourceIndex::new(1));
-                assert_eq!(
-                    (atomic.location, atomic.size, atomic.content_size),
-                    (
-                        Point::new(S::from_f64(73.0), S::ZERO),
-                        Size::new(S::from_f64(20.0), S::from_f64(40.0)),
-                        Size::new(S::from_f64(20.0), S::from_f64(40.0)),
-                    ),
-                    "{box_sizing:?} rounded percentage atomic geometry"
-                );
-                for (index, (node, id, x, width, baseline_x)) in [
-                    (1, 0, 15.5, 57.796875, 73.296875),
-                    (3, 2, 93.296875, 86.703125, 180.0),
+                for (node, x, y, width, height) in
+                    [(1, 0.0, 0.0, 42.0, 42.0), (2, 130.0, 0.0, 50.0, 62.0)]
+                {
+                    let output = fri06_c02_final_node(&batch, node);
+                    assert_eq!(
+                        (output.location, output.size),
+                        (
+                            Point::new(S::from_f64(x), S::from_f64(y)),
+                            Size::new(S::from_f64(width), S::from_f64(height))
+                        )
+                    );
+                }
+                let atomic_x = match direction {
+                    Direction::Ltr => [81.0, 42.0, 74.0, 90.0],
+                    Direction::Rtl => [63.0, 98.0, 62.0, 90.0],
+                };
+                for (index, (node, width, y)) in [
+                    (4, 28.0, 0.0),
+                    (5, 32.0, 21.0),
+                    (6, 36.0, 21.0),
+                    (7, 40.0, 42.0),
                 ]
                 .into_iter()
                 .enumerate()
                 {
-                    let entry = fragments[index];
-                    let fragment = entry.fragment();
+                    let output = fri06_c02_final_node(&batch, node);
                     assert_eq!(
-                        (entry.node(), fragment.segment_id()),
-                        (node, InlineSegmentId::new(id))
-                    );
-                    assert_eq!(fragment.line_index(), 0);
-                    assert_eq!(
-                        fragment.rect(),
-                        ScrollRectOf::try_new(
-                            Point::new(S::from_f64(x), S::from_f64(25.2)),
-                            Size::new(S::from_f64(width), S::from_f64(20.0)),
-                        )
-                        .unwrap()
-                    );
-                    assert_eq!(
-                        fragment.baseline(),
-                        Point::new(S::from_f64(baseline_x), S::from_f64(40.0))
+                        (output.location, output.size),
+                        (
+                            Point::new(S::from_f64(atomic_x[index]), S::from_f64(y)),
+                            Size::new(S::from_f64(width), S::from_f64(16.0))
+                        ),
+                        "{axes:?} {box_sizing:?} atomic {node}"
                     );
                 }
-            }
-        };
-    }
-
-    fn assert_vertical_lane<S: LayoutScalar>() {
-        (AssertVerticalLanePhaseL5299::<S>::RUN)()
-    }
-
-    type AssertVerticalLanePhaseL5299Run = fn();
-
-    struct AssertVerticalLanePhaseL5299<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertVerticalLanePhaseL5299<S> {
-        const RUN: AssertVerticalLanePhaseL5299Run = || {
-            for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
-                for direction in [Direction::Ltr, Direction::Rtl] {
-                    let axes = FlowAxes::new(WritingMode::VerticalRl, direction);
-                    let bidi_level = u8::from(direction == Direction::Rtl);
-                    let box_input =
-                        |display, width, height, float, clear, participation| NodeInputOf {
-                            display,
-                            writing_mode: WritingMode::VerticalRl,
-                            direction,
-                            box_sizing,
-                            float,
-                            clear,
-                            size: Size::new(
-                                PreferredSizeOf::px(S::from_f64(width)),
-                                PreferredSizeOf::px(S::from_f64(height)),
-                            ),
-                            atomic_inline_participation: participation,
-                            ..NodeInputOf::default()
-                        };
-                    let participation = || {
-                        Some(fri06_c03_atomic_participation(
-                            bidi_level,
-                            InlineBreakOpportunityOf::prohibited(),
-                        ))
-                    };
-                    let floating =
-                        box_input(Display::Block, 28.0, 36.0, Float::Left, Clear::None, None);
-                    let first = box_input(
-                        Display::InlineBlock,
-                        18.0,
-                        42.0,
-                        Float::None,
-                        Clear::None,
-                        participation(),
-                    );
-                    let second = box_input(
-                        Display::InlineBlock,
-                        18.0,
-                        30.0,
-                        Float::None,
-                        Clear::None,
-                        participation(),
-                    );
-                    let cleared =
-                        box_input(Display::Block, 18.0, 18.0, Float::None, Clear::Left, None);
-                    let line_break = LineBreakInputOf::new()
-                        .with_writing_mode(WritingMode::VerticalRl)
-                        .with_direction(direction)
-                        .with_metrics(
-                            InlineMetricsOf::from_line_height_and_baseline(
-                                S::from_f64(24.0),
-                                S::from_f64(16.8),
-                            )
-                            .unwrap(),
-                        );
-                    let root = NodeInputOf {
-                        display: Display::Block,
-                        writing_mode: WritingMode::VerticalRl,
-                        direction,
-                        box_sizing,
-                        overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
-                        scrollbar_width: ScrollbarWidthOf::try_new(S::from_f64(15.0)).unwrap(),
-                        size: Size::new(
-                            PreferredSizeOf::px(S::from_f64(96.0)),
-                            PreferredSizeOf::px(S::from_f64(140.0)),
-                        ),
-                        ..NodeInputOf::default()
-                    };
-                    let batch = fri06_c08_recovery_characterization_batch(
-                        vec![
-                            (1, LayoutInputOf::box_input(floating.clone()), floating),
-                            (2, LayoutInputOf::box_input(first.clone()), first),
-                            (
-                                3,
-                                LayoutInputOf::line_break(line_break),
-                                NodeInputOf::non_box(),
-                            ),
-                            (4, LayoutInputOf::box_input(second.clone()), second),
-                            (5, LayoutInputOf::box_input(cleared.clone()), cleared),
-                        ],
-                        root,
-                    );
-                    let (float_y, first_y, second_y, clear_y) = match direction {
-                        Direction::Ltr => (0.0, 36.0, 36.0, 0.0),
-                        Direction::Rtl => (104.0, 62.0, 74.0, 122.0),
-                    };
-                    assert_eq!(
-                        fri06_c02_final_node(&batch, 0).size,
-                        Size::new(S::from_f64(96.0), S::from_f64(140.0))
-                    );
-                    let mut mismatches = Vec::new();
-                    for (node, x, y, width, height) in [
-                        (1, 68.0, float_y, 28.0, 36.0),
-                        (2, 75.0, first_y, 18.0, 42.0),
-                        (4, 51.0, second_y, 18.0, 30.0),
-                        (5, 30.0, clear_y, 18.0, 18.0),
-                    ] {
-                        let output = fri06_c02_final_node(&batch, node);
-                        let expected = (
-                            Point::new(S::from_f64(x), S::from_f64(y)),
-                            Size::new(S::from_f64(width), S::from_f64(height)),
-                        );
-                        if (output.location, output.size) != expected {
-                            mismatches.push(format!(
-                                "source {node}: expected {expected:?}, got {:?}",
-                                (output.location, output.size)
-                            ));
-                        }
-                    }
-                    let control = batch
-                        .unrounded_entries()
-                        .iter()
-                        .find(|entry| entry.node() == 3)
-                        .expect("forced break publishes unrounded geometry")
-                        .output();
-                    assert_eq!(control.size, Size::ZERO);
-                    let control_block = axes
-                        .logical_point(
-                            control.location,
-                            control.size,
-                            Size::new(S::from_f64(96.0), S::from_f64(140.0)),
-                        )
-                        .block;
-                    if (control_block - S::from_f64(16.8)).abs() > S::from_f64(0.000_1) {
-                        mismatches.push(format!(
-                            "forced-break metric baseline: expected 16.8, got {control_block:?}"
-                        ));
-                    }
-                    let clear_block = batch
-                        .unrounded_entries()
-                        .iter()
-                        .find(|entry| entry.node() == 5)
-                        .map(|entry| {
-                            let output = entry.output();
-                            axes.logical_point(
-                                output.location,
-                                output.size,
-                                Size::new(S::from_f64(96.0), S::from_f64(140.0)),
-                            )
-                            .block
-                        })
-                        .expect("cleared block publishes unrounded geometry");
-                    if clear_block != S::from_f64(48.0) {
-                        mismatches.push(format!(
-                            "two resolved 24px line bands: expected 48, got {clear_block:?}"
-                        ));
-                    }
+                for (node, expected) in [4, 5, 6, 7].into_iter().zip([0.0, 21.2, 21.2, 42.0]) {
+                    let actual = public_flow_output(batch.unrounded_entries(), node)
+                        .location
+                        .y;
                     assert!(
-                        mismatches.is_empty(),
-                        "{axes:?} {box_sizing:?} vertical line-band mismatches:\n{}",
-                        mismatches.join("\n")
-                    );
-                }
-            }
-        };
-    }
-
-    fn assert_float_lane<S: LayoutScalar>() {
-        (AssertFloatLanePhaseL5454::<S>::RUN)()
-    }
-
-    type AssertFloatLanePhaseL5454Run = fn();
-
-    struct AssertFloatLanePhaseL5454<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertFloatLanePhaseL5454<S> {
-        const RUN: AssertFloatLanePhaseL5454Run = || {
-            for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
-                for direction in [Direction::Ltr, Direction::Rtl] {
-                    let axes = FlowAxes::new(WritingMode::HorizontalTb, direction);
-                    let bidi_level = u8::from(direction == Direction::Rtl);
-                    let floating = |physical_left: bool, width, height| {
-                        let side = match (direction, physical_left) {
-                            (Direction::Ltr, true) | (Direction::Rtl, false) => Float::Left,
-                            (Direction::Ltr, false) | (Direction::Rtl, true) => Float::Right,
-                        };
-                        let mut input = fri06_c04_line_box(
-                            axes,
-                            LogicalSizeOf::new(S::from_f64(width), S::from_f64(height)),
-                            side,
-                            None,
-                        );
-                        input.box_sizing = box_sizing;
-                        input
-                    };
-                    let atomic = |width, following_break| {
-                        let mut input = fri06_c04_line_box(
-                            axes,
-                            LogicalSizeOf::new(S::from_f64(width), S::from_f64(16.0)),
-                            Float::None,
-                            Some(fri06_c03_atomic_participation(bidi_level, following_break)),
-                        );
-                        input.box_sizing = box_sizing;
-                        input
-                    };
-                    let left = floating(true, 42.0, 42.0);
-                    let right = floating(false, 50.0, 62.0);
-                    let atomics = [
-                        atomic(28.0, InlineBreakOpportunityOf::allowed()),
-                        atomic(32.0, InlineBreakOpportunityOf::allowed()),
-                        atomic(36.0, InlineBreakOpportunityOf::allowed()),
-                        atomic(40.0, InlineBreakOpportunityOf::prohibited()),
-                    ];
-                    let segment = fri06_c08_recovery_characterization_segment(
-                        4,
-                        38.53125,
-                        14.8,
-                        20.0,
-                        bidi_level,
-                        InlineBreakOpportunityOf::allowed(),
-                    );
-                    let line_strut = InlineBoundaryInputOf::new(
-                        InlineBoundaryKind::Start,
-                        InlineMetricsOf::from_line_height_and_baseline(
-                            S::from_f64(20.0),
-                            S::from_f64(12.0),
-                        )
-                        .unwrap(),
-                    )
-                    .with_writing_mode(WritingMode::HorizontalTb)
-                    .with_direction(direction);
-                    let root = NodeInputOf {
-                        display: Display::Block,
-                        direction,
-                        box_sizing,
-                        size: Size::new(
-                            PreferredSizeOf::px(S::from_f64(180.0)),
-                            PreferredSizeOf::AUTO,
-                        ),
-                        ..NodeInputOf::default()
-                    };
-                    let batch = fri06_c08_recovery_characterization_batch(
-                        vec![
-                            (1, LayoutInputOf::box_input(left.clone()), left),
-                            (2, LayoutInputOf::box_input(right.clone()), right),
-                            (
-                                3,
-                                fri06_c03_text_input(vec![segment]),
-                                NodeInputOf::non_box(),
-                            ),
-                            (
-                                8,
-                                LayoutInputOf::inline_boundary(line_strut),
-                                NodeInputOf::non_box(),
-                            ),
-                            (
-                                4,
-                                LayoutInputOf::box_input(atomics[0].clone()),
-                                atomics[0].clone(),
-                            ),
-                            (
-                                5,
-                                LayoutInputOf::box_input(atomics[1].clone()),
-                                atomics[1].clone(),
-                            ),
-                            (
-                                6,
-                                LayoutInputOf::box_input(atomics[2].clone()),
-                                atomics[2].clone(),
-                            ),
-                            (
-                                7,
-                                LayoutInputOf::box_input(atomics[3].clone()),
-                                atomics[3].clone(),
-                            ),
-                        ],
-                        root,
-                    );
-                    assert_eq!(
-                        public_flow_output(batch.unrounded_entries(), 0).size,
-                        Size::new(S::from_f64(180.0), S::from_f64(62.5))
-                    );
-                    assert_eq!(
-                        fri06_c02_final_node(&batch, 0).size,
-                        Size::new(S::from_f64(180.0), S::from_f64(63.0))
-                    );
-                    for (node, x, y, width, height) in
-                        [(1, 0.0, 0.0, 42.0, 42.0), (2, 130.0, 0.0, 50.0, 62.0)]
-                    {
-                        let output = fri06_c02_final_node(&batch, node);
-                        assert_eq!(
-                            (output.location, output.size),
-                            (
-                                Point::new(S::from_f64(x), S::from_f64(y)),
-                                Size::new(S::from_f64(width), S::from_f64(height))
-                            )
-                        );
-                    }
-                    let atomic_x = match direction {
-                        Direction::Ltr => [81.0, 42.0, 74.0, 90.0],
-                        Direction::Rtl => [63.0, 98.0, 62.0, 90.0],
-                    };
-                    for (index, (node, width, y)) in [
-                        (4, 28.0, 0.0),
-                        (5, 32.0, 21.0),
-                        (6, 36.0, 21.0),
-                        (7, 40.0, 42.0),
-                    ]
-                    .into_iter()
-                    .enumerate()
-                    {
-                        let output = fri06_c02_final_node(&batch, node);
-                        assert_eq!(
-                            (output.location, output.size),
-                            (
-                                Point::new(S::from_f64(atomic_x[index]), S::from_f64(y)),
-                                Size::new(S::from_f64(width), S::from_f64(16.0))
-                            ),
-                            "{axes:?} {box_sizing:?} atomic {node}"
-                        );
-                    }
-                    for (node, expected) in [4, 5, 6, 7].into_iter().zip([0.0, 21.2, 21.2, 42.0]) {
-                        let actual = public_flow_output(batch.unrounded_entries(), node)
-                            .location
-                            .y;
-                        assert!(
-                            (actual - S::from_f64(expected)).abs() <= S::from_f64(0.000_1),
-                            "{axes:?} {box_sizing:?} unrounded continuation phase: \
+                        (actual - S::from_f64(expected)).abs() <= S::from_f64(0.000_1),
+                        "{axes:?} {box_sizing:?} unrounded continuation phase: \
                          node {node} expected {expected}, got {actual:?}"
-                        );
-                    }
-                    let fragment = batch.unrounded_inline_fragments()[0].fragment();
-                    let (x, baseline_x) = match direction {
-                        Direction::Ltr => (42.0, 42.0),
-                        Direction::Rtl => (91.46875, 130.0),
-                    };
-                    assert_eq!(fragment.line_index(), 0);
-                    assert_eq!(fragment.rect().origin().x, S::from_f64(x));
-                    assert!(
-                        (fragment.rect().origin().y - S::from_f64(1.2)).abs()
-                            <= S::from_f64(0.000_1)
-                    );
-                    assert_eq!(
-                        fragment.rect().size(),
-                        Size::new(S::from_f64(38.53125), S::from_f64(20.0))
-                    );
-                    assert_eq!(fragment.baseline().x, S::from_f64(baseline_x));
-                    assert!(
-                        (fragment.baseline().y - S::from_f64(16.0)).abs() <= S::from_f64(0.000_1)
                     );
                 }
+                let fragment = batch.unrounded_inline_fragments()[0].fragment();
+                let (x, baseline_x) = match direction {
+                    Direction::Ltr => (42.0, 42.0),
+                    Direction::Rtl => (91.46875, 130.0),
+                };
+                assert_eq!(fragment.line_index(), 0);
+                assert_eq!(fragment.rect().origin().x, S::from_f64(x));
+                assert!(
+                    (fragment.rect().origin().y - S::from_f64(1.2)).abs() <= S::from_f64(0.000_1)
+                );
+                assert_eq!(
+                    fragment.rect().size(),
+                    Size::new(S::from_f64(38.53125), S::from_f64(20.0))
+                );
+                assert_eq!(fragment.baseline().x, S::from_f64(baseline_x));
+                assert!((fragment.baseline().y - S::from_f64(16.0)).abs() <= S::from_f64(0.000_1));
             }
-        };
+        }
     }
 
     assert_percentage_lane::<f32>();
@@ -5861,7 +5563,7 @@ const FRI06_C08_RECOVERY_CHARACTERIZATION_EXACT_PUBLIC_INPUTS_COVER_BOTH_SCALAR_
     assert_vertical_lane::<f64>();
     assert_float_lane::<f32>();
     assert_float_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c07_sideways_lr_rtl_all_atomic_odd_bidi_keeps_visual_placement_both_scalars() {
@@ -5983,20 +5685,7 @@ fn fri06_c02_expected_physical_rect<S: LayoutScalar>(
 
 #[test]
 fn fri06_c02_bidi_nested_equal_levels_reset_per_line_and_keep_discarded_slot_gaps_both_scalars() {
-    (FRI06_C02_BIDI_NESTED_EQUAL_LEVELS_RESET_PER_LINE_AND_KEEP_DISCARDED_SLOT_GAPS_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C02_BIDI_NESTED_EQUAL_LEVELS_RESET_PER_LINE_AND_KEEP_DISCARDED_SLOT_GAPS_BOTH_SCALARS_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL5761::<S>::RUN)()
-}
-
-type AssertLanePhaseL5761Run = fn();
-
-struct AssertLanePhaseL5761<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL5761<S> {
-    const RUN: AssertLanePhaseL5761Run = || {
         let nested = fri06_c02_text_batch(
             [0, 1, 2, 2, 1, 0]
                 .into_iter()
@@ -6109,26 +5798,15 @@ impl<S: LayoutScalar> AssertLanePhaseL5761<S> {
         );
         assert_eq!(fragments[0].fragment().visual_index(), 1);
         assert_eq!(fragments[0].fragment().rect().origin(), Point::ZERO);
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c02_alignment_uses_each_unequal_line_extent_and_clamps_overflow_in_all_flows_both_scalars()
 {
-    (Fri06C02AlignmentUsesEachUnequalLineExtentAndClampsOverflowInAllFlowsBothScalarsPhaseL5881::RUN)()
-}
-
-type Fri06C02AlignmentUsesEachUnequalLineExtentAndClampsOverflowInAllFlowsBothScalarsPhaseL5881Run =
-    fn();
-
-struct Fri06C02AlignmentUsesEachUnequalLineExtentAndClampsOverflowInAllFlowsBothScalarsPhaseL5881;
-
-impl Fri06C02AlignmentUsesEachUnequalLineExtentAndClampsOverflowInAllFlowsBothScalarsPhaseL5881 {
-    const RUN: Fri06C02AlignmentUsesEachUnequalLineExtentAndClampsOverflowInAllFlowsBothScalarsPhaseL5881Run = || {
     fn expected_offset(
         align: TextAlign,
         decreases: bool,
@@ -6247,25 +5925,11 @@ impl Fri06C02AlignmentUsesEachUnequalLineExtentAndClampsOverflowInAllFlowsBothSc
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
 }
 
 #[test]
 fn fri06_c02_flow_projects_rect_baseline_anchor_and_run_extents_in_all_mappings_both_scalars() {
-    (FRI06_C02_FLOW_PROJECTS_RECT_BASELINE_ANCHOR_AND_RUN_EXTENTS_IN_ALL_MAPPINGS_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C02_FLOW_PROJECTS_RECT_BASELINE_ANCHOR_AND_RUN_EXTENTS_IN_ALL_MAPPINGS_BOTH_SCALARS_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL6009::<S>::RUN)()
-}
-
-type AssertLanePhaseL6009Run = fn();
-
-struct AssertLanePhaseL6009<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL6009<S> {
-    const RUN: AssertLanePhaseL6009Run = || {
         for (writing_mode, direction) in fri06_c02_flow_mappings() {
             let batch = fri06_c02_text_batch_with_flow(
                 vec![
@@ -6403,29 +6067,15 @@ impl<S: LayoutScalar> AssertLanePhaseL6009<S> {
             assert_eq!(anchor.location, expected_anchor);
             assert_eq!(anchor.size, Size::ZERO);
         }
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c02_break_latest_replacement_mandatory_final_and_overwide_progress_both_scalars() {
-    (FRI06_C02_BREAK_LATEST_REPLACEMENT_MANDATORY_FINAL_AND_OVERWIDE_PROGRESS_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C02_BREAK_LATEST_REPLACEMENT_MANDATORY_FINAL_AND_OVERWIDE_PROGRESS_BOTH_SCALARS_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL6159::<S>::RUN)()
-}
-
-type AssertLanePhaseL6159Run = fn();
-
-struct AssertLanePhaseL6159<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL6159<S> {
-    const RUN: AssertLanePhaseL6159Run = || {
         let replacement =
             InlineBreakOpportunityOf::try_allowed_with_replacement(S::from_f64(5.0)).unwrap();
         let selected = vec![
@@ -6542,11 +6192,10 @@ impl<S: LayoutScalar> AssertLanePhaseL6159<S> {
                 .width,
             S::from_f64(60.0)
         );
-    };
-}
+    }
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c02_whitespace_discards_every_edge_mode_and_retains_empty_source_anchor_both_scalars() {
@@ -6665,214 +6314,199 @@ fn fri06_c02_intrinsic_reports_exact_min_and_max_content_in_both_scalar_lanes() 
 
 #[test]
 fn fri06_c02_block_text_adjacent_nodes_share_soft_mandatory_and_bidi_lines_both_scalars() {
-    (FRI06_C02_BLOCK_TEXT_ADJACENT_NODES_SHARE_SOFT_MANDATORY_AND_BIDI_LINES_BOTH_SCALARS_PHASE)();
-}
-
-const FRI06_C02_BLOCK_TEXT_ADJACENT_NODES_SHARE_SOFT_MANDATORY_AND_BIDI_LINES_BOTH_SCALARS_PHASE:
-    fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-        (AssertLanePhaseL6403::<S>::RUN)()
-    }
-
-    type AssertLanePhaseL6403Run = fn();
-
-    struct AssertLanePhaseL6403<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-    impl<S: LayoutScalar> AssertLanePhaseL6403<S> {
-        const RUN: AssertLanePhaseL6403Run = || {
-            let root = NodeInputOf {
-                display: Display::Block,
-                ..NodeInputOf::default()
-            };
-            let soft = fri06_c02_text_nodes_batch(
-                vec![
-                    (
-                        1,
-                        vec![fri06_c02_segment_with_level(
-                            1,
-                            15.0,
-                            1,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::allowed(),
-                        )],
-                    ),
-                    (
-                        2,
-                        vec![fri06_c02_segment_with_level(
-                            2,
-                            15.0,
-                            1,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )],
-                    ),
-                ],
-                root.clone(),
-                Size::new(
-                    AvailableOf::definite(S::from_f64(20.0)),
-                    AvailableOf::MAX_CONTENT,
-                ),
-            );
-            assert_eq!(
-                soft.final_inline_fragments()
-                    .iter()
-                    .map(|entry| (entry.node(), entry.fragment().line_index()))
-                    .collect::<Vec<_>>(),
-                vec![(1, 0), (2, 1)]
-            );
-
-            let shared_bidi = fri06_c02_text_nodes_batch(
-                vec![
-                    (
-                        1,
-                        vec![fri06_c02_segment_with_level(
-                            3,
-                            10.0,
-                            1,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )],
-                    ),
-                    (
-                        2,
-                        vec![fri06_c02_segment_with_level(
-                            4,
-                            10.0,
-                            1,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::mandatory(),
-                        )],
-                    ),
-                ],
-                root,
-                Size::new(
-                    AvailableOf::definite(S::from_f64(40.0)),
-                    AvailableOf::MAX_CONTENT,
-                ),
-            );
-            assert_eq!(
-                shared_bidi
-                    .final_inline_fragments()
-                    .iter()
-                    .map(|entry| (
-                        entry.node(),
-                        entry.fragment().line_index(),
-                        entry.fragment().visual_index()
-                    ))
-                    .collect::<Vec<_>>(),
-                vec![(1, 0, 1), (2, 0, 0)]
-            );
-
-            let mandatory = fri06_c02_text_nodes_batch(
-                vec![
-                    (
-                        1,
-                        vec![fri06_c02_segment(
-                            5,
-                            9.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::mandatory(),
-                        )],
-                    ),
-                    (
-                        2,
-                        vec![fri06_c02_segment(
-                            6,
-                            11.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )],
-                    ),
-                ],
-                NodeInputOf {
-                    display: Display::Block,
-                    ..NodeInputOf::default()
-                },
-                Size::new(
-                    AvailableOf::definite(S::from_f64(40.0)),
-                    AvailableOf::MAX_CONTENT,
-                ),
-            );
-            assert_eq!(
-                mandatory
-                    .final_inline_fragments()
-                    .iter()
-                    .map(|entry| (entry.node(), entry.fragment().line_index()))
-                    .collect::<Vec<_>>(),
-                vec![(1, 0), (2, 1)]
-            );
-
-            let intrinsic_nodes = || {
-                vec![
-                    (
-                        1,
-                        vec![
-                            fri06_c02_segment(
-                                7,
-                                12.0,
-                                InlineWhitespaceEdge::Preserve,
-                                InlineBreakOpportunityOf::prohibited(),
-                            ),
-                            fri06_c02_segment(
-                                8,
-                                8.0,
-                                InlineWhitespaceEdge::Preserve,
-                                InlineBreakOpportunityOf::try_allowed_with_replacement(
-                                    S::from_f64(4.0),
-                                )
-                                .unwrap(),
-                            ),
-                        ],
-                    ),
-                    (
-                        2,
-                        vec![
-                            fri06_c02_segment(
-                                9,
-                                30.0,
-                                InlineWhitespaceEdge::DiscardAtBoth,
-                                InlineBreakOpportunityOf::allowed(),
-                            ),
-                            fri06_c02_segment(
-                                10,
-                                7.0,
-                                InlineWhitespaceEdge::Preserve,
-                                InlineBreakOpportunityOf::mandatory(),
-                            ),
-                        ],
-                    ),
-                    (
-                        3,
-                        vec![fri06_c02_segment(
-                            11,
-                            15.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )],
-                    ),
-                ]
-            };
-            let intrinsic_root = NodeInputOf {
-                display: Display::Block,
-                ..NodeInputOf::default()
-            };
-            let min = fri06_c02_text_nodes_batch(
-                intrinsic_nodes(),
-                intrinsic_root.clone(),
-                Size::new(AvailableOf::MIN_CONTENT, AvailableOf::MAX_CONTENT),
-            );
-            let max = fri06_c02_text_nodes_batch(
-                intrinsic_nodes(),
-                intrinsic_root,
-                Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
-            );
-            assert_eq!(fri06_c02_final_node(&min, 0).size.width, S::from_f64(24.0));
-            assert_eq!(fri06_c02_final_node(&max, 0).size.width, S::from_f64(57.0));
+        let root = NodeInputOf {
+            display: Display::Block,
+            ..NodeInputOf::default()
         };
+        let soft = fri06_c02_text_nodes_batch(
+            vec![
+                (
+                    1,
+                    vec![fri06_c02_segment_with_level(
+                        1,
+                        15.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::allowed(),
+                    )],
+                ),
+                (
+                    2,
+                    vec![fri06_c02_segment_with_level(
+                        2,
+                        15.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )],
+                ),
+            ],
+            root.clone(),
+            Size::new(
+                AvailableOf::definite(S::from_f64(20.0)),
+                AvailableOf::MAX_CONTENT,
+            ),
+        );
+        assert_eq!(
+            soft.final_inline_fragments()
+                .iter()
+                .map(|entry| (entry.node(), entry.fragment().line_index()))
+                .collect::<Vec<_>>(),
+            vec![(1, 0), (2, 1)]
+        );
+
+        let shared_bidi = fri06_c02_text_nodes_batch(
+            vec![
+                (
+                    1,
+                    vec![fri06_c02_segment_with_level(
+                        3,
+                        10.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )],
+                ),
+                (
+                    2,
+                    vec![fri06_c02_segment_with_level(
+                        4,
+                        10.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::mandatory(),
+                    )],
+                ),
+            ],
+            root,
+            Size::new(
+                AvailableOf::definite(S::from_f64(40.0)),
+                AvailableOf::MAX_CONTENT,
+            ),
+        );
+        assert_eq!(
+            shared_bidi
+                .final_inline_fragments()
+                .iter()
+                .map(|entry| (
+                    entry.node(),
+                    entry.fragment().line_index(),
+                    entry.fragment().visual_index()
+                ))
+                .collect::<Vec<_>>(),
+            vec![(1, 0, 1), (2, 0, 0)]
+        );
+
+        let mandatory = fri06_c02_text_nodes_batch(
+            vec![
+                (
+                    1,
+                    vec![fri06_c02_segment(
+                        5,
+                        9.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::mandatory(),
+                    )],
+                ),
+                (
+                    2,
+                    vec![fri06_c02_segment(
+                        6,
+                        11.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )],
+                ),
+            ],
+            NodeInputOf {
+                display: Display::Block,
+                ..NodeInputOf::default()
+            },
+            Size::new(
+                AvailableOf::definite(S::from_f64(40.0)),
+                AvailableOf::MAX_CONTENT,
+            ),
+        );
+        assert_eq!(
+            mandatory
+                .final_inline_fragments()
+                .iter()
+                .map(|entry| (entry.node(), entry.fragment().line_index()))
+                .collect::<Vec<_>>(),
+            vec![(1, 0), (2, 1)]
+        );
+
+        let intrinsic_nodes = || {
+            vec![
+                (
+                    1,
+                    vec![
+                        fri06_c02_segment(
+                            7,
+                            12.0,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::prohibited(),
+                        ),
+                        fri06_c02_segment(
+                            8,
+                            8.0,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::try_allowed_with_replacement(S::from_f64(
+                                4.0,
+                            ))
+                            .unwrap(),
+                        ),
+                    ],
+                ),
+                (
+                    2,
+                    vec![
+                        fri06_c02_segment(
+                            9,
+                            30.0,
+                            InlineWhitespaceEdge::DiscardAtBoth,
+                            InlineBreakOpportunityOf::allowed(),
+                        ),
+                        fri06_c02_segment(
+                            10,
+                            7.0,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::mandatory(),
+                        ),
+                    ],
+                ),
+                (
+                    3,
+                    vec![fri06_c02_segment(
+                        11,
+                        15.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )],
+                ),
+            ]
+        };
+        let intrinsic_root = NodeInputOf {
+            display: Display::Block,
+            ..NodeInputOf::default()
+        };
+        let min = fri06_c02_text_nodes_batch(
+            intrinsic_nodes(),
+            intrinsic_root.clone(),
+            Size::new(AvailableOf::MIN_CONTENT, AvailableOf::MAX_CONTENT),
+        );
+        let max = fri06_c02_text_nodes_batch(
+            intrinsic_nodes(),
+            intrinsic_root,
+            Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+        );
+        assert_eq!(fri06_c02_final_node(&min, 0).size.width, S::from_f64(24.0));
+        assert_eq!(fri06_c02_final_node(&max, 0).size.width, S::from_f64(57.0));
     }
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 #[test]
 fn fri06_c02_block_text_containing_baselines_align_flex_items_both_scalars() {
@@ -7672,16 +7306,6 @@ fn fri06_c05_provider_atomicity_layout_and_preparation_failures_publish_nothing_
 #[test]
 fn fri06_c03_lifecycle_mixed_cold_warm_rounding_dirty_replacement_scroll_and_failure_are_atomic_both_scalars()
  {
-    (Fri06C03LifecycleMixedColdWarmRoundingDirtyReplacementScrollAndFailureAreAtomicBothScalarsPhaseL7393::RUN)()
-}
-
-type Fri06C03LifecycleMixedColdWarmRoundingDirtyReplacementScrollAndFailureAreAtomicBothScalarsPhaseL7393Run =
-    fn();
-
-struct Fri06C03LifecycleMixedColdWarmRoundingDirtyReplacementScrollAndFailureAreAtomicBothScalarsPhaseL7393;
-
-impl Fri06C03LifecycleMixedColdWarmRoundingDirtyReplacementScrollAndFailureAreAtomicBothScalarsPhaseL7393 {
-    const RUN: Fri06C03LifecycleMixedColdWarmRoundingDirtyReplacementScrollAndFailureAreAtomicBothScalarsPhaseL7393Run = || {
     fn fragment_identity<S: LayoutScalar>(
         entries: &[InlineFragmentOutputEntryOf<u32, S>],
     ) -> Vec<Fri06C03FragmentIdentity<S>> {
@@ -7701,15 +7325,6 @@ impl Fri06C03LifecycleMixedColdWarmRoundingDirtyReplacementScrollAndFailureAreAt
     }
 
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL7693::<S>::RUN)()
-}
-
-type AssertLanePhaseL7693Run = fn();
-
-struct AssertLanePhaseL7693<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL7693<S> {
-    const RUN: AssertLanePhaseL7693Run = || {
         let request = fri06_c02_stateful_request::<S>();
         let mut tree = Fri06C02StatefulTextTree::new_mixed();
         let cold = compute_layout(&tree, 0, request).expect("cold mixed layout succeeds");
@@ -7845,12 +7460,10 @@ impl<S: LayoutScalar> AssertLanePhaseL7693<S> {
         );
         assert_eq!(tree.retained, retained_before_rejection);
         assert_eq!(tree.retained.dirty, [2]);
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
 }
 
 #[test]
@@ -7875,9 +7488,7 @@ fn fri06_c03_lifecycle_unified_mixed_publication_contributes_each_geometry_once(
         .split_once("for source in &report.fragments {")
         .expect("unified text-fragment projection remains present")
         .1
-        .split_once(
-            "for (child, source_index, fragments, union_min, union_max) in published_text {",
-        )
+        .split_once("\n    if set_layout {\n        for (child, source_index, fragments")
         .expect("text-fragment contribution stays before text-node publication")
         .0;
     assert_eq!(
@@ -7899,7 +7510,7 @@ fn fri06_c03_lifecycle_unified_mixed_publication_contributes_each_geometry_once(
         )
         .expect("unified text-node publication remains present")
         .1
-        .split_once("let atomic_sources =")
+        .split_once("\n    let atomic_sources =")
         .expect("text-node publication stays before atomic projection")
         .0;
     assert_eq!(text_publication.matches("tree.set_unrounded(").count(), 1);
@@ -7914,7 +7525,7 @@ fn fri06_c03_lifecycle_unified_mixed_publication_contributes_each_geometry_once(
         .split_once("for (child, source_index, child_style, output) in atomic_children {")
         .expect("unified atomic projection remains present")
         .1
-        .split_once("let control_sources =")
+        .split_once("\n    let control_sources =")
         .expect("atomic projection stays before control publication")
         .0;
     assert_eq!(
@@ -7929,7 +7540,7 @@ fn fri06_c03_lifecycle_unified_mixed_publication_contributes_each_geometry_once(
         .split_once("for (child, source_index) in control_children {")
         .expect("unified zero-geometry control publication remains present")
         .1
-        .split_once("let projected_baseline =")
+        .split_once("\n    let projected_baseline =")
         .expect("control publication stays before baseline projection")
         .0;
     assert_eq!(
@@ -8387,21 +7998,7 @@ impl<S: LayoutScalar> LayoutTree for PublicFlowTree<S> {
 
 #[test]
 fn flex_item_root_uses_explicit_parent_axes_for_percentage_and_cache_in_both_scalar_lanes() {
-    (FLEX_ITEM_ROOT_USES_EXPLICIT_PARENT_AXES_FOR_PERCENTAGE_AND_CACHE_IN_BOTH_SCALAR_LANES_PHASE)(
-    );
-}
-
-const FLEX_ITEM_ROOT_USES_EXPLICIT_PARENT_AXES_FOR_PERCENTAGE_AND_CACHE_IN_BOTH_SCALAR_LANES_PHASE: fn() = || {
     fn assert_lane<S: LayoutScalar>() {
-    (AssertLanePhaseL8092::<S>::RUN)()
-}
-
-type AssertLanePhaseL8092Run = fn();
-
-struct AssertLanePhaseL8092<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLanePhaseL8092<S> {
-    const RUN: AssertLanePhaseL8092Run = || {
         let parent_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
         let item_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
         let viewport = Size::new(
@@ -8559,12 +8156,11 @@ impl<S: LayoutScalar> AssertLanePhaseL8092<S> {
             viewport_input.containing_layout_context(),
             ContainingLayoutContext::new(item_axes, ParentFormattingContext::NoParent)
         );
-    };
-}
+    }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-};
+}
 
 struct FlowRootLeafTree<S: LayoutScalar> {
     style: NodeInputOf<S>,
@@ -9192,152 +8788,135 @@ fn logical_flex_placement_maps_auto_margins_and_relative_trailing_inset_for_f64(
 }
 
 fn assert_logical_flex_boundaries_positioned_insets_keep_normal_flow_precedence<S: LayoutScalar>() {
-    (AssertLogicalFlexBoundariesPositionedInsetsKeepNormalFlowPrecedencePhaseL8881::<S>::RUN)()
-}
+    let scalar = scalar::<S>;
+    struct Case {
+        name: &'static str,
+        writing_mode: WritingMode,
+        direction: Direction,
+        flex_direction: FlexDirection,
+        flex_wrap: FlexWrap,
+        relative_location: Point<f64>,
+        absolute_location: Point<f64>,
+    }
 
-type AssertLogicalFlexBoundariesPositionedInsetsKeepNormalFlowPrecedencePhaseL8881Run = fn();
+    for case in [
+        Case {
+            name: "horizontal LTR row reverse",
+            writing_mode: WritingMode::HorizontalTb,
+            direction: Direction::Ltr,
+            flex_direction: FlexDirection::RowReverse,
+            flex_wrap: FlexWrap::NoWrap,
+            relative_location: Point::new(100.0, 20.0),
+            absolute_location: Point::new(10.0, 20.0),
+        },
+        Case {
+            name: "horizontal LTR row wrap reverse",
+            writing_mode: WritingMode::HorizontalTb,
+            direction: Direction::Ltr,
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::WrapReverse,
+            relative_location: Point::new(10.0, 110.0),
+            absolute_location: Point::new(10.0, 20.0),
+        },
+        Case {
+            name: "vertical RL RTL row reverse",
+            writing_mode: WritingMode::VerticalRl,
+            direction: Direction::Rtl,
+            flex_direction: FlexDirection::RowReverse,
+            flex_wrap: FlexWrap::NoWrap,
+            relative_location: Point::new(60.0, -40.0),
+            absolute_location: Point::new(60.0, 50.0),
+        },
+        Case {
+            name: "sideways LR RTL row wrap reverse",
+            writing_mode: WritingMode::SidewaysLr,
+            direction: Direction::Rtl,
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::WrapReverse,
+            relative_location: Point::new(100.0, 20.0),
+            absolute_location: Point::new(10.0, 20.0),
+        },
+        Case {
+            name: "horizontal RTL column reverse",
+            writing_mode: WritingMode::HorizontalTb,
+            direction: Direction::Rtl,
+            flex_direction: FlexDirection::ColumnReverse,
+            flex_wrap: FlexWrap::NoWrap,
+            relative_location: Point::new(60.0, 110.0),
+            absolute_location: Point::new(60.0, 20.0),
+        },
+    ] {
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1, 2])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
+                    writing_mode: case.writing_mode,
+                    direction: case.direction,
+                    flex_direction: case.flex_direction,
+                    flex_wrap: case.flex_wrap,
+                    align_content: Some(AlignContent::FlexStart),
+                    align_items: Some(AlignItems::FlexStart),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    position: Position::Relative,
+                    inset: Edges {
+                        top: LengthAutoOf::px(scalar(20.0)),
+                        right: LengthAutoOf::px(scalar(30.0)),
+                        bottom: LengthAutoOf::px(scalar(40.0)),
+                        left: LengthAutoOf::px(scalar(10.0)),
+                    },
+                    ..logical_flex_leaf(10.0, 10.0)
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    inset: Edges {
+                        top: LengthAutoOf::px(scalar(20.0)),
+                        right: LengthAutoOf::px(scalar(30.0)),
+                        bottom: LengthAutoOf::px(scalar(40.0)),
+                        left: LengthAutoOf::px(scalar(10.0)),
+                    },
+                    ..logical_flex_leaf(10.0, 10.0)
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("positioned inset precedence layout succeeds");
 
-struct AssertLogicalFlexBoundariesPositionedInsetsKeepNormalFlowPrecedencePhaseL8881<
-    S: LayoutScalar,
->(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar>
-    AssertLogicalFlexBoundariesPositionedInsetsKeepNormalFlowPrecedencePhaseL8881<S>
-{
-    const RUN: AssertLogicalFlexBoundariesPositionedInsetsKeepNormalFlowPrecedencePhaseL8881Run =
-        || {
-            let scalar = scalar::<S>;
-            struct Case {
-                name: &'static str,
-                writing_mode: WritingMode,
-                direction: Direction,
-                flex_direction: FlexDirection,
-                flex_wrap: FlexWrap,
-                relative_location: Point<f64>,
-                absolute_location: Point<f64>,
-            }
-
-            for case in [
-                Case {
-                    name: "horizontal LTR row reverse",
-                    writing_mode: WritingMode::HorizontalTb,
-                    direction: Direction::Ltr,
-                    flex_direction: FlexDirection::RowReverse,
-                    flex_wrap: FlexWrap::NoWrap,
-                    relative_location: Point::new(100.0, 20.0),
-                    absolute_location: Point::new(10.0, 20.0),
-                },
-                Case {
-                    name: "horizontal LTR row wrap reverse",
-                    writing_mode: WritingMode::HorizontalTb,
-                    direction: Direction::Ltr,
-                    flex_direction: FlexDirection::Row,
-                    flex_wrap: FlexWrap::WrapReverse,
-                    relative_location: Point::new(10.0, 110.0),
-                    absolute_location: Point::new(10.0, 20.0),
-                },
-                Case {
-                    name: "vertical RL RTL row reverse",
-                    writing_mode: WritingMode::VerticalRl,
-                    direction: Direction::Rtl,
-                    flex_direction: FlexDirection::RowReverse,
-                    flex_wrap: FlexWrap::NoWrap,
-                    relative_location: Point::new(60.0, -40.0),
-                    absolute_location: Point::new(60.0, 50.0),
-                },
-                Case {
-                    name: "sideways LR RTL row wrap reverse",
-                    writing_mode: WritingMode::SidewaysLr,
-                    direction: Direction::Rtl,
-                    flex_direction: FlexDirection::Row,
-                    flex_wrap: FlexWrap::WrapReverse,
-                    relative_location: Point::new(100.0, 20.0),
-                    absolute_location: Point::new(10.0, 20.0),
-                },
-                Case {
-                    name: "horizontal RTL column reverse",
-                    writing_mode: WritingMode::HorizontalTb,
-                    direction: Direction::Rtl,
-                    flex_direction: FlexDirection::ColumnReverse,
-                    flex_wrap: FlexWrap::NoWrap,
-                    relative_location: Point::new(60.0, 110.0),
-                    absolute_location: Point::new(60.0, 20.0),
-                },
-            ] {
-                let tree = PublicFlowTree::default()
-                    .with_children(0, [1, 2])
-                    .with_children(1, [])
-                    .with_children(2, [])
-                    .with_style(
-                        0,
-                        NodeInputOf {
-                            display: Display::Flex,
-                            size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
-                            writing_mode: case.writing_mode,
-                            direction: case.direction,
-                            flex_direction: case.flex_direction,
-                            flex_wrap: case.flex_wrap,
-                            align_content: Some(AlignContent::FlexStart),
-                            align_items: Some(AlignItems::FlexStart),
-                            ..NodeInputOf::default()
-                        },
-                    )
-                    .with_style(
-                        1,
-                        NodeInputOf {
-                            position: Position::Relative,
-                            inset: Edges {
-                                top: LengthAutoOf::px(scalar(20.0)),
-                                right: LengthAutoOf::px(scalar(30.0)),
-                                bottom: LengthAutoOf::px(scalar(40.0)),
-                                left: LengthAutoOf::px(scalar(10.0)),
-                            },
-                            ..logical_flex_leaf(10.0, 10.0)
-                        },
-                    )
-                    .with_style(
-                        2,
-                        NodeInputOf {
-                            position: Position::Absolute,
-                            inset: Edges {
-                                top: LengthAutoOf::px(scalar(20.0)),
-                                right: LengthAutoOf::px(scalar(30.0)),
-                                bottom: LengthAutoOf::px(scalar(40.0)),
-                                left: LengthAutoOf::px(scalar(10.0)),
-                            },
-                            ..logical_flex_leaf(10.0, 10.0)
-                        },
-                    );
-                let batch = compute_layout(
-                    &tree,
-                    0,
-                    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(
-                        100.0,
-                    ))))
-                    .expect("valid viewport request"),
-                )
-                .expect("positioned inset precedence layout succeeds");
-
-                assert_eq!(
-                    public_flow_output(batch.final_entries(), 1).location,
-                    Point::new(
-                        scalar(case.relative_location.x),
-                        scalar(case.relative_location.y),
-                    ),
-                    "{} relative positioning keeps normal-flow authored-edge precedence",
-                    case.name
-                );
-                assert_eq!(
-                    public_flow_output(batch.final_entries(), 2).location,
-                    Point::new(
-                        scalar(case.absolute_location.x),
-                        scalar(case.absolute_location.y),
-                    ),
-                    "{} absolute positioning keeps normal-flow authored-edge precedence",
-                    case.name
-                );
-            }
-        };
+        assert_eq!(
+            public_flow_output(batch.final_entries(), 1).location,
+            Point::new(
+                scalar(case.relative_location.x),
+                scalar(case.relative_location.y),
+            ),
+            "{} relative positioning keeps normal-flow authored-edge precedence",
+            case.name
+        );
+        assert_eq!(
+            public_flow_output(batch.final_entries(), 2).location,
+            Point::new(
+                scalar(case.absolute_location.x),
+                scalar(case.absolute_location.y),
+            ),
+            "{} absolute positioning keeps normal-flow authored-edge precedence",
+            case.name
+        );
+    }
 }
 
 #[test]
@@ -9406,161 +8985,148 @@ fn logical_flex_boundaries_keep_visible_content_scroll_and_rounding_physical_for
 }
 
 fn assert_logical_flex_boundaries_absolute_static_alignment_and_all_flows<S: LayoutScalar>() {
-    (AssertLogicalFlexBoundariesAbsoluteStaticAlignmentAndAllFlowsPhaseL9078::<S>::RUN)()
-}
-
-type AssertLogicalFlexBoundariesAbsoluteStaticAlignmentAndAllFlowsPhaseL9078Run = fn();
-
-struct AssertLogicalFlexBoundariesAbsoluteStaticAlignmentAndAllFlowsPhaseL9078<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertLogicalFlexBoundariesAbsoluteStaticAlignmentAndAllFlowsPhaseL9078<S> {
-    const RUN: AssertLogicalFlexBoundariesAbsoluteStaticAlignmentAndAllFlowsPhaseL9078Run = || {
-        let scalar = scalar::<S>;
-        let absolute = PublicFlowTree::default()
-            .with_children(0, [1])
-            .with_children(1, [])
-            .with_style(
-                0,
-                NodeInputOf {
-                    display: Display::Flex,
-                    writing_mode: WritingMode::VerticalLr,
-                    size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
-                    flex_direction: FlexDirection::Row,
-                    ..NodeInputOf::default()
-                },
-            )
-            .with_style(
-                1,
-                NodeInputOf {
-                    position: Position::Absolute,
-                    align_self: Some(AlignItems::FlexEnd),
-                    ..logical_flex_leaf(10.0, 20.0)
-                },
-            );
-        let batch = compute_layout(
-            &absolute,
+    let scalar = scalar::<S>;
+    let absolute = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
             0,
-            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
-                .expect("valid viewport request"),
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
         )
-        .expect("logical absolute static alignment succeeds");
-        assert_eq!(
-            public_flow_output(batch.final_entries(), 1).location,
-            Point::new(scalar(90.0), scalar(0.0))
+        .with_style(
+            1,
+            NodeInputOf {
+                position: Position::Absolute,
+                align_self: Some(AlignItems::FlexEnd),
+                ..logical_flex_leaf(10.0, 20.0)
+            },
         );
+    let batch = compute_layout(
+        &absolute,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("logical absolute static alignment succeeds");
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 1).location,
+        Point::new(scalar(90.0), scalar(0.0))
+    );
 
-        for writing_mode in [
-            WritingMode::HorizontalTb,
-            WritingMode::VerticalRl,
-            WritingMode::VerticalLr,
-            WritingMode::SidewaysRl,
-            WritingMode::SidewaysLr,
-        ] {
-            for direction in [Direction::Ltr, Direction::Rtl] {
-                for flex_direction in [
-                    FlexDirection::Row,
-                    FlexDirection::RowReverse,
-                    FlexDirection::Column,
-                    FlexDirection::ColumnReverse,
-                ] {
-                    let parallel_flow = LogicalFlexChildFlow {
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            for flex_direction in [
+                FlexDirection::Row,
+                FlexDirection::RowReverse,
+                FlexDirection::Column,
+                FlexDirection::ColumnReverse,
+            ] {
+                let parallel_flow = LogicalFlexChildFlow {
+                    writing_mode,
+                    direction,
+                };
+                let opposing_flow = logical_flex_opposing_flow(parallel_flow);
+                let orthogonal_flow = logical_flex_orthogonal_flow(parallel_flow);
+                let tree = PublicFlowTree::default()
+                    .with_children(0, [1, 2, 3])
+                    .with_children(1, [4])
+                    .with_children(2, [5])
+                    .with_children(3, [6])
+                    .with_children(4, [])
+                    .with_children(5, [])
+                    .with_children(6, [])
+                    .with_style(
+                        0,
+                        NodeInputOf {
+                            display: Display::Flex,
+                            writing_mode,
+                            direction,
+                            size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
+                            flex_direction,
+                            justify_content: Some(AlignContent::FlexStart),
+                            align_items: Some(AlignItems::Start),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .with_style(
+                        1,
+                        NodeInputOf {
+                            writing_mode: parallel_flow.writing_mode,
+                            direction: parallel_flow.direction,
+                            ..logical_flex_leaf(10.0, 10.0)
+                        },
+                    )
+                    .with_style(
+                        2,
+                        NodeInputOf {
+                            writing_mode: opposing_flow.writing_mode,
+                            direction: opposing_flow.direction,
+                            ..logical_flex_leaf(20.0, 20.0)
+                        },
+                    )
+                    .with_style(
+                        3,
+                        NodeInputOf {
+                            writing_mode: orthogonal_flow.writing_mode,
+                            direction: orthogonal_flow.direction,
+                            ..logical_flex_leaf(30.0, 30.0)
+                        },
+                    )
+                    .with_style(4, logical_flex_leaf(4.0, 5.0))
+                    .with_style(5, logical_flex_leaf(6.0, 7.0))
+                    .with_style(6, logical_flex_leaf(8.0, 9.0));
+                let batch = compute_layout(
+                    &tree,
+                    0,
+                    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(
+                        100.0,
+                    ))))
+                    .expect("valid viewport request"),
+                )
+                .expect("all logical flex directions complete without fallback");
+                assert_eq!(batch.final_entries().len(), 7);
+                for (node, (x, y)) in [1_u32, 2, 3]
+                    .into_iter()
+                    .zip(logical_flex_all_flow_expected(
                         writing_mode,
                         direction,
-                    };
-                    let opposing_flow = logical_flex_opposing_flow(parallel_flow);
-                    let orthogonal_flow = logical_flex_orthogonal_flow(parallel_flow);
-                    let tree = PublicFlowTree::default()
-                        .with_children(0, [1, 2, 3])
-                        .with_children(1, [4])
-                        .with_children(2, [5])
-                        .with_children(3, [6])
-                        .with_children(4, [])
-                        .with_children(5, [])
-                        .with_children(6, [])
-                        .with_style(
-                            0,
-                            NodeInputOf {
-                                display: Display::Flex,
-                                writing_mode,
-                                direction,
-                                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
-                                flex_direction,
-                                justify_content: Some(AlignContent::FlexStart),
-                                align_items: Some(AlignItems::Start),
-                                ..NodeInputOf::default()
-                            },
-                        )
-                        .with_style(
-                            1,
-                            NodeInputOf {
-                                writing_mode: parallel_flow.writing_mode,
-                                direction: parallel_flow.direction,
-                                ..logical_flex_leaf(10.0, 10.0)
-                            },
-                        )
-                        .with_style(
-                            2,
-                            NodeInputOf {
-                                writing_mode: opposing_flow.writing_mode,
-                                direction: opposing_flow.direction,
-                                ..logical_flex_leaf(20.0, 20.0)
-                            },
-                        )
-                        .with_style(
-                            3,
-                            NodeInputOf {
-                                writing_mode: orthogonal_flow.writing_mode,
-                                direction: orthogonal_flow.direction,
-                                ..logical_flex_leaf(30.0, 30.0)
-                            },
-                        )
-                        .with_style(4, logical_flex_leaf(4.0, 5.0))
-                        .with_style(5, logical_flex_leaf(6.0, 7.0))
-                        .with_style(6, logical_flex_leaf(8.0, 9.0));
-                    let batch = compute_layout(
-                        &tree,
-                        0,
-                        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(
-                            100.0,
-                        ))))
-                        .expect("valid viewport request"),
-                    )
-                    .expect("all logical flex directions complete without fallback");
-                    assert_eq!(batch.final_entries().len(), 7);
-                    for (node, (x, y)) in
-                        [1_u32, 2, 3]
-                            .into_iter()
-                            .zip(logical_flex_all_flow_expected(
-                                writing_mode,
-                                direction,
-                                flex_direction,
-                            ))
-                    {
-                        assert_eq!(
-                            public_flow_output(batch.final_entries(), node).location,
-                            Point::new(scalar(x), scalar(y)),
-                            "{writing_mode:?} {direction:?} {flex_direction:?} must project child {node} through its physical axis and progression"
-                        );
-                    }
-                    for (node, child_flow) in [
-                        (4_u32, parallel_flow),
-                        (5, opposing_flow),
-                        (6, orthogonal_flow),
-                    ] {
-                        let (descendant_x, descendant_y) =
-                            logical_flex_descendant_expected(node, child_flow);
-                        assert_eq!(
-                            public_flow_output(batch.final_entries(), node).location,
-                            Point::new(scalar(descendant_x), scalar(descendant_y)),
-                            "{writing_mode:?} {direction:?} {flex_direction:?} must retain {child_flow:?} for descendant {node}"
-                        );
-                    }
+                        flex_direction,
+                    ))
+                {
+                    assert_eq!(
+                        public_flow_output(batch.final_entries(), node).location,
+                        Point::new(scalar(x), scalar(y)),
+                        "{writing_mode:?} {direction:?} {flex_direction:?} must project child {node} through its physical axis and progression"
+                    );
+                }
+                for (node, child_flow) in [
+                    (4_u32, parallel_flow),
+                    (5, opposing_flow),
+                    (6, orthogonal_flow),
+                ] {
+                    let (descendant_x, descendant_y) =
+                        logical_flex_descendant_expected(node, child_flow);
+                    assert_eq!(
+                        public_flow_output(batch.final_entries(), node).location,
+                        Point::new(scalar(descendant_x), scalar(descendant_y)),
+                        "{writing_mode:?} {direction:?} {flex_direction:?} must retain {child_flow:?} for descendant {node}"
+                    );
                 }
             }
         }
-    };
+    }
 }
 
 fn logical_flex_descendant_expected(node: u32, child_flow: LogicalFlexChildFlow) -> (f64, f64) {
@@ -10154,181 +9720,162 @@ fn nearest_css_pixel<S: LayoutScalar>(value: S) -> S {
 }
 
 fn assert_logical_ordinary_grid_absolute_static<S: LayoutScalar>() {
-    (AssertLogicalOrdinaryGridAbsoluteStaticPhaseL9813::<S>::RUN)()
-}
+    let scalar = scalar::<S>;
+    let logical_container_size = crate::geometry::LogicalSizeOf::new(scalar(70.5), scalar(110.25));
+    let logical_child_size = crate::geometry::LogicalSizeOf::new(scalar(11.25), scalar(13.5));
+    let explicit_margin =
+        crate::geometry::LogicalEdgesOf::new(scalar(1.25), scalar(2.5), scalar(3.75), scalar(4.25));
 
-type AssertLogicalOrdinaryGridAbsoluteStaticPhaseL9813Run = fn();
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let physical_container_size = flow_axes.physical_size(logical_container_size);
+        let physical_child_size = flow_axes.physical_size(logical_child_size);
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1, 2, 3, 4])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_children(3, [])
+            .with_children(4, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode,
+                    direction,
+                    size: physical_container_size.map(PreferredSizeOf::px),
+                    grid_template_columns: vec![
+                        TrackComponentOf::px(scalar(30.25)),
+                        TrackComponentOf::px(scalar(40.25)),
+                    ],
+                    grid_template_rows: vec![
+                        TrackComponentOf::px(scalar(50.25)),
+                        TrackComponentOf::px(scalar(60.0)),
+                    ],
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(PreferredSizeOf::px),
+                    position: Position::Absolute,
+                    grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                    grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                    margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
+                    inset: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+                        LengthAutoOf::px(scalar(2.25)),
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::px(scalar(3.5)),
+                    )),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(PreferredSizeOf::px),
+                    position: Position::Absolute,
+                    grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                    grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                    margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
+                    justify_self: Some(AlignItems::End),
+                    align_self: Some(AlignItems::Center),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                3,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(PreferredSizeOf::px),
+                    position: Position::Absolute,
+                    grid_row: GridPlacement::try_line(2).expect("valid grid row"),
+                    margin: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                    )),
+                    justify_self: Some(AlignItems::End),
+                    align_self: Some(AlignItems::End),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                4,
+                NodeInputOf {
+                    display: Display::None,
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("logical ordinary-grid absolute layout succeeds");
 
-struct AssertLogicalOrdinaryGridAbsoluteStaticPhaseL9813<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertLogicalOrdinaryGridAbsoluteStaticPhaseL9813<S> {
-    const RUN: AssertLogicalOrdinaryGridAbsoluteStaticPhaseL9813Run = || {
-        let scalar = scalar::<S>;
-        let logical_container_size =
-            crate::geometry::LogicalSizeOf::new(scalar(70.5), scalar(110.25));
-        let logical_child_size = crate::geometry::LogicalSizeOf::new(scalar(11.25), scalar(13.5));
-        let explicit_margin = crate::geometry::LogicalEdgesOf::new(
-            scalar(1.25),
-            scalar(2.5),
-            scalar(3.75),
-            scalar(4.25),
+        let explicit_inset_location = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(scalar(33.75), scalar(89.0)),
+            logical_child_size,
+            physical_container_size,
+        );
+        let aligned_inline = scalar(40.25) - logical_child_size.inline - explicit_margin.inline_end;
+        let aligned_block = (scalar(60.0) - logical_child_size.block + explicit_margin.block_start
+            - explicit_margin.block_end)
+            / scalar(2.0);
+        let aligned_location = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(
+                scalar(30.25) + aligned_inline,
+                scalar(50.25) + aligned_block,
+            ),
+            logical_child_size,
+            physical_container_size,
+        );
+        let static_location = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(
+                (logical_container_size.inline - logical_child_size.inline) / scalar(2.0),
+                scalar(50.25) + (scalar(60.0) - logical_child_size.block) / scalar(2.0),
+            ),
+            logical_child_size,
+            physical_container_size,
         );
 
-        for (writing_mode, direction) in root_writing_mode_directions() {
-            let flow_axes = FlowAxes::new(writing_mode, direction);
-            let physical_container_size = flow_axes.physical_size(logical_container_size);
-            let physical_child_size = flow_axes.physical_size(logical_child_size);
-            let tree = PublicFlowTree::default()
-                .with_children(0, [1, 2, 3, 4])
-                .with_children(1, [])
-                .with_children(2, [])
-                .with_children(3, [])
-                .with_children(4, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        writing_mode,
-                        direction,
-                        size: physical_container_size.map(PreferredSizeOf::px),
-                        grid_template_columns: vec![
-                            TrackComponentOf::px(scalar(30.25)),
-                            TrackComponentOf::px(scalar(40.25)),
-                        ],
-                        grid_template_rows: vec![
-                            TrackComponentOf::px(scalar(50.25)),
-                            TrackComponentOf::px(scalar(60.0)),
-                        ],
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    1,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: physical_child_size.map(PreferredSizeOf::px),
-                        position: Position::Absolute,
-                        grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
-                        grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
-                        margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
-                        inset: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
-                            LengthAutoOf::px(scalar(2.25)),
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::px(scalar(3.5)),
-                        )),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    2,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: physical_child_size.map(PreferredSizeOf::px),
-                        position: Position::Absolute,
-                        grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
-                        grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
-                        margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
-                        justify_self: Some(AlignItems::End),
-                        align_self: Some(AlignItems::Center),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    3,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: physical_child_size.map(PreferredSizeOf::px),
-                        position: Position::Absolute,
-                        grid_row: GridPlacement::try_line(2).expect("valid grid row"),
-                        margin: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::AUTO,
-                        )),
-                        justify_self: Some(AlignItems::End),
-                        align_self: Some(AlignItems::End),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    4,
-                    NodeInputOf {
-                        display: Display::None,
-                        ..NodeInputOf::default()
-                    },
-                );
-            let batch = compute_layout(
-                &tree,
-                0,
-                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
-                    .expect("valid viewport request"),
-            )
-            .expect("logical ordinary-grid absolute layout succeeds");
-
-            let explicit_inset_location = flow_axes.physical_point(
-                crate::geometry::LogicalPointOf::new(scalar(33.75), scalar(89.0)),
-                logical_child_size,
-                physical_container_size,
-            );
-            let aligned_inline =
-                scalar(40.25) - logical_child_size.inline - explicit_margin.inline_end;
-            let aligned_block = (scalar(60.0) - logical_child_size.block
-                + explicit_margin.block_start
-                - explicit_margin.block_end)
-                / scalar(2.0);
-            let aligned_location = flow_axes.physical_point(
-                crate::geometry::LogicalPointOf::new(
-                    scalar(30.25) + aligned_inline,
-                    scalar(50.25) + aligned_block,
-                ),
-                logical_child_size,
-                physical_container_size,
-            );
-            let static_location = flow_axes.physical_point(
-                crate::geometry::LogicalPointOf::new(
-                    (logical_container_size.inline - logical_child_size.inline) / scalar(2.0),
-                    scalar(50.25) + (scalar(60.0) - logical_child_size.block) / scalar(2.0),
-                ),
-                logical_child_size,
-                physical_container_size,
-            );
-
-            for (node, expected_location) in [
-                (1, explicit_inset_location),
-                (2, aligned_location),
-                (3, static_location),
-            ] {
-                let unrounded = public_flow_output(batch.unrounded_entries(), node);
-                let rounded = public_flow_output(batch.final_entries(), node);
-                assert_eq!(
-                    unrounded.location, expected_location,
-                    "{writing_mode:?} {direction:?} absolute child {node} must project its logical area once"
-                );
-                assert_eq!(unrounded.size, physical_child_size);
-                assert_eq!(
-                    rounded.location,
-                    Point::new(
-                        nearest_css_pixel(unrounded.location.x),
-                        nearest_css_pixel(unrounded.location.y),
-                    )
-                );
-            }
+        for (node, expected_location) in [
+            (1, explicit_inset_location),
+            (2, aligned_location),
+            (3, static_location),
+        ] {
+            let unrounded = public_flow_output(batch.unrounded_entries(), node);
+            let rounded = public_flow_output(batch.final_entries(), node);
             assert_eq!(
-                public_flow_output(batch.unrounded_entries(), 4),
-                NodeOutputOf::with_source_index(crate::SourceIndex::new(3))
+                unrounded.location, expected_location,
+                "{writing_mode:?} {direction:?} absolute child {node} must project its logical area once"
+            );
+            assert_eq!(unrounded.size, physical_child_size);
+            assert_eq!(
+                rounded.location,
+                Point::new(
+                    nearest_css_pixel(unrounded.location.x),
+                    nearest_css_pixel(unrounded.location.y),
+                )
             );
         }
-    };
+        assert_eq!(
+            public_flow_output(batch.unrounded_entries(), 4),
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(3))
+        );
+    }
 }
 
 #[test]
@@ -10369,152 +9916,135 @@ fn grid_lanes_nearest_css_pixel<S: LayoutScalar>(value: S) -> S {
 }
 
 fn assert_logical_grid_lanes_absolute_static<S: LayoutScalar>() {
-    (AssertLogicalGridLanesAbsoluteStaticPhaseL10009::<S>::RUN)()
-}
+    let scalar = scalar::<S>;
+    let logical_container_size = crate::geometry::LogicalSizeOf::new(scalar(76.0), scalar(118.0));
+    let logical_child_size = crate::geometry::LogicalSizeOf::new(scalar(11.25), scalar(13.5));
+    let explicit_margin =
+        crate::geometry::LogicalEdgesOf::new(scalar(1.25), scalar(2.5), scalar(3.75), scalar(4.25));
 
-type AssertLogicalGridLanesAbsoluteStaticPhaseL10009Run = fn();
-
-struct AssertLogicalGridLanesAbsoluteStaticPhaseL10009<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertLogicalGridLanesAbsoluteStaticPhaseL10009<S> {
-    const RUN: AssertLogicalGridLanesAbsoluteStaticPhaseL10009Run = || {
-        let scalar = scalar::<S>;
-        let logical_container_size =
-            crate::geometry::LogicalSizeOf::new(scalar(76.0), scalar(118.0));
-        let logical_child_size = crate::geometry::LogicalSizeOf::new(scalar(11.25), scalar(13.5));
-        let explicit_margin = crate::geometry::LogicalEdgesOf::new(
-            scalar(1.25),
-            scalar(2.5),
-            scalar(3.75),
-            scalar(4.25),
-        );
-
-        for (writing_mode, direction) in root_writing_mode_directions() {
-            let flow_axes = FlowAxes::new(writing_mode, direction);
-            let physical_container_size = flow_axes.physical_size(logical_container_size);
-            let physical_child_size = flow_axes.physical_size(logical_child_size);
-            let tree = PublicFlowTree::default()
-                .with_children(0, [1, 2, 3])
-                .with_children(1, [])
-                .with_children(2, [])
-                .with_children(3, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        display: Display::GridLanes,
-                        writing_mode,
-                        direction,
-                        size: physical_container_size.map(PreferredSizeOf::px),
-                        grid_template_columns: vec![
-                            TrackComponentOf::px(scalar(30.25)),
-                            TrackComponentOf::px(scalar(40.25)),
-                        ],
-                        grid_template_rows: vec![
-                            TrackComponentOf::px(scalar(50.25)),
-                            TrackComponentOf::px(scalar(60.0)),
-                        ],
-                        gap: flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
-                            LengthOf::px(scalar(5.5)),
-                            LengthOf::px(scalar(7.75)),
-                        )),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    1,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: physical_child_size.map(PreferredSizeOf::px),
-                        position: Position::Absolute,
-                        grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
-                        grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
-                        margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
-                        inset: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
-                            LengthAutoOf::px(scalar(2.25)),
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::px(scalar(3.5)),
-                        )),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    2,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: physical_child_size.map(PreferredSizeOf::px),
-                        position: Position::Absolute,
-                        grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
-                        grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
-                        margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
-                        justify_self: Some(AlignItems::End),
-                        align_self: Some(AlignItems::Center),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    3,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode,
-                        direction,
-                        size: physical_child_size.map(PreferredSizeOf::px),
-                        position: Position::Absolute,
-                        grid_row: GridPlacement::try_line(2).expect("valid grid row"),
-                        margin: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::AUTO,
-                            LengthAutoOf::AUTO,
-                        )),
-                        justify_self: Some(AlignItems::End),
-                        align_self: Some(AlignItems::End),
-                        ..NodeInputOf::default()
-                    },
-                );
-            let batch = compute_layout(
-                &tree,
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let physical_container_size = flow_axes.physical_size(logical_container_size);
+        let physical_child_size = flow_axes.physical_size(logical_child_size);
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1, 2, 3])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_children(3, [])
+            .with_style(
                 0,
-                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
-                    .expect("valid viewport request"),
+                NodeInputOf {
+                    display: Display::GridLanes,
+                    writing_mode,
+                    direction,
+                    size: physical_container_size.map(PreferredSizeOf::px),
+                    grid_template_columns: vec![
+                        TrackComponentOf::px(scalar(30.25)),
+                        TrackComponentOf::px(scalar(40.25)),
+                    ],
+                    grid_template_rows: vec![
+                        TrackComponentOf::px(scalar(50.25)),
+                        TrackComponentOf::px(scalar(60.0)),
+                    ],
+                    gap: flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+                        LengthOf::px(scalar(5.5)),
+                        LengthOf::px(scalar(7.75)),
+                    )),
+                    ..NodeInputOf::default()
+                },
             )
-            .expect("grid-lanes absolute layout succeeds");
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(PreferredSizeOf::px),
+                    position: Position::Absolute,
+                    grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                    grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                    margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
+                    inset: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+                        LengthAutoOf::px(scalar(2.25)),
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::px(scalar(3.5)),
+                    )),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(PreferredSizeOf::px),
+                    position: Position::Absolute,
+                    grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                    grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                    margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
+                    justify_self: Some(AlignItems::End),
+                    align_self: Some(AlignItems::Center),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                3,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(PreferredSizeOf::px),
+                    position: Position::Absolute,
+                    grid_row: GridPlacement::try_line(2).expect("valid grid row"),
+                    margin: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                    )),
+                    justify_self: Some(AlignItems::End),
+                    align_self: Some(AlignItems::End),
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("grid-lanes absolute layout succeeds");
 
-            for node in [1, 2, 3] {
-                let expected_location =
-                    grid_lanes_absolute_expected_location(writing_mode, direction, node);
-                let unrounded = public_flow_output(batch.unrounded_entries(), node);
-                let rounded = public_flow_output(batch.final_entries(), node);
-                assert_eq!(
-                    unrounded.location, expected_location,
-                    "{writing_mode:?} {direction:?} grid-lanes absolute child {node} must preserve its C07 projection"
-                );
-                assert_eq!(unrounded.size, physical_child_size);
-                assert_eq!(
-                    rounded.location,
-                    Point::new(
-                        grid_lanes_nearest_css_pixel(unrounded.location.x),
-                        grid_lanes_nearest_css_pixel(unrounded.location.y),
-                    )
-                );
-                assert_eq!(
-                    rounded.size,
-                    Size::new(
-                        grid_lanes_nearest_css_pixel(unrounded.location.x + unrounded.size.width)
-                            - rounded.location.x,
-                        grid_lanes_nearest_css_pixel(unrounded.location.y + unrounded.size.height)
-                            - rounded.location.y,
-                    )
-                );
-            }
+        for node in [1, 2, 3] {
+            let expected_location =
+                grid_lanes_absolute_expected_location(writing_mode, direction, node);
+            let unrounded = public_flow_output(batch.unrounded_entries(), node);
+            let rounded = public_flow_output(batch.final_entries(), node);
+            assert_eq!(
+                unrounded.location, expected_location,
+                "{writing_mode:?} {direction:?} grid-lanes absolute child {node} must preserve its C07 projection"
+            );
+            assert_eq!(unrounded.size, physical_child_size);
+            assert_eq!(
+                rounded.location,
+                Point::new(
+                    grid_lanes_nearest_css_pixel(unrounded.location.x),
+                    grid_lanes_nearest_css_pixel(unrounded.location.y),
+                )
+            );
+            assert_eq!(
+                rounded.size,
+                Size::new(
+                    grid_lanes_nearest_css_pixel(unrounded.location.x + unrounded.size.width)
+                        - rounded.location.x,
+                    grid_lanes_nearest_css_pixel(unrounded.location.y + unrounded.size.height)
+                        - rounded.location.y,
+                )
+            );
         }
-    };
+    }
 }
 
 #[test]
@@ -10614,296 +10144,261 @@ fn orthogonal_grid_lanes_selected_rows_use_column_lane_offsets() {
 }
 
 fn assert_logical_grid_lanes_axes<S: LayoutScalar>() {
-    (AssertLogicalGridLanesAxesPhaseL10237::<S>::RUN)()
-}
+    let scalar = scalar::<S>;
+    let logical_track_totals = crate::geometry::LogicalSizeOf::new(scalar(70.0), scalar(110.0));
+    let logical_gap = crate::geometry::LogicalSizeOf::new(scalar(7.0), scalar(11.0));
+    let logical_container_size = logical_track_totals + logical_gap;
+    let child_logical_sizes = [
+        crate::geometry::LogicalSizeOf::new(scalar(10.0), scalar(13.0)),
+        crate::geometry::LogicalSizeOf::new(scalar(12.0), scalar(17.0)),
+        crate::geometry::LogicalSizeOf::new(scalar(11.0), scalar(19.0)),
+    ];
+    let child_logical_margins = [
+        crate::geometry::LogicalEdgesOf::new(scalar(1.0), scalar(2.0), scalar(3.0), scalar(4.0)),
+        crate::geometry::LogicalEdgesOf::new(scalar(2.0), scalar(1.0), scalar(4.0), scalar(3.0)),
+        crate::geometry::LogicalEdgesOf::new(scalar(3.0), scalar(2.0), scalar(1.0), scalar(5.0)),
+    ];
 
-type AssertLogicalGridLanesAxesPhaseL10237Run = fn();
-
-struct AssertLogicalGridLanesAxesPhaseL10237<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLogicalGridLanesAxesPhaseL10237<S> {
-    const RUN: AssertLogicalGridLanesAxesPhaseL10237Run = || {
-        let scalar = scalar::<S>;
-        let logical_track_totals = crate::geometry::LogicalSizeOf::new(scalar(70.0), scalar(110.0));
-        let logical_gap = crate::geometry::LogicalSizeOf::new(scalar(7.0), scalar(11.0));
-        let logical_container_size = logical_track_totals + logical_gap;
-        let child_logical_sizes = [
-            crate::geometry::LogicalSizeOf::new(scalar(10.0), scalar(13.0)),
-            crate::geometry::LogicalSizeOf::new(scalar(12.0), scalar(17.0)),
-            crate::geometry::LogicalSizeOf::new(scalar(11.0), scalar(19.0)),
-        ];
-        let child_logical_margins = [
-            crate::geometry::LogicalEdgesOf::new(
-                scalar(1.0),
-                scalar(2.0),
-                scalar(3.0),
-                scalar(4.0),
-            ),
-            crate::geometry::LogicalEdgesOf::new(
-                scalar(2.0),
-                scalar(1.0),
-                scalar(4.0),
-                scalar(3.0),
-            ),
-            crate::geometry::LogicalEdgesOf::new(
-                scalar(3.0),
-                scalar(2.0),
-                scalar(1.0),
-                scalar(5.0),
-            ),
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let physical_container_size = flow_axes.physical_size(logical_container_size);
+        let parent_flow = LogicalFlexChildFlow {
+            writing_mode,
+            direction,
+        };
+        let child_flows = [
+            parent_flow,
+            logical_flex_opposing_flow(parent_flow),
+            logical_flex_orthogonal_flow(parent_flow),
         ];
 
-        for (writing_mode, direction) in root_writing_mode_directions() {
-            let flow_axes = FlowAxes::new(writing_mode, direction);
-            let physical_container_size = flow_axes.physical_size(logical_container_size);
-            let parent_flow = LogicalFlexChildFlow {
-                writing_mode,
-                direction,
+        for (grid_auto_flow, row_flow) in [(GridAutoFlow::Row, true), (GridAutoFlow::Column, false)]
+        {
+            let lane_axis = if row_flow {
+                LogicalAxis::Block
+            } else {
+                LogicalAxis::Inline
             };
-            let child_flows = [
-                parent_flow,
-                logical_flex_opposing_flow(parent_flow),
-                logical_flex_orthogonal_flow(parent_flow),
-            ];
-
-            for (grid_auto_flow, row_flow) in
-                [(GridAutoFlow::Row, true), (GridAutoFlow::Column, false)]
-            {
-                let lane_axis = if row_flow {
-                    LogicalAxis::Block
-                } else {
-                    LogicalAxis::Inline
-                };
-                let first_margin_box = logical_axis_value(
-                    flow_axes.logical_size(
-                        FlowAxes::new(child_flows[0].writing_mode, child_flows[0].direction)
-                            .physical_size(child_logical_sizes[0]),
+            let first_margin_box = logical_axis_value(
+                flow_axes.logical_size(
+                    FlowAxes::new(child_flows[0].writing_mode, child_flows[0].direction)
+                        .physical_size(child_logical_sizes[0]),
+                ),
+                lane_axis,
+            ) + logical_axis_margin_sum(
+                flow_axes.logical_edges(
+                    FlowAxes::new(child_flows[0].writing_mode, child_flows[0].direction)
+                        .physical_edges(child_logical_margins[0]),
+                ),
+                lane_axis,
+            );
+            let expected_origins = if row_flow {
+                [
+                    crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+                    crate::geometry::LogicalPointOf::new(scalar(37.0), S::ZERO),
+                    crate::geometry::LogicalPointOf::new(
+                        S::ZERO,
+                        first_margin_box + logical_gap.block,
                     ),
-                    lane_axis,
-                ) + logical_axis_margin_sum(
-                    flow_axes.logical_edges(
-                        FlowAxes::new(child_flows[0].writing_mode, child_flows[0].direction)
-                            .physical_edges(child_logical_margins[0]),
+                ]
+            } else {
+                [
+                    crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+                    crate::geometry::LogicalPointOf::new(scalar(37.0), S::ZERO),
+                    crate::geometry::LogicalPointOf::new(
+                        first_margin_box + logical_gap.inline,
+                        S::ZERO,
                     ),
-                    lane_axis,
-                );
-                let expected_origins = if row_flow {
-                    [
-                        crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
-                        crate::geometry::LogicalPointOf::new(scalar(37.0), S::ZERO),
-                        crate::geometry::LogicalPointOf::new(
-                            S::ZERO,
-                            first_margin_box + logical_gap.block,
-                        ),
-                    ]
-                } else {
-                    [
-                        crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
-                        crate::geometry::LogicalPointOf::new(scalar(37.0), S::ZERO),
-                        crate::geometry::LogicalPointOf::new(
-                            first_margin_box + logical_gap.inline,
-                            S::ZERO,
-                        ),
-                    ]
-                };
+                ]
+            };
 
-                let mut tree = PublicFlowTree::default()
-                    .with_children(0, [1, 2, 3])
-                    .with_children(1, [])
-                    .with_children(2, [])
-                    .with_children(3, [])
-                    .with_style(
-                        0,
-                        NodeInputOf {
-                            display: Display::GridLanes,
-                            writing_mode,
-                            direction,
-                            size: physical_container_size.map(PreferredSizeOf::px),
-                            grid_auto_flow,
-                            grid_template_columns: vec![
-                                TrackComponentOf::px(scalar(30.0)),
-                                TrackComponentOf::px(scalar(40.0)),
-                            ],
-                            grid_template_rows: vec![
-                                TrackComponentOf::px(scalar(50.0)),
-                                TrackComponentOf::px(scalar(60.0)),
-                            ],
-                            gap: flow_axes.physical_size(logical_gap.map(LengthOf::px)),
-                            justify_content: Some(AlignContent::Start),
-                            align_content: Some(AlignContent::Start),
-                            justify_items: Some(AlignItems::Start),
-                            align_items: Some(AlignItems::Start),
-                            ..NodeInputOf::default()
-                        },
-                    );
-
-                for ((node, child_flow), (logical_size, logical_margin)) in [1, 2, 3]
-                    .into_iter()
-                    .zip(child_flows)
-                    .zip(child_logical_sizes.into_iter().zip(child_logical_margins))
-                {
-                    let child_flow_axes =
-                        FlowAxes::new(child_flow.writing_mode, child_flow.direction);
-                    let mut child_style = NodeInputOf {
-                        display: Display::Block,
-                        writing_mode: child_flow.writing_mode,
-                        direction: child_flow.direction,
-                        size: child_flow_axes
-                            .physical_size(logical_size)
-                            .map(PreferredSizeOf::px),
-                        margin: child_flow_axes
-                            .physical_edges(logical_margin.map(LengthAutoOf::px)),
+            let mut tree = PublicFlowTree::default()
+                .with_children(0, [1, 2, 3])
+                .with_children(1, [])
+                .with_children(2, [])
+                .with_children(3, [])
+                .with_style(
+                    0,
+                    NodeInputOf {
+                        display: Display::GridLanes,
+                        writing_mode,
+                        direction,
+                        size: physical_container_size.map(PreferredSizeOf::px),
+                        grid_auto_flow,
+                        grid_template_columns: vec![
+                            TrackComponentOf::px(scalar(30.0)),
+                            TrackComponentOf::px(scalar(40.0)),
+                        ],
+                        grid_template_rows: vec![
+                            TrackComponentOf::px(scalar(50.0)),
+                            TrackComponentOf::px(scalar(60.0)),
+                        ],
+                        gap: flow_axes.physical_size(logical_gap.map(LengthOf::px)),
+                        justify_content: Some(AlignContent::Start),
+                        align_content: Some(AlignContent::Start),
+                        justify_items: Some(AlignItems::Start),
+                        align_items: Some(AlignItems::Start),
                         ..NodeInputOf::default()
-                    };
-                    if row_flow {
-                        child_style.grid_column =
-                            GridPlacement::try_line(if node == 2 { 2 } else { 1 })
-                                .expect("valid grid column");
-                    } else {
-                        child_style.grid_row =
-                            GridPlacement::try_line(if node == 2 { 2 } else { 1 })
-                                .expect("valid grid row");
-                    }
-                    tree = tree.with_style(node, child_style);
-                }
-
-                let batch = compute_layout(
-                    &tree,
-                    0,
-                    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(
-                        200.0,
-                    ))))
-                    .expect("valid viewport request"),
-                )
-                .expect("logical grid-lanes public layout succeeds");
-
-                let container = public_flow_output(batch.unrounded_entries(), 0);
-                assert_eq!(
-                    container.size, physical_container_size,
-                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} container size must project logical tracks and gaps"
+                    },
                 );
-                assert_eq!(
-                    container.content_size, physical_container_size,
-                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} content extent must stay physical at the output boundary"
-                );
-                for ((node, child_flow), (logical_size, logical_margin)) in [1, 2, 3]
-                    .into_iter()
-                    .zip(child_flows)
-                    .zip(child_logical_sizes.into_iter().zip(child_logical_margins))
-                {
-                    let child_flow_axes =
-                        FlowAxes::new(child_flow.writing_mode, child_flow.direction);
-                    let physical_size = child_flow_axes.physical_size(logical_size);
-                    let parent_logical_size = flow_axes.logical_size(physical_size);
-                    let parent_logical_margin =
-                        flow_axes.logical_edges(child_flow_axes.physical_edges(logical_margin));
-                    let expected_logical_origin = expected_origins[(node - 1) as usize]
-                        + crate::geometry::LogicalPointOf::new(
-                            logical_axis_start(parent_logical_margin, LogicalAxis::Inline),
-                            logical_axis_start(parent_logical_margin, LogicalAxis::Block),
-                        );
-                    let expected_location = flow_axes.physical_point(
-                        expected_logical_origin,
-                        parent_logical_size,
-                        physical_container_size,
-                    );
-                    let output = public_flow_output(batch.unrounded_entries(), node);
-                    assert_eq!(
-                        output.size, physical_size,
-                        "{writing_mode:?} {direction:?} {grid_auto_flow:?} child {node} must retain physical output geometry"
-                    );
-                    assert_eq!(
-                        output.location, expected_location,
-                        "{writing_mode:?} {direction:?} {grid_auto_flow:?} child {node} must place from logical lanes"
-                    );
-                }
 
-                let intrinsic_child_flow = child_flows[2];
-                let intrinsic_child_flow_axes = FlowAxes::new(
-                    intrinsic_child_flow.writing_mode,
-                    intrinsic_child_flow.direction,
-                );
-                let intrinsic_parent_logical_size = if row_flow {
-                    crate::geometry::LogicalSizeOf::new(scalar(30.0), scalar(20.0))
-                } else {
-                    crate::geometry::LogicalSizeOf::new(scalar(20.0), scalar(50.0))
+            for ((node, child_flow), (logical_size, logical_margin)) in [1, 2, 3]
+                .into_iter()
+                .zip(child_flows)
+                .zip(child_logical_sizes.into_iter().zip(child_logical_margins))
+            {
+                let child_flow_axes = FlowAxes::new(child_flow.writing_mode, child_flow.direction);
+                let mut child_style = NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: child_flow.writing_mode,
+                    direction: child_flow.direction,
+                    size: child_flow_axes
+                        .physical_size(logical_size)
+                        .map(PreferredSizeOf::px),
+                    margin: child_flow_axes.physical_edges(logical_margin.map(LengthAutoOf::px)),
+                    ..NodeInputOf::default()
                 };
-                let intrinsic_physical_size =
-                    flow_axes.physical_size(intrinsic_parent_logical_size);
-                let intrinsic_tree = PublicFlowTree::default()
-                    .with_children(0, [1])
-                    .with_children(1, [])
-                    .with_style(
-                        0,
-                        NodeInputOf {
-                            display: Display::InlineGridLanes,
-                            writing_mode,
-                            direction,
-                            grid_auto_flow,
-                            grid_template_columns: if row_flow {
-                                vec![TrackComponentOf::AUTO, TrackComponentOf::px(scalar(40.0))]
-                            } else {
-                                vec![
-                                    TrackComponentOf::px(scalar(30.0)),
-                                    TrackComponentOf::px(scalar(40.0)),
-                                ]
-                            },
-                            grid_template_rows: if row_flow {
-                                vec![
-                                    TrackComponentOf::px(scalar(50.0)),
-                                    TrackComponentOf::px(scalar(60.0)),
-                                ]
-                            } else {
-                                vec![TrackComponentOf::AUTO, TrackComponentOf::px(scalar(60.0))]
-                            },
-                            justify_content: Some(AlignContent::Start),
-                            align_content: Some(AlignContent::Start),
-                            ..NodeInputOf::default()
-                        },
-                    )
-                    .with_style(
-                        1,
-                        NodeInputOf {
-                            display: Display::Block,
-                            writing_mode: intrinsic_child_flow.writing_mode,
-                            direction: intrinsic_child_flow.direction,
-                            size: intrinsic_child_flow_axes
-                                .physical_size(
-                                    intrinsic_child_flow_axes.logical_size(intrinsic_physical_size),
-                                )
-                                .map(PreferredSizeOf::px),
-                            grid_column: if row_flow {
-                                GridPlacement::try_line(1).expect("valid intrinsic grid column")
-                            } else {
-                                GridPlacement::AUTO
-                            },
-                            grid_row: if row_flow {
-                                GridPlacement::AUTO
-                            } else {
-                                GridPlacement::try_line(1).expect("valid intrinsic grid row")
-                            },
-                            ..NodeInputOf::default()
-                        },
+                if row_flow {
+                    child_style.grid_column =
+                        GridPlacement::try_line(if node == 2 { 2 } else { 1 })
+                            .expect("valid grid column");
+                } else {
+                    child_style.grid_row = GridPlacement::try_line(if node == 2 { 2 } else { 1 })
+                        .expect("valid grid row");
+                }
+                tree = tree.with_style(node, child_style);
+            }
+
+            let batch = compute_layout(
+                &tree,
+                0,
+                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                    .expect("valid viewport request"),
+            )
+            .expect("logical grid-lanes public layout succeeds");
+
+            let container = public_flow_output(batch.unrounded_entries(), 0);
+            assert_eq!(
+                container.size, physical_container_size,
+                "{writing_mode:?} {direction:?} {grid_auto_flow:?} container size must project logical tracks and gaps"
+            );
+            assert_eq!(
+                container.content_size, physical_container_size,
+                "{writing_mode:?} {direction:?} {grid_auto_flow:?} content extent must stay physical at the output boundary"
+            );
+            for ((node, child_flow), (logical_size, logical_margin)) in [1, 2, 3]
+                .into_iter()
+                .zip(child_flows)
+                .zip(child_logical_sizes.into_iter().zip(child_logical_margins))
+            {
+                let child_flow_axes = FlowAxes::new(child_flow.writing_mode, child_flow.direction);
+                let physical_size = child_flow_axes.physical_size(logical_size);
+                let parent_logical_size = flow_axes.logical_size(physical_size);
+                let parent_logical_margin =
+                    flow_axes.logical_edges(child_flow_axes.physical_edges(logical_margin));
+                let expected_logical_origin = expected_origins[(node - 1) as usize]
+                    + crate::geometry::LogicalPointOf::new(
+                        logical_axis_start(parent_logical_margin, LogicalAxis::Inline),
+                        logical_axis_start(parent_logical_margin, LogicalAxis::Block),
                     );
-                let intrinsic_batch = compute_layout(
-                    &intrinsic_tree,
-                    0,
-                    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(
-                        200.0,
-                    ))))
-                    .expect("valid intrinsic viewport request"),
-                )
-                .expect("logical intrinsic grid-lanes public layout succeeds");
+                let expected_location = flow_axes.physical_point(
+                    expected_logical_origin,
+                    parent_logical_size,
+                    physical_container_size,
+                );
+                let output = public_flow_output(batch.unrounded_entries(), node);
                 assert_eq!(
-                    public_flow_output(intrinsic_batch.unrounded_entries(), 0).size,
-                    flow_axes.physical_size(logical_track_totals),
-                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} intrinsic lanes must size on their logical grid axis"
+                    output.size, physical_size,
+                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} child {node} must retain physical output geometry"
+                );
+                assert_eq!(
+                    output.location, expected_location,
+                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} child {node} must place from logical lanes"
                 );
             }
-        }
 
-        assert_logical_grid_lanes_absolute_static::<S>();
-    };
+            let intrinsic_child_flow = child_flows[2];
+            let intrinsic_child_flow_axes = FlowAxes::new(
+                intrinsic_child_flow.writing_mode,
+                intrinsic_child_flow.direction,
+            );
+            let intrinsic_parent_logical_size = if row_flow {
+                crate::geometry::LogicalSizeOf::new(scalar(30.0), scalar(20.0))
+            } else {
+                crate::geometry::LogicalSizeOf::new(scalar(20.0), scalar(50.0))
+            };
+            let intrinsic_physical_size = flow_axes.physical_size(intrinsic_parent_logical_size);
+            let intrinsic_tree = PublicFlowTree::default()
+                .with_children(0, [1])
+                .with_children(1, [])
+                .with_style(
+                    0,
+                    NodeInputOf {
+                        display: Display::InlineGridLanes,
+                        writing_mode,
+                        direction,
+                        grid_auto_flow,
+                        grid_template_columns: if row_flow {
+                            vec![TrackComponentOf::AUTO, TrackComponentOf::px(scalar(40.0))]
+                        } else {
+                            vec![
+                                TrackComponentOf::px(scalar(30.0)),
+                                TrackComponentOf::px(scalar(40.0)),
+                            ]
+                        },
+                        grid_template_rows: if row_flow {
+                            vec![
+                                TrackComponentOf::px(scalar(50.0)),
+                                TrackComponentOf::px(scalar(60.0)),
+                            ]
+                        } else {
+                            vec![TrackComponentOf::AUTO, TrackComponentOf::px(scalar(60.0))]
+                        },
+                        justify_content: Some(AlignContent::Start),
+                        align_content: Some(AlignContent::Start),
+                        ..NodeInputOf::default()
+                    },
+                )
+                .with_style(
+                    1,
+                    NodeInputOf {
+                        display: Display::Block,
+                        writing_mode: intrinsic_child_flow.writing_mode,
+                        direction: intrinsic_child_flow.direction,
+                        size: intrinsic_child_flow_axes
+                            .physical_size(
+                                intrinsic_child_flow_axes.logical_size(intrinsic_physical_size),
+                            )
+                            .map(PreferredSizeOf::px),
+                        grid_column: if row_flow {
+                            GridPlacement::try_line(1).expect("valid intrinsic grid column")
+                        } else {
+                            GridPlacement::AUTO
+                        },
+                        grid_row: if row_flow {
+                            GridPlacement::AUTO
+                        } else {
+                            GridPlacement::try_line(1).expect("valid intrinsic grid row")
+                        },
+                        ..NodeInputOf::default()
+                    },
+                );
+            let intrinsic_batch = compute_layout(
+                &intrinsic_tree,
+                0,
+                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                    .expect("valid intrinsic viewport request"),
+            )
+            .expect("logical intrinsic grid-lanes public layout succeeds");
+            assert_eq!(
+                public_flow_output(intrinsic_batch.unrounded_entries(), 0).size,
+                flow_axes.physical_size(logical_track_totals),
+                "{writing_mode:?} {direction:?} {grid_auto_flow:?} intrinsic lanes must size on their logical grid axis"
+            );
+        }
+    }
+
+    assert_logical_grid_lanes_absolute_static::<S>();
 }
 
 #[test]
@@ -10993,291 +10488,281 @@ fn logical_inherited_grid_axis_contexts_public_f64() {
 }
 
 fn assert_logical_subgrid_axes<S: LayoutScalar>() {
-    (AssertLogicalSubgridAxesPhaseL10581::<S>::RUN)()
-}
+    #[derive(Clone, Copy)]
+    struct ExpectedTopology {
+        inherited_physical_axis: PhysicalAxis,
+        parent_axis: GridAxisKind,
+        reversed: bool,
+    }
 
-type AssertLogicalSubgridAxesPhaseL10581Run = fn();
-
-struct AssertLogicalSubgridAxesPhaseL10581<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar> AssertLogicalSubgridAxesPhaseL10581<S> {
-    const RUN: AssertLogicalSubgridAxesPhaseL10581Run = || {
-        #[derive(Clone, Copy)]
-        struct ExpectedTopology {
-            inherited_physical_axis: PhysicalAxis,
-            parent_axis: GridAxisKind,
-            reversed: bool,
-        }
-
-        fn expected_axis(
-            writing_mode: WritingMode,
-            direction: Direction,
-            axis: GridAxisKind,
-        ) -> (PhysicalAxis, bool) {
-            match (writing_mode, direction, axis) {
-                (WritingMode::HorizontalTb, Direction::Ltr, GridAxisKind::Column) => {
-                    (PhysicalAxis::Horizontal, true)
-                }
-                (WritingMode::HorizontalTb, Direction::Rtl, GridAxisKind::Column) => {
-                    (PhysicalAxis::Horizontal, false)
-                }
-                (WritingMode::HorizontalTb, _, GridAxisKind::Row) => (PhysicalAxis::Vertical, true),
-                (
-                    WritingMode::VerticalRl | WritingMode::SidewaysRl,
-                    Direction::Ltr,
-                    GridAxisKind::Column,
-                ) => (PhysicalAxis::Vertical, true),
-                (
-                    WritingMode::VerticalRl | WritingMode::SidewaysRl,
-                    Direction::Rtl,
-                    GridAxisKind::Column,
-                ) => (PhysicalAxis::Vertical, false),
-                (WritingMode::VerticalRl | WritingMode::SidewaysRl, _, GridAxisKind::Row) => {
-                    (PhysicalAxis::Horizontal, false)
-                }
-                (WritingMode::VerticalLr, Direction::Ltr, GridAxisKind::Column) => {
-                    (PhysicalAxis::Vertical, true)
-                }
-                (WritingMode::VerticalLr, Direction::Rtl, GridAxisKind::Column) => {
-                    (PhysicalAxis::Vertical, false)
-                }
-                (WritingMode::VerticalLr, _, GridAxisKind::Row) => (PhysicalAxis::Horizontal, true),
-                (WritingMode::SidewaysLr, Direction::Ltr, GridAxisKind::Column) => {
-                    (PhysicalAxis::Vertical, false)
-                }
-                (WritingMode::SidewaysLr, Direction::Rtl, GridAxisKind::Column) => {
-                    (PhysicalAxis::Vertical, true)
-                }
-                (WritingMode::SidewaysLr, _, GridAxisKind::Row) => (PhysicalAxis::Horizontal, true),
+    fn expected_axis(
+        writing_mode: WritingMode,
+        direction: Direction,
+        axis: GridAxisKind,
+    ) -> (PhysicalAxis, bool) {
+        match (writing_mode, direction, axis) {
+            (WritingMode::HorizontalTb, Direction::Ltr, GridAxisKind::Column) => {
+                (PhysicalAxis::Horizontal, true)
             }
-        }
-
-        fn expected_topology(
-            parent_writing_mode: WritingMode,
-            parent_direction: Direction,
-            child_flow: LogicalFlexChildFlow,
-            child_axis: GridAxisKind,
-        ) -> ExpectedTopology {
-            let (inherited_physical_axis, child_increases) =
-                expected_axis(child_flow.writing_mode, child_flow.direction, child_axis);
-            let (parent_inline_axis, parent_inline_increases) =
-                expected_axis(parent_writing_mode, parent_direction, GridAxisKind::Column);
-            let (parent_block_axis, parent_block_increases) =
-                expected_axis(parent_writing_mode, parent_direction, GridAxisKind::Row);
-            let (parent_axis, parent_increases) = if parent_inline_axis == inherited_physical_axis {
-                (GridAxisKind::Column, parent_inline_increases)
-            } else {
-                debug_assert_eq!(parent_block_axis, inherited_physical_axis);
-                (GridAxisKind::Row, parent_block_increases)
-            };
-            ExpectedTopology {
-                inherited_physical_axis,
-                parent_axis,
-                reversed: parent_increases != child_increases,
+            (WritingMode::HorizontalTb, Direction::Rtl, GridAxisKind::Column) => {
+                (PhysicalAxis::Horizontal, false)
             }
+            (WritingMode::HorizontalTb, _, GridAxisKind::Row) => (PhysicalAxis::Vertical, true),
+            (
+                WritingMode::VerticalRl | WritingMode::SidewaysRl,
+                Direction::Ltr,
+                GridAxisKind::Column,
+            ) => (PhysicalAxis::Vertical, true),
+            (
+                WritingMode::VerticalRl | WritingMode::SidewaysRl,
+                Direction::Rtl,
+                GridAxisKind::Column,
+            ) => (PhysicalAxis::Vertical, false),
+            (WritingMode::VerticalRl | WritingMode::SidewaysRl, _, GridAxisKind::Row) => {
+                (PhysicalAxis::Horizontal, false)
+            }
+            (WritingMode::VerticalLr, Direction::Ltr, GridAxisKind::Column) => {
+                (PhysicalAxis::Vertical, true)
+            }
+            (WritingMode::VerticalLr, Direction::Rtl, GridAxisKind::Column) => {
+                (PhysicalAxis::Vertical, false)
+            }
+            (WritingMode::VerticalLr, _, GridAxisKind::Row) => (PhysicalAxis::Horizontal, true),
+            (WritingMode::SidewaysLr, Direction::Ltr, GridAxisKind::Column) => {
+                (PhysicalAxis::Vertical, false)
+            }
+            (WritingMode::SidewaysLr, Direction::Rtl, GridAxisKind::Column) => {
+                (PhysicalAxis::Vertical, true)
+            }
+            (WritingMode::SidewaysLr, _, GridAxisKind::Row) => (PhysicalAxis::Horizontal, true),
         }
+    }
 
-        let scalar = scalar::<S>;
-        let logical_parent_size = crate::geometry::LogicalSizeOf::new(scalar(77.0), scalar(121.0));
-        let logical_gap = crate::geometry::LogicalSizeOf::new(scalar(7.0), scalar(11.0));
+    fn expected_topology(
+        parent_writing_mode: WritingMode,
+        parent_direction: Direction,
+        child_flow: LogicalFlexChildFlow,
+        child_axis: GridAxisKind,
+    ) -> ExpectedTopology {
+        let (inherited_physical_axis, child_increases) =
+            expected_axis(child_flow.writing_mode, child_flow.direction, child_axis);
+        let (parent_inline_axis, parent_inline_increases) =
+            expected_axis(parent_writing_mode, parent_direction, GridAxisKind::Column);
+        let (parent_block_axis, parent_block_increases) =
+            expected_axis(parent_writing_mode, parent_direction, GridAxisKind::Row);
+        let (parent_axis, parent_increases) = if parent_inline_axis == inherited_physical_axis {
+            (GridAxisKind::Column, parent_inline_increases)
+        } else {
+            debug_assert_eq!(parent_block_axis, inherited_physical_axis);
+            (GridAxisKind::Row, parent_block_increases)
+        };
+        ExpectedTopology {
+            inherited_physical_axis,
+            parent_axis,
+            reversed: parent_increases != child_increases,
+        }
+    }
 
-        for (parent_writing_mode, parent_direction) in root_writing_mode_directions() {
-            let parent_flow = LogicalFlexChildFlow {
-                writing_mode: parent_writing_mode,
-                direction: parent_direction,
-            };
-            let parent_flow_axes = FlowAxes::new(parent_writing_mode, parent_direction);
-            let parent_size = parent_flow_axes.physical_size(logical_parent_size);
-            for child_flow in [
-                parent_flow,
-                logical_flex_opposing_flow(parent_flow),
-                logical_flex_orthogonal_flow(parent_flow),
-            ] {
-                let child_flow_axes = FlowAxes::new(child_flow.writing_mode, child_flow.direction);
-                for axis in [GridAxisKind::Column, GridAxisKind::Row] {
-                    let topology =
-                        expected_topology(parent_writing_mode, parent_direction, child_flow, axis);
-                    let inherited_physical_axis = topology.inherited_physical_axis;
-                    let parent_axis = topology.parent_axis;
-                    let (cross_first_track, cross_second_track, cross_gap) = match parent_axis {
-                        GridAxisKind::Column => (scalar(50.0), scalar(60.0), scalar(11.0)),
-                        GridAxisKind::Row => (scalar(30.0), scalar(40.0), scalar(7.0)),
-                    };
-                    let mut child_style = NodeInputOf {
-                        display: Display::Grid,
-                        writing_mode: child_flow.writing_mode,
-                        direction: child_flow.direction,
-                        grid_column: GridPlacement::try_lines(1, -1)
-                            .expect("valid subgrid column span"),
-                        grid_row: GridPlacement::try_lines(1, -1).expect("valid subgrid row span"),
-                        ..NodeInputOf::default()
-                    };
-                    match axis {
-                        GridAxisKind::Column => {
-                            child_style.grid_template_columns =
-                                vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))];
-                            child_style.grid_template_rows = vec![
-                                TrackComponentOf::px(cross_first_track),
-                                TrackComponentOf::px(cross_second_track),
-                            ];
-                        }
-                        GridAxisKind::Row => {
-                            child_style.grid_template_rows =
-                                vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))];
-                            child_style.grid_template_columns = vec![
-                                TrackComponentOf::px(cross_first_track),
-                                TrackComponentOf::px(cross_second_track),
-                            ];
-                        }
+    let scalar = scalar::<S>;
+    let logical_parent_size = crate::geometry::LogicalSizeOf::new(scalar(77.0), scalar(121.0));
+    let logical_gap = crate::geometry::LogicalSizeOf::new(scalar(7.0), scalar(11.0));
+
+    for (parent_writing_mode, parent_direction) in root_writing_mode_directions() {
+        let parent_flow = LogicalFlexChildFlow {
+            writing_mode: parent_writing_mode,
+            direction: parent_direction,
+        };
+        let parent_flow_axes = FlowAxes::new(parent_writing_mode, parent_direction);
+        let parent_size = parent_flow_axes.physical_size(logical_parent_size);
+        for child_flow in [
+            parent_flow,
+            logical_flex_opposing_flow(parent_flow),
+            logical_flex_orthogonal_flow(parent_flow),
+        ] {
+            let child_flow_axes = FlowAxes::new(child_flow.writing_mode, child_flow.direction);
+            for axis in [GridAxisKind::Column, GridAxisKind::Row] {
+                let topology =
+                    expected_topology(parent_writing_mode, parent_direction, child_flow, axis);
+                let inherited_physical_axis = topology.inherited_physical_axis;
+                let parent_axis = topology.parent_axis;
+                let (cross_first_track, cross_second_track, cross_gap) = match parent_axis {
+                    GridAxisKind::Column => (scalar(50.0), scalar(60.0), scalar(11.0)),
+                    GridAxisKind::Row => (scalar(30.0), scalar(40.0), scalar(7.0)),
+                };
+                let mut child_style = NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode: child_flow.writing_mode,
+                    direction: child_flow.direction,
+                    grid_column: GridPlacement::try_lines(1, -1)
+                        .expect("valid subgrid column span"),
+                    grid_row: GridPlacement::try_lines(1, -1).expect("valid subgrid row span"),
+                    ..NodeInputOf::default()
+                };
+                match axis {
+                    GridAxisKind::Column => {
+                        child_style.grid_template_columns =
+                            vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))];
+                        child_style.grid_template_rows = vec![
+                            TrackComponentOf::px(cross_first_track),
+                            TrackComponentOf::px(cross_second_track),
+                        ];
                     }
-                    child_style.gap =
-                        child_flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
-                            if axis == GridAxisKind::Column {
-                                LengthOf::Normal
-                            } else {
-                                LengthOf::px(cross_gap)
-                            },
-                            if axis == GridAxisKind::Row {
-                                LengthOf::Normal
-                            } else {
-                                LengthOf::px(cross_gap)
-                            },
-                        ));
-                    let tree = PublicFlowTree::default()
-                        .with_children(0, [1])
-                        .with_children(1, [2])
-                        .with_children(2, [])
-                        .with_style(
-                            0,
-                            NodeInputOf {
-                                display: Display::Grid,
-                                writing_mode: parent_writing_mode,
-                                direction: parent_direction,
-                                size: parent_size.map(PreferredSizeOf::px),
-                                grid_template_columns: vec![
-                                    TrackComponentOf::px(scalar(30.0)),
-                                    TrackComponentOf::px(scalar(40.0)),
-                                ],
-                                grid_template_rows: vec![
-                                    TrackComponentOf::px(scalar(50.0)),
-                                    TrackComponentOf::px(scalar(60.0)),
-                                ],
-                                gap: parent_flow_axes.physical_size(logical_gap.map(LengthOf::px)),
-                                ..NodeInputOf::default()
-                            },
-                        )
-                        .with_style(1, child_style)
-                        .with_style(
-                            2,
-                            NodeInputOf {
-                                display: Display::Block,
-                                writing_mode: child_flow.writing_mode,
-                                direction: child_flow.direction,
-                                grid_column: if axis == GridAxisKind::Column {
-                                    GridPlacement::try_lines(2, 3)
-                                        .expect("valid inherited column placement")
-                                } else {
-                                    GridPlacement::try_lines(1, 2)
-                                        .expect("valid cross-axis column placement")
-                                },
-                                grid_row: if axis == GridAxisKind::Row {
-                                    GridPlacement::try_lines(2, 3)
-                                        .expect("valid inherited row placement")
-                                } else {
-                                    GridPlacement::try_lines(1, 2)
-                                        .expect("valid cross-axis row placement")
-                                },
-                                ..NodeInputOf::default()
-                            },
-                        );
-
-                    let batch = compute_layout(
-                        &tree,
-                        0,
-                        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(
-                            200.0,
-                        ))))
-                        .expect("valid subgrid viewport request"),
-                    )
-                    .expect("logical subgrid public layout succeeds");
-                    let child = public_flow_output(batch.unrounded_entries(), 1);
-                    let inherited_extent = match inherited_physical_axis {
-                        PhysicalAxis::Horizontal => child.size.width,
-                        PhysicalAxis::Vertical => child.size.height,
-                    };
-                    let expected_extent = match inherited_physical_axis {
-                        PhysicalAxis::Horizontal => parent_size.width,
-                        PhysicalAxis::Vertical => parent_size.height,
-                    };
-                    assert_eq!(
-                        inherited_extent, expected_extent,
-                        "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must preserve the inherited physical extent"
-                    );
-                    let child_inputs = tree.cache_inputs(1);
-                    assert!(
-                        child_inputs
-                            .iter()
-                            .any(|input| input.containing_flow_axes() == parent_flow_axes),
-                        "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must compute the subgrid through its parent flow: {child_inputs:?}"
-                    );
-                    assert!(
-                        child_inputs.iter().any(|input| {
-                            let inherited_extent = match topology.inherited_physical_axis {
-                                PhysicalAxis::Horizontal => parent_size.width,
-                                PhysicalAxis::Vertical => parent_size.height,
-                            };
-                            let (known, available) = match topology.inherited_physical_axis {
-                                PhysicalAxis::Horizontal => {
-                                    (input.known().width, input.available().width)
-                                }
-                                PhysicalAxis::Vertical => {
-                                    (input.known().height, input.available().height)
-                                }
-                            };
-                            input.containing_flow_axes() == parent_flow_axes
-                                && known == Some(inherited_extent)
-                                && available == AvailableOf::definite(inherited_extent)
-                        }),
-                        "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must project the inherited physical size and available area through the child flow: {child_inputs:?}"
-                    );
-
-                    let descendant = public_flow_output(batch.unrounded_entries(), 2);
-                    let descendant_origin = parent_flow_axes.logical_point(
-                        descendant.location,
-                        descendant.size,
-                        parent_size,
-                    );
-                    let descendant_size = parent_flow_axes.logical_size(descendant.size);
-                    let (first_track, second_track, gap) = match parent_axis {
-                        GridAxisKind::Column => (scalar(30.0), scalar(40.0), scalar(7.0)),
-                        GridAxisKind::Row => (scalar(50.0), scalar(60.0), scalar(11.0)),
-                    };
-                    let expected_offset = if topology.reversed {
-                        S::ZERO
-                    } else {
-                        first_track + gap
-                    };
-                    let (actual_offset, actual_extent) = match parent_axis {
-                        GridAxisKind::Column => (descendant_origin.inline, descendant_size.inline),
-                        GridAxisKind::Row => (descendant_origin.block, descendant_size.block),
-                    };
-                    assert_eq!(
-                        actual_offset, expected_offset,
-                        "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must place the descendant on the mapped inherited track"
-                    );
-                    assert_eq!(
-                        actual_extent,
-                        if topology.reversed {
-                            first_track
-                        } else {
-                            second_track
-                        },
-                        "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must preserve the mapped inherited track extent"
-                    );
+                    GridAxisKind::Row => {
+                        child_style.grid_template_rows =
+                            vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))];
+                        child_style.grid_template_columns = vec![
+                            TrackComponentOf::px(cross_first_track),
+                            TrackComponentOf::px(cross_second_track),
+                        ];
+                    }
                 }
+                child_style.gap =
+                    child_flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+                        if axis == GridAxisKind::Column {
+                            LengthOf::Normal
+                        } else {
+                            LengthOf::px(cross_gap)
+                        },
+                        if axis == GridAxisKind::Row {
+                            LengthOf::Normal
+                        } else {
+                            LengthOf::px(cross_gap)
+                        },
+                    ));
+                let tree = PublicFlowTree::default()
+                    .with_children(0, [1])
+                    .with_children(1, [2])
+                    .with_children(2, [])
+                    .with_style(
+                        0,
+                        NodeInputOf {
+                            display: Display::Grid,
+                            writing_mode: parent_writing_mode,
+                            direction: parent_direction,
+                            size: parent_size.map(PreferredSizeOf::px),
+                            grid_template_columns: vec![
+                                TrackComponentOf::px(scalar(30.0)),
+                                TrackComponentOf::px(scalar(40.0)),
+                            ],
+                            grid_template_rows: vec![
+                                TrackComponentOf::px(scalar(50.0)),
+                                TrackComponentOf::px(scalar(60.0)),
+                            ],
+                            gap: parent_flow_axes.physical_size(logical_gap.map(LengthOf::px)),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .with_style(1, child_style)
+                    .with_style(
+                        2,
+                        NodeInputOf {
+                            display: Display::Block,
+                            writing_mode: child_flow.writing_mode,
+                            direction: child_flow.direction,
+                            grid_column: if axis == GridAxisKind::Column {
+                                GridPlacement::try_lines(2, 3)
+                                    .expect("valid inherited column placement")
+                            } else {
+                                GridPlacement::try_lines(1, 2)
+                                    .expect("valid cross-axis column placement")
+                            },
+                            grid_row: if axis == GridAxisKind::Row {
+                                GridPlacement::try_lines(2, 3)
+                                    .expect("valid inherited row placement")
+                            } else {
+                                GridPlacement::try_lines(1, 2)
+                                    .expect("valid cross-axis row placement")
+                            },
+                            ..NodeInputOf::default()
+                        },
+                    );
+
+                let batch = compute_layout(
+                    &tree,
+                    0,
+                    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(
+                        200.0,
+                    ))))
+                    .expect("valid subgrid viewport request"),
+                )
+                .expect("logical subgrid public layout succeeds");
+                let child = public_flow_output(batch.unrounded_entries(), 1);
+                let inherited_extent = match inherited_physical_axis {
+                    PhysicalAxis::Horizontal => child.size.width,
+                    PhysicalAxis::Vertical => child.size.height,
+                };
+                let expected_extent = match inherited_physical_axis {
+                    PhysicalAxis::Horizontal => parent_size.width,
+                    PhysicalAxis::Vertical => parent_size.height,
+                };
+                assert_eq!(
+                    inherited_extent, expected_extent,
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must preserve the inherited physical extent"
+                );
+                let child_inputs = tree.cache_inputs(1);
+                assert!(
+                    child_inputs
+                        .iter()
+                        .any(|input| input.containing_flow_axes() == parent_flow_axes),
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must compute the subgrid through its parent flow: {child_inputs:?}"
+                );
+                assert!(
+                    child_inputs.iter().any(|input| {
+                        let inherited_extent = match topology.inherited_physical_axis {
+                            PhysicalAxis::Horizontal => parent_size.width,
+                            PhysicalAxis::Vertical => parent_size.height,
+                        };
+                        let (known, available) = match topology.inherited_physical_axis {
+                            PhysicalAxis::Horizontal => {
+                                (input.known().width, input.available().width)
+                            }
+                            PhysicalAxis::Vertical => {
+                                (input.known().height, input.available().height)
+                            }
+                        };
+                        input.containing_flow_axes() == parent_flow_axes
+                            && known == Some(inherited_extent)
+                            && available == AvailableOf::definite(inherited_extent)
+                    }),
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must project the inherited physical size and available area through the child flow: {child_inputs:?}"
+                );
+
+                let descendant = public_flow_output(batch.unrounded_entries(), 2);
+                let descendant_origin = parent_flow_axes.logical_point(
+                    descendant.location,
+                    descendant.size,
+                    parent_size,
+                );
+                let descendant_size = parent_flow_axes.logical_size(descendant.size);
+                let (first_track, second_track, gap) = match parent_axis {
+                    GridAxisKind::Column => (scalar(30.0), scalar(40.0), scalar(7.0)),
+                    GridAxisKind::Row => (scalar(50.0), scalar(60.0), scalar(11.0)),
+                };
+                let expected_offset = if topology.reversed {
+                    S::ZERO
+                } else {
+                    first_track + gap
+                };
+                let (actual_offset, actual_extent) = match parent_axis {
+                    GridAxisKind::Column => (descendant_origin.inline, descendant_size.inline),
+                    GridAxisKind::Row => (descendant_origin.block, descendant_size.block),
+                };
+                assert_eq!(
+                    actual_offset, expected_offset,
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must place the descendant on the mapped inherited track"
+                );
+                assert_eq!(
+                    actual_extent,
+                    if topology.reversed {
+                        first_track
+                    } else {
+                        second_track
+                    },
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must preserve the mapped inherited track extent"
+                );
             }
         }
-    };
+    }
 }
 
 #[test]
@@ -11394,124 +10879,110 @@ fn nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_provision
 }
 
 fn assert_subgrid_mbp_preserves_area_basis_and_content_capacity<S: LayoutScalar>() {
-    (AssertSubgridMbpPreservesAreaBasisAndContentCapacityPhaseL10972::<S>::RUN)()
-}
-
-type AssertSubgridMbpPreservesAreaBasisAndContentCapacityPhaseL10972Run = fn();
-
-struct AssertSubgridMbpPreservesAreaBasisAndContentCapacityPhaseL10972<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertSubgridMbpPreservesAreaBasisAndContentCapacityPhaseL10972<S> {
-    const RUN: AssertSubgridMbpPreservesAreaBasisAndContentCapacityPhaseL10972Run = || {
-        let scalar = scalar::<S>;
-        let assert_approximately = |actual: S, expected: S, label: &str| {
-            assert!(
-                (actual - expected).abs() <= S::from_f64(0.000_1),
-                "{label}: expected {expected:?}, got {actual:?}"
-            );
-        };
-        let tree = PublicFlowTree::default()
-            .with_children(0, [1])
-            .with_children(1, [2])
-            .with_children(2, [])
-            .with_style(
-                0,
-                NodeInputOf {
-                    display: Display::Grid,
-                    size: Size::new(
-                        PreferredSizeOf::px(scalar(100.0)),
-                        PreferredSizeOf::px(scalar(40.0)),
-                    ),
-                    grid_template_columns: vec![TrackComponentOf::px(scalar(100.0))],
-                    grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
-                    ..NodeInputOf::default()
-                },
-            )
-            .with_style(
-                1,
-                NodeInputOf {
-                    display: Display::Grid,
-                    grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(
-                        vec![],
-                    ))],
-                    grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
-                    margin: Edges::new(
-                        LengthAutoOf::ZERO,
-                        LengthAutoOf::px(scalar(8.0)),
-                        LengthAutoOf::ZERO,
-                        LengthAutoOf::px(scalar(5.0)),
-                    ),
-                    border: Edges::new(
-                        LengthOf::ZERO,
-                        LengthOf::px(scalar(9.0)),
-                        LengthOf::ZERO,
-                        LengthOf::px(scalar(6.0)),
-                    ),
-                    padding: Edges::new(
-                        LengthOf::ZERO,
-                        LengthOf::percent(scalar(0.10)),
-                        LengthOf::ZERO,
-                        LengthOf::percent(scalar(0.07)),
-                    ),
-                    ..NodeInputOf::default()
-                },
-            )
-            .with_style(
-                2,
-                NodeInputOf {
-                    display: Display::Block,
-                    size: Size::new(
-                        PreferredSizeOf::percent(scalar(1.0)),
-                        PreferredSizeOf::px(scalar(20.0)),
-                    ),
-                    ..NodeInputOf::default()
-                },
-            );
-
-        let batch = compute_layout(
-            &tree,
-            0,
-            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
-                .expect("valid asymmetric subgrid MBP viewport request"),
-        )
-        .expect("asymmetric subgrid MBP layout succeeds");
-        let subgrid = public_flow_output(batch.unrounded_entries(), 1);
-        let descendant = public_flow_output(batch.unrounded_entries(), 2);
-
-        assert_eq!(subgrid.location.x, scalar(5.0));
-        assert_eq!(subgrid.size.width, scalar(87.0));
-        assert_eq!(subgrid.margin.left, scalar(5.0));
-        assert_eq!(subgrid.margin.right, scalar(8.0));
-        assert_eq!(subgrid.border.left, scalar(6.0));
-        assert_eq!(subgrid.border.right, scalar(9.0));
-        assert_approximately(
-            subgrid.padding.left,
-            scalar(7.0),
-            "left padding resolves against the raw 100px grid area",
-        );
-        assert_approximately(
-            subgrid.padding.right,
-            scalar(10.0),
-            "right padding resolves against the raw 100px grid area",
-        );
-        assert_approximately(
-            descendant.location.x,
-            scalar(13.0),
-            "descendant local x is the subgrid border and padding inset",
-        );
-        assert_approximately(
-            descendant.size.width,
-            scalar(55.0),
-            "descendant width is the subgrid content capacity",
-        );
-        assert_approximately(
-            subgrid.location.x + descendant.location.x,
-            scalar(18.0),
-            "subgrid and descendant local coordinates compose to the root-space x",
+    let scalar = scalar::<S>;
+    let assert_approximately = |actual: S, expected: S, label: &str| {
+        assert!(
+            (actual - expected).abs() <= S::from_f64(0.000_1),
+            "{label}: expected {expected:?}, got {actual:?}"
         );
     };
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [2])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(100.0))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
+                margin: Edges::new(
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(8.0)),
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(5.0)),
+                ),
+                border: Edges::new(
+                    LengthOf::ZERO,
+                    LengthOf::px(scalar(9.0)),
+                    LengthOf::ZERO,
+                    LengthOf::px(scalar(6.0)),
+                ),
+                padding: Edges::new(
+                    LengthOf::ZERO,
+                    LengthOf::percent(scalar(0.10)),
+                    LengthOf::ZERO,
+                    LengthOf::percent(scalar(0.07)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSizeOf::percent(scalar(1.0)),
+                    PreferredSizeOf::px(scalar(20.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+            .expect("valid asymmetric subgrid MBP viewport request"),
+    )
+    .expect("asymmetric subgrid MBP layout succeeds");
+    let subgrid = public_flow_output(batch.unrounded_entries(), 1);
+    let descendant = public_flow_output(batch.unrounded_entries(), 2);
+
+    assert_eq!(subgrid.location.x, scalar(5.0));
+    assert_eq!(subgrid.size.width, scalar(87.0));
+    assert_eq!(subgrid.margin.left, scalar(5.0));
+    assert_eq!(subgrid.margin.right, scalar(8.0));
+    assert_eq!(subgrid.border.left, scalar(6.0));
+    assert_eq!(subgrid.border.right, scalar(9.0));
+    assert_approximately(
+        subgrid.padding.left,
+        scalar(7.0),
+        "left padding resolves against the raw 100px grid area",
+    );
+    assert_approximately(
+        subgrid.padding.right,
+        scalar(10.0),
+        "right padding resolves against the raw 100px grid area",
+    );
+    assert_approximately(
+        descendant.location.x,
+        scalar(13.0),
+        "descendant local x is the subgrid border and padding inset",
+    );
+    assert_approximately(
+        descendant.size.width,
+        scalar(55.0),
+        "descendant width is the subgrid content capacity",
+    );
+    assert_approximately(
+        subgrid.location.x + descendant.location.x,
+        scalar(18.0),
+        "subgrid and descendant local coordinates compose to the root-space x",
+    );
 }
 
 #[test]
@@ -11525,134 +10996,124 @@ fn subgrid_mbp_preserves_area_basis_and_content_capacity_f64() {
 }
 
 fn assert_logical_ordinary_grid_public_contexts<S: LayoutScalar>() {
-    (AssertLogicalOrdinaryGridPublicContextsPhaseL11089::<S>::RUN)()
-}
-
-type AssertLogicalOrdinaryGridPublicContextsPhaseL11089Run = fn();
-
-struct AssertLogicalOrdinaryGridPublicContextsPhaseL11089<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertLogicalOrdinaryGridPublicContextsPhaseL11089<S> {
-    const RUN: AssertLogicalOrdinaryGridPublicContextsPhaseL11089Run = || {
-        let scalar = scalar::<S>;
-        let viewport = Size::splat(AvailableOf::definite(scalar(200.0)));
-        let containing_flow = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
-        let grid_tree = PublicFlowTree::default()
-            .with_children(0, [1, 2])
-            .with_children(1, [])
-            .with_children(2, [3])
-            .with_children(3, [])
-            .with_style(
-                0,
-                NodeInputOf {
-                    display: Display::Grid,
-                    writing_mode: WritingMode::VerticalRl,
-                    direction: Direction::Rtl,
-                    size: Size::new(
-                        PreferredSizeOf::px(scalar(110.0)),
-                        PreferredSizeOf::px(scalar(70.0)),
-                    ),
-                    grid_template_columns: vec![
-                        TrackComponentOf::px(scalar(30.0)),
-                        TrackComponentOf::px(scalar(40.0)),
-                    ],
-                    grid_template_rows: vec![
-                        TrackComponentOf::px(scalar(50.0)),
-                        TrackComponentOf::px(scalar(60.0)),
-                    ],
-                    ..NodeInputOf::default()
-                },
-            )
-            .with_style(
-                1,
-                NodeInputOf {
-                    display: Display::Block,
-                    writing_mode: WritingMode::VerticalRl,
-                    direction: Direction::Rtl,
-                    position: Position::Absolute,
-                    size: Size::new(
-                        PreferredSizeOf::px(scalar(10.25)),
-                        PreferredSizeOf::px(scalar(20.25)),
-                    ),
-                    grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
-                    grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
-                    ..NodeInputOf::default()
-                },
-            )
-            .with_style(
-                2,
-                NodeInputOf {
-                    display: Display::None,
-                    ..NodeInputOf::default()
-                },
-            )
-            .with_style(3, NodeInputOf::default());
-
-        let viewport_batch = compute_layout(
-            &grid_tree,
+    let scalar = scalar::<S>;
+    let viewport = Size::splat(AvailableOf::definite(scalar(200.0)));
+    let containing_flow = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let grid_tree = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [3])
+        .with_children(3, [])
+        .with_style(
             0,
-            LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Rtl,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(110.0)),
+                    PreferredSizeOf::px(scalar(70.0)),
+                ),
+                grid_template_columns: vec![
+                    TrackComponentOf::px(scalar(30.0)),
+                    TrackComponentOf::px(scalar(40.0)),
+                ],
+                grid_template_rows: vec![
+                    TrackComponentOf::px(scalar(50.0)),
+                    TrackComponentOf::px(scalar(60.0)),
+                ],
+                ..NodeInputOf::default()
+            },
         )
-        .expect("viewport ordinary-grid context succeeds");
-        let child_entry = viewport_batch
-            .cache_store_entries()
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Rtl,
+                position: Position::Absolute,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(10.25)),
+                    PreferredSizeOf::px(scalar(20.25)),
+                ),
+                grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::None,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(3, NodeInputOf::default());
+
+    let viewport_batch = compute_layout(
+        &grid_tree,
+        0,
+        LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+    )
+    .expect("viewport ordinary-grid context succeeds");
+    let child_entry = viewport_batch
+        .cache_store_entries()
+        .iter()
+        .find(|entry| entry.node() == 1 && entry.input().run_mode() == RunMode::PerformLayout)
+        .expect("absolute grid child stores a layout cache entry");
+    assert_eq!(child_entry.input().containing_flow_axes(), containing_flow);
+    assert_eq!(
+        child_entry.output().size,
+        Size::new(scalar(10.25), scalar(20.25))
+    );
+    assert_eq!(
+        public_flow_output(viewport_batch.final_entries(), 0).size,
+        Size::new(scalar(110.0), scalar(70.0))
+    );
+    assert_eq!(
+        public_flow_output(viewport_batch.unrounded_entries(), 2),
+        NodeOutputOf::with_source_index(crate::SourceIndex::new(1))
+    );
+    assert_eq!(
+        public_flow_output(viewport_batch.unrounded_entries(), 3),
+        NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
+    );
+
+    grid_tree.apply_cache_entries(viewport_batch.cache_store_entries());
+    grid_tree.clear_cache_inputs();
+    let warm_batch = compute_layout(
+        &grid_tree,
+        0,
+        LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+    )
+    .expect("warm viewport ordinary-grid context succeeds");
+    assert!(
+        grid_tree
+            .cache_inputs(1)
             .iter()
-            .find(|entry| entry.node() == 1 && entry.input().run_mode() == RunMode::PerformLayout)
-            .expect("absolute grid child stores a layout cache entry");
-        assert_eq!(child_entry.input().containing_flow_axes(), containing_flow);
-        assert_eq!(
-            child_entry.output().size,
-            Size::new(scalar(10.25), scalar(20.25))
-        );
-        assert_eq!(
-            public_flow_output(viewport_batch.final_entries(), 0).size,
-            Size::new(scalar(110.0), scalar(70.0))
-        );
-        assert_eq!(
-            public_flow_output(viewport_batch.unrounded_entries(), 2),
-            NodeOutputOf::with_source_index(crate::SourceIndex::new(1))
-        );
-        assert_eq!(
-            public_flow_output(viewport_batch.unrounded_entries(), 3),
-            NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
-        );
-
-        grid_tree.apply_cache_entries(viewport_batch.cache_store_entries());
-        grid_tree.clear_cache_inputs();
-        let warm_batch = compute_layout(
-            &grid_tree,
-            0,
-            LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
-        )
-        .expect("warm viewport ordinary-grid context succeeds");
-        assert!(
-            grid_tree
-                .cache_inputs(1)
-                .iter()
-                .any(|input| *input == *child_entry.input())
-        );
-        assert!(warm_batch.cache_store_entries().iter().all(|entry| {
+            .any(|input| *input == *child_entry.input())
+    );
+    assert!(
+        warm_batch.cache_store_entries().iter().all(|entry| {
             entry.node() != 1 || entry.input().run_mode() != RunMode::PerformLayout
-        }));
+        })
+    );
 
-        let flex_batch = compute_layout(
-            &grid_tree,
-            0,
-            LayoutRootRequestOf::flex_item_under_viewport(
-                viewport,
-                FlexItemRootContextOf::under_viewport(viewport, containing_flow)
-                    .expect("valid flex item root context"),
-            )
-            .expect("valid flex item root request"),
+    let flex_batch = compute_layout(
+        &grid_tree,
+        0,
+        LayoutRootRequestOf::flex_item_under_viewport(
+            viewport,
+            FlexItemRootContextOf::under_viewport(viewport, containing_flow)
+                .expect("valid flex item root context"),
         )
-        .expect("flex-item ordinary-grid context succeeds");
-        assert_eq!(
-            public_flow_output(flex_batch.final_entries(), 1),
-            public_flow_output(warm_batch.final_entries(), 1)
-        );
-    };
+        .expect("valid flex item root request"),
+    )
+    .expect("flex-item ordinary-grid context succeeds");
+    assert_eq!(
+        public_flow_output(flex_batch.final_entries(), 1),
+        public_flow_output(warm_batch.final_entries(), 1)
+    );
 }
 
 #[test]
@@ -11666,234 +11127,219 @@ fn logical_ordinary_grid_public_contexts_f64() {
 }
 
 fn assert_logical_ordinary_grid_in_flow_placement_public_output<S: LayoutScalar>() {
-    (AssertLogicalOrdinaryGridInFlowPlacementPublicOutputPhaseL11220::<S>::RUN)()
-}
+    let scalar = scalar::<S>;
+    let logical_container_size = crate::geometry::LogicalSizeOf::new(scalar(70.0), scalar(110.0));
+    let child_size = Size::new(scalar(11.25), scalar(13.5));
 
-type AssertLogicalOrdinaryGridInFlowPlacementPublicOutputPhaseL11220Run = fn();
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+        let parallel_flow = LogicalGridChildFlow {
+            writing_mode,
+            direction,
+        };
+        let opposing_flow = logical_grid_opposing_flow(parallel_flow);
+        let orthogonal_flow = logical_grid_orthogonal_flow(parallel_flow);
+        let child_flows = [
+            parallel_flow,
+            opposing_flow,
+            orthogonal_flow,
+            logical_grid_opposing_flow(orthogonal_flow),
+        ];
+        let area_origins = [
+            (scalar(0.0), scalar(0.0), scalar(30.0), scalar(50.0)),
+            (scalar(30.0), scalar(0.0), scalar(40.0), scalar(50.0)),
+            (scalar(0.0), scalar(50.0), scalar(30.0), scalar(60.0)),
+            (scalar(30.0), scalar(50.0), scalar(40.0), scalar(60.0)),
+        ];
+        let alignments = [
+            (AlignItems::End, AlignItems::Center),
+            (AlignItems::Center, AlignItems::Start),
+            (AlignItems::Start, AlignItems::End),
+            (AlignItems::End, AlignItems::End),
+        ];
+        let logical_margins = [
+            crate::geometry::LogicalEdgesOf::new(
+                scalar(1.25),
+                scalar(2.5),
+                scalar(3.75),
+                scalar(4.25),
+            ),
+            crate::geometry::LogicalEdgesOf::new(
+                scalar(2.25),
+                scalar(1.5),
+                scalar(4.5),
+                scalar(3.25),
+            ),
+            crate::geometry::LogicalEdgesOf::new(
+                scalar(3.5),
+                scalar(2.0),
+                scalar(1.25),
+                scalar(5.0),
+            ),
+            crate::geometry::LogicalEdgesOf::new(
+                scalar(1.5),
+                scalar(3.75),
+                scalar(2.25),
+                scalar(4.5),
+            ),
+        ];
+        let relative_offsets = [
+            crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+            crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+            crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+            crate::geometry::LogicalPointOf::new(scalar(2.5), -scalar(1.25)),
+        ];
 
-struct AssertLogicalOrdinaryGridInFlowPlacementPublicOutputPhaseL11220<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
-
-impl<S: LayoutScalar> AssertLogicalOrdinaryGridInFlowPlacementPublicOutputPhaseL11220<S> {
-    const RUN: AssertLogicalOrdinaryGridInFlowPlacementPublicOutputPhaseL11220Run = || {
-        let scalar = scalar::<S>;
-        let logical_container_size =
-            crate::geometry::LogicalSizeOf::new(scalar(70.0), scalar(110.0));
-        let child_size = Size::new(scalar(11.25), scalar(13.5));
-
-        for (writing_mode, direction) in root_writing_mode_directions() {
-            let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
-            let parallel_flow = LogicalGridChildFlow {
-                writing_mode,
-                direction,
-            };
-            let opposing_flow = logical_grid_opposing_flow(parallel_flow);
-            let orthogonal_flow = logical_grid_orthogonal_flow(parallel_flow);
-            let child_flows = [
-                parallel_flow,
-                opposing_flow,
-                orthogonal_flow,
-                logical_grid_opposing_flow(orthogonal_flow),
-            ];
-            let area_origins = [
-                (scalar(0.0), scalar(0.0), scalar(30.0), scalar(50.0)),
-                (scalar(30.0), scalar(0.0), scalar(40.0), scalar(50.0)),
-                (scalar(0.0), scalar(50.0), scalar(30.0), scalar(60.0)),
-                (scalar(30.0), scalar(50.0), scalar(40.0), scalar(60.0)),
-            ];
-            let alignments = [
-                (AlignItems::End, AlignItems::Center),
-                (AlignItems::Center, AlignItems::Start),
-                (AlignItems::Start, AlignItems::End),
-                (AlignItems::End, AlignItems::End),
-            ];
-            let logical_margins = [
-                crate::geometry::LogicalEdgesOf::new(
-                    scalar(1.25),
-                    scalar(2.5),
-                    scalar(3.75),
-                    scalar(4.25),
-                ),
-                crate::geometry::LogicalEdgesOf::new(
-                    scalar(2.25),
-                    scalar(1.5),
-                    scalar(4.5),
-                    scalar(3.25),
-                ),
-                crate::geometry::LogicalEdgesOf::new(
-                    scalar(3.5),
-                    scalar(2.0),
-                    scalar(1.25),
-                    scalar(5.0),
-                ),
-                crate::geometry::LogicalEdgesOf::new(
-                    scalar(1.5),
-                    scalar(3.75),
-                    scalar(2.25),
-                    scalar(4.5),
-                ),
-            ];
-            let relative_offsets = [
-                crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
-                crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
-                crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
-                crate::geometry::LogicalPointOf::new(scalar(2.5), -scalar(1.25)),
-            ];
-
-            let mut tree = PublicFlowTree::default()
-                .with_children(0, [1, 2, 3, 4])
-                .with_children(1, [])
-                .with_children(2, [])
-                .with_children(3, [])
-                .with_children(4, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        writing_mode,
-                        direction,
-                        size: flow_axes
-                            .physical_size(logical_container_size)
-                            .map(PreferredSizeOf::px),
-                        grid_template_columns: vec![
-                            TrackComponentOf::px(scalar(30.0)),
-                            TrackComponentOf::px(scalar(40.0)),
-                        ],
-                        grid_template_rows: vec![
-                            TrackComponentOf::px(scalar(50.0)),
-                            TrackComponentOf::px(scalar(60.0)),
-                        ],
-                        justify_content: Some(AlignContent::Start),
-                        align_content: Some(AlignContent::Start),
-                        ..NodeInputOf::default()
-                    },
-                );
-
-            for (index, ((child_flow, (justify_self, align_self)), logical_margin)) in child_flows
-                .into_iter()
-                .zip(alignments)
-                .zip(logical_margins)
-                .enumerate()
-            {
-                let logical_inset = crate::geometry::LogicalEdgesOf::new(
-                    LengthAutoOf::px(relative_offsets[index].inline),
-                    LengthAutoOf::AUTO,
-                    LengthAutoOf::px(relative_offsets[index].block),
-                    LengthAutoOf::AUTO,
-                );
-                tree = tree.with_style(
-                    index as u32 + 1,
-                    NodeInputOf {
-                        display: Display::Block,
-                        writing_mode: child_flow.writing_mode,
-                        direction: child_flow.direction,
-                        size: child_size.map(PreferredSizeOf::px),
-                        margin: flow_axes.physical_edges(logical_margin.map(LengthAutoOf::px)),
-                        inset: flow_axes.physical_edges(logical_inset),
-                        position: Position::Relative,
-                        justify_self: Some(justify_self),
-                        align_self: Some(align_self),
-                        grid_column: GridPlacement::try_line(index as isize % 2 + 1)
-                            .expect("test grid column is valid"),
-                        grid_row: GridPlacement::try_line(index as isize / 2 + 1)
-                            .expect("test grid row is valid"),
-                        ..NodeInputOf::default()
-                    },
-                );
-            }
-
-            let batch = compute_layout(
-                &tree,
+        let mut tree = PublicFlowTree::default()
+            .with_children(0, [1, 2, 3, 4])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_children(3, [])
+            .with_children(4, [])
+            .with_style(
                 0,
-                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
-                    .expect("valid viewport request"),
-            )
-            .expect("logical ordinary-grid in-flow placement succeeds");
-            let root_unrounded = public_flow_output(batch.unrounded_entries(), 0);
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode,
+                    direction,
+                    size: flow_axes
+                        .physical_size(logical_container_size)
+                        .map(PreferredSizeOf::px),
+                    grid_template_columns: vec![
+                        TrackComponentOf::px(scalar(30.0)),
+                        TrackComponentOf::px(scalar(40.0)),
+                    ],
+                    grid_template_rows: vec![
+                        TrackComponentOf::px(scalar(50.0)),
+                        TrackComponentOf::px(scalar(60.0)),
+                    ],
+                    justify_content: Some(AlignContent::Start),
+                    align_content: Some(AlignContent::Start),
+                    ..NodeInputOf::default()
+                },
+            );
 
-            for (
-                index,
-                (
-                    (
-                        (inline_origin, block_origin, inline_size, block_size),
-                        (justify_self, align_self),
-                    ),
-                    logical_margin,
-                ),
-            ) in area_origins
-                .into_iter()
-                .zip(alignments)
-                .zip(logical_margins)
-                .enumerate()
-            {
-                let logical_child_size = flow_axes.logical_size(child_size);
-                let inline_offset = match justify_self {
-                    AlignItems::Start => logical_margin.inline_start,
-                    AlignItems::End => {
-                        inline_size - logical_child_size.inline - logical_margin.inline_end
-                    }
-                    AlignItems::Center => {
-                        (inline_size - logical_child_size.inline + logical_margin.inline_start
-                            - logical_margin.inline_end)
-                            / scalar(2.0)
-                    }
-                    _ => unreachable!("the test only uses resolved item alignments"),
-                };
-                let block_offset = match align_self {
-                    AlignItems::Start => logical_margin.block_start,
-                    AlignItems::End => {
-                        block_size - logical_child_size.block - logical_margin.block_end
-                    }
-                    AlignItems::Center => {
-                        (block_size - logical_child_size.block + logical_margin.block_start
-                            - logical_margin.block_end)
-                            / scalar(2.0)
-                    }
-                    _ => unreachable!("the test only uses resolved item alignments"),
-                };
-                let logical_location = crate::geometry::LogicalPointOf::new(
-                    inline_origin + inline_offset + relative_offsets[index].inline,
-                    block_origin + block_offset + relative_offsets[index].block,
-                );
-                let expected_location = flow_axes.physical_point(
-                    logical_location,
-                    logical_child_size,
-                    flow_axes.physical_size(logical_container_size),
-                );
-                let unrounded = public_flow_output(batch.unrounded_entries(), index as u32 + 1);
-                let rounded = public_flow_output(batch.final_entries(), index as u32 + 1);
-                let physical_margin = flow_axes.physical_edges(logical_margin);
-                let cumulative_x = root_unrounded.location.x + unrounded.location.x;
-                let cumulative_y = root_unrounded.location.y + unrounded.location.y;
-
-                assert_eq!(
-                    unrounded.location,
-                    expected_location,
-                    "{writing_mode:?} {direction:?} child {} must project its logical grid area once",
-                    index + 1
-                );
-                assert_eq!(unrounded.size, child_size);
-                assert_eq!(unrounded.margin, physical_margin);
-                assert_eq!(
-                    rounded.location,
-                    Point::new(
-                        nearest_css_pixel(unrounded.location.x),
-                        nearest_css_pixel(unrounded.location.y),
-                    )
-                );
-                assert_eq!(
-                    rounded.size,
-                    Size::new(
-                        nearest_css_pixel(cumulative_x + unrounded.size.width)
-                            - nearest_css_pixel(cumulative_x),
-                        nearest_css_pixel(cumulative_y + unrounded.size.height)
-                            - nearest_css_pixel(cumulative_y),
-                    )
-                );
-            }
+        for (index, ((child_flow, (justify_self, align_self)), logical_margin)) in child_flows
+            .into_iter()
+            .zip(alignments)
+            .zip(logical_margins)
+            .enumerate()
+        {
+            let logical_inset = crate::geometry::LogicalEdgesOf::new(
+                LengthAutoOf::px(relative_offsets[index].inline),
+                LengthAutoOf::AUTO,
+                LengthAutoOf::px(relative_offsets[index].block),
+                LengthAutoOf::AUTO,
+            );
+            tree = tree.with_style(
+                index as u32 + 1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: child_flow.writing_mode,
+                    direction: child_flow.direction,
+                    size: child_size.map(PreferredSizeOf::px),
+                    margin: flow_axes.physical_edges(logical_margin.map(LengthAutoOf::px)),
+                    inset: flow_axes.physical_edges(logical_inset),
+                    position: Position::Relative,
+                    justify_self: Some(justify_self),
+                    align_self: Some(align_self),
+                    grid_column: GridPlacement::try_line(index as isize % 2 + 1)
+                        .expect("test grid column is valid"),
+                    grid_row: GridPlacement::try_line(index as isize / 2 + 1)
+                        .expect("test grid row is valid"),
+                    ..NodeInputOf::default()
+                },
+            );
         }
-    };
+
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("logical ordinary-grid in-flow placement succeeds");
+        let root_unrounded = public_flow_output(batch.unrounded_entries(), 0);
+
+        for (
+            index,
+            (
+                (
+                    (inline_origin, block_origin, inline_size, block_size),
+                    (justify_self, align_self),
+                ),
+                logical_margin,
+            ),
+        ) in area_origins
+            .into_iter()
+            .zip(alignments)
+            .zip(logical_margins)
+            .enumerate()
+        {
+            let logical_child_size = flow_axes.logical_size(child_size);
+            let inline_offset = match justify_self {
+                AlignItems::Start => logical_margin.inline_start,
+                AlignItems::End => {
+                    inline_size - logical_child_size.inline - logical_margin.inline_end
+                }
+                AlignItems::Center => {
+                    (inline_size - logical_child_size.inline + logical_margin.inline_start
+                        - logical_margin.inline_end)
+                        / scalar(2.0)
+                }
+                _ => unreachable!("the test only uses resolved item alignments"),
+            };
+            let block_offset = match align_self {
+                AlignItems::Start => logical_margin.block_start,
+                AlignItems::End => block_size - logical_child_size.block - logical_margin.block_end,
+                AlignItems::Center => {
+                    (block_size - logical_child_size.block + logical_margin.block_start
+                        - logical_margin.block_end)
+                        / scalar(2.0)
+                }
+                _ => unreachable!("the test only uses resolved item alignments"),
+            };
+            let logical_location = crate::geometry::LogicalPointOf::new(
+                inline_origin + inline_offset + relative_offsets[index].inline,
+                block_origin + block_offset + relative_offsets[index].block,
+            );
+            let expected_location = flow_axes.physical_point(
+                logical_location,
+                logical_child_size,
+                flow_axes.physical_size(logical_container_size),
+            );
+            let unrounded = public_flow_output(batch.unrounded_entries(), index as u32 + 1);
+            let rounded = public_flow_output(batch.final_entries(), index as u32 + 1);
+            let physical_margin = flow_axes.physical_edges(logical_margin);
+            let cumulative_x = root_unrounded.location.x + unrounded.location.x;
+            let cumulative_y = root_unrounded.location.y + unrounded.location.y;
+
+            assert_eq!(
+                unrounded.location,
+                expected_location,
+                "{writing_mode:?} {direction:?} child {} must project its logical grid area once",
+                index + 1
+            );
+            assert_eq!(unrounded.size, child_size);
+            assert_eq!(unrounded.margin, physical_margin);
+            assert_eq!(
+                rounded.location,
+                Point::new(
+                    nearest_css_pixel(unrounded.location.x),
+                    nearest_css_pixel(unrounded.location.y),
+                )
+            );
+            assert_eq!(
+                rounded.size,
+                Size::new(
+                    nearest_css_pixel(cumulative_x + unrounded.size.width)
+                        - nearest_css_pixel(cumulative_x),
+                    nearest_css_pixel(cumulative_y + unrounded.size.height)
+                        - nearest_css_pixel(cumulative_y),
+                )
+            );
+        }
+    }
 }
 
 #[test]
@@ -12179,179 +11625,164 @@ fn logical_flex_intrinsic_percentage_margin_and_gap_use_container_axes_for_f64()
 }
 
 fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: LayoutScalar>() {
-    (AssertLogicalFlexSizingPreservesHorizontalAndChildFlowOwnershipPhaseL11718::<S>::RUN)()
-}
+    let scalar = scalar::<S>;
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2, 3])
+        .with_children(1, [4])
+        .with_children(2, [5])
+        .with_children(3, [6])
+        .with_children(4, [])
+        .with_children(5, [])
+        .with_children(6, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(120.0)),
+                ),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(30.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(30.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            3,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::HorizontalTb,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(30.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            4,
+            NodeInputOf {
+                display: Display::Block,
+                flex_basis: FlexBasisOf::percent(scalar(0.5)),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            5,
+            NodeInputOf {
+                display: Display::Block,
+                flex_basis: FlexBasisOf::percent(scalar(0.5)),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            6,
+            NodeInputOf {
+                display: Display::Block,
+                flex_basis: FlexBasisOf::percent(scalar(0.5)),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(100.0)),
+            AvailableOf::definite(scalar(120.0)),
+        ))
+        .expect("valid viewport request"),
+    )
+    .expect("non-leaf flex root layout succeeds");
 
-type AssertLogicalFlexSizingPreservesHorizontalAndChildFlowOwnershipPhaseL11718Run = fn();
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 4).size,
+        Size::new(scalar(30.0), scalar(20.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 5).size,
+        Size::new(scalar(30.0), scalar(20.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 6).size,
+        Size::new(scalar(15.0), scalar(40.0))
+    );
 
-struct AssertLogicalFlexSizingPreservesHorizontalAndChildFlowOwnershipPhaseL11718<S: LayoutScalar>(
-    core::marker::PhantomData<(S,)>,
-);
+    let horizontal = PublicFlowTree::default()
+        .with_children(0, [1, 2, 3])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_children(3, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(80.0)),
+                ),
+                flex_wrap: FlexWrap::Wrap,
+                gap: Size::new(LengthOf::ZERO, LengthOf::percent(scalar(0.1))),
+                align_content: Some(AlignContent::FlexStart),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, flex_item_style(scalar(60.0)))
+        .with_style(2, flex_item_style(scalar(60.0)))
+        .with_style(3, flex_item_style(scalar(40.0)));
+    let horizontal_batch = compute_layout(
+        &horizontal,
+        0,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(100.0)),
+            AvailableOf::definite(scalar(80.0)),
+        ))
+        .expect("valid viewport request"),
+    )
+    .expect("horizontal non-leaf flex root layout succeeds");
 
-impl<S: LayoutScalar>
-    AssertLogicalFlexSizingPreservesHorizontalAndChildFlowOwnershipPhaseL11718<S>
-{
-    const RUN: AssertLogicalFlexSizingPreservesHorizontalAndChildFlowOwnershipPhaseL11718Run =
-        || {
-            let scalar = scalar::<S>;
-            let tree = PublicFlowTree::default()
-                .with_children(0, [1, 2, 3])
-                .with_children(1, [4])
-                .with_children(2, [5])
-                .with_children(3, [6])
-                .with_children(4, [])
-                .with_children(5, [])
-                .with_children(6, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        writing_mode: WritingMode::VerticalLr,
-                        size: Size::new(
-                            PreferredSizeOf::px(scalar(100.0)),
-                            PreferredSizeOf::px(scalar(120.0)),
-                        ),
-                        flex_direction: FlexDirection::Row,
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    1,
-                    NodeInputOf {
-                        display: Display::Flex,
-                        writing_mode: WritingMode::VerticalLr,
-                        size: Size::new(
-                            PreferredSizeOf::px(scalar(30.0)),
-                            PreferredSizeOf::px(scalar(40.0)),
-                        ),
-                        flex_direction: FlexDirection::Row,
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    2,
-                    NodeInputOf {
-                        display: Display::Flex,
-                        writing_mode: WritingMode::VerticalRl,
-                        size: Size::new(
-                            PreferredSizeOf::px(scalar(30.0)),
-                            PreferredSizeOf::px(scalar(40.0)),
-                        ),
-                        flex_direction: FlexDirection::Row,
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    3,
-                    NodeInputOf {
-                        display: Display::Flex,
-                        writing_mode: WritingMode::HorizontalTb,
-                        size: Size::new(
-                            PreferredSizeOf::px(scalar(30.0)),
-                            PreferredSizeOf::px(scalar(40.0)),
-                        ),
-                        flex_direction: FlexDirection::Row,
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    4,
-                    NodeInputOf {
-                        display: Display::Block,
-                        flex_basis: FlexBasisOf::percent(scalar(0.5)),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    5,
-                    NodeInputOf {
-                        display: Display::Block,
-                        flex_basis: FlexBasisOf::percent(scalar(0.5)),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(
-                    6,
-                    NodeInputOf {
-                        display: Display::Block,
-                        flex_basis: FlexBasisOf::percent(scalar(0.5)),
-                        ..NodeInputOf::default()
-                    },
-                );
-            let batch = compute_layout(
-                &tree,
-                0,
-                LayoutRootRequestOf::viewport(Size::new(
-                    AvailableOf::definite(scalar(100.0)),
-                    AvailableOf::definite(scalar(120.0)),
-                ))
-                .expect("valid viewport request"),
-            )
-            .expect("non-leaf flex root layout succeeds");
-
-            assert_eq!(
-                public_flow_output(batch.final_entries(), 4).size,
-                Size::new(scalar(30.0), scalar(20.0))
-            );
-            assert_eq!(
-                public_flow_output(batch.final_entries(), 5).size,
-                Size::new(scalar(30.0), scalar(20.0))
-            );
-            assert_eq!(
-                public_flow_output(batch.final_entries(), 6).size,
-                Size::new(scalar(15.0), scalar(40.0))
-            );
-
-            let horizontal = PublicFlowTree::default()
-                .with_children(0, [1, 2, 3])
-                .with_children(1, [])
-                .with_children(2, [])
-                .with_children(3, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        size: Size::new(
-                            PreferredSizeOf::px(scalar(100.0)),
-                            PreferredSizeOf::px(scalar(80.0)),
-                        ),
-                        flex_wrap: FlexWrap::Wrap,
-                        gap: Size::new(LengthOf::ZERO, LengthOf::percent(scalar(0.1))),
-                        align_content: Some(AlignContent::FlexStart),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(1, flex_item_style(scalar(60.0)))
-                .with_style(2, flex_item_style(scalar(60.0)))
-                .with_style(3, flex_item_style(scalar(40.0)));
-            let horizontal_batch = compute_layout(
-                &horizontal,
-                0,
-                LayoutRootRequestOf::viewport(Size::new(
-                    AvailableOf::definite(scalar(100.0)),
-                    AvailableOf::definite(scalar(80.0)),
-                ))
-                .expect("valid viewport request"),
-            )
-            .expect("horizontal non-leaf flex root layout succeeds");
-
-            assert_eq!(
-                public_flow_output(horizontal_batch.final_entries(), 1).size,
-                Size::new(scalar(100.0), scalar(10.0))
-            );
-            assert_eq!(
-                public_flow_output(horizontal_batch.final_entries(), 2).size,
-                Size::new(scalar(60.0), scalar(10.0))
-            );
-            assert_eq!(
-                public_flow_output(horizontal_batch.final_entries(), 3).size,
-                Size::new(scalar(40.0), scalar(10.0))
-            );
-            assert_eq!(
-                public_flow_output(horizontal_batch.final_entries(), 0)
-                    .content_size
-                    .height,
-                scalar(80.0)
-            );
-        };
+    assert_eq!(
+        public_flow_output(horizontal_batch.final_entries(), 1).size,
+        Size::new(scalar(100.0), scalar(10.0))
+    );
+    assert_eq!(
+        public_flow_output(horizontal_batch.final_entries(), 2).size,
+        Size::new(scalar(60.0), scalar(10.0))
+    );
+    assert_eq!(
+        public_flow_output(horizontal_batch.final_entries(), 3).size,
+        Size::new(scalar(40.0), scalar(10.0))
+    );
+    assert_eq!(
+        public_flow_output(horizontal_batch.final_entries(), 0)
+            .content_size
+            .height,
+        scalar(80.0)
+    );
 }
 
 #[test]
@@ -12365,260 +11796,252 @@ fn logical_flex_sizing_preserves_horizontal_and_child_flow_ownership_for_f64() {
 }
 
 fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
-    (AssertLogicalFlexPublicContextsPhaseL11889::<S>::RUN)()
-}
+    let scalar = scalar::<S>;
+    let vertical_containing_flow = FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl);
+    let horizontal_containing_flow = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
 
-type AssertLogicalFlexPublicContextsPhaseL11889Run = fn();
+    // A non-leaf flex root passes its own vertical containing flow to children
+    // whose own flows differ, so percentage sizing remains owned by the parent.
+    assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership::<S>();
 
-struct AssertLogicalFlexPublicContextsPhaseL11889<S: LayoutScalar>(core::marker::PhantomData<(S,)>);
+    let flex_root = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, logical_flex_leaf(10.0, 20.0))
+        .with_style(2, logical_flex_leaf(10.0, 20.0));
+    let viewport = Size::splat(AvailableOf::definite(scalar(100.0)));
+    let flex_root_batch = compute_layout(
+        &flex_root,
+        0,
+        LayoutRootRequestOf::flex_item_under_viewport(
+            viewport,
+            FlexItemRootContextOf::under_viewport(viewport, vertical_containing_flow)
+                .expect("valid flex item root viewport context"),
+        )
+        .expect("valid flex item root request"),
+    )
+    .expect("public flex item root layout succeeds");
+    assert_eq!(
+        public_flow_output(flex_root_batch.final_entries(), 0).location,
+        Point::ZERO
+    );
+    assert_eq!(
+        public_flow_output(flex_root_batch.final_entries(), 0).size,
+        Size::splat(scalar(100.0))
+    );
+    assert_eq!(
+        public_flow_output(flex_root_batch.final_entries(), 1).location,
+        Point::new(S::ZERO, S::ZERO)
+    );
+    assert_eq!(
+        public_flow_output(flex_root_batch.final_entries(), 2).location,
+        Point::new(S::ZERO, scalar(20.0))
+    );
 
-impl<S: LayoutScalar> AssertLogicalFlexPublicContextsPhaseL11889<S> {
-    const RUN: AssertLogicalFlexPublicContextsPhaseL11889Run = || {
-        let scalar = scalar::<S>;
-        let vertical_containing_flow = FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl);
-        let horizontal_containing_flow = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
-
-        // A non-leaf flex root passes its own vertical containing flow to children
-        // whose own flows differ, so percentage sizing remains owned by the parent.
-        assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership::<S>();
-
-        let flex_root = PublicFlowTree::default()
-            .with_children(0, [1, 2])
+    let cache_tree = |writing_mode, direction| {
+        PublicFlowTree::default()
+            .with_children(0, [1])
             .with_children(1, [])
-            .with_children(2, [])
             .with_style(
                 0,
                 NodeInputOf {
                     display: Display::Flex,
-                    writing_mode: WritingMode::VerticalLr,
+                    writing_mode,
+                    direction,
                     size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                     flex_direction: FlexDirection::Row,
                     ..NodeInputOf::default()
                 },
             )
-            .with_style(1, logical_flex_leaf(10.0, 20.0))
-            .with_style(2, logical_flex_leaf(10.0, 20.0));
-        let viewport = Size::splat(AvailableOf::definite(scalar(100.0)));
-        let flex_root_batch = compute_layout(
-            &flex_root,
-            0,
-            LayoutRootRequestOf::flex_item_under_viewport(
-                viewport,
-                FlexItemRootContextOf::under_viewport(viewport, vertical_containing_flow)
-                    .expect("valid flex item root viewport context"),
-            )
-            .expect("valid flex item root request"),
-        )
-        .expect("public flex item root layout succeeds");
-        assert_eq!(
-            public_flow_output(flex_root_batch.final_entries(), 0).location,
-            Point::ZERO
-        );
-        assert_eq!(
-            public_flow_output(flex_root_batch.final_entries(), 0).size,
-            Size::splat(scalar(100.0))
-        );
-        assert_eq!(
-            public_flow_output(flex_root_batch.final_entries(), 1).location,
-            Point::new(S::ZERO, S::ZERO)
-        );
-        assert_eq!(
-            public_flow_output(flex_root_batch.final_entries(), 2).location,
-            Point::new(S::ZERO, scalar(20.0))
-        );
+            .with_style(1, logical_flex_leaf(10.25, 20.25))
+    };
+    let cache_request =
+        LayoutRootRequestOf::viewport(viewport).expect("valid cache viewport request");
+    let vertical_cache_tree = cache_tree(WritingMode::VerticalLr, Direction::Rtl);
+    let cold_cache_batch = compute_layout(&vertical_cache_tree, 0, cache_request)
+        .expect("cold non-leaf flex cache traversal succeeds");
+    let cold_child_entry = cold_cache_batch
+        .cache_store_entries()
+        .iter()
+        .find(|entry| entry.node() == 1 && entry.input().run_mode() == RunMode::PerformLayout)
+        .expect("cold flex traversal stages the child final-layout cache output");
+    assert_eq!(
+        cold_child_entry.input().containing_flow_axes(),
+        vertical_containing_flow
+    );
+    assert_eq!(
+        cold_child_entry.output().size,
+        Size::new(scalar(10.25), scalar(20.25))
+    );
+    assert_eq!(
+        cold_child_entry.output().content_size,
+        Size::new(scalar(10.25), scalar(20.25))
+    );
+    let cold_child = public_flow_output(cold_cache_batch.final_entries(), 1);
+    assert_eq!(cold_child.source_index, crate::SourceIndex::new(0));
+    assert_eq!(cold_child.location, Point::new(S::ZERO, scalar(80.0)));
+    assert_eq!(cold_child.size, Size::new(scalar(10.0), scalar(20.0)));
+    assert_eq!(
+        cold_child.content_size,
+        Size::new(scalar(10.0), scalar(20.0))
+    );
+    assert_eq!(cold_child.border, Edges::ZERO);
+    assert_eq!(cold_child.padding, Edges::ZERO);
+    assert_eq!(cold_child.margin, Edges::ZERO);
+    let cold_child_geometry = cold_child
+        .scroll_geometry
+        .expect("performed flex child retains canonical geometry");
+    assert_eq!(cold_child_geometry.border_box().size(), cold_child.size);
+    assert_eq!(
+        cold_child_geometry.target().border_box(),
+        cold_child_geometry.border_box()
+    );
+    assert_eq!(
+        cold_child.scrollbar_size(),
+        cold_child_geometry.scrollbar_size()
+    );
 
-        let cache_tree = |writing_mode, direction| {
-            PublicFlowTree::default()
-                .with_children(0, [1])
-                .with_children(1, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        display: Display::Flex,
-                        writing_mode,
-                        direction,
-                        size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
-                        flex_direction: FlexDirection::Row,
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(1, logical_flex_leaf(10.25, 20.25))
-        };
-        let cache_request =
-            LayoutRootRequestOf::viewport(viewport).expect("valid cache viewport request");
-        let vertical_cache_tree = cache_tree(WritingMode::VerticalLr, Direction::Rtl);
-        let cold_cache_batch = compute_layout(&vertical_cache_tree, 0, cache_request)
-            .expect("cold non-leaf flex cache traversal succeeds");
-        let cold_child_entry = cold_cache_batch
+    vertical_cache_tree.apply_cache_entries(cold_cache_batch.cache_store_entries());
+    vertical_cache_tree.clear_cache_inputs();
+    let warm_cache_batch = compute_layout(&vertical_cache_tree, 0, cache_request)
+        .expect("matching public flex cache traversal succeeds");
+    assert!(
+        vertical_cache_tree
+            .cache_inputs(1)
+            .iter()
+            .any(|input| *input == *cold_child_entry.input())
+    );
+    assert!(
+        warm_cache_batch.cache_store_entries().iter().all(|entry| {
+            entry.node() != 1 || entry.input().run_mode() != RunMode::PerformLayout
+        })
+    );
+    assert_eq!(
+        public_flow_output(warm_cache_batch.final_entries(), 1),
+        public_flow_output(cold_cache_batch.final_entries(), 1)
+    );
+
+    let horizontal_cache_tree = cache_tree(WritingMode::HorizontalTb, Direction::Ltr);
+    horizontal_cache_tree.apply_cache_entries(&[*cold_child_entry]);
+    let distinct_flow_batch = compute_layout(&horizontal_cache_tree, 0, cache_request)
+        .expect("distinct-flow public flex cache traversal succeeds");
+    assert!(
+        horizontal_cache_tree
+            .cache_inputs(1)
+            .iter()
+            .any(|input| input.containing_flow_axes() == horizontal_containing_flow)
+    );
+    assert!(
+        distinct_flow_batch
             .cache_store_entries()
             .iter()
-            .find(|entry| entry.node() == 1 && entry.input().run_mode() == RunMode::PerformLayout)
-            .expect("cold flex traversal stages the child final-layout cache output");
-        assert_eq!(
-            cold_child_entry.input().containing_flow_axes(),
-            vertical_containing_flow
-        );
-        assert_eq!(
-            cold_child_entry.output().size,
-            Size::new(scalar(10.25), scalar(20.25))
-        );
-        assert_eq!(
-            cold_child_entry.output().content_size,
-            Size::new(scalar(10.25), scalar(20.25))
-        );
-        let cold_child = public_flow_output(cold_cache_batch.final_entries(), 1);
-        assert_eq!(cold_child.source_index, crate::SourceIndex::new(0));
-        assert_eq!(cold_child.location, Point::new(S::ZERO, scalar(80.0)));
-        assert_eq!(cold_child.size, Size::new(scalar(10.0), scalar(20.0)));
-        assert_eq!(
-            cold_child.content_size,
-            Size::new(scalar(10.0), scalar(20.0))
-        );
-        assert_eq!(cold_child.border, Edges::ZERO);
-        assert_eq!(cold_child.padding, Edges::ZERO);
-        assert_eq!(cold_child.margin, Edges::ZERO);
-        let cold_child_geometry = cold_child
-            .scroll_geometry
-            .expect("performed flex child retains canonical geometry");
-        assert_eq!(cold_child_geometry.border_box().size(), cold_child.size);
-        assert_eq!(
-            cold_child_geometry.target().border_box(),
-            cold_child_geometry.border_box()
-        );
-        assert_eq!(
-            cold_child.scrollbar_size(),
-            cold_child_geometry.scrollbar_size()
-        );
+            .any(|entry| {
+                entry.node() == 1
+                    && entry.input().run_mode() == RunMode::PerformLayout
+                    && entry.input().containing_flow_axes() == horizontal_containing_flow
+            })
+    );
 
-        vertical_cache_tree.apply_cache_entries(cold_cache_batch.cache_store_entries());
-        vertical_cache_tree.clear_cache_inputs();
-        let warm_cache_batch = compute_layout(&vertical_cache_tree, 0, cache_request)
-            .expect("matching public flex cache traversal succeeds");
-        assert!(
-            vertical_cache_tree
-                .cache_inputs(1)
-                .iter()
-                .any(|input| *input == *cold_child_entry.input())
-        );
-        assert!(warm_cache_batch.cache_store_entries().iter().all(|entry| {
-            entry.node() != 1 || entry.input().run_mode() != RunMode::PerformLayout
-        }));
-        assert_eq!(
-            public_flow_output(warm_cache_batch.final_entries(), 1),
-            public_flow_output(cold_cache_batch.final_entries(), 1)
-        );
-
-        let horizontal_cache_tree = cache_tree(WritingMode::HorizontalTb, Direction::Ltr);
-        horizontal_cache_tree.apply_cache_entries(&[*cold_child_entry]);
-        let distinct_flow_batch = compute_layout(&horizontal_cache_tree, 0, cache_request)
-            .expect("distinct-flow public flex cache traversal succeeds");
-        assert!(
-            horizontal_cache_tree
-                .cache_inputs(1)
-                .iter()
-                .any(|input| input.containing_flow_axes() == horizontal_containing_flow)
-        );
-        assert!(
-            distinct_flow_batch
-                .cache_store_entries()
-                .iter()
-                .any(|entry| {
-                    entry.node() == 1
-                        && entry.input().run_mode() == RunMode::PerformLayout
-                        && entry.input().containing_flow_axes() == horizontal_containing_flow
-                })
-        );
-
-        let hidden = PublicFlowTree::default()
-            .with_children(0, [1])
-            .with_children(1, [2])
-            .with_children(2, [])
-            .with_style(
-                0,
-                NodeInputOf {
-                    display: Display::Flex,
-                    writing_mode: WritingMode::VerticalRl,
-                    direction: Direction::Rtl,
-                    size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
-                    flex_direction: FlexDirection::Row,
-                    ..NodeInputOf::default()
-                },
-            )
-            .with_style(
-                1,
-                NodeInputOf {
-                    display: Display::None,
-                    writing_mode: WritingMode::HorizontalTb,
-                    direction: Direction::Ltr,
-                    ..NodeInputOf::default()
-                },
-            )
-            .with_style(2, logical_flex_leaf(20.0, 10.0));
-        let hidden_batch = compute_layout(
-            &hidden,
+    let hidden = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [2])
+        .with_children(2, [])
+        .with_style(
             0,
-            LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Rtl,
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
         )
-        .expect("hidden flex descendant layout succeeds");
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::None,
+                writing_mode: WritingMode::HorizontalTb,
+                direction: Direction::Ltr,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(2, logical_flex_leaf(20.0, 10.0));
+    let hidden_batch = compute_layout(
+        &hidden,
+        0,
+        LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+    )
+    .expect("hidden flex descendant layout succeeds");
+    assert_eq!(
+        hidden_batch
+            .cache_clear_entries()
+            .iter()
+            .map(|entry| entry.node())
+            .collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+    for node in [1, 2] {
         assert_eq!(
-            hidden_batch
-                .cache_clear_entries()
-                .iter()
-                .map(|entry| entry.node())
-                .collect::<Vec<_>>(),
-            vec![1, 2]
+            public_flow_output(hidden_batch.unrounded_entries(), node),
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
         );
-        for node in [1, 2] {
-            assert_eq!(
-                public_flow_output(hidden_batch.unrounded_entries(), node),
-                NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
-            );
-            assert_eq!(
-                public_flow_output(hidden_batch.final_entries(), node),
-                NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
-            );
-        }
+        assert_eq!(
+            public_flow_output(hidden_batch.final_entries(), node),
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
+        );
+    }
 
-        let fractional = PublicFlowTree::default()
-            .with_children(0, [1])
-            .with_children(1, [])
-            .with_style(
-                0,
-                NodeInputOf {
-                    display: Display::Flex,
-                    writing_mode: WritingMode::VerticalLr,
-                    size: Size::splat_clone(PreferredSizeOf::px(scalar(100.5))),
-                    flex_direction: FlexDirection::Row,
-                    align_items: Some(AlignItems::FlexEnd),
-                    justify_content: Some(AlignContent::FlexEnd),
-                    ..NodeInputOf::default()
-                },
-            )
-            .with_style(1, logical_flex_leaf(10.25, 20.25));
-        let fractional_batch = compute_layout(
-            &fractional,
+    let fractional = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
             0,
-            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.5))))
-                .expect("valid fractional viewport request"),
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.5))),
+                flex_direction: FlexDirection::Row,
+                align_items: Some(AlignItems::FlexEnd),
+                justify_content: Some(AlignContent::FlexEnd),
+                ..NodeInputOf::default()
+            },
         )
-        .expect("fractional non-horizontal flex layout succeeds");
-        assert_eq!(
-            public_flow_output(fractional_batch.unrounded_entries(), 1).location,
-            Point::new(scalar(90.25), scalar(80.25))
-        );
-        assert_eq!(
-            public_flow_output(fractional_batch.unrounded_entries(), 1).size,
-            Size::new(scalar(10.25), scalar(20.25))
-        );
-        assert_eq!(
-            public_flow_output(fractional_batch.final_entries(), 1).location,
-            Point::new(scalar(90.0), scalar(80.0))
-        );
-        assert_eq!(
-            public_flow_output(fractional_batch.final_entries(), 1).size,
-            Size::new(scalar(11.0), scalar(21.0))
-        );
-    };
+        .with_style(1, logical_flex_leaf(10.25, 20.25));
+    let fractional_batch = compute_layout(
+        &fractional,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.5))))
+            .expect("valid fractional viewport request"),
+    )
+    .expect("fractional non-horizontal flex layout succeeds");
+    assert_eq!(
+        public_flow_output(fractional_batch.unrounded_entries(), 1).location,
+        Point::new(scalar(90.25), scalar(80.25))
+    );
+    assert_eq!(
+        public_flow_output(fractional_batch.unrounded_entries(), 1).size,
+        Size::new(scalar(10.25), scalar(20.25))
+    );
+    assert_eq!(
+        public_flow_output(fractional_batch.final_entries(), 1).location,
+        Point::new(scalar(90.0), scalar(80.0))
+    );
+    assert_eq!(
+        public_flow_output(fractional_batch.final_entries(), 1).size,
+        Size::new(scalar(11.0), scalar(21.0))
+    );
 }
 
 #[test]
@@ -14658,182 +14081,164 @@ fn compute_layout_preserves_nested_subgrid_resolution_failure() {
 fn assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow<
     S: LayoutScalar,
 >() {
-    (AssertLogicalFlexPublicContextsHiddenLayoutRecursesWithContainingFlowPhaseL14172::<S>::RUN)()
-}
+    #[derive(Default)]
+    struct HiddenTree<S: LayoutScalar> {
+        children: HashMap<u32, Vec<u32>>,
+        layouts: HashMap<u32, NodeOutputOf<S>>,
+        caches: HashMap<u32, CacheOf<S>>,
+        styles: HashMap<u32, NodeInputOf<S>>,
+        calls: Vec<(u32, ComputeInputOf<S>)>,
+        cache_get_calls: Cell<usize>,
+        cache_store_calls: usize,
+    }
 
-type AssertLogicalFlexPublicContextsHiddenLayoutRecursesWithContainingFlowPhaseL14172Run = fn();
+    impl<S: LayoutScalar> Traverse for HiddenTree<S> {
+        type Node = u32;
+        type Scalar = S;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
-struct AssertLogicalFlexPublicContextsHiddenLayoutRecursesWithContainingFlowPhaseL14172<
-    S: LayoutScalar,
->(core::marker::PhantomData<(S,)>);
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
+        }
 
-impl<S: LayoutScalar>
-    AssertLogicalFlexPublicContextsHiddenLayoutRecursesWithContainingFlowPhaseL14172<S>
-{
-    const RUN: AssertLogicalFlexPublicContextsHiddenLayoutRecursesWithContainingFlowPhaseL14172Run =
-        || {
-            #[derive(Default)]
-            struct HiddenTree<S: LayoutScalar> {
-                children: HashMap<u32, Vec<u32>>,
-                layouts: HashMap<u32, NodeOutputOf<S>>,
-                caches: HashMap<u32, CacheOf<S>>,
-                styles: HashMap<u32, NodeInputOf<S>>,
-                calls: Vec<(u32, ComputeInputOf<S>)>,
-                cache_get_calls: Cell<usize>,
-                cache_store_calls: usize,
-            }
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
+        }
 
-            impl<S: LayoutScalar> Traverse for HiddenTree<S> {
-                type Node = u32;
-                type Scalar = S;
-                type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
 
-                fn children(&self, node: Self::Node) -> Self::Children<'_> {
-                    self.children[&node].iter().copied()
-                }
+    impl<S: LayoutScalar> Compute for HiddenTree<S> {
+        fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+            &self.styles[&node]
+        }
 
-                fn child_count(&self, node: Self::Node) -> usize {
-                    self.children[&node].len()
-                }
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::box_input(self.node_input(node).clone())
+        }
 
-                fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-                    self.children[&node][index]
-                }
-            }
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
+            self.layouts.insert(node, layout);
+        }
 
-            impl<S: LayoutScalar> Compute for HiddenTree<S> {
-                fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
-                    &self.styles[&node]
-                }
-
-                fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-                    LayoutInputOf::box_input(self.node_input(node).clone())
-                }
-
-                fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
-                    self.layouts.insert(node, layout);
-                }
-
-                fn compute_child(
-                    &mut self,
-                    node: Self::Node,
-                    input: ComputeInputOf<S>,
-                ) -> crate::LayoutResultOf<
-                    Self::Node,
-                    crate::ComputeOutputOf<Self::Scalar>,
-                    Self::Scalar,
-                > {
-                    let expected_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
-                    assert_eq!(
-                        input,
-                        ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
-                            expected_axes,
-                            crate::ParentFormattingContext::NoParent
-                        ))
-                    );
-                    self.calls.push((node, input));
-                    compute_hidden(
-                        self,
-                        node,
-                        SourceIndex::ZERO,
-                        input.containing_layout_context(),
-                        input.containing_auto_scrollbar_pass(),
-                    )
-                }
-            }
-
-            impl<S: LayoutScalar> CacheAccess for HiddenTree<S> {
-                type Node = u32;
-                type Scalar = S;
-
-                fn cache_context(&self) -> crate::CacheKeyContext {
-                    crate::CacheKeyContext::new()
-                }
-
-                fn cache_get(
-                    &self,
-                    node: Self::Node,
-                    input: &ComputeInputOf<S>,
-                    context: crate::CacheKeyContext,
-                ) -> Option<ComputeOutputOf<S>> {
-                    self.cache_get_calls.set(self.cache_get_calls.get() + 1);
-                    self.caches[&node].get_with_context(input, context)
-                }
-
-                fn cache_store(
-                    &mut self,
-                    node: Self::Node,
-                    input: &ComputeInputOf<S>,
-                    context: crate::CacheKeyContext,
-                    output: ComputeOutputOf<S>,
-                ) {
-                    self.cache_store_calls += 1;
-                    self.caches
-                        .get_mut(&node)
-                        .expect("test hidden node cache exists")
-                        .store_with_context(input, context, output);
-                }
-
-                fn cache_clear(&mut self, node: Self::Node) {
-                    self.caches.get_mut(&node).unwrap().clear();
-                }
-            }
-
-            let mut tree = HiddenTree::default();
-            tree.children.insert(1, vec![2]);
-            tree.children.insert(2, vec![3]);
-            tree.children.insert(3, vec![]);
-            for node in [1, 2, 3] {
-                tree.styles.insert(node, NodeInputOf::default());
-                tree.caches.insert(node, CacheOf::new());
-                tree.caches.get_mut(&node).unwrap().store_with_context(
-                    &ComputeInputOf::for_child(
-                        RunMode::PerformLayout,
-                        SizingMode::InherentSize,
-                        RequestedAxis::Both,
-                        Size::splat(Some(scalar::<S>(1.0))),
-                        Size::NONE,
-                        crate::ContainingLayoutContext::new(
-                            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                            crate::ParentFormattingContext::NoParent,
-                        ),
-                        Size::splat(AvailableOf::MAX_CONTENT),
-                    ),
-                    CacheKeyContext::new(),
-                    ComputeOutputOf::from_outer_size(Size::splat(scalar::<S>(1.0))),
-                );
-            }
-
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInputOf<S>,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             let expected_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
-            let expected_input = ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
-                expected_axes,
-                crate::ParentFormattingContext::NoParent,
-            ));
             assert_eq!(
-                compute_hidden(
-                    &mut tree,
-                    1,
-                    SourceIndex::ZERO,
-                    crate::ContainingLayoutContext::new(
-                        expected_axes,
-                        crate::ParentFormattingContext::Grid,
-                    ),
-                    crate::scroll::SettledAutoScrollbarState::INITIAL,
-                )
-                .unwrap(),
-                ComputeOutputOf::HIDDEN
+                input,
+                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
+                    expected_axes,
+                    crate::ParentFormattingContext::NoParent
+                ))
             );
-            assert_eq!(tree.calls, vec![(2, expected_input), (3, expected_input)]);
-            for node in [1, 2, 3] {
-                assert_eq!(
-                    tree.layouts[&node],
-                    NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
-                );
-                assert!(tree.caches[&node].is_empty());
-            }
-            assert_eq!(tree.cache_get_calls.get(), 0);
-            assert_eq!(tree.cache_store_calls, 0);
-        };
+            self.calls.push((node, input));
+            compute_hidden(
+                self,
+                node,
+                SourceIndex::ZERO,
+                input.containing_layout_context(),
+                input.containing_auto_scrollbar_pass(),
+            )
+        }
+    }
+
+    impl<S: LayoutScalar> CacheAccess for HiddenTree<S> {
+        type Node = u32;
+        type Scalar = S;
+
+        fn cache_context(&self) -> crate::CacheKeyContext {
+            crate::CacheKeyContext::new()
+        }
+
+        fn cache_get(
+            &self,
+            node: Self::Node,
+            input: &ComputeInputOf<S>,
+            context: crate::CacheKeyContext,
+        ) -> Option<ComputeOutputOf<S>> {
+            self.cache_get_calls.set(self.cache_get_calls.get() + 1);
+            self.caches[&node].get_with_context(input, context)
+        }
+
+        fn cache_store(
+            &mut self,
+            node: Self::Node,
+            input: &ComputeInputOf<S>,
+            context: crate::CacheKeyContext,
+            output: ComputeOutputOf<S>,
+        ) {
+            self.cache_store_calls += 1;
+            self.caches
+                .get_mut(&node)
+                .expect("test hidden node cache exists")
+                .store_with_context(input, context, output);
+        }
+
+        fn cache_clear(&mut self, node: Self::Node) {
+            self.caches.get_mut(&node).unwrap().clear();
+        }
+    }
+
+    let mut tree = HiddenTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![3]);
+    tree.children.insert(3, vec![]);
+    for node in [1, 2, 3] {
+        tree.styles.insert(node, NodeInputOf::default());
+        tree.caches.insert(node, CacheOf::new());
+        tree.caches.get_mut(&node).unwrap().store_with_context(
+            &ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::splat(Some(scalar::<S>(1.0))),
+                Size::NONE,
+                crate::ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    crate::ParentFormattingContext::NoParent,
+                ),
+                Size::splat(AvailableOf::MAX_CONTENT),
+            ),
+            CacheKeyContext::new(),
+            ComputeOutputOf::from_outer_size(Size::splat(scalar::<S>(1.0))),
+        );
+    }
+
+    let expected_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let expected_input = ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
+        expected_axes,
+        crate::ParentFormattingContext::NoParent,
+    ));
+    assert_eq!(
+        compute_hidden(
+            &mut tree,
+            1,
+            SourceIndex::ZERO,
+            crate::ContainingLayoutContext::new(
+                expected_axes,
+                crate::ParentFormattingContext::Grid,
+            ),
+            crate::scroll::SettledAutoScrollbarState::INITIAL,
+        )
+        .unwrap(),
+        ComputeOutputOf::HIDDEN
+    );
+    assert_eq!(tree.calls, vec![(2, expected_input), (3, expected_input)]);
+    for node in [1, 2, 3] {
+        assert_eq!(
+            tree.layouts[&node],
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
+        );
+        assert!(tree.caches[&node].is_empty());
+    }
+    assert_eq!(tree.cache_get_calls.get(), 0);
+    assert_eq!(tree.cache_store_calls, 0);
 }
 
 #[test]
@@ -14848,10 +14253,6 @@ fn logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow_for_
 
 #[test]
 fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
-    (HIDDEN_LAYOUT_WRITES_ZERO_LINE_BREAK_OUTPUT_WITHOUT_BOX_COMPUTE_PHASE)();
-}
-
-const HIDDEN_LAYOUT_WRITES_ZERO_LINE_BREAK_OUTPUT_WITHOUT_BOX_COMPUTE_PHASE: fn() = || {
     #[derive(Default)]
     struct HiddenTree {
         children: HashMap<u32, Vec<u32>>,
@@ -14995,14 +14396,10 @@ const HIDDEN_LAYOUT_WRITES_ZERO_LINE_BREAK_OUTPUT_WITHOUT_BOX_COMPUTE_PHASE: fn(
     );
     assert!(tree.caches[&1].is_empty());
     assert!(tree.caches[&3].is_empty());
-};
+}
 
 #[test]
 fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
-    (HIDDEN_COMPUTE_SETS_INLINE_BOUNDARY_CHILDREN_TO_HIDDEN_OUTPUT_PHASE)();
-}
-
-const HIDDEN_COMPUTE_SETS_INLINE_BOUNDARY_CHILDREN_TO_HIDDEN_OUTPUT_PHASE: fn() = || {
     #[derive(Default)]
     struct HiddenTree {
         children: HashMap<u32, Vec<u32>>,
@@ -15149,7 +14546,7 @@ const HIDDEN_COMPUTE_SETS_INLINE_BOUNDARY_CHILDREN_TO_HIDDEN_OUTPUT_PHASE: fn() 
     );
     assert!(tree.caches[&1].is_empty());
     assert!(tree.caches[&3].is_empty());
-};
+}
 
 #[test]
 fn f64_tree_can_run_root_layout_smoke_test() {
@@ -15923,155 +15320,135 @@ fn round_layout_uses_cumulative_viewport_edges() {
 fn assert_subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis<
     S: LayoutScalar,
 >() {
-    (AssertSubgridOrthogonalLocalCrossFlowDoesNotExpandParentIntrinsicAxisPhaseL15419::<S>::RUN)()
-}
-
-type AssertSubgridOrthogonalLocalCrossFlowDoesNotExpandParentIntrinsicAxisPhaseL15419Run = fn();
-
-struct AssertSubgridOrthogonalLocalCrossFlowDoesNotExpandParentIntrinsicAxisPhaseL15419<
-    S: LayoutScalar,
->(core::marker::PhantomData<(S,)>);
-
-impl<S: LayoutScalar>
-    AssertSubgridOrthogonalLocalCrossFlowDoesNotExpandParentIntrinsicAxisPhaseL15419<S>
-{
-    const RUN: AssertSubgridOrthogonalLocalCrossFlowDoesNotExpandParentIntrinsicAxisPhaseL15419Run =
-        || {
-            let scalar = S::from_f64;
-            let outer_grid = NodeInputOf {
+    let scalar = S::from_f64;
+    let outer_grid = NodeInputOf {
+        display: Display::Grid,
+        grid_template_columns: vec![
+            TrackComponentOf::px(scalar(30.0)),
+            TrackComponentOf::px(scalar(40.0)),
+        ],
+        grid_template_rows: vec![
+            TrackComponentOf::px(scalar(50.0)),
+            TrackComponentOf::px(scalar(60.0)),
+        ],
+        gap: Size::new(LengthOf::px(scalar(11.0)), LengthOf::px(scalar(7.0))),
+        ..NodeInputOf::default()
+    };
+    let vertical_item = |column, row| NodeInputOf {
+        display: Display::Flex,
+        writing_mode: WritingMode::VerticalRl,
+        grid_column: GridPlacement::try_lines(column, column + 1)
+            .expect("valid orthogonal subgrid item column placement"),
+        grid_row: GridPlacement::try_lines(row, row + 1)
+            .expect("valid orthogonal subgrid item row placement"),
+        ..NodeInputOf::default()
+    };
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 4])
+        .with_children(1, [2])
+        .with_children(2, [3, 8])
+        .with_children(3, [])
+        .with_children(8, [])
+        .with_children(4, [5])
+        .with_children(5, [6, 7])
+        .with_children(6, [])
+        .with_children(7, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, outer_grid.clone())
+        .with_style(
+            2,
+            NodeInputOf {
                 display: Display::Grid,
-                grid_template_columns: vec![
-                    TrackComponentOf::px(scalar(30.0)),
-                    TrackComponentOf::px(scalar(40.0)),
-                ],
+                writing_mode: WritingMode::VerticalRl,
+                grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
                 grid_template_rows: vec![
                     TrackComponentOf::px(scalar(50.0)),
                     TrackComponentOf::px(scalar(60.0)),
                 ],
-                gap: Size::new(LengthOf::px(scalar(11.0)), LengthOf::px(scalar(7.0))),
+                gap: Size::new(LengthOf::px(scalar(7.0)), LengthOf::px(scalar(11.0))),
+                grid_column: GridPlacement::try_lines(1, 3)
+                    .expect("valid columns-subgrid column placement"),
+                grid_row: GridPlacement::try_lines(1, 3)
+                    .expect("valid columns-subgrid row placement"),
                 ..NodeInputOf::default()
-            };
-            let vertical_item = |column, row| NodeInputOf {
-                display: Display::Flex,
+            },
+        )
+        .with_style(3, vertical_item(1, 1))
+        .with_style(8, vertical_item(2, 2))
+        .with_style(4, outer_grid)
+        .with_style(
+            5,
+            NodeInputOf {
+                display: Display::Grid,
                 writing_mode: WritingMode::VerticalRl,
-                grid_column: GridPlacement::try_lines(column, column + 1)
-                    .expect("valid orthogonal subgrid item column placement"),
-                grid_row: GridPlacement::try_lines(row, row + 1)
-                    .expect("valid orthogonal subgrid item row placement"),
+                grid_template_columns: vec![
+                    TrackComponentOf::px(scalar(30.0)),
+                    TrackComponentOf::px(scalar(40.0)),
+                ],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                gap: Size::new(LengthOf::px(scalar(7.0)), LengthOf::px(scalar(11.0))),
+                grid_column: GridPlacement::try_lines(1, 3)
+                    .expect("valid rows-subgrid column placement"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid rows-subgrid row placement"),
                 ..NodeInputOf::default()
-            };
-            let tree = PublicFlowTree::default()
-                .with_children(0, [1, 4])
-                .with_children(1, [2])
-                .with_children(2, [3, 8])
-                .with_children(3, [])
-                .with_children(8, [])
-                .with_children(4, [5])
-                .with_children(5, [6, 7])
-                .with_children(6, [])
-                .with_children(7, [])
-                .with_style(
-                    0,
-                    NodeInputOf {
-                        display: Display::Block,
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(1, outer_grid.clone())
-                .with_style(
-                    2,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        writing_mode: WritingMode::VerticalRl,
-                        grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(
-                            vec![],
-                        ))],
-                        grid_template_rows: vec![
-                            TrackComponentOf::px(scalar(50.0)),
-                            TrackComponentOf::px(scalar(60.0)),
-                        ],
-                        gap: Size::new(LengthOf::px(scalar(7.0)), LengthOf::px(scalar(11.0))),
-                        grid_column: GridPlacement::try_lines(1, 3)
-                            .expect("valid columns-subgrid column placement"),
-                        grid_row: GridPlacement::try_lines(1, 3)
-                            .expect("valid columns-subgrid row placement"),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(3, vertical_item(1, 1))
-                .with_style(8, vertical_item(2, 2))
-                .with_style(4, outer_grid)
-                .with_style(
-                    5,
-                    NodeInputOf {
-                        display: Display::Grid,
-                        writing_mode: WritingMode::VerticalRl,
-                        grid_template_columns: vec![
-                            TrackComponentOf::px(scalar(30.0)),
-                            TrackComponentOf::px(scalar(40.0)),
-                        ],
-                        grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack::new(
-                            vec![],
-                        ))],
-                        gap: Size::new(LengthOf::px(scalar(7.0)), LengthOf::px(scalar(11.0))),
-                        grid_column: GridPlacement::try_lines(1, 3)
-                            .expect("valid rows-subgrid column placement"),
-                        grid_row: GridPlacement::try_lines(1, 3)
-                            .expect("valid rows-subgrid row placement"),
-                        ..NodeInputOf::default()
-                    },
-                )
-                .with_style(6, vertical_item(1, 1))
-                .with_style(7, vertical_item(2, 2));
+            },
+        )
+        .with_style(6, vertical_item(1, 1))
+        .with_style(7, vertical_item(2, 2));
 
-            let batch = compute_layout(
-                &tree,
-                0,
-                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
-                    .expect("valid auto-sized root request"),
-            )
-            .expect("orthogonal subgrid layout succeeds");
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("valid auto-sized root request"),
+    )
+    .expect("orthogonal subgrid layout succeeds");
 
-            let root = public_flow_output(batch.unrounded_entries(), 0);
-            let columns_outer = public_flow_output(batch.unrounded_entries(), 1);
-            let columns_subgrid = public_flow_output(batch.unrounded_entries(), 2);
-            let rows_outer = public_flow_output(batch.unrounded_entries(), 4);
-            let rows_subgrid = public_flow_output(batch.unrounded_entries(), 5);
+    let root = public_flow_output(batch.unrounded_entries(), 0);
+    let columns_outer = public_flow_output(batch.unrounded_entries(), 1);
+    let columns_subgrid = public_flow_output(batch.unrounded_entries(), 2);
+    let rows_outer = public_flow_output(batch.unrounded_entries(), 4);
+    let rows_subgrid = public_flow_output(batch.unrounded_entries(), 5);
 
-            assert_eq!(root.size, Size::new(scalar(81.0), scalar(234.0)));
-            for output in [columns_outer, columns_subgrid, rows_outer, rows_subgrid] {
-                assert_eq!(output.size, Size::new(scalar(81.0), scalar(117.0)));
-            }
-            assert_eq!(columns_outer.location, Point::new(S::ZERO, S::ZERO));
-            assert_eq!(rows_outer.location, Point::new(S::ZERO, scalar(117.0)));
+    assert_eq!(root.size, Size::new(scalar(81.0), scalar(234.0)));
+    for output in [columns_outer, columns_subgrid, rows_outer, rows_subgrid] {
+        assert_eq!(output.size, Size::new(scalar(81.0), scalar(117.0)));
+    }
+    assert_eq!(columns_outer.location, Point::new(S::ZERO, S::ZERO));
+    assert_eq!(rows_outer.location, Point::new(S::ZERO, scalar(117.0)));
 
-            for (node, location, size) in [
-                (
-                    3,
-                    Point::new(scalar(31.0), S::ZERO),
-                    Size::new(scalar(50.0), scalar(48.0)),
-                ),
-                (
-                    8,
-                    Point::new(scalar(-36.0), scalar(59.0)),
-                    Size::new(scalar(60.0), scalar(58.0)),
-                ),
-                (
-                    6,
-                    Point::new(scalar(39.0), S::ZERO),
-                    Size::new(scalar(42.0), scalar(30.0)),
-                ),
-                (
-                    7,
-                    Point::new(S::ZERO, scalar(41.0)),
-                    Size::new(scalar(32.0), scalar(40.0)),
-                ),
-            ] {
-                let output = public_flow_output(batch.unrounded_entries(), node);
-                assert_eq!(output.location, location, "node {node} location");
-                assert_eq!(output.size, size, "node {node} size");
-            }
-        };
+    for (node, location, size) in [
+        (
+            3,
+            Point::new(scalar(31.0), S::ZERO),
+            Size::new(scalar(50.0), scalar(48.0)),
+        ),
+        (
+            8,
+            Point::new(scalar(-36.0), scalar(59.0)),
+            Size::new(scalar(60.0), scalar(58.0)),
+        ),
+        (
+            6,
+            Point::new(scalar(39.0), S::ZERO),
+            Size::new(scalar(42.0), scalar(30.0)),
+        ),
+        (
+            7,
+            Point::new(S::ZERO, scalar(41.0)),
+            Size::new(scalar(32.0), scalar(40.0)),
+        ),
+    ] {
+        let output = public_flow_output(batch.unrounded_entries(), node);
+        assert_eq!(output.location, location, "node {node} location");
+        assert_eq!(output.size, size, "node {node} size");
+    }
 }
 
 #[test]
@@ -16873,11 +16250,6 @@ fn fri05_c04_flex_geometry_assert_zero_range(geometry: ScrollGeometry, context: 
 
 #[test]
 fn fri05_c04_flex_geometry_rounded_publication_excludes_reserved_gutters_all_flows() {
-    (FRI05_C04_FLEX_GEOMETRY_ROUNDED_PUBLICATION_EXCLUDES_RESERVED_GUTTERS_ALL_FLOWS_PHASE)();
-}
-
-const FRI05_C04_FLEX_GEOMETRY_ROUNDED_PUBLICATION_EXCLUDES_RESERVED_GUTTERS_ALL_FLOWS_PHASE:
-    fn() = || {
     let regular_size = Size::new(100.0, 80.0);
 
     for flow_axes in fri05_c03_root_all_flow_axes() {
@@ -17134,14 +16506,10 @@ const FRI05_C04_FLEX_GEOMETRY_ROUNDED_PUBLICATION_EXCLUDES_RESERVED_GUTTERS_ALL_
             saturated_thickness,
         );
     }
-};
+}
 
 #[test]
 fn fri05_c04_flex_child_geometry_tree_retains_in_flow_and_absolute_targets() {
-    (FRI05_C04_FLEX_CHILD_GEOMETRY_TREE_RETAINS_IN_FLOW_AND_ABSOLUTE_TARGETS_PHASE)();
-}
-
-const FRI05_C04_FLEX_CHILD_GEOMETRY_TREE_RETAINS_IN_FLOW_AND_ABSOLUTE_TARGETS_PHASE: fn() = || {
     let parent_size = Size::new(140.0, 90.0);
     let in_flow_axes = FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl);
     let absolute_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
@@ -17253,7 +16621,7 @@ const FRI05_C04_FLEX_CHILD_GEOMETRY_TREE_RETAINS_IN_FLOW_AND_ABSOLUTE_TARGETS_PH
             assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
         }
     }
-};
+}
 
 #[test]
 fn fri05_c04_flex_child_geometry_public_auto_max_tiny_gutter_rounds_absolute_all_flows() {
@@ -17684,11 +17052,6 @@ fn fri05_c04_flex_auto_independent_inner_settlement_keys_grandchildren_by_inner_
 
 #[test]
 fn fri05_c04_flex_auto_root_and_nested_publish_stable_output_with_exact_pass_cache_bits() {
-    (FRI05_C04_FLEX_AUTO_ROOT_AND_NESTED_PUBLISH_STABLE_OUTPUT_WITH_EXACT_PASS_CACHE_BITS_PHASE)();
-}
-
-const FRI05_C04_FLEX_AUTO_ROOT_AND_NESTED_PUBLISH_STABLE_OUTPUT_WITH_EXACT_PASS_CACHE_BITS_PHASE:
-    fn() = || {
     let request = LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap();
     for nested in [false, true] {
         for (child_size, expected_states, expected_scrollbars) in [
@@ -17816,7 +17179,7 @@ const FRI05_C04_FLEX_AUTO_ROOT_AND_NESTED_PUBLISH_STABLE_OUTPUT_WITH_EXACT_PASS_
             }
         }
     }
-};
+}
 
 #[test]
 fn fri05_c03_block_reservation_root_preserves_hidden_stable_both_edges() {

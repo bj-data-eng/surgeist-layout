@@ -599,177 +599,148 @@ fn resolve_named_axis_placement_inner(
     auto_cursor_line: Option<isize>,
     clamp_to_explicit: bool,
 ) -> Result<(NamedPlacementReport, isize, isize), NamedGridError> {
-    (ResolveNamedAxisPlacementInnerPhaseL596::RUN)(
-        lines,
-        placement,
-        auto_cursor_line,
-        clamp_to_explicit,
-    )
-}
+    let original_start = placement.start;
+    let original_end = placement.end;
+    let mut normalized_start = original_start.clone();
+    let mut normalized_end = original_end.clone();
+    let mut conflict_resolution = None;
+    let mut conflict_resolutions = Vec::new();
 
-type ResolveNamedAxisPlacementInnerPhaseL596Run =
-    fn(
-        &NamedGridLines,
-        NamedAxisPlacement,
-        Option<isize>,
-        bool,
-    ) -> Result<(NamedPlacementReport, isize, isize), NamedGridError>;
+    if matches!(normalized_start, NamedGridLine::Span { .. })
+        && matches!(normalized_end, NamedGridLine::Span { .. })
+    {
+        normalized_end = NamedGridLine::Auto;
+        record_conflict(
+            &mut conflict_resolution,
+            &mut conflict_resolutions,
+            NamedPlacementConflictResolution::DroppedEndSpan,
+        );
+    }
 
-struct ResolveNamedAxisPlacementInnerPhaseL596;
+    if matches!(normalized_end, NamedGridLine::Auto) {
+        default_lone_named_span_to_one(
+            &mut normalized_start,
+            &mut conflict_resolution,
+            &mut conflict_resolutions,
+        );
+    }
+    if matches!(normalized_start, NamedGridLine::Auto) {
+        default_lone_named_span_to_one(
+            &mut normalized_end,
+            &mut conflict_resolution,
+            &mut conflict_resolutions,
+        );
+    }
 
-impl ResolveNamedAxisPlacementInnerPhaseL596 {
-    const RUN: ResolveNamedAxisPlacementInnerPhaseL596Run =
-        |lines: &NamedGridLines,
-         placement: NamedAxisPlacement,
-         auto_cursor_line: Option<isize>,
-         clamp_to_explicit: bool| {
-            let original_start = placement.start;
-            let original_end = placement.end;
-            let mut normalized_start = original_start.clone();
-            let mut normalized_end = original_end.clone();
-            let mut conflict_resolution = None;
-            let mut conflict_resolutions = Vec::new();
+    let mut start_lookup = None;
+    let mut end_lookup = None;
+    let (mut start_line, mut end_line) = match (&normalized_start, &normalized_end) {
+        (NamedGridLine::Auto, NamedGridLine::Auto) => {
+            let start_line = auto_cursor_line.ok_or(NamedGridError::AutoWithoutCursor)?;
+            (start_line, start_line + 1)
+        }
+        (NamedGridLine::Auto, NamedGridLine::Span { .. }) => {
+            let start_line = auto_cursor_line.ok_or(NamedGridError::AutoWithoutCursor)?;
+            let (end_line, lookup) = resolve_span_from_start(lines, start_line, &normalized_end)?;
+            end_lookup = lookup;
+            (start_line, end_line)
+        }
+        (NamedGridLine::Span { .. }, NamedGridLine::Auto) => {
+            let start_line = auto_cursor_line.ok_or(NamedGridError::AutoWithoutCursor)?;
+            let (end_line, lookup) = resolve_span_from_start(lines, start_line, &normalized_start)?;
+            start_lookup = lookup;
+            (start_line, end_line)
+        }
+        (NamedGridLine::Auto, end) if is_definite_line(end) => {
+            let (end_line, lookup) = resolve_line(lines, end, PlacementSide::End)?;
+            end_lookup = lookup;
+            (end_line - 1, end_line)
+        }
+        (start, NamedGridLine::Auto) if is_definite_line(start) => {
+            let (start_line, lookup) = resolve_line(lines, start, PlacementSide::Start)?;
+            start_lookup = lookup;
+            (start_line, start_line + 1)
+        }
+        (start, NamedGridLine::Span { .. }) if is_definite_line(start) => {
+            let (start_line, lookup) = resolve_line(lines, start, PlacementSide::Start)?;
+            start_lookup = lookup;
+            let (end_line, lookup) = resolve_span_from_start(lines, start_line, &normalized_end)?;
+            end_lookup = lookup;
+            (start_line, end_line)
+        }
+        (NamedGridLine::Span { .. }, end) if is_definite_line(end) => {
+            let (end_line, lookup) = resolve_line(lines, end, PlacementSide::End)?;
+            end_lookup = lookup;
+            let (start_line, lookup) = resolve_span_from_end(lines, end_line, &normalized_start)?;
+            start_lookup = lookup;
+            (start_line, end_line)
+        }
+        (start, end) if is_definite_line(start) && is_definite_line(end) => {
+            let (start_line, lookup) = resolve_line(lines, start, PlacementSide::Start)?;
+            start_lookup = lookup;
+            let (end_line, lookup) = resolve_line(lines, end, PlacementSide::End)?;
+            end_lookup = lookup;
+            (start_line, end_line)
+        }
+        (NamedGridLine::Auto, _) | (_, NamedGridLine::Auto) => {
+            return Err(NamedGridError::AutoWithoutCursor);
+        }
+        (NamedGridLine::Span { .. }, NamedGridLine::Span { .. }) => {
+            unreachable!("span/span is normalized before resolution")
+        }
+        (NamedGridLine::Span { .. }, _) | (_, NamedGridLine::Span { .. }) => {
+            unreachable!("span placement is handled when the opposite edge is resolvable")
+        }
+        (_, _) => unreachable!("all normalized named placement pairs are handled"),
+    };
 
-            if matches!(normalized_start, NamedGridLine::Span { .. })
-                && matches!(normalized_end, NamedGridLine::Span { .. })
-            {
-                normalized_end = NamedGridLine::Auto;
-                record_conflict(
-                    &mut conflict_resolution,
-                    &mut conflict_resolutions,
-                    NamedPlacementConflictResolution::DroppedEndSpan,
-                );
-            }
-
-            if matches!(normalized_end, NamedGridLine::Auto) {
-                default_lone_named_span_to_one(
-                    &mut normalized_start,
-                    &mut conflict_resolution,
-                    &mut conflict_resolutions,
-                );
-            }
-            if matches!(normalized_start, NamedGridLine::Auto) {
-                default_lone_named_span_to_one(
-                    &mut normalized_end,
-                    &mut conflict_resolution,
-                    &mut conflict_resolutions,
-                );
-            }
-
-            let mut start_lookup = None;
-            let mut end_lookup = None;
-            let (mut start_line, mut end_line) = match (&normalized_start, &normalized_end) {
-                (NamedGridLine::Auto, NamedGridLine::Auto) => {
-                    let start_line = auto_cursor_line.ok_or(NamedGridError::AutoWithoutCursor)?;
-                    (start_line, start_line + 1)
-                }
-                (NamedGridLine::Auto, NamedGridLine::Span { .. }) => {
-                    let start_line = auto_cursor_line.ok_or(NamedGridError::AutoWithoutCursor)?;
-                    let (end_line, lookup) =
-                        resolve_span_from_start(lines, start_line, &normalized_end)?;
-                    end_lookup = lookup;
-                    (start_line, end_line)
-                }
-                (NamedGridLine::Span { .. }, NamedGridLine::Auto) => {
-                    let start_line = auto_cursor_line.ok_or(NamedGridError::AutoWithoutCursor)?;
-                    let (end_line, lookup) =
-                        resolve_span_from_start(lines, start_line, &normalized_start)?;
-                    start_lookup = lookup;
-                    (start_line, end_line)
-                }
-                (NamedGridLine::Auto, end) if is_definite_line(end) => {
-                    let (end_line, lookup) = resolve_line(lines, end, PlacementSide::End)?;
-                    end_lookup = lookup;
-                    (end_line - 1, end_line)
-                }
-                (start, NamedGridLine::Auto) if is_definite_line(start) => {
-                    let (start_line, lookup) = resolve_line(lines, start, PlacementSide::Start)?;
-                    start_lookup = lookup;
-                    (start_line, start_line + 1)
-                }
-                (start, NamedGridLine::Span { .. }) if is_definite_line(start) => {
-                    let (start_line, lookup) = resolve_line(lines, start, PlacementSide::Start)?;
-                    start_lookup = lookup;
-                    let (end_line, lookup) =
-                        resolve_span_from_start(lines, start_line, &normalized_end)?;
-                    end_lookup = lookup;
-                    (start_line, end_line)
-                }
-                (NamedGridLine::Span { .. }, end) if is_definite_line(end) => {
-                    let (end_line, lookup) = resolve_line(lines, end, PlacementSide::End)?;
-                    end_lookup = lookup;
-                    let (start_line, lookup) =
-                        resolve_span_from_end(lines, end_line, &normalized_start)?;
-                    start_lookup = lookup;
-                    (start_line, end_line)
-                }
-                (start, end) if is_definite_line(start) && is_definite_line(end) => {
-                    let (start_line, lookup) = resolve_line(lines, start, PlacementSide::Start)?;
-                    start_lookup = lookup;
-                    let (end_line, lookup) = resolve_line(lines, end, PlacementSide::End)?;
-                    end_lookup = lookup;
-                    (start_line, end_line)
-                }
-                (NamedGridLine::Auto, _) | (_, NamedGridLine::Auto) => {
-                    return Err(NamedGridError::AutoWithoutCursor);
-                }
-                (NamedGridLine::Span { .. }, NamedGridLine::Span { .. }) => {
-                    unreachable!("span/span is normalized before resolution")
-                }
-                (NamedGridLine::Span { .. }, _) | (_, NamedGridLine::Span { .. }) => {
-                    unreachable!("span placement is handled when the opposite edge is resolvable")
-                }
-                (_, _) => unreachable!("all normalized named placement pairs are handled"),
-            };
-
-            if start_line > end_line {
-                std::mem::swap(&mut start_line, &mut end_line);
-                record_conflict(
-                    &mut conflict_resolution,
-                    &mut conflict_resolutions,
-                    NamedPlacementConflictResolution::SwappedResolvedLines,
-                );
-            } else if start_line == end_line {
-                normalized_end = NamedGridLine::Span {
-                    name: None,
-                    count: 1,
-                };
-                end_lookup = None;
-                end_line = start_line + 1;
-                record_conflict(
-                    &mut conflict_resolution,
-                    &mut conflict_resolutions,
-                    NamedPlacementConflictResolution::DroppedEqualEndLine,
-                );
-            }
-
-            let unclamped_start_line = start_line;
-            let unclamped_end_line = end_line;
-            if clamp_to_explicit {
-                (start_line, end_line) =
-                    clamp_subgrid_resolved_lines(start_line, end_line, lines.explicit_track_count);
-            }
-
-            let resolved = AxisPlacement::try_new(start_line, end_line)
-                .map_err(|err| map_placement_error(lines.axis, start_line, end_line, err))?;
-
-            Ok((
-                NamedPlacementReport {
-                    axis: lines.axis,
-                    original_start,
-                    original_end,
-                    normalized_start,
-                    normalized_end,
-                    conflict_resolution,
-                    conflict_resolutions,
-                    start_lookup,
-                    end_lookup,
-                    resolved,
-                },
-                unclamped_start_line,
-                unclamped_end_line,
-            ))
+    if start_line > end_line {
+        std::mem::swap(&mut start_line, &mut end_line);
+        record_conflict(
+            &mut conflict_resolution,
+            &mut conflict_resolutions,
+            NamedPlacementConflictResolution::SwappedResolvedLines,
+        );
+    } else if start_line == end_line {
+        normalized_end = NamedGridLine::Span {
+            name: None,
+            count: 1,
         };
+        end_lookup = None;
+        end_line = start_line + 1;
+        record_conflict(
+            &mut conflict_resolution,
+            &mut conflict_resolutions,
+            NamedPlacementConflictResolution::DroppedEqualEndLine,
+        );
+    }
+
+    let unclamped_start_line = start_line;
+    let unclamped_end_line = end_line;
+    if clamp_to_explicit {
+        (start_line, end_line) =
+            clamp_subgrid_resolved_lines(start_line, end_line, lines.explicit_track_count);
+    }
+
+    let resolved = AxisPlacement::try_new(start_line, end_line)
+        .map_err(|err| map_placement_error(lines.axis, start_line, end_line, err))?;
+
+    Ok((
+        NamedPlacementReport {
+            axis: lines.axis,
+            original_start,
+            original_end,
+            normalized_start,
+            normalized_end,
+            conflict_resolution,
+            conflict_resolutions,
+            start_lookup,
+            end_lookup,
+            resolved,
+        },
+        unclamped_start_line,
+        unclamped_end_line,
+    ))
 }
 
 fn record_conflict(
