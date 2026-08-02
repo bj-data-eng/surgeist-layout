@@ -96,6 +96,19 @@ and generator architecture are not causes. All scoped XML was removed and the
 report remains
 `4f18b4299765d7f0cf996fa5c2510724cfadb577651c3a438c3f2904cc4b94ab`.
 
+The first T08 attempt added six focused REDs, retained four supported partial
+corrections, and stopped before correcting a newly exposed value. Its single
+scoped generation partitioned the union as 136 PASS
+(`c2bca266cfd0092c9a08424ca9c9e362d2969e15b1d335199e3bd4ab2eb1a02e`)
+and 252 FAIL
+(`b57bf7ffb102565034cf740ebb5256ae0560a1405d7ca72ef00f3ee805b25396`).
+The new 120-row category remains inside cause 5 and hashes to
+`9aebf4e1673f40ca442453ccdb28f070f3e15f1b3c0f545e8c1402c6d618383c`:
+24 inline-column RTL direct siblings are x 570 instead of 527, 48 vertical
+auto-row values are x 202 instead of 196, and 48 vertical nested values are x
+192 instead of 202. The exact XML set was cleaned; the tracked count and report
+hash remain unchanged.
+
 Selectors below use `V4 = {border_box_ltr, content_box_ltr, border_box_rtl,
 content_box_rtl}`, `LTR = {border_box_ltr, content_box_ltr}`, and
 `RTL = {border_box_rtl, content_box_rtl}`. `R12` is `inner_row1`, `inner_row2`,
@@ -277,12 +290,21 @@ sorted union hashes to
 
 | Cause and deterministic rows | Count | Row hash | Probe |
 | --- | ---: | --- | --- |
-| Horizontal forced-break fallback envelope; `fri06_inline_unequal_line_alignment`, V4 | 4 | `2bd81de88087d7c2898c04c5736b3e4ec8b8bdb10f28d93255c57a6b22a53d8e` | one parent is 40 instead of 42; root is 120 instead of 126 |
+| Horizontal forced-break fallback envelope; `fri06_inline_unequal_line_alignment`, V4 | 4 | `2bd81de88087d7c2898c04c5736b3e4ec8b8bdb10f28d93255c57a6b22a53d8e` | one parent starts at 40 instead of 42; an incomplete correction publishes 42.4 and accumulates three parents to 127.2 instead of 126 |
 | LTR post-exclusion continuation start; `fri06_float_line_exclusion`, LTR | 2 | `a130acbb6f747b8414a8014840712a78aaede0698d44bafc50b08a31e0bf7ac5` | expansion end-aligns at 90 instead of starting at 0 |
-| Float-dominated terminal extent; `fri06_float_shape_exclusion`, V4 | 4 | `0b96e7d9a39716b0121017cdbe67345381d72044918c9cef5b31ec216364de18` | split phase turns float end 60 into 60.5, rounded 61 |
-| Parent baseline shim in intrinsic rows; `subgrid_baseline_auto_rows_{R12}`, V4 | 48 | `2714795b167ecd2062012cf97c4f232d77814057dcadfec6f7558feac9c28570` | minimal auto row stays 20 instead of baseline envelope 26; roots are 324 instead of 411 |
-| Refreshed physical offsets consumed as logical: `inline_column_{C12}` RTL plus `vertical_auto_rows_{R12}` and `vertical_nested_{R12}` V4 | 120 | `05130449e6303bb52d061c71ff49e1265fb55b4e4f2c3b3237b7237516541aaf` | second projection yields x 10/15 instead of 5/10 |
-| Inherited baseline double gap adjustment; `nested_block_{R12}`, V4 | 48 | `64fbf855984169eea06abc65f31d1072fb1ced0a0cc6402b01d77b430a93e548` | positive half-gap subtracts 5 twice; y is 57 instead of 62 |
+| Float-dominated terminal extent; `fri06_float_shape_exclusion`, V4 | 4 | `0b96e7d9a39716b0121017cdbe67345381d72044918c9cef5b31ec216364de18` | an unqualified line phase turns float-owned end 60 into 60.5; removing it globally also turns line-owned 62.5 into 62 |
+| Parent baseline shim in intrinsic rows; `subgrid_baseline_auto_rows_{R12}`, V4 | 48 | `2714795b167ecd2062012cf97c4f232d77814057dcadfec6f7558feac9c28570` | nested 20@8 omits the 6px shim against direct 20@14, leaving auto row 20 instead of 26 and roots 324 instead of 411 |
+| Refreshed sizing and offsets use the wrong coordinate phase: `inline_column_{C12}` RTL plus `vertical_auto_rows_{R12}` and `vertical_nested_{R12}` V4 | 120 | `05130449e6303bb52d061c71ff49e1265fb55b4e4f2c3b3237b7237516541aaf` | child axes size a parent-grid area before physical offsets are stored as logical; correct both stages and the exact nested/direct values above |
+| Inherited baseline double gap adjustment; `nested_block_{R12}`, V4 | 48 | `64fbf855984169eea06abc65f31d1072fb1ced0a0cc6402b01d77b430a93e548` | gap 10 to 20 shifts tracks by 5, then inherited baseline 30 to 25 repeats it; synthetic y 72/77 and browser y 57/62 share that residual |
+
+The terminal extent is exactly the maximum of the resolved terminal line-envelope
+end and the owned float margin-box end; any fractional phase stays inside its
+line endpoint and never decorates the float endpoint. Refreshed grid-area sizing,
+margins, self-alignment roles, available size, and known dimensions use the
+containing grid's axes. Child axes govern only child-internal layout and baseline
+interpretation; convert the resulting physical alignment offsets back to
+container-logical values before storing `PendingGridItem` axes for the single
+final physical projection.
 
 **Acceptance:** Add the smallest public-front-door regression for each cause
 before its correction and preserve nearest passing controls. Do not add content,
@@ -291,9 +313,21 @@ derive 97 unique filters from column 2 of the committed C10 census (raw hash
 `0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691`),
 strip only `html/`, and require filter-list hash
 `d3eb02ed93972e4f4aa8283e7e4f0bdee718be9c95e8196851d4d0037c6dd169`.
-Set `FILTER` to each exact list value and run the command once before the
-aggregate RED; keep
-the 388 XML files during code-only iteration and rerun comparison, not generation.
+For an authorized scoped diagnostic, set `FILTER` to each exact list value and
+keep the 388 XML files during code-only iteration; rerun comparison, not
+generation.
+
+The stopped attempt realized that run and cleaned it only because the mandatory
+new-first-failure boundary was reached. Resume from its retained focused tests
+without generation. The corrected behavior must additionally prove exact
+unrounded forced-break endpoints and root 126; the exact terminal maximum above
+for line-owned 62.5 versus float-owned 60; intrinsic 20 + 6 = 26; the exact
+containing-grid refresh sizing, physical-to-logical storage, and single final
+projection above; and one invertible positive, equal, and negative gap transform.
+After those focused corrections settle, run
+the same exact 97-source scoped generation once to obtain the next aggregate
+partition; do not generate during code-only iteration or repeat unchanged
+inputs after that run.
 
 ```sh
 CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' SURGEIST_LAYOUT_GENERATE_FILTER="$FILTER" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
