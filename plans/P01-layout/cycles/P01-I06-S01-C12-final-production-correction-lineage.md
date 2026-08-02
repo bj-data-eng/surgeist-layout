@@ -29,9 +29,9 @@ commit `eaf68062c75b98a3e2be752cfce208d19fc6c238`, entry `P01/I06/S01/C12`.
 Complete the reviewed T01-T04 production corrections, retain T05's successful
 full generation as diagnostic evidence of an invalid final-lineage assumption,
 and restore honest finite fixture/comparator inputs. Use the resulting scoped
-diagnostic census to realize only the next exact production tasks. After all
-inputs and production behavior settle, one later plan amendment authorizes the
-single final full lineage and publication gate.
+diagnostic census to realize only the next exact production tasks. T07 and T08
+settle all inputs and production behavior. T09 owns the single final full
+lineage run and the evidence required for review and publication.
 
 ## 2 Boundary And Evidence
 
@@ -124,7 +124,7 @@ None. Chrome remains authoritative; an entry requires the full `FRI-06.11` gate.
 - **Production:** T01-T04 remain scoped; T08 owns seven confirmed causes only.
 - **Tests/fixtures:** T07's appended fix adds two atomic RTL records to the one
   existing marker; its prior comparator and float-line corrections are unchanged.
-- **Generated artifacts:** none in T07/T08; one later reviewed full run owns
+- **Generated artifacts:** none in T07/T08; T09 alone owns the final unfiltered
   lineage after all inputs and production settle.
 - **Lint:** configured repository gates remain unchanged by this cycle.
 - **Dependencies, features, docs, examples, MSRV, and root:** unchanged.
@@ -333,45 +333,66 @@ git diff --check
 
 **Dependency:** T07's complete ordered range is task-clean under the revised spec.
 
-**Intended commit:** `fix(layout): close confirmed FRI-06 production causes`.
+**Realized commits:** `9ff1b91dabd7d53b32ee0942a7e6962515a80b79`
+(`fix(layout): close confirmed FRI-06 production causes`) and review fix
+`5f7f72c45090d9c230f7a2957bffadd5904625b4`
+(`fix(layout): preserve fractional fallback envelopes`).
 
-## 6 Current Revision Completion
+### 5.9 `P01/I06/S01/C12/T09` Publish Final Browser Lineage
 
-This revision exits only when:
+**Files/area:** the 5,712 manifest-owned generated XML files,
+`xml/generation-reports/all.json`, and only narrowly stale final-lineage test
+hashes caused by the reviewed T07 fixture input. No HTML, helper, parser,
+serializer, comparator, production, API, manifest, dependency, feature, or
+generator-architecture change.
 
-1. T05 has a clean independent task review, its recorded hashes are read back,
-   and all T05 XML/report/provenance residue is removed before T07 edits;
-2. T07's appended input fix is committed and its complete ordered range is
-   independently task-clean under the revised specification;
-3. T08 is committed and independently task-clean for all seven causes, with the
-   corrected intrinsic, refresh, gap, and float-slot controls GREEN;
-4. configured verification, format, lint, unsafe, and diff checks have only the
-   exact final-lineage diagnostics owned by the later task; and
-5. no XML, report, observer, generator, browser, or process residue exists.
+**Outcome/RED:** Preserve the existing full-corpus failures as RED, verify the
+settled source and helper freezes, then run the existing pinned browser exactly
+once through unfiltered `generate-existing`. A failed acceptance check does not
+authorize another generation; diagnose without generation and revise this plan
+before any replacement run.
 
-The final evidence commands for this revision are:
+**Procedure:**
+
+1. Prove a clean T08 head, no generation process or residue, exactly 5,324
+   tracked XML bodies, the pinned Chrome version, and absence of root, filter,
+   cache, and version override variables.
+2. Update only T07-invalidated freeze constants from direct file hashes; run the
+   focused source/input tests before generation. Do not change expected geometry.
+3. Execute one full unfiltered existing-pinned generation with Chrome
+   `149.0.7827.115` at the reviewed repository-relative path.
+4. Validate and commit the generated corpus, report, and narrow freeze updates;
+   record report, complete XML, preserved-body, and activation-body hashes.
+
+**Acceptance:** Report `filter` is null; generated is 5,712; unsupported is the
+same 16 missing-root variants; expected-fail, quarantine, and generation-failure
+buckets are empty. All 388 activation rows pass the browser oracle with the
+known-Chrome substitute registry empty. The other 5,324 XML bodies retain
+aggregate `852d293828a4c1427f5adac38d0f764131bda298d37109479ec25cac207fa027`.
+Marker, provenance, inventory, corpus, Taffy, default, generator-feature,
+formatting, Clippy, unsafe-absence, and diff checks pass. The worktree contains
+only the reviewed generated lineage and narrow freeze updates before commit and
+is clean afterward.
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t07_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t07_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
+"target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" --version
+CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just corpus-check
+CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just fmt-check
-rg --files -g '*.rs' -0 | xargs -0 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{'
 git diff --check
-git status --short
 ```
 
-The handoff is the clean T07/T08 verdicts, exact ordered ranges, configured
-command evidence, and zero diagnostic residue. It authorizes no generation,
-C12 completion, publication, or C13 planning.
+**Dependency:** T07 and T08 are independently task-clean. This is C12's eighth
+and final task. **Intended commit:** `test(parity): publish final FRI-06 lineage`.
 
-## 7 Successive Planning Gate
+## 6 Cycle Completion
 
-After T07/T08 are task-clean, amend and independently review this plan to add the
-eighth and final C12 task for one full unfiltered existing-pinned generation,
-388-row acceptance, complete verification/reviews, publication, remote readback,
-and C13 handoff.
-
-Blocker: none.
+After T09 is task-clean, set `cycle_head`, record the final hashes and task
+ranges in this plan's status-only `complete` commit, run the complete gates on a
+clean worktree, and obtain a fresh holistic `CLEAN` review over
+`cycle_base..cycle_head`. Rerun the gates at the reviewed head, fast-forward
+local and remote `main`, read back equality, remove temporary resources, and
+handoff the published leaf candidate to C13. Blocker: none.
