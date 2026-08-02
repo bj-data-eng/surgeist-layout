@@ -146,7 +146,7 @@ than defining substitutes.
 | `D-13` | Float left/right and clear left/right are line-relative values mapped by the containing `FlowAxes`; the public enum spellings remain source-compatible while algorithms do not treat them as physical x sides. |
 | `D-14` | Margin-box float exclusion is internal and always available. Non-rectangular exclusion uses an explicit `FloatExclusion::Shape` input and a bounded `LayoutTree` provider query. Each returned interval retains its originating query privately; a mismatched query, missing provider, or provider failure is a typed layout error. |
 | `D-15` | Float interaction is closed over the current model. An in-flow, non-floating, block-level child avoids active floats exactly when it is `Flex`, `Grid`, or `GridLanes`, or when it is non-replaced and its normalized computed overflow pair establishes an independent formatting context. Floats use the float path, atomic inline boxes use the line path while trapping their own internal formatting context, absolute boxes are excluded, and `None` produces no box. Future display roles do not enter this cycle. |
-| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. The layout-ready-inline opt-in supplies level zero unless an exact source-indexed marker supplies another bidi level; computed CSS direction never supplies a level. Pinned Chrome is the default geometry oracle. An exact row may instead be a visible known Chrome measurement failure only under the certainty, plan-record, synthetic-substitute, and revalidation contract in `FRI-06.11`; disagreement with layout alone never qualifies. Inputs settle first, then one full regeneration owns all XML/report deltas. |
+| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. The layout-ready-inline opt-in supplies level zero unless an exact source-indexed marker supplies another bidi level. A marker may explicitly scope its applicability to one computed `ltr` or `rtl` variant; direction selects that authored record but never derives its level. Pinned Chrome is the default geometry oracle. An exact row may instead be a visible known Chrome measurement failure only under the certainty, plan-record, synthetic-substitute, and revalidation contract in `FRI-06.11`; disagreement with layout alone never qualifies. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 
 Rejected alternatives:
 
@@ -726,6 +726,11 @@ For each of the ten `FlowAxes` mappings, every visible line break with
 
 An inline boundary contributes its metrics to the line it occurs on and is
 compared by parity like any other zero-size control. Boundaries do not clear.
+For browser neighbor-line comparison, a zero-size break at a shared line endpoint
+remains on the previous neighbor's line and precedes a next neighbor beginning at
+that endpoint. The comparator therefore reports `Same` for the touching previous
+neighbor and `Later` for the touching next neighbor; tolerance does not turn both
+directional relations into an undirected overlap.
 
 ## 8 FRI-06.8 Algorithm Contract
 
@@ -852,8 +857,8 @@ construction.
 | Shape provider | Empty/partial/full intervals, missing provider, mismatched-query result, raw endpoint constructor rejection, provider error, cache-context change, and bounded query accounting |
 | BFC avoidance | Current flex/grid/grid-lanes and non-replaced overflow-established block cases avoid floats and shrink auto width; ordinary block edges remain unchanged; floating and atomic boxes trap internal floats through their respective paths |
 | Scroll/cache/rounding | Exact dirty-subject path closure bypasses stale hits; failed layout or immutable preparation makes zero mutations and retains dirty subjects; infallible exclusive commit replaces all node/fragment state and clears closure caches before stores; committed nonempty/empty slices republish identically cold/warm and normal/rounded; missing warm fragment state errors; geometry contributes once |
-| Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics |
-| Fixture-input honesty | The browser helper validates every reviewed wrapper/container/strut marker against the actual DOM and reports source-local marker use; serializer tests prove the closed mapping in `FRI-06.11`; renamed test names and arbitrary expectation-only mutations preserve identical normalized parsed input; missing/corrupt markers fail helper validation, final full-run inventory accounting, or generated-XML parser validation; transparent wrappers produce independent normalized input and expectation trees; static/runtime evidence proves no final input-lowering function reads fixture identity or expectations |
+| Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics; a zero-size break at a shared endpoint is `Same` with its previous neighbor and `Later` than its next neighbor |
+| Fixture-input honesty | The browser helper validates every reviewed wrapper/container/strut/bidi marker against the actual DOM and reports source-local marker use; serializer tests prove unconditional, matching-direction, inactive-direction, malformed-direction, and unknown-field bidi records plus the closed mapping in `FRI-06.11`; renamed test names and arbitrary expectation-only mutations preserve identical normalized parsed input; missing/corrupt markers fail helper validation, final full-run inventory accounting, or generated-XML parser validation; transparent wrappers produce independent normalized input and expectation trees; static/runtime evidence proves no final input-lowering function reads fixture identity or expectations |
 | Chrome oracle exception | Default-zero exact registry; every entry proves the `FRI-06.11` certainty gate, minimized parser-independent reproduction, normative and independent corroborating evidence, exact variant scope, public-front-door synthetic RED/GREEN substitute, visible report/test disposition, and revalidation trigger; negative controls reject layout-only disagreement, ambiguous rounding/coordinates, missing evidence, and overbroad manifest status |
 | Browser corpus | Owned mixed text/atomic/BR, vertical BR, float/BFC, unequal alignment, baseline, percentage atomic, and shape cases parse and compare |
 
@@ -1084,10 +1089,11 @@ expectations must leave the parsed layout input identical; removing or corruptin
 a required explicit fact must fail closed rather than restore synthesis. Every
 lowered text or atomic participant receives level zero from the explicit
 layout-ready-inline adapter contract unless one consumed source-indexed marker
-supplies another level. Lowering never reads computed direction, text content,
-geometry, fixture identity, or expectations to choose a bidi level. Float and
-clear lowering uses this closed table; the public `Left`/`Right` variants in the
-layout-ready model mean line start/end:
+supplies another level. Lowering reads computed direction only to activate an
+explicit `whenDirection` record; it never derives the record's level or reads
+text content, geometry, fixture identity, or expectations to choose one. Float
+and clear lowering uses this closed table; the public `Left`/`Right` variants in
+the layout-ready model mean line start/end:
 
 The four formerly synthesized facts use only this closed final-lineage schema:
 
@@ -1096,7 +1102,7 @@ The four formerly synthesized facts use only this closed final-lineage schema:
 | Anonymous grid text wrapper | `data-surgeist-anonymous-grid-text-wrapper="true"` on the exact grid element | `layout-ready-anonymous-grid-text-wrapper="true"` on that generated box node | The value is exactly `true`; computed display establishes grid or grid-lanes formatting; the marked node has only the reviewed direct typed-text child shape and no raw-text fallback. Unsupported value, role, duplicate lowering, or mixed fallback rejects in the browser helper. Final full-run marker-use accounting rejects a missing marker on the five reviewed source stems. |
 | Transparent secondary inline container | `data-surgeist-transparent-inline-container="true"` on either reviewed inline `bdo` | The container box is absent from `<input>`; one `<inline-boundary kind="start"/>`, its one direct typed-text child, and one `<inline-boundary kind="end"/>` appear in its source position | The value is exactly `true`; computed display is `inline`; source tag is `bdo`; there is exactly one direct shaped-text child and no other text, box, or control. The helper applies the same input-only transparent projection before independently serializing expectations. Invalid role/topology rejects. The exact bidi source inventory rejects either missing marker. |
 | Explicit containing strut | `data-surgeist-inline-struts` on the layout-ready containing root, containing a nonempty JSON array of `{ "beforeSourceIndex": N, "baseline": B, "lineHeight": H }` | `<inline-boundary kind="start" inline-baseline="B" inline-line-height="H"/>` immediately before the one lowered child selected by DOM `sourceIndex` | Each object has exactly those fields; `N` is a unique existing child-node index that lowers to one typed atomic child; `B` and `H` are finite, `H > 0`, and `0 <= B <= H`. Missing target, duplicate target, extra field, nonfinite/out-of-range metric, or non-atomic target rejects. Exact-source inventory requires the reviewed mixed-wrap and float-line records; no topology or fixture name restores an absent record. |
-| Explicit nonzero bidi level | `data-surgeist-inline-bidi-levels` on the direct parent whose child-node source indices it addresses, containing a nonempty JSON array of `{ "sourceIndex": N, "bidiLevel": L }` | The addressed shaped segment or atomic placeholder carries `bidi-level="L"` instead of the adapter's level zero | Each object has exactly those fields; `N` is a unique existing direct child-node index that lowers to one shaped text or atomic participant; `L` is an integer in `1..=125`; and every record is consumed exactly once. Missing target, duplicate target, extra field, zero/out-of-range level, nonparticipant target, or unused record rejects. CSS direction is validation context only and never supplies `L`. |
+| Explicit nonzero bidi level | `data-surgeist-inline-bidi-levels` on the direct parent whose child-node source indices it addresses, containing a nonempty JSON array of either `{ "sourceIndex": N, "bidiLevel": L }` or `{ "sourceIndex": N, "bidiLevel": L, "whenDirection": D }` | The addressed shaped segment or atomic placeholder carries `bidi-level="L"` instead of the adapter's level zero when the record is unconditional or computed direction equals `D`; a nonmatching scoped record leaves the level at zero | `N` is unique within the table and names one existing direct shaped-text or atomic participant; `L` is an integer in `1..=125`; optional `D` is exactly `ltr` or `rtl`. Every applicable record is consumed once; every inactive scoped record is still validated and reported in marker-use accounting. Missing target, duplicate target, unknown/partial fields, zero/out-of-range level, invalid direction, nonparticipant target, or unused applicable record rejects. Computed direction selects only an explicit scoped record and never supplies `L`. |
 
 The authored marker inventory is exactly:
 
@@ -1108,19 +1114,21 @@ The authored marker inventory is exactly:
 | `subgrid/subgrid_baseline_standalone_axis_second_item.html` | Exactly two anonymous-wrapper markers at the same two-item topology |
 | `subgrid/subgrid_auto_track_sizing_min_content_text_runs.html` | Exactly one anonymous-wrapper marker on the innermost grid that directly owns the four typed text runs, beneath the sole min-content outer grid |
 | `block/fri06_bidi_mixed_inline.html` | Exactly two transparent-inline-container markers, one on each direct inline `bdo` child of `#test-root`, plus one `data-surgeist-inline-bidi-levels` record `{ "sourceIndex": 0, "bidiLevel": 1 }` on the RTL `bdo` |
+| `block/fri06_atomic_inline_percentage_block_size.html` | Exactly one root `data-surgeist-inline-bidi-levels` record: `{ "sourceIndex": 0, "bidiLevel": 1, "whenDirection": "rtl" }` |
 | `block/fri06_inline_mixed_text_atomic_wrap.html` | Exactly one root `data-surgeist-inline-struts` record: `{ "beforeSourceIndex": 2, "baseline": 14.8, "lineHeight": 20 }` |
-| `float/fri06_float_line_exclusion.html` | Exactly one root `data-surgeist-inline-struts` record: `{ "beforeSourceIndex": 5, "baseline": 12, "lineHeight": 20 }` |
+| `float/fri06_float_line_exclusion.html` | Exactly one root `data-surgeist-inline-struts` record `{ "beforeSourceIndex": 5, "baseline": 12, "lineHeight": 20 }` and one root `data-surgeist-inline-bidi-levels` record `{ "sourceIndex": 4, "bidiLevel": 1, "whenDirection": "rtl" }` |
 
 The browser helper validates marker values, roles, metrics, and topology against
 Chrome's actual DOM and emits source-local marker-use facts independently of
 geometry expectations. During the final full generation, the Rust generator
 compares those helper-reported facts and their source paths with this exact
-eight-source inventory. Missing, extra, duplicate, or differently placed facts
+nine-source inventory. Missing, extra, duplicate, or differently placed facts
 and use on any other HTML source reject the run. Rust may pin exact source bytes
 or literal marker counts as diagnostic drift evidence, but such checks neither
 parse HTML nor constitute final inventory acceptance. The four generated
 variants of each source inherit the same authored marker inventory; direction
-and box sizing do not alter it.
+selects only the two explicitly scoped records above, and box sizing does not
+alter it.
 
 The only new generated-XML structural forms for these facts remain
 `layout-ready-anonymous-grid-text-wrapper` and the closed `inline-boundary`
@@ -1292,9 +1300,10 @@ FRI-06 is complete only when:
     renamed-name and expectation-only equality controls pass; Chrome/helper
     validates actual-DOM marker semantics and the final full run accounts for
     every required source-local marker fact without a Rust HTML pre-parser;
-    malformed or incomplete facts fail closed; computed direction never chooses
-    a bidi level; and the final browser result is calculated from independently
-    serialized layout-ready input;
+    malformed or incomplete facts fail closed; computed direction only activates
+    an authored `whenDirection` record and never derives a bidi level; and the
+    final browser result is calculated from independently serialized layout-ready
+    input;
 14. the active implementing plan records `Known Chrome Measurement Failures`;
     absent a fully reviewed `FRI-06.11` entry the registry and expected-fail
     count are zero, while every accepted entry has exact browser/correct values,
