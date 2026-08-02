@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/P01-layout/initiatives/P01-I06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`c7caa79f1c8016e8eb2210e1987ef81ddf6a5055b1c0452a59b6666431581c3e`,
-committed as `28a763b58ff0c856b8e655b158d3293e7998f62d`.
+`35e62066a9e1593d3fd5111b897423688f3be77020d5c23c43e627063295166f`,
+committed as `b019df54310788d7b253d1f354a7ae3f5d59e76a`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -35,11 +35,10 @@ structurally successful full run are characterization only. C12 replaces
 name/expectation-driven lowering with the closed explicit fixture-input contract.
 Chrome and the browser helper own HTML parsing and actual-DOM marker validation;
 Rust must not reconstruct HTML, CSS, or DOM topology and may account only for
-helper-reported source-local marker use. A dedicated task resolves the newly
-configured crate-wide line-count lint without widening a feature task. C12 then
-realizes only production work proven by corrected-input diagnostics, records
-exact known Chrome failures or `None`, and owns the only final full unfiltered
-existing-pinned lineage after inputs settle.
+helper-reported source-local marker use. C12 realizes only production work proven
+by corrected-input diagnostics, records exact known Chrome failures or `None`,
+and owns the only final full unfiltered existing-pinned lineage after inputs
+settle.
 
 ## 3 Activation Recovery Evidence
 
@@ -348,12 +347,11 @@ physical-placement, comparator, fixture, and acceptance portions of `FRI-06.5`,
 full-run diagnostic: 314/388 activation rows fail, including 244 rows whose
 adapted HTML lost pinned WPT default-block roles, while direction-derived bidi
 levels and comparator-local identities are not final input evidence.
-**Bounded outcome:** Preserve that run as diagnostic, resolve the crate-wide
-line-count lint in its own task, restore the closed input-only fixture/comparator
-facts, and use scoped diagnostics only to realize exact remaining production
-tasks. Freeze all inputs and production behavior before one final full
-existing-pinned generation. No unchanged-input retry, generator architecture
-change, speculative task, or later-owned behavior is permitted.
+**Bounded outcome:** Preserve that run as diagnostic, restore the closed
+fixture/comparator facts, and use scoped diagnostics only to realize exact
+remaining production tasks. Freeze all inputs and production behavior before one
+final full existing-pinned generation. No unchanged-input retry, generator
+architecture change, speculative task, or later-owned behavior is permitted.
 **Observable exit evidence:** Report is 5,712/16 and `filter: null`; expected-fail
 inventory exactly equals the reviewed plan registry, normally zero; every 388 row
 is browser-pass or has the reviewed synthetic substitute; the other 5,324 bodies
