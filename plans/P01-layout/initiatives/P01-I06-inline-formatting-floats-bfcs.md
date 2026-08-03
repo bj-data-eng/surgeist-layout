@@ -147,6 +147,7 @@ than defining substitutes.
 | `D-14` | Margin-box float exclusion is internal and always available. Non-rectangular exclusion uses an explicit `FloatExclusion::Shape` input and a bounded `LayoutTree` provider query. Each returned interval retains its originating query privately; a mismatched query, missing provider, or provider failure is a typed layout error. |
 | `D-15` | Float interaction is closed over the current model. An in-flow, non-floating, block-level child avoids active floats exactly when it is `Flex`, `Grid`, or `GridLanes`, or when it is non-replaced and its normalized computed overflow pair establishes an independent formatting context. Floats use the float path, atomic inline boxes use the line path while trapping their own internal formatting context, absolute boxes are excluded, and `None` produces no box. Future display roles do not enter this cycle. |
 | `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. The layout-ready-inline opt-in supplies level zero unless an exact source-indexed marker supplies another bidi level. A marker may explicitly scope its applicability to one computed `ltr` or `rtl` variant; direction selects that authored record but never derives its level. Pinned Chrome is the default geometry oracle. An exact row may instead be a visible known Chrome measurement failure only under the certainty, plan-record, synthetic-substitute, and revalidation contract in `FRI-06.11`; disagreement with layout alone never qualifies. Inputs settle first, then one full regeneration owns all XML/report deltas. |
+| `D-17` | Final subgrid-baseline controls use one axis-parametric baseline model. Child physical baseline points convert once to containing-logical distances. Intrinsic scalar size, baseline-group participation, and parent first/last envelope are distinct phase values: flattened leaves are sized once, a deduplicated subgrid root contributes no second scalar size, and its envelope still reaches the inherited logical-start/end track. Row and column groups consume the same typed operation. Inherited values carry parent-track or child-track phase plus mapped edge and first/last role; the signed half-gutter/MBP transform occurs once on inheritance and its inverse once on publication, so refresh convergence cannot reapply either transition. Refreshed area sizing and the final physical projection remain owned by the containing grid's `FlowAxes`. |
 
 Rejected alternatives:
 
@@ -162,6 +163,9 @@ Rejected alternatives:
   change valid requested geometry.
 - Adding the full vertical-alignment vocabulary here would duplicate FRI-09's
   cross-format alignment ownership.
+- Rounding an honest fractional line envelope, re-adding a flattened subgrid's
+  complete margin box, or repeatedly adjusting an untagged inherited baseline
+  would hide an input or phase error rather than model browser layout.
 
 ## 5 FRI-06.5 Public Model
 
@@ -726,11 +730,11 @@ For each of the ten `FlowAxes` mappings, every visible line break with
 
 An inline boundary contributes its metrics to the line it occurs on and is
 compared by parity like any other zero-size control. Boundaries do not clear.
-For browser neighbor-line comparison, a zero-size break at a shared line endpoint
-remains on the previous neighbor's line and precedes a next neighbor beginning at
-that endpoint. The comparator therefore reports `Same` for the touching previous
-neighbor and `Later` for the touching next neighbor; tolerance does not turn both
-directional relations into an undirected overlap.
+Browser neighbor-line comparison first applies one closed interval-overlap rule
+with the existing `0.1` tolerance. A zero-size break is therefore `Same` with
+either neighbor sharing its endpoint. Only a separated interval is classified
+`Earlier` or `Later` from its center and the containing block progression; the
+five-pixel unequal-line gap is `Later`.
 
 ## 8 FRI-06.8 Algorithm Contract
 
@@ -857,8 +861,9 @@ construction.
 | Shape provider | Empty/partial/full intervals, missing provider, mismatched-query result, raw endpoint constructor rejection, provider error, cache-context change, and bounded query accounting |
 | BFC avoidance | Current flex/grid/grid-lanes and non-replaced overflow-established block cases avoid floats and shrink auto width; ordinary block edges remain unchanged; floating and atomic boxes trap internal floats through their respective paths |
 | Scroll/cache/rounding | Exact dirty-subject path closure bypasses stale hits; failed layout or immutable preparation makes zero mutations and retains dirty subjects; infallible exclusive commit replaces all node/fragment state and clears closure caches before stores; committed nonempty/empty slices republish identically cold/warm and normal/rounded; missing warm fragment state errors; geometry contributes once |
-| Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics; a zero-size break at a shared endpoint is `Same` with its previous neighbor and `Later` than its next neighbor |
+| Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics; interval comparison is closed within tolerance, so a zero-size break is `Same` with either neighbor sharing its endpoint and a neighbor beyond tolerance is ordered by block progression |
 | Fixture-input honesty | The browser helper validates every reviewed wrapper/container/strut/bidi marker against the actual DOM and reports source-local marker use; serializer tests prove unconditional, matching-direction, inactive-direction, malformed-direction, and unknown-field bidi records plus the closed mapping in `FRI-06.11`; renamed test names and arbitrary expectation-only mutations preserve identical normalized parsed input; missing/corrupt markers fail helper validation, final full-run inventory accounting, or generated-XML parser validation; transparent wrappers produce independent normalized input and expectation trees; static/runtime evidence proves no final input-lowering function reads fixture identity or expectations |
+| Subgrid baseline controls | Public-layout first/last controls prove logical-distance conversion, size/participation/envelope separation, inherited start/end envelope placement, row/column grouping, positive/equal/negative half-gutter and MBP transitions, reversed mappings, idempotent refresh, and exact inverse publication in horizontal and vertical flows |
 | Chrome oracle exception | Default-zero exact registry; every entry proves the `FRI-06.11` certainty gate, minimized parser-independent reproduction, normative and independent corroborating evidence, exact variant scope, public-front-door synthetic RED/GREEN substitute, visible report/test disposition, and revalidation trigger; negative controls reject layout-only disagreement, ambiguous rounding/coordinates, missing evidence, and overbroad manifest status |
 | Browser corpus | Owned mixed text/atomic/BR, vertical BR, float/BFC, unequal alignment, baseline, percentage atomic, and shape cases parse and compare |
 
@@ -881,6 +886,9 @@ return precomputed final line positions.
 | `src/compute.rs` | Provider/error plumbing, invalidated entry point/path closure, cache bypass/staging, and cache/round fragment publication |
 | `src/inline.rs` | One logical mixed-participant line builder, break/bidi/whitespace, line metrics, per-line alignment, and physical projection |
 | `src/block.rs` | Inline composition, containing strut, float-band/BFC placement, percentage basis, fast-path baseline predicate, scroll contribution |
+| `src/grid/tracks.rs` | Separate phase-local `IntrinsicSizeContribution`, `IntrinsicBaselineMember`, and `BaselineEnvelope` channels; convert physical child baselines to containing-logical distances, deduplicate flattened scalar sizes while retaining parent envelopes, and merge the envelope into the selected row/column group before intrinsic distribution |
+| `src/grid/subgrid.rs` | Private `ParentTrackBaseline` and `ChildTrackBaseline` carriers containing axis, mapped start/end edge, first/last role, span, and logical distance; one checked parent-to-child half-gutter/MBP transform and one exact child-to-parent inverse, with no constructor that omits coordinate phase |
+| `src/grid/child.rs` | One axis-parametric group builder, shared-baseline lookup, alignment-offset application, inheritance consumption, and publication path for rows or columns; containing-grid axes own refreshed area sizing and the single final physical projection |
 | `src/cache.rs` | Preserve FRI-01's unit key and support clear-then-store batch application with fragment restoration |
 | Focused Rust tests | Model, line, block, root, cache, scalar, flow, provider, comparator, public surface, and failure evidence |
 | `tests/layout/browser_parity/support.rs` | Exact shaped fixture lowering, fragment/control comparison, and named mismatch diagnostics |
@@ -890,6 +898,26 @@ return precomputed final line positions.
 
 Private helper names and internal decomposition may differ. Public phases,
 invariants, output association, provider failure, and ownership may not.
+
+The private grid carriers have no `Default` and no public surface. Their checked
+constructors require the grid axis, span, mapped edge, first/last role, logical
+distance, and coordinate phase. `IntrinsicSizeContribution` is the only channel
+allowed to grow a track by a complete item contribution. An
+`IntrinsicBaselineMember` may join the phase-local group without carrying scalar
+size. `BaselineEnvelope` carries only the before/after delta produced by that
+group and survives parent scalar deduplication. The axis-parametric operation
+selects rows or columns from `GridAxisKind`; it does not branch on writing mode,
+direction, source name, or fixture family. `FlowAxes` performs the physical to
+logical conversion and the final projection.
+
+Focused public-layout tests must expose the complete transition: horizontal
+auto rows move from the current duplicate `459` to browser `411`; inline-column
+first/last groups align in LTR and RTL; nested parent-gap `10`/child-gap `20`
+retains y `62` before and after refresh with equal, negative, reversed, and MBP
+controls; vertical auto rows transform pre-flex `[163,145,145]` to final
+`[212,194,194]`, inherited area `381`, child width `371`, and x `196`; the
+vertical nested projection is x `153`. Existing containing-grid `FlowAxes`
+refresh controls remain unchanged.
 
 Every existing `#[allow(dead_code)]` in an FRI-06-owned inline/control path must
 either become genuinely consumed or be removed with the dead item. No new lint
@@ -1047,6 +1075,17 @@ fragment visual index. A Range start is physical-flow-relative to the nearest
 explicit layout-ready inline containing root whose child sequence the adapter
 lowers, never to an intermediate DOM text parent that the adapter removes.
 
+For a lowered inline `<br>`, the helper obtains its containing strut baseline
+from an isolated browser-laid-out marker pair using the same computed font,
+line-height, writing mode, and direction. One zero-size marker establishes the
+line-over edge and one establishes the browser baseline; their logical block
+distance, clamped to the finite computed line height, supplies
+`inlineBaseline`. The helper removes the probe immediately and serializes the
+existing `inlineBaseline`/`inlineLineHeight` fields. A font-size ratio, glyph-ink
+metric, authored fixture constant, expected geometry, source identity, or
+production rounding is not a valid substitute. Zero line height remains an
+exact zero metric.
+
 A browser `<br>` rect never supplies model control geometry. Explicit model-line
 and model-control expectations remain strict. Model line-control participation is
 a separate explicit fixture fact emitted only when the computed/lowered `<br>`
@@ -1067,6 +1106,19 @@ final fixture HTML each exact parent authors inline `display:block`, which Chrom
 interprets normally; no helper or Rust path selects a source, parses CSS, or
 restores display from topology. This preserves the pinned/default input and
 creates no blockified-`<br>` role, control, metric, or production special case.
+
+The 240 subgrid-baseline variants in that inventory are also final-lineage
+controls for `D-17`. Introspection converts every child baseline to a logical
+distance before grouping. A flattened leaf carries its one scalar intrinsic
+contribution independently from baseline participation; deduplicating its
+subgrid root suppresses only a duplicate scalar size, not the root's typed
+first/last envelope. The envelope is applied to the inherited logical-start or
+logical-end track before intrinsic distribution. Inline-axis and block-axis
+baseline groups share this operation. Inherited baseline values record their
+coordinate phase, mapped edge, and first/last role, and inheritance/publication
+are exact one-time inverses across positive, zero, and negative gap differences.
+The containing grid sizes refreshed areas and projects the resulting logical
+offset once; child axes govern only child-internal layout and baseline reading.
 
 The helper emits atomic participation only when the computed/lowered child role
 is atomic, never from authored inline display after blockification. Typed inline
@@ -1303,14 +1355,17 @@ FRI-06 is complete only when:
     malformed or incomplete facts fail closed; computed direction only activates
     an authored `whenDirection` record and never derives a bidi level; and the
     final browser result is calculated from independently serialized layout-ready
-    input;
+    input; BR metrics come from the browser marker measurement above rather than
+    the former font-ratio estimate;
 14. the active implementing plan records `Known Chrome Measurement Failures`;
     absent a fully reviewed `FRI-06.11` entry the registry and expected-fail
     count are zero, while every accepted entry has exact browser/correct values,
     certainty evidence, a passing public-front-door synthetic substitute, visible
     row accounting, independent reviews, and a future revalidation trigger;
-15. the bounded HTML/parser/helper/fixture inputs settle before exactly one final
-    full regeneration; subsequent checks are read-only and provenance-clean;
+15. the bounded HTML/parser/helper/fixture inputs and `D-17` production model
+    settle before exactly one acceptance full regeneration; earlier
+    assumption-failing full runs remain diagnostic, and subsequent acceptance
+    checks are read-only and provenance-clean;
 16. FRI-06-owned mixed-text, vertical/outside-block BR, and active float/BFC
     cases leave unsupported accounting and pass focused parity;
 17. public exports and crate/parity docs describe the text/layout/shape/root
