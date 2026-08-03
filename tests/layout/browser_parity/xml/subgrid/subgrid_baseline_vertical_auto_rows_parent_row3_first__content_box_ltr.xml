@@ -1,0 +1,116 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row3_first.html" source-sha256="57dd6002ff339c37b6907cbe56509b629e4190b8bfd38d9090426e27adb02ad3" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="subgrid_baseline_vertical_auto_rows_parent_row3_first__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="grid" box-sizing="content-box" direction="ltr" writing-mode="vertical-rl" width="600px" grid-template-rows="auto auto auto" grid-template-columns="100px 100px 100px 100px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" writing-mode="vertical-rl" row-gap="10px" column-gap="10px" margin-left="10px" margin-right="5px" padding-left="20px" padding-right="10px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px" grid-template-rows="subgrid" grid-template-columns="subgrid" grid-row-start="1" grid-row-end="span 3" grid-column-start="1" grid-column-end="span 2">
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" writing-mode="vertical-rl" row-gap="20px" column-gap="20px" margin-left="7px" margin-right="3px" padding-left="10px" padding-right="5px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px" grid-template-rows="subgrid" grid-template-columns="subgrid" grid-row-start="1" grid-row-end="span 2" grid-column-start="1" grid-column-end="span 2">
+          <div source-tag="div" display="block" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="baseline" height="40px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px">
+            <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+            <div source-tag="br" line-control="forced-break" display="inline" box-sizing="content-box" direction="ltr" writing-mode="vertical-rl" line-height="0px" inline-baseline="0px" inline-line-height="0px"/>
+            <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+            <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited"/>
+            <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+          </div>
+          <div source-tag="div" display="block" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="last baseline" height="40px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px">
+            <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+            <div source-tag="br" line-control="forced-break" display="inline" box-sizing="content-box" direction="ltr" writing-mode="vertical-rl" line-height="0px" inline-baseline="0px" inline-line-height="0px"/>
+            <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+            <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited"/>
+            <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+          </div>
+          <div source-tag="div" display="block" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="baseline" height="40px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px">
+            <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+            <div source-tag="br" line-control="forced-break" display="inline" box-sizing="content-box" direction="ltr" writing-mode="vertical-rl" line-height="0px" inline-baseline="0px" inline-line-height="0px"/>
+            <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+            <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited"/>
+            <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+          </div>
+          <div source-tag="div" display="block" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="last baseline" height="40px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px">
+            <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+            <div source-tag="br" line-control="forced-break" display="inline" box-sizing="content-box" direction="ltr" writing-mode="vertical-rl" line-height="0px" inline-baseline="0px" inline-line-height="0px"/>
+            <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+            <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited"/>
+            <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+          </div>
+        </div>
+        <div source-tag="div" display="block" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="baseline" height="40px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px">
+          <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+          <div source-tag="br" line-control="forced-break" display="inline" box-sizing="content-box" direction="ltr" writing-mode="vertical-rl" line-height="0px" inline-baseline="0px" inline-line-height="0px"/>
+          <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+          <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited"/>
+          <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+        </div>
+        <div source-tag="div" display="block" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="last baseline" height="40px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px">
+          <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+          <div source-tag="br" line-control="forced-break" display="inline" box-sizing="content-box" direction="ltr" writing-mode="vertical-rl" line-height="0px" inline-baseline="0px" inline-line-height="0px"/>
+          <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" line-height="0px" width="20px" height="20px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+          <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited"/>
+          <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+        </div>
+      </div>
+      <div source-tag="div" display="flex" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="baseline" width="50px" height="20px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+      <div source-tag="div" display="flex" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="last baseline" width="100px" height="20px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+      <div source-tag="div" display="flex" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="baseline" width="50px" height="20px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+      <div source-tag="div" display="flex" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="last baseline" width="100px" height="20px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+      <div source-tag="div" display="flex" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="baseline" width="50px" height="20px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+      <div source-tag="div" display="flex" direction="ltr" writing-mode="vertical-rl" line-height="0px" align-self="last baseline" width="100px" height="20px" margin-left="5px" margin-right="3px" border-top="5px" border-left="5px" border-bottom="5px" border-right="5px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="600" height="400">
+      <node x="10" y="0" width="585" height="200">
+        <node x="196" y="5" width="371" height="190">
+          <node x="308" y="5" width="50" height="40">
+            <node x="25" y="5" width="20" height="20"/>
+            <node>
+              <browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later"/>
+            </node>
+            <node x="5" y="5" width="20" height="20"/>
+          </node>
+          <node x="222" y="105" width="50" height="40">
+            <node x="25" y="5" width="20" height="20"/>
+            <node>
+              <browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later"/>
+            </node>
+            <node x="5" y="5" width="20" height="20"/>
+          </node>
+          <node x="119" y="5" width="50" height="40">
+            <node x="25" y="5" width="20" height="20"/>
+            <node>
+              <browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later"/>
+            </node>
+            <node x="5" y="5" width="20" height="20"/>
+          </node>
+          <node x="28" y="105" width="50" height="40">
+            <node x="25" y="5" width="20" height="20"/>
+            <node>
+              <browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later"/>
+            </node>
+            <node x="5" y="5" width="20" height="20"/>
+          </node>
+        </node>
+        <node x="121" y="5" width="50" height="40">
+          <node x="25" y="5" width="20" height="20"/>
+          <node>
+            <browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later"/>
+          </node>
+          <node x="5" y="5" width="20" height="20"/>
+        </node>
+        <node x="30" y="105" width="50" height="40">
+          <node x="25" y="5" width="20" height="20"/>
+          <node>
+            <browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later"/>
+          </node>
+          <node x="5" y="5" width="20" height="20"/>
+        </node>
+      </node>
+      <node x="524" y="200" width="50" height="20"/>
+      <node x="393" y="300" width="100" height="20"/>
+      <node x="335" y="200" width="50" height="20"/>
+      <node x="199" y="300" width="100" height="20"/>
+      <node x="141" y="200" width="50" height="20"/>
+      <node x="5" y="300" width="100" height="20"/>
+    </node>
+  </expectations>
+</test>

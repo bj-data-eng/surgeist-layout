@@ -1,0 +1,62 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/block/fri06_atomic_inline_baseline.html" source-sha256="8555d794594f6946ba10eeb34c318ade96425658da180a0202e64d0e836ce749" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="fri06_atomic_inline_baseline__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="block" direction="rtl" font-family="monospace" font-size="16px" line-height="24px" width="220px">
+      <div source-tag="span" display="inline-block" direction="rtl" font-family="monospace" font-size="16px" line-height="24px" width="28px" margin-bottom="6px">
+        <div source-tag="span" display="block" direction="rtl" font-family="monospace" font-size="16px" line-height="24px" height="12px">
+          <text layout-input="inline-text">
+            <segment id="0" inline-extent="9.640625" inline-baseline="16.8" inline-line-height="24" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+          </text>
+        </div>
+      </div>
+      <text layout-input="inline-text">
+        <segment id="2" inline-extent="9.640625" inline-baseline="16.8" inline-line-height="24" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <div source-tag="span" display="inline-block" direction="rtl" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15" font-family="monospace" font-size="16px" line-height="24px" width="24px" height="30px"/>
+      <text layout-input="inline-text">
+        <segment id="4" inline-extent="9.640625" inline-baseline="16.8" inline-line-height="24" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <div source-tag="span" display="inline-block" direction="rtl" vertical-align="top" font-family="monospace" font-size="16px" line-height="24px" width="20px" height="16px"/>
+      <text layout-input="inline-text">
+        <segment id="6" inline-extent="9.640625" inline-baseline="16.8" inline-line-height="24" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <div source-tag="span" display="inline-block" direction="rtl" vertical-align="bottom" font-family="monospace" font-size="16px" line-height="24px" width="20px" height="28px"/>
+      <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="4" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="6" bidi-level="0" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="220" height="37">
+      <node x="192" y="13" width="28" height="12">
+        <node x="0" y="0" width="28" height="12">
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="0" line_index="0" physical_start_edge="right" start="220" advance="9.640625"/>
+            </range-inks>
+          </node>
+        </node>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="2" line_index="0" physical_start_edge="right" start="192" advance="9.640625"/>
+        </range-inks>
+      </node>
+      <node x="158" y="0" width="24" height="30" scroll_width="0" scroll_height="0"/>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="4" line_index="0" physical_start_edge="right" start="158.359375" advance="9.640625"/>
+        </range-inks>
+      </node>
+      <node x="129" y="0" width="20" height="16"/>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="6" line_index="0" physical_start_edge="right" start="128.71875" advance="9.640625"/>
+        </range-inks>
+      </node>
+      <node x="99" y="9" width="20" height="28"/>
+    </node>
+  </expectations>
+</test>

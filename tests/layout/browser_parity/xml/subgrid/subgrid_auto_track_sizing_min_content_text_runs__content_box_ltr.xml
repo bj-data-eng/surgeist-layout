@@ -1,0 +1,52 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/subgrid/subgrid_auto_track_sizing_min_content_text_runs.html" source-sha256="6e2a6a4cea108df2fda55e5c3e0f02ff080d1b75dd9ab9c52ab833ddf6d0b754" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="subgrid_auto_track_sizing_min_content_text_runs__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="block" box-sizing="content-box" direction="ltr" font-size="16px" width="100px" height="100px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-size="25px" line-height="25px" width="min-content">
+        <div source-tag="div" layout-ready-anonymous-grid-text-wrapper="true" display="grid" box-sizing="content-box" direction="ltr" font-size="25px" line-height="25px" grid-template-rows="subgrid" grid-template-columns="subgrid" grid-row-start="1" grid-row-end="-1" grid-column-start="1" grid-column-end="-1">
+          <text layout-input="inline-text">
+            <segment id="0" inline-extent="18.0625" inline-baseline="20" inline-line-height="25" bidi-level="0" whitespace-edge="preserve" following-break="allowed"/>
+          </text>
+          <text layout-input="inline-text">
+            <segment id="4" inline-extent="72.21875" inline-baseline="20" inline-line-height="25" bidi-level="0" whitespace-edge="preserve" following-break="allowed"/>
+          </text>
+          <text layout-input="inline-text">
+            <segment id="8" inline-extent="36.109375" inline-baseline="20" inline-line-height="25" bidi-level="0" whitespace-edge="preserve" following-break="allowed"/>
+          </text>
+          <text layout-input="inline-text">
+            <segment id="12" inline-extent="54.171875" inline-baseline="20" inline-line-height="25" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+          </text>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="72" height="100">
+        <node x="0" y="0" width="72" height="100">
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="0" line_index="0" physical_start_edge="left" start="0" advance="18.0625"/>
+            </range-inks>
+          </node>
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="4" line_index="1" physical_start_edge="left" start="0" advance="72.21875"/>
+            </range-inks>
+          </node>
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="8" line_index="2" physical_start_edge="left" start="0" advance="36.109375"/>
+            </range-inks>
+          </node>
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="12" line_index="3" physical_start_edge="left" start="0" advance="54.171875"/>
+            </range-inks>
+          </node>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

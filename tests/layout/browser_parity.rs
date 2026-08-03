@@ -359,7 +359,7 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
 
     let xml = support::fixture_files_in(&corpus_root.join("xml"), "xml")
         .expect("XML parity fixtures should be readable");
-    assert_eq!(xml.len(), 5324);
+    assert_eq!(xml.len(), 5712);
 
     let manifest_path = corpus_root.join("corpus.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
@@ -393,8 +393,8 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
             .unwrap_or_else(|error| panic!("{} should read: {error}", report_path.display())),
     )
     .unwrap_or_else(|error| panic!("{} should parse: {error}", report_path.display()));
-    assert_eq!(report["summary"]["generated"], 5324);
-    assert_eq!(report["summary"]["unsupported"], 356);
+    assert_eq!(report["summary"]["generated"], 5712);
+    assert_eq!(report["summary"]["unsupported"], 16);
     for bucket in ["expected_fail", "quarantined", "failed_to_generate"] {
         assert_eq!(report["summary"][bucket], 0, "nonzero {bucket} summary");
     }
@@ -2746,8 +2746,8 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5324);
-    assert_eq!(report_json["summary"]["unsupported"], 356);
+    assert_eq!(report_json["summary"]["generated"], 5712);
+    assert_eq!(report_json["summary"]["unsupported"], 16);
     assert_eq!(report_json["summary"]["expected_fail"], 0);
     assert_eq!(report_json["summary"]["quarantined"], 0);
     assert_eq!(report_json["summary"]["failed_to_generate"], 0);
@@ -2757,12 +2757,12 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5324,
+        5712,
         "generated bucket length must match its summary"
     );
     assert_eq!(
         report_bucket_len(&report_json, "unsupported"),
-        356,
+        16,
         "unsupported bucket length must match its summary"
     );
     assert_eq!(

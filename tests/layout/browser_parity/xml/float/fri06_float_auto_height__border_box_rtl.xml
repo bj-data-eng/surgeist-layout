@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/float/fri06_float_auto_height.html" source-sha256="7a99c8af74ce39358efe0f798d8be0627a8828fa315e84913020d7a6131c6b7f" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="fri06_float_auto_height__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" overflow-x="auto" overflow-y="auto" scrollbar-width="15" width="160px">
+      <div source-tag="div" display="flex" direction="rtl" float="left" width="40px" height="28px"/>
+      <div source-tag="div" display="block" direction="rtl" float="right" overflow-x="auto" overflow-y="auto" scrollbar-width="15" width="52px">
+        <div source-tag="div" display="flex" direction="rtl" float="left" width="24px" height="16px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="160" height="28" scroll_width="0" scroll_height="0">
+      <node x="0" y="0" width="40" height="28"/>
+      <node x="108" y="0" width="52" height="16" scroll_width="0" scroll_height="0">
+        <node x="0" y="0" width="24" height="16"/>
+      </node>
+    </node>
+  </expectations>
+</test>

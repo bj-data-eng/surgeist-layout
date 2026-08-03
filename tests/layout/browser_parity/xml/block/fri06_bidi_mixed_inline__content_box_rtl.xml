@@ -1,0 +1,48 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/block/fri06_bidi_mixed_inline.html" source-sha256="951ff318db6ab56c0048a85f4fe77bacd4433a98a3fbbb4e54a894cc1fb94d66" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="fri06_bidi_mixed_inline__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="block" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="220px">
+      <inline-boundary kind="start"/>
+      <text layout-input="inline-text">
+        <segment id="0" inline-extent="48.171875" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+      <inline-boundary kind="end"/>
+      <text layout-input="inline-text">
+        <segment id="2" inline-extent="9.640625" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <inline-boundary kind="start"/>
+      <text layout-input="inline-text">
+        <segment id="0" inline-extent="28.8125" inline-baseline="14.8" inline-line-height="20" bidi-level="1" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+      <inline-boundary kind="end"/>
+      <text layout-input="inline-text">
+        <segment id="4" inline-extent="48.171875" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="220" height="20">
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="0" line_index="0" physical_start_edge="right" start="220" advance="48.171875"/>
+        </range-inks>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="2" line_index="0" physical_start_edge="right" start="171.828125" advance="9.640625"/>
+        </range-inks>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="0" line_index="0" physical_start_edge="right" start="162.1875" advance="28.8125"/>
+        </range-inks>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="4" line_index="0" physical_start_edge="right" start="133.375" advance="48.171875"/>
+        </range-inks>
+      </node>
+    </node>
+  </expectations>
+</test>

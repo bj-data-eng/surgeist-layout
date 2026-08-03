@@ -1,0 +1,39 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/float/fri06_float_shape_exclusion.html" source-sha256="2c11e9fb8f1f7200c4823f0c39ee7b43db238d325d037629ae0fb138d7319cd2" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="fri06_float_shape_exclusion__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="block" box-sizing="content-box" direction="rtl" overflow-x="auto" overflow-y="auto" scrollbar-width="15" font-family="monospace" font-size="16px" line-height="20px" width="180px">
+      <div source-tag="span" display="block" box-sizing="content-box" direction="rtl" float="left" float-exclusion="shape" font-family="monospace" font-size="16px" line-height="20px" width="44px" height="60px">
+        <shape-bands>
+          <shape-band band-minimum="0" band-maximum="21.2" interval-minimum="0" interval-maximum="44"/>
+          <shape-band band-minimum="21.2" band-maximum="37.2" interval-minimum="0" interval-maximum="44"/>
+        </shape-bands>
+      </div>
+      <text layout-input="inline-text">
+        <segment id="2" inline-extent="48.171875" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+      <div source-tag="span" display="inline-block" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="34px" height="16px"/>
+      <div source-tag="span" display="inline-block" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="38px" height="16px"/>
+      <div source-tag="span" display="inline-block" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="42px" height="16px"/>
+      <div source-tag="span" display="inline-block" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="46px" height="16px"/>
+      <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>
+      <atomic-placeholder child-index="4" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="5" bidi-level="0" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="60" scroll_width="0" scroll_height="0">
+      <node x="0" y="0" width="44" height="60"/>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="2" line_index="0" physical_start_edge="right" start="180" advance="48.171875"/>
+        </range-inks>
+      </node>
+      <node x="98" y="0" width="34" height="16"/>
+      <node x="60" y="0" width="38" height="16"/>
+      <node x="138" y="21" width="42" height="16"/>
+      <node x="92" y="21" width="46" height="16"/>
+    </node>
+  </expectations>
+</test>

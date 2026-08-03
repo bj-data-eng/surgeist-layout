@@ -1,0 +1,80 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/grid-lanes/grid_lanes_not_inhibited_normal_packing.html" source-sha256="9dbaeddf1cc0e12bd9887308795cc987413e07fcd2dfa5ac8eae6e0337ad7699" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="grid_lanes_not_inhibited_normal_packing__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="block" direction="rtl">
+      <div source-tag="div" display="inline-grid-lanes" direction="rtl" vertical-align="top" border-top="2px" border-left="2px" border-bottom="2px" border-right="2px" grid-template-columns="60px 60px">
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="60px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="30px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="30px"/>
+      </div>
+      <text layout-input="inline-text">
+        <segment id="2" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <div source-tag="div" display="inline-grid-lanes" direction="rtl" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15" vertical-align="top" border-top="2px" border-left="2px" border-bottom="2px" border-right="2px" grid-template-columns="60px 60px">
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="60px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="30px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="30px"/>
+      </div>
+      <text layout-input="inline-text">
+        <segment id="4" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <div source-tag="div" display="inline-grid-lanes" direction="rtl" vertical-align="top" border-top="2px" border-left="2px" border-bottom="2px" border-right="2px" grid-template-columns="60px 60px">
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="60px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="30px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="30px"/>
+      </div>
+      <text layout-input="inline-text">
+        <segment id="6" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <div source-tag="div" display="inline-grid-lanes" direction="rtl" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15" vertical-align="top" border-top="2px" border-left="2px" border-bottom="2px" border-right="2px" grid-template-columns="60px 60px">
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="60px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="30px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="60px" height="30px"/>
+      </div>
+      <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="4" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="6" bidi-level="0" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="526" height="64">
+      <node x="402" y="0" width="124" height="64">
+        <node x="62" y="2" width="60" height="60"/>
+        <node x="2" y="2" width="60" height="30"/>
+        <node x="2" y="32" width="60" height="30"/>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="2" line_index="0" physical_start_edge="right" start="402" advance="10"/>
+        </range-inks>
+      </node>
+      <node x="268" y="0" width="124" height="64" scroll_width="0" scroll_height="0">
+        <node x="62" y="2" width="60" height="60"/>
+        <node x="2" y="2" width="60" height="30"/>
+        <node x="2" y="32" width="60" height="30"/>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="4" line_index="0" physical_start_edge="right" start="268" advance="10"/>
+        </range-inks>
+      </node>
+      <node x="134" y="0" width="124" height="64">
+        <node x="62" y="2" width="60" height="60"/>
+        <node x="2" y="2" width="60" height="30"/>
+        <node x="2" y="32" width="60" height="30"/>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="6" line_index="0" physical_start_edge="right" start="134" advance="10"/>
+        </range-inks>
+      </node>
+      <node x="0" y="0" width="124" height="64" scroll_width="0" scroll_height="0">
+        <node x="62" y="2" width="60" height="60"/>
+        <node x="2" y="2" width="60" height="30"/>
+        <node x="2" y="32" width="60" height="30"/>
+      </node>
+    </node>
+  </expectations>
+</test>

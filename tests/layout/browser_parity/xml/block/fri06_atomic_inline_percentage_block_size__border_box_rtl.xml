@@ -1,0 +1,31 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/block/fri06_atomic_inline_percentage_block_size.html" source-sha256="73709999d0514673ee1e7eaead635c37afdce8b6a4467bd5f1ca328c9b7112f1" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="fri06_atomic_inline_percentage_block_size__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="block" direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="180px" height="80px">
+      <text layout-input="inline-text">
+        <segment id="0" inline-extent="57.796875" inline-baseline="14.8" inline-line-height="20" bidi-level="1" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+      <div source-tag="span" display="inline-block" direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="20px" height="50%"/>
+      <text layout-input="inline-text">
+        <segment id="2" inline-extent="86.703125" inline-baseline="14.8" inline-line-height="20" bidi-level="1" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+      <atomic-placeholder child-index="1" bidi-level="1" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="80">
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="0" line_index="0" physical_start_edge="right" start="73.296875" advance="57.796875"/>
+        </range-inks>
+      </node>
+      <node x="73" y="0" width="20" height="40"/>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="2" line_index="0" physical_start_edge="right" start="180" advance="86.703125"/>
+        </range-inks>
+      </node>
+    </node>
+  </expectations>
+</test>

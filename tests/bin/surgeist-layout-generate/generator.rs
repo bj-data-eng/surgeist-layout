@@ -13800,7 +13800,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
             ),
             (
                 "tests/layout/browser_parity/html/block/fri06_atomic_inline_percentage_block_size.html",
-                "31cf5d0ae3ca7c681f57ddc2a9a7cd3f75cf4190412d8f469e5c14cd519140e4",
+                "73709999d0514673ee1e7eaead635c37afdce8b6a4467bd5f1ca328c9b7112f1",
             ),
             (
                 "tests/layout/browser_parity/html/block/fri06_inline_mixed_text_atomic_wrap.html",

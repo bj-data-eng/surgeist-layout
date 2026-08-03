@@ -1,0 +1,26 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/block/fri06_vertical_break_clear.html" source-sha256="d77bf238db0c39dc3c686365c6c22ee6eb309c95c9ba03f6e426d1aac28fe223" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="fri06_vertical_break_clear__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="block" direction="ltr" writing-mode="vertical-rl" overflow-x="auto" overflow-y="auto" scrollbar-width="15" font-family="monospace" font-size="16px" line-height="24px" width="96px" height="140px">
+      <div source-tag="span" display="block" direction="ltr" writing-mode="vertical-rl" float="inline-start" font-family="monospace" font-size="16px" line-height="24px" width="28px" height="36px"/>
+      <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" font-family="monospace" font-size="16px" line-height="24px" width="18px" height="42px"/>
+      <div source-tag="br" line-control="forced-break" display="inline" direction="ltr" writing-mode="vertical-rl" font-family="monospace" font-size="16px" line-height="24px" inline-baseline="16.8px" inline-line-height="24px"/>
+      <div source-tag="span" display="inline-block" direction="ltr" writing-mode="vertical-rl" font-family="monospace" font-size="16px" line-height="24px" width="18px" height="30px"/>
+      <div source-tag="span" display="block" direction="ltr" writing-mode="vertical-rl" clear="inline-start" font-family="monospace" font-size="16px" line-height="24px" width="18px" height="18px"/>
+      <atomic-placeholder child-index="1" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="3" bidi-level="0" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="96" height="140" scroll_width="0" scroll_height="0">
+      <node x="68" y="0" width="28" height="36"/>
+      <node x="75" y="36" width="18" height="42"/>
+      <node>
+        <browser-control source_index="2" terminal_visual_slot="2" previous_line="same" next_line="later"/>
+      </node>
+      <node x="51" y="36" width="18" height="30"/>
+      <node x="30" y="0" width="18" height="18"/>
+    </node>
+  </expectations>
+</test>

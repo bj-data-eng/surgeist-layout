@@ -1,0 +1,40 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/subgrid/subgrid_baseline_auto_columns_second_item.html" source-sha256="c29f0a0c153e450c61a430499f488382cbc820b82cb53e448c55cf4e755371e7" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="subgrid_baseline_auto_columns_second_item__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="grid" direction="rtl" font-size="15px" line-height="15px" align-items="baseline" grid-template-columns="repeat(2, auto)">
+      <div source-tag="div" display="grid" direction="rtl" font-size="15px" line-height="15px" align-items="baseline" grid-template-columns="subgrid" grid-column-start="1" grid-column-end="-1">
+        <div source-tag="div" layout-ready-anonymous-grid-text-wrapper="true" display="grid" direction="rtl" font-size="15px" line-height="15px" align-items="baseline">
+          <text layout-input="inline-text">
+            <segment id="0" inline-extent="15" inline-baseline="12" inline-line-height="15" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+          </text>
+        </div>
+        <div source-tag="div" layout-ready-anonymous-grid-text-wrapper="true" display="grid" direction="rtl" font-size="30px" line-height="30px" align-items="baseline">
+          <text layout-input="inline-text">
+            <segment id="0" inline-extent="30" inline-baseline="24" inline-line-height="30" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+          </text>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="45" height="30">
+      <node x="0" y="0" width="45" height="30">
+        <node x="30" y="12" width="15" height="15">
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="0" line_index="0" physical_start_edge="right" start="45" advance="15"/>
+            </range-inks>
+          </node>
+        </node>
+        <node x="0" y="0" width="30" height="30">
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="0" line_index="1" physical_start_edge="right" start="30" advance="30"/>
+            </range-inks>
+          </node>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

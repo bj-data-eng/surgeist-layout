@@ -1,0 +1,152 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/subgrid/subgrid_alignment_start_center_item.html" source-sha256="9a36b7dadec630f86f7c31bbf6089309425cd9cc3a5ab09853af9afc938cd404" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="subgrid_alignment_start_center_item__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" layout-ready-inline-root="true" display="block" direction="ltr" font-size="0px" line-height="0px">
+      <div source-tag="div" display="inline-grid" direction="ltr" font-size="0px" line-height="0px" grid-template-columns="100px" grid-auto-rows="100px">
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="start" justify-self="start" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="start" justify-self="end" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="start" justify-self="center" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="start" justify-self="baseline" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+      </div>
+      <text layout-input="inline-text">
+        <segment id="2" inline-extent="0" inline-baseline="0" inline-line-height="0" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <div source-tag="div" display="inline-grid" direction="ltr" font-size="0px" line-height="0px" grid-template-columns="100px" grid-auto-rows="100px">
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="end" justify-self="start" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="end" justify-self="end" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="end" justify-self="center" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="end" justify-self="baseline" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+      </div>
+      <text layout-input="inline-text">
+        <segment id="4" inline-extent="0" inline-baseline="0" inline-line-height="0" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <div source-tag="div" display="inline-grid" direction="ltr" font-size="0px" line-height="0px" grid-template-columns="100px" grid-auto-rows="100px">
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="center" justify-self="start" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="center" justify-self="end" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="center" justify-self="center" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="center" justify-self="baseline" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+      </div>
+      <text layout-input="inline-text">
+        <segment id="6" inline-extent="0" inline-baseline="0" inline-line-height="0" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>
+      </text>
+      <div source-tag="div" display="inline-grid" direction="ltr" font-size="0px" line-height="0px" grid-template-columns="100px" grid-auto-rows="100px">
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="baseline" justify-self="start" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="baseline" justify-self="end" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="baseline" justify-self="center" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+        <div source-tag="div" display="grid" direction="ltr" font-size="0px" line-height="0px" align-self="baseline" justify-self="baseline" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px"/>
+        </div>
+      </div>
+      <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="2" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="4" bidi-level="0" following-break="prohibited"/>
+      <atomic-placeholder child-index="6" bidi-level="0" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="400" height="400">
+      <node x="0" y="0" width="100" height="400">
+        <node x="10" y="10" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="110" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="210" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="310" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="2" line_index="0" physical_start_edge="left" start="100" advance="0"/>
+        </range-inks>
+      </node>
+      <node x="100" y="0" width="100" height="400">
+        <node x="10" y="10" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="110" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="210" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="310" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="4" line_index="0" physical_start_edge="left" start="200" advance="0"/>
+        </range-inks>
+      </node>
+      <node x="200" y="0" width="100" height="400">
+        <node x="10" y="10" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="110" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="210" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="310" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+      </node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="6" line_index="0" physical_start_edge="left" start="300" advance="0"/>
+        </range-inks>
+      </node>
+      <node x="300" y="0" width="100" height="400">
+        <node x="10" y="10" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="110" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="210" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+        <node x="10" y="310" width="80" height="80">
+          <node x="20" y="20" width="40" height="40"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>
