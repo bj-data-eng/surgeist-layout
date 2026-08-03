@@ -392,9 +392,9 @@ and final task. **Intended commit:** `test(parity): publish final FRI-06 lineage
 
 ## 6 Cycle Completion
 
-After T09 is task-clean, set `cycle_head`, record the final hashes and task
-ranges in this plan's status-only `complete` commit, rerun the final reviewed-head
-set above on a clean worktree, and obtain a fresh holistic `CLEAN` review over
+After T09 is task-clean, record final hashes and ranges in task/cycle evidence
+and the candidate handoff, then change only `Status` in the separate `complete`
+commit and set `cycle_head`. Rerun the final set and obtain holistic `CLEAN` over
 `cycle_base..cycle_head`. Rerun the gates at the reviewed head, fast-forward
 local and remote `main`, read back equality, remove temporary resources, and
 handoff the published leaf candidate to C13. Blocker: none.
