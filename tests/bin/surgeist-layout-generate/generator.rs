@@ -14714,6 +14714,8 @@ function mustReject(label, callback) {
   if (!rejected) throw new Error(`${label} measurement was not rejected`);
 }
 
+baselineDistance = 15;
+mustReject('normal line height instead of synthetic 19.2px', () => metrics('horizontal-tb', 'ltr', 'normal'));
 baselineDistance = Number.NaN;
 mustReject('nonfinite marker', () => metrics('horizontal-tb'));
 baselineDistance = -1;

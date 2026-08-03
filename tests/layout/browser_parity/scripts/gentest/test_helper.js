@@ -810,8 +810,7 @@ function parseGridPosition(input) {
 
 function brInlineMetricsForElement(e, computedStyle) {
   if (e.tagName === 'BR') {
-    const fontSize = parseCssPx(computedStyle.fontSize);
-    const lineHeight = resolveLineHeightPx(computedStyle.lineHeight, fontSize);
+    const lineHeight = parseCssPx(computedStyle.lineHeight);
     if (!Number.isFinite(lineHeight) || lineHeight < 0) {
       throw new Error('inline BR metrics require a finite non-negative line height');
     }
