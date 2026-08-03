@@ -322,10 +322,10 @@ Clippy, unsafe-absence, and diff gates under the clean task review.
 
 ### 5.9 `P01/I06/S01/C12/T09` Publish Final Browser Lineage
 **Files/area:** the 5,712 manifest-owned generated XML files,
-`xml/generation-reports/all.json`, and only narrowly stale final-lineage test
-hashes caused by the reviewed T07 fixture input. No HTML, helper, parser,
-serializer, comparator, production, API, manifest, dependency, feature, or
-generator-architecture change.
+`xml/generation-reports/all.json`, T07's one stale source-freeze hash in
+`generator.rs`, and only the stale 5,324/356 inventory/report assertions in
+`browser_parity.rs`. No HTML, helper, parser, serializer, comparator, production,
+API, manifest, dependency, feature, or generator-architecture change.
 
 **Outcome/RED:** The focused freeze test is exact RED before generation: atomic
 HTML actual SHA `73709999d0514673ee1e7eaead635c37afdce8b6a4467bd5f1ca328c9b7112f1`
@@ -333,6 +333,8 @@ versus stale `31cf5d0ae3ca7c681f57ddc2a9a7cd3f75cf4190412d8f469e5c14cd519140e4`.
 Update only that direct file-hash constant and prove GREEN. Then run the existing
 pinned browser exactly once through unfiltered `generate-existing`. A failed
 acceptance check permits diagnosis but no second run until plan revision/review.
+After generation, the two report tests are exact RED at 5,324/356; update only
+their inventory and bucket constants to 5,712/16 and prove GREEN without generation.
 
 **Acceptance:** Report `filter` is null; generated is 5,712; unsupported is the
 same 16 missing-root variants; expected-fail, quarantine, and generation-failure
@@ -343,7 +345,6 @@ Marker, provenance, inventory, corpus, Taffy, default, generator-feature,
 formatting, Clippy, unsafe-absence, and diff checks pass. The worktree contains
 only the reviewed generated lineage and narrow freeze updates before commit and
 is clean afterward.
-
 ```sh
 # Pre-generation assertions and the required RED.
 test -z "$(git status --porcelain)"
@@ -361,17 +362,17 @@ test "$?" -eq 101
 # After the direct hash-only edit: GREEN, then the sole generation.
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_lineage_helper_and_nine_html_inputs_are_byte_frozen
 CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
-
-# Post-generation and final reviewed-head rerun set.
+# Post-generation inventory RED.
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout report
+test "$?" -eq 101
+# After the direct inventory-only edit: GREEN and final reviewed-head rerun set.
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout report
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
-CARGO_NET_OFFLINE=true just fmt-check
-CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
-CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets --features layout-golden-generate -- -F unsafe-code -D warnings
 git diff --check
 test -z "$(git status --porcelain)"
 zsh <<'SURGEIST_C12_SAFETY'
@@ -386,15 +387,14 @@ else
 fi
 SURGEIST_C12_SAFETY
 ```
-
 **Dependency:** T07 and T08 are independently task-clean. This is C12's eighth
 and final task. **Intended commit:** `test(parity): publish final FRI-06 lineage`.
 
 ## 6 Cycle Completion
 
 After T09 is task-clean, set `cycle_head`, record the final hashes and task
-ranges in this plan's status-only `complete` commit, rerun every post-generation
-command above on a clean worktree, and obtain a fresh holistic `CLEAN` review over
+ranges in this plan's status-only `complete` commit, rerun the final reviewed-head
+set above on a clean worktree, and obtain a fresh holistic `CLEAN` review over
 `cycle_base..cycle_head`. Rerun the gates at the reviewed head, fast-forward
 local and remote `main`, read back equality, remove temporary resources, and
 handoff the published leaf candidate to C13. Blocker: none.
