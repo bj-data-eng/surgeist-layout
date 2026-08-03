@@ -231,15 +231,7 @@ variant carries level one on source indices 0, 1, and 2. Float-line source index
 sources and four scoped record entries. No generation, source-name dispatch,
 Rust HTML/CSS parsing, full run, or report write occurs in this fix.
 
-**Commands:**
-
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t07_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t07_
-CARGO_NET_OFFLINE=true just fmt-check
-git diff --check
-```
-
+Recorded acceptance is both five-test T07 prefixes plus format and diff gates.
 The prior T05 cleanup/readback remains evidence and no diagnostic residue is
 present. The appended fix changes only the atomic HTML marker and focused
 marker/input tests; broad configured checks run after T08 focused GREEN.
@@ -251,7 +243,6 @@ full unfiltered generation after T08 production and all inputs settle.
 the fix span to its ordered task range and re-review the complete range.
 
 **Realized commit:** `323d73afa98ddc73e65fd9c1da223a5fbd85875e`.
-
 **Review-fix commit:** `fix(parity): close scoped bidi and control facts`.
 
 **Appended-fix commit:** `fix(parity): complete atomic RTL input sequence`.
@@ -333,8 +324,11 @@ versus stale `31cf5d0ae3ca7c681f57ddc2a9a7cd3f75cf4190412d8f469e5c14cd519140e4`.
 Update only that direct file-hash constant and prove GREEN. Then run the existing
 pinned browser exactly once through unfiltered `generate-existing`. A failed
 acceptance check permits diagnosis but no second run until plan revision/review.
-After generation, the two report tests are exact RED at 5,324/356; update only
-their inventory and bucket constants to 5,712/16 and prove GREEN without generation.
+After generation, only `fri04_c05_fixture_inventory_manifest_and_report_are_final`
+and `browser_parity_generation_report_counts_full_scope` are RED; the other six
+`report` tests pass. The first test's XML/generated/unsupported values change
+5,324/5,324/356 to 5,712/5,712/16; the second test's summary and bucket-length
+pairs each change 5,324/356 to 5,712/16. Prove GREEN without generation.
 
 **Acceptance:** Report `filter` is null; generated is 5,712; unsupported is the
 same 16 missing-root variants; expected-fail, quarantine, and generation-failure
@@ -365,7 +359,13 @@ CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="target/surgeist-browser/mac_arm-14
 # Post-generation inventory RED.
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout report
 test "$?" -eq 101
-# After the direct inventory-only edit: GREEN and final reviewed-head rerun set.
+# After the direct inventory-only edit, prove GREEN and commit T09.
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout report
+git diff --check
+git status --short
+git add tests/bin/surgeist-layout-generate/generator.rs tests/layout/browser_parity.rs tests/layout/browser_parity/xml
+git commit -m "test(parity): publish final FRI-06 lineage"
+# Committed-head final rerun set.
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout report
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes
@@ -373,7 +373,7 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
-git diff --check
+git diff --check HEAD^ HEAD
 test -z "$(git status --porcelain)"
 zsh <<'SURGEIST_C12_SAFETY'
 set -eu
