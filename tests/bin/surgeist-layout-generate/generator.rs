@@ -6626,17 +6626,31 @@ for (const raw of ["-1fr", "NaNfr", "Infinityfr"]) {
             r#"
 const window = {{ innerWidth: 800 }};
 const Node = {{ ELEMENT_NODE: 1, TEXT_NODE: 3 }};
+let activeProbe;
 const document = {{
   styleSheets: [],
   createElement() {{
     return {{
       style: {{}},
+      children: [],
+      append(...children) {{ this.children.push(...children); }},
+      getBoundingClientRect() {{
+        const lineOver = this.style.verticalAlign === "top";
+        const writingMode = activeProbe?.style.writingMode;
+        if (writingMode === "horizontal-tb") {{
+          const y = lineOver ? 0 : 8;
+          return {{ x: 0, y, left: 0, right: 0, top: y, bottom: y, width: 0, height: 0 }};
+        }}
+        const advancesLeft = writingMode === "vertical-rl" || writingMode === "sideways-rl";
+        const x = lineOver ? 0 : (advancesLeft ? -8 : 8);
+        return {{ x, y: 0, left: x, right: x, top: 0, bottom: 0, width: 0, height: 0 }};
+      }},
       offsetWidth: 0,
       clientWidth: 0,
       remove() {{}},
     }};
   }},
-  body: {{ appendChild() {{}} }},
+  body: {{ appendChild(probe) {{ activeProbe = probe; }} }},
 }};
 
 {TEST_HELPER_SOURCE}
@@ -6686,6 +6700,7 @@ function getComputedStyle(target) {{
     boxSizing: "content-box",
     direction: "ltr",
     writingMode: target === element ? "{writing_mode}" : "horizontal-tb",
+    font: "10px ahem",
     fontFamily: "ahem",
     fontSize: "10px",
     lineHeight: "10px",
@@ -14586,6 +14601,132 @@ if (JSON.stringify(levels) !== JSON.stringify([0, 0])) {
         ]
         .concat();
         run_bundled_helper_script("fri06-c12-t07-direction-neutral-bidi", script);
+    }
+
+    #[test]
+    fn fri06_c12_t07_br_inline_metrics_use_browser_measured_baseline() {
+        let script = [
+            r#"
+const window = {};
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+let baselineDistance = 15;
+let appended = 0;
+let removed = 0;
+let lastProbe;
+
+function zeroRect(x, y) {
+  return { x, y, left: x, right: x, top: y, bottom: y, width: 0, height: 0 };
+}
+
+function createElement(tagName) {
+  return {
+    tagName: tagName.toUpperCase(),
+    style: {},
+    children: [],
+    append(...children) { this.children.push(...children); },
+    getBoundingClientRect() {
+      const lineOver = this.style.verticalAlign === 'top';
+      const writingMode = lastProbe.style.writingMode;
+      if (writingMode === 'horizontal-tb') {
+        return zeroRect(100, lineOver ? 100 : 100 + baselineDistance);
+      }
+      if (writingMode === 'vertical-rl' || writingMode === 'sideways-rl') {
+        return zeroRect(lineOver ? 100 : 100 - baselineDistance, 100);
+      }
+      if (writingMode === 'vertical-lr' || writingMode === 'sideways-lr') {
+        return zeroRect(lineOver ? 100 : 100 + baselineDistance, 100);
+      }
+      throw new Error(`unexpected writing mode ${writingMode}`);
+    },
+    remove() {
+      if (!this.removed) {
+        this.removed = true;
+        removed += 1;
+      }
+    },
+  };
+}
+
+const document = {
+  styleSheets: [],
+  createElement,
+  body: {
+    appendChild(probe) {
+      appended += 1;
+      lastProbe = probe;
+    },
+  },
+};
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+function metrics(writingMode, direction = 'ltr', lineHeight = '20px') {
+  return brInlineMetricsForElement({ tagName: 'BR' }, {
+    font: '16px "Measured Family"',
+    fontSize: '16px',
+    lineHeight,
+    writingMode,
+    direction,
+  });
+}
+
+const horizontal = metrics('horizontal-tb');
+if (horizontal.baseline !== '15px' || horizontal.lineHeight !== '20px') {
+  throw new Error(`expected browser-measured 15/20 BR metrics, got ${JSON.stringify(horizontal)}`);
+}
+if (JSON.stringify(Object.keys(horizontal)) !== JSON.stringify(['baseline', 'lineHeight'])) {
+  throw new Error(`BR helper fields changed: ${JSON.stringify(horizontal)}`);
+}
+if (lastProbe.style.font !== '16px "Measured Family"' ||
+    lastProbe.style.lineHeight !== '20px' ||
+    lastProbe.style.writingMode !== 'horizontal-tb' ||
+    lastProbe.style.direction !== 'ltr') {
+  throw new Error(`probe did not inherit the complete computed line context: ${JSON.stringify(lastProbe.style)}`);
+}
+
+for (const [writingMode, direction] of [
+  ['vertical-rl', 'ltr'],
+  ['vertical-lr', 'rtl'],
+  ['sideways-rl', 'rtl'],
+  ['sideways-lr', 'ltr'],
+]) {
+  const measured = metrics(writingMode, direction);
+  if (measured.baseline !== '15px' || measured.lineHeight !== '20px') {
+    throw new Error(`${writingMode}/${direction} did not use logical block distance: ${JSON.stringify(measured)}`);
+  }
+}
+
+baselineDistance = 25;
+const clamped = metrics('horizontal-tb');
+if (clamped.baseline !== '20px') {
+  throw new Error(`BR baseline was not clamped to finite line height: ${JSON.stringify(clamped)}`);
+}
+
+const beforeZero = appended;
+const zero = metrics('horizontal-tb', 'ltr', '0px');
+if (zero.baseline !== '0px' || zero.lineHeight !== '0px' || appended !== beforeZero) {
+  throw new Error(`zero line height must remain exact without a probe: ${JSON.stringify(zero)}`);
+}
+
+function mustReject(label, callback) {
+  let rejected = false;
+  try { callback(); } catch (_) { rejected = true; }
+  if (!rejected) throw new Error(`${label} measurement was not rejected`);
+}
+
+baselineDistance = Number.NaN;
+mustReject('nonfinite marker', () => metrics('horizontal-tb'));
+baselineDistance = -1;
+mustReject('negative logical marker distance', () => metrics('horizontal-tb'));
+mustReject('nonfinite line height', () => metrics('horizontal-tb', 'ltr', 'Infinitypx'));
+if (appended !== removed) {
+  throw new Error(`BR probes leaked: appended ${appended}, removed ${removed}`);
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c12-t07-browser-measured-br-baseline", script);
     }
 
     #[test]

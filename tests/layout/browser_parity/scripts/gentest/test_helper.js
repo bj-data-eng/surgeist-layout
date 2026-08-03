@@ -575,6 +575,74 @@ function estimateInlineBaselinePx(fontSize, lineHeight) {
   return leading / 2 + fontBaseline;
 }
 
+function measureInlineBaselinePx(computedStyle, lineHeight) {
+  const writingMode = computedStyle.writingMode;
+  const direction = computedStyle.direction;
+  if (!['horizontal-tb', 'vertical-rl', 'vertical-lr', 'sideways-rl', 'sideways-lr'].includes(writingMode) ||
+      !['ltr', 'rtl'].includes(direction) ||
+      typeof computedStyle.font !== 'string' || computedStyle.font.length === 0) {
+    throw new Error('inline BR metrics require a complete computed line context');
+  }
+
+  const probe = document.createElement('span');
+  Object.assign(probe.style, {
+    position: 'absolute',
+    visibility: 'hidden',
+    pointerEvents: 'none',
+    left: '0',
+    top: '0',
+    width: '0',
+    height: '0',
+    margin: '0',
+    padding: '0',
+    border: '0',
+    whiteSpace: 'nowrap',
+    font: computedStyle.font,
+    lineHeight: `${lineHeight}px`,
+    writingMode,
+    direction,
+  });
+
+  const lineOverMarker = document.createElement('span');
+  const baselineMarker = document.createElement('span');
+  for (const marker of [lineOverMarker, baselineMarker]) {
+    Object.assign(marker.style, {
+      display: 'inline-block',
+      width: '0',
+      height: '0',
+      margin: '0',
+      padding: '0',
+      border: '0',
+    });
+  }
+  lineOverMarker.style.verticalAlign = 'top';
+  baselineMarker.style.verticalAlign = 'baseline';
+  probe.append(lineOverMarker, baselineMarker);
+
+  let lineOverRect;
+  let baselineRect;
+  document.body.appendChild(probe);
+  try {
+    lineOverRect = lineOverMarker.getBoundingClientRect();
+    baselineRect = baselineMarker.getBoundingClientRect();
+  } finally {
+    probe.remove();
+  }
+
+  let distance;
+  if (writingMode === 'horizontal-tb') {
+    distance = baselineRect.top - lineOverRect.top;
+  } else if (writingMode === 'vertical-rl' || writingMode === 'sideways-rl') {
+    distance = lineOverRect.left - baselineRect.left;
+  } else {
+    distance = baselineRect.left - lineOverRect.left;
+  }
+  if (!Number.isFinite(distance) || distance < 0) {
+    throw new Error('inline BR baseline probe requires a finite logical block distance');
+  }
+  return Math.min(lineHeight, distance);
+}
+
 function parseRatio(input) {
   if (!input) return undefined;
 
@@ -744,7 +812,10 @@ function brInlineMetricsForElement(e, computedStyle) {
   if (e.tagName === 'BR') {
     const fontSize = parseCssPx(computedStyle.fontSize);
     const lineHeight = resolveLineHeightPx(computedStyle.lineHeight, fontSize);
-    const baseline = Math.min(lineHeight, estimateInlineBaselinePx(fontSize, lineHeight));
+    if (!Number.isFinite(lineHeight) || lineHeight < 0) {
+      throw new Error('inline BR metrics require a finite non-negative line height');
+    }
+    const baseline = lineHeight === 0 ? 0 : measureInlineBaselinePx(computedStyle, lineHeight);
     return {
       baseline: `${baseline}px`,
       lineHeight: `${lineHeight}px`,
