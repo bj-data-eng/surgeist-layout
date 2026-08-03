@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/P01-layout/initiatives/P01-I06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`8b7d6e54bcc28cadfeffc8b444118095b3ecc93555618763b28b2cc8830b0724`,
-committed as `b671e68a7b547c22df5d6ef3947221d99801610c`.
+`c7b02e4ba50eef68a33f470f163d28e37ecc0cecc5d5d9ea8b7a30ca644ceaa6`,
+committed as `eb14ab2bcbb680bfda558050c35a6e8d8d8bcf37`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -340,26 +340,27 @@ cover the complete pinned recovery membership.
 
 ### 4.12 `P01/I06/S01/C12` Final Production Correction And Lineage
 **Specification sources:** `FRI-06.4 D-01`, `D-04`, `D-06`, `D-07`, `D-09`,
-`D-11`, `D-12`, `D-13`, and `D-16`; line, metric-fragment, atomic-baseline,
+`D-11`, `D-12`, `D-13`, `D-16`, and `D-17`; line, metric-fragment, atomic-baseline,
 physical-placement, comparator, fixture, and acceptance portions of `FRI-06.5`,
 `FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and `FRI-06.14`.
 **Prerequisites:** `P01/I06/S01/C11` complete and remotely verified.
-**Entry state:** C11's assumed input freeze was invalidated by the honest 5,712
-full-run diagnostic: 314/388 activation rows fail, including 244 rows whose
-adapted HTML lost pinned WPT default-block roles, while direction-derived bidi
-levels and comparator-local identities are not final input evidence.
-**Bounded outcome:** Preserve that run as diagnostic, restore the closed
-fixture/comparator facts, and use scoped diagnostics only to realize exact
-remaining production tasks. Freeze all inputs and production behavior before one
-final full existing-pinned generation. A scoped repeat has a concrete diagnostic
-cause in changed inputs/code or a failed evidence capture; generator architecture
-change, speculative task, and later-owned behavior remain prohibited.
+**Entry state:** The committed 5,712/16 full-run diagnostic proves 144/388 rows
+pass and 244 fail. It validates the float corrections while exposing a synthetic
+BR metric, a directional endpoint comparator, duplicate/missing intrinsic
+baseline envelopes, row-only groups, and untagged inherited refresh state.
+**Bounded outcome:** Reopen only T07-T09: measure BR struts through the existing
+helper schema and restore closed endpoint comparison; implement `D-17` through
+typed axis-parametric contribution/group/inheritance phases; then replace the
+diagnostic XML/report once after inputs and production settle. Scoped generation
+remains diagnostic; generator architecture, speculative tasks, known-Chrome
+exceptions without the reviewed certainty gate, and later-owned behavior remain
+prohibited.
 **Observable exit evidence:** Report is 5,712/16 and `filter: null`; expected-fail
 inventory exactly equals the reviewed plan registry, normally zero; every 388 row
 is browser-pass or has the reviewed synthetic substitute; the other 5,324 bodies
 preserve semantics; no scoped report remains and FRI-13 stays unclaimed.
 **Handoff:** C13 receives the published behavior-correct candidate with generator
-inputs and outputs frozen; the successful assumption-failing run is not lineage.
+inputs and outputs frozen; the assumption-failing run remains diagnostic.
 
 ### 4.13 `P01/I06/S01/C13` Validated Mechanical Consolidation
 **Specification sources:** module-responsibility and test portions of
