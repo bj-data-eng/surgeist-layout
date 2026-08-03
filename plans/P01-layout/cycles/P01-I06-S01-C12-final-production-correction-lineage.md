@@ -181,19 +181,7 @@ The serializer-freeze expectation equals the post-empty-Range serializer hash
 Focused GREEN, corpus/Taffy, and format checks pass; the exact activation and full
 verification failures are retained. No generated residue is committed.
 
-**Commands:**
-
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_
-CARGO_NET_OFFLINE=true just corpus-check
-CARGO_NET_OFFLINE=true just taffy-check
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just fmt-check
-```
-
-The layout command retains one aggregate RED; `verify` retains six and
+The recorded T05 focused layout command retains one aggregate RED; `verify` retains six and
 `verify-generator` three. Every other result matches the recorded T05 evidence.
 The sole review-fix span
 `92bab66c8914cd1a8ac91edd71e1fea71a2a041d..40ccaeb2fbf012b017a58615a6f0f856e6918672`
@@ -322,14 +310,8 @@ focused T08 test and nearest control must be GREEN before configured checks.
 Run no scoped or full generation; the later final task owns the single full run
 after the T07 input and T08 production settle.
 
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just fmt-check
-rg --files -g '*.rs' -0 | xargs -0 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{'
-git diff --check
-```
+Recorded acceptance is 23 focused tests plus configured verification, format,
+Clippy, unsafe-absence, and diff gates under the clean task review.
 
 **Dependency:** T07's complete ordered range is task-clean under the revised spec.
 
@@ -339,7 +321,6 @@ git diff --check
 (`fix(layout): preserve fractional fallback envelopes`).
 
 ### 5.9 `P01/I06/S01/C12/T09` Publish Final Browser Lineage
-
 **Files/area:** the 5,712 manifest-owned generated XML files,
 `xml/generation-reports/all.json`, and only narrowly stale final-lineage test
 hashes caused by the reviewed T07 fixture input. No HTML, helper, parser,
@@ -364,13 +345,24 @@ only the reviewed generated lineage and narrow freeze updates before commit and
 is clean afterward.
 
 ```sh
-git status --short
-git ls-files 'tests/layout/browser_parity/xml/**/*.xml' | wc -l
-! printenv SURGEIST_LAYOUT_BROWSER_PARITY_ROOT SURGEIST_LAYOUT_GENERATE_FILTER SURGEIST_BROWSER_CACHE SURGEIST_BROWSER_VERSION
-! pgrep -af surgeist-layout-generate
-"target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" --version
+# Pre-generation assertions and the required RED.
+test -z "$(git status --porcelain)"
+test "$(git ls-files 'tests/layout/browser_parity/xml/**/*.xml' | wc -l | tr -d ' ')" -eq 5324
+test -z "${SURGEIST_LAYOUT_BROWSER_PARITY_ROOT+x}"
+test -z "${SURGEIST_LAYOUT_GENERATE_FILTER+x}"
+test -z "${SURGEIST_BROWSER_CACHE+x}"
+test -z "${SURGEIST_BROWSER_VERSION+x}"
+pgrep -f '[s]urgeist-layout-generate' >/dev/null
+test "$?" -eq 1
+"target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" --version | rg -x 'Google Chrome for Testing 149\.0\.7827\.115 ?'
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_lineage_helper_and_nine_html_inputs_are_byte_frozen
+test "$?" -eq 101
+
+# After the direct hash-only edit: GREEN, then the sole generation.
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_lineage_helper_and_nine_html_inputs_are_byte_frozen
 CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
+
+# Post-generation and final reviewed-head rerun set.
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes
 CARGO_NET_OFFLINE=true just verify
@@ -380,9 +372,19 @@ CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just fmt-check
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets --features layout-golden-generate -- -F unsafe-code -D warnings
-! git ls-files -co --exclude-standard '*.rs' | xargs rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{'
 git diff --check
-git status --short
+test -z "$(git status --porcelain)"
+zsh <<'SURGEIST_C12_SAFETY'
+set -eu
+owned_rust=("${(@0)$(git ls-files -co --exclude-standard -z '*.rs')}")
+owned_rust=("${(@)owned_rust:#}")
+test "${#owned_rust[@]}" -gt 0
+if rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' "${owned_rust[@]}"; then
+  exit 1
+else
+  test "$?" -eq 1
+fi
+SURGEIST_C12_SAFETY
 ```
 
 **Dependency:** T07 and T08 are independently task-clean. This is C12's eighth
