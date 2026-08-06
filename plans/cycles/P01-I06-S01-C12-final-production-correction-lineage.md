@@ -25,10 +25,10 @@ commit `16991d7dd0b5dca7777518716a8a4f7ce4be2692`, entry
 
 ## 1 Outcome
 
-Preserve the task-clean T01-T07 results. Replace the superseded T08 inherited-
-group publication model with D-18 direct descendant participation in one atomic
-production task, then derive exactly one final full browser lineage after that
-task is independently clean.
+Preserve the task-clean T01-T06 results and the D-18-clean T08 result. Reopen T07
+only for the confirmed vertical-lr BR-probe sign bug exposed by the first failed
+full lineage attempt, then derive one final full browser lineage after the helper
+input changes and the complete T07 range is independently clean again.
 
 ## 2 Boundary And Current Evidence
 
@@ -51,8 +51,9 @@ T07's complete ordered implementation evidence ends with:
 - `17fffd9374647633eb0a7dcd1ecbf56b0ed8a37c`.
 
 Those changes measure BR baselines in Chrome, reject synthetic line-height
-fallback, and make touching comparator intervals `Same`. T07 is task-clean and
-is not reopened.
+fallback, and make touching comparator intervals `Same`. T07 was task-clean, but
+the first T09 full run exposed one retained fake/real sign mismatch and reopens
+only that helper boundary.
 
 T08's historical spans are
 `9ff1b91dabd7d53b32ee0942a7e6962515a80b79` and
@@ -82,87 +83,105 @@ particular, vertical-auto reaches every geometry comparison after T08 but its 48
 rows still report expected `Later` versus observed `Same`; T08 uses public layout
 evidence for stale families until T09 replaces the settled lineage.
 
+At T08 head `8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`, the first
+unfiltered T09 attempt ran once and stopped without a commit. Its report generated
+5,708 rows, retained the exact 16 missing-root unsupported rows, and recorded one
+failed input: `block_br_vertical_lr_inline_block_metrics.html`, where the helper
+rejected a negative signed distance. The failed report SHA-256 is
+`2efb49434033b86bf53465914fcf507e49b773392469903f7824846e63f368bf`;
+the complete XML SHA-256 is
+`30c93c9d8c43b463da2c85da8e46f300d53a54d2c663d6007067dc4a97eb2a81`.
+A single isolated scoped diagnostic then measured pinned Chrome markers at
+top/baseline/bottom x `30/15/0`: all finite, with the baseline between both line
+edges. The helper selected `baseline - top = -15`; its unit fake encoded the
+opposite orientation. No diagnostic residue remains.
+
 ## 3 Known Chrome Measurement Failures
 
-None. Chrome remains authoritative; no synthetic substitute or expected-fail
-entry is authorized.
+None. Chrome remains authoritative; the failed run confirmed a helper sign bug,
+not a browser failure. No synthetic substitute or expected-fail entry is
+authorized.
 
 ## 4 Impacts
 
 - **Public API and compatibility:** unchanged; every D-18 carrier is private.
+- **Browser helper:** reopened T07 owns only the non-horizontal BR distance in
+  `test_helper.js` and its generator unit regression. It changes no fixture or
+  generator architecture.
 - **Production:** T08 owns `src/grid/tracks.rs`, `src/grid/subgrid.rs`,
   `src/grid/child.rs`, and focused `src/grid_tests.rs` as one atomic correction.
-- **Fixture/helper/parser/comparator:** unchanged in T08.
+- **Fixture/parser/comparator:** unchanged.
 - **Generated artifacts:** T09 alone replaces the 5,712 XML files and
-  `xml/generation-reports/all.json`; generator Rust changes are evidence constants
-  only.
+  `xml/generation-reports/all.json`; T07 changes focused generator tests only,
+  while T09 changes generator Rust evidence constants only.
 - **Dependencies, features, docs, examples, MSRV, root:** unchanged.
 - **Safety:** no `unsafe`, lint suppression, parser layer, generator architecture,
   or later-owned behavior is permitted.
 
-## 5 Tasks
+## 5 Preserved Result And Tasks
 
-### 5.1 `P01/I06/S01/C12/T08` Flatten And Consume Ancestor Baseline Groups
+### 5.1 `P01/I06/S01/C12/T07` Correct Vertical-LR BR Baseline Distance
 
-**Files/area:** `src/grid/tracks.rs`, `src/grid/subgrid.rs`,
-`src/grid/child.rs`, and `src/grid_tests.rs`.
+**Files/area:**
+`tests/layout/browser_parity/scripts/gentest/test_helper.js` and focused unit
+tests in `tests/bin/surgeist-layout-generate/generator.rs`. Before edits, verify
+the preserved failed-run inventory and restore only its 5,708 XML changes and
+`xml/generation-reports/all.json` to the exact T08 head; no failed generated
+output is retained or committed.
 
-**Outcome:** Extend the existing axis-parametric subgrid traversal to emit
-separate `FlattenedScalarContribution` and `AncestorBaselineMember` values.
-Suppress a fully inherited root only from the ordinary scalar pass, retain every
-descendant exactly once, and reduce row and column members into one immutable
-ancestor first/last group before intrinsic baseline shims. Derive a non-
-publishable `ChildBaselineEnvelopeView` from that immutable group, map it into
-each child's local track order and logical direction, and align each affected
-item once. Remove the fully inherited child-to-parent publication inverse and
-fixed-point premise while preserving ordinary non-inherited baseline publication
-and containing-grid `FlowAxes` projection.
+**RED:** In the bundled helper harness, reproduce pinned Chrome's vertical-lr
+marker order: line-over x 30, baseline x 15, and line-under x 0 at line height 30.
+The current writing-mode sign branch selects `15 - 30 = -15` and rejects the
+measurement. The test fails for that exact reason without a browser or generator
+run.
 
-**RED:** Before production edits, add public-layout regressions named with the
-`fri06_c12_t08_` prefix. The auto-row control expects 411 and currently reports
-459. A focused traversal control expects ancestor last-member distance 40 while
-the direct item contributes 25; exercise the same reduction for row and column
-axes. One nested computation expects descendant/sibling y `(62, 110)` and
-currently yields `(57, 125)`. Shared inline-column placement expects LTR/RTL x
-`470/527` and currently yields `415/570`. Vertical auto expects the retained 18px
-envelope, area 381, child width 371, and x 196; current x is 202. Vertical nesting
-expects x 153; current x is 168. Repeated view derivation must produce identical
-groups and geometry. Reconstruct the observable RED at the current source state
-without generation.
+**Outcome:** Treat a non-horizontal BR baseline as the finite non-negative
+physical x-distance magnitude between the line-over and baseline markers;
+writing mode and direction do not assign a sign to that scalar. Preserve the
+horizontal top-to-baseline calculation, finite/non-negative line-height checks,
+zero-height fast path, line-height clamp, complete computed font context, and
+probe cleanup. Make the unit fake reproduce Chrome's vertical-lr orientation.
 
-**Acceptance:** Auto-row scalar/member/group separation reports 411 and omitting
-the inherited root scalar never omits descendants. Row and column reductions use
-the same `GridAxisKind` path. First/last selection accumulates positive, zero,
-negative, reversed, margin/border/padding, and half-gutter edge adjustments once.
-Nested block, inline columns, vertical auto, and vertical nesting match their
-exact public values. Child views never enter scalar sizing or ancestor reduction,
-and repeated placement is idempotent. The former inherited-publication round-trip
-test is removed because it tests superseded D-17; public geometry and view-mapping
-controls replace it. Ordinary grid and non-inherited subgrid controls remain
-unchanged. At the T08 head, vertical-auto parity reaches every geometry
-comparison and fails only its 48 stale expected-`Later`/observed-`Same` control
-relations; T09 owns that artifact correction. No other new test failure is
-permitted. No generator command runs.
+**Acceptance:** The new vertical-lr regression reports baseline `15px` and line
+height `30px`; existing horizontal, vertical-rl, sideways, zero, clamped,
+nonfinite, normal-line-height, and cleanup controls remain green. The helper
+change leaves checked-in evidence constants and XML stale for T09. No generation
+command runs.
 
 **Commands:**
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t07_br_inline_metrics_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib
-CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_auto_rows cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
-CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_nested_block cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true just check
 CARGO_NET_OFFLINE=true just clippy
 CARGO_NET_OFFLINE=true just fmt-check
 git diff --check
 ```
 
-**Dependency:** T07 is task-clean. Review the complete reconciled T08
-implementation lineage: both historical spans and the fresh correction span.
-This full review replaces every task verdict invalidated by D-18.
+**Dependency:** Append the correction span to T07's five historical commits and
+review the complete ordered T07 lineage. The failed full run and scoped probe are
+diagnostic evidence, not verification or task spans.
 
-**Intended commit:** `fix(layout): align subgrids from ancestor baseline groups`.
+**Intended commit:** `fix(parity): measure vertical-lr BR baseline magnitude`.
 
-### 5.2 `P01/I06/S01/C12/T09` Replace Final Browser Lineage
+### 5.2 Preserved T08 Result
+
+T08 is clean at `8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`; it is not an
+executable task after this amendment. Its reviewed ordered ranges are:
+
+- `89adbbc29ba3b2350c1fb64876a8a69520af8e07..9ff1b91dabd7d53b32ee0942a7e6962515a80b79`;
+- `9ff1b91dabd7d53b32ee0942a7e6962515a80b79..5f7f72c45090d9c230f7a2957bffadd5904625b4`;
+- `a64b3272c675e52fecec61fa9617c9e972e2b514..e36830143235e28625ac010489d8c7aa998d714f`;
+- `e36830143235e28625ac010489d8c7aa998d714f..f2a3e0485adbc63521276f688ddf7e1f71fa448e`;
+- `f2a3e0485adbc63521276f688ddf7e1f71fa448e..e367a493f4d6b574a1d1a53b31314528a5e5a213`; and
+- `e367a493f4d6b574a1d1a53b31314528a5e5a213..8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`.
+
+Its clean verdict covers D-18 direct descendant participation, root-empty
+grouping, private child views, removal of the D-17 inverse, and the exact public
+auto, nested, inline, and vertical geometry. T09 alone replaces its stale
+interval-relation artifacts.
+
+### 5.3 `P01/I06/S01/C12/T09` Replace Final Browser Lineage
 
 **Files/area:** `tests/bin/surgeist-layout-generate/generator.rs` evidence
 constants, `tests/layout/browser_parity.rs` evidence constants, all 5,712
@@ -170,18 +189,21 @@ manifest-owned XML files, and `xml/generation-reports/all.json`. No helper, HTML
 parser, serializer, comparator, production, API, manifest, dependency, feature,
 or generator logic.
 
-**RED:** At the committed T08 head, the stale evidence constants and checked-in
-pre-T07 XML fail their focused freeze and activation tests. Reproduce those
-failures once without modifying the worktree. The pre-generation `just parity-all`
-run must reproduce the settled diagnostic activation state: 144 of 388 rows pass
-and 244 fail. Do not edit evidence constants before generation.
+**RED:** At the committed T07 correction head, the stale evidence constants and
+checked-in pre-T07 XML fail their focused freeze and activation tests. Reproduce
+those failures once without modifying the worktree. The pre-generation
+`just parity-all` run must reproduce the settled diagnostic activation state:
+144 of 388 rows pass and 244 fail. Do not edit evidence constants before
+generation.
 
 **Outcome:** With a clean worktree, no filter or browser override except the
 explicit existing pin, and no generator process, run full unfiltered
-`generate-existing` exactly once. Run no scoped generation in T09. Update only
-the resulting XML/report and their exact evidence constants. If the run exposes
-an unmet input or production assumption, preserve its evidence and return to the
-affected task before any replacement run; never rerun unchanged inputs.
+`generate-existing` exactly once after the T07 helper input changes. The earlier
+failed full attempt is retained only as evidence and is not a replacement
+lineage. Run no scoped generation in T09. Update only the resulting XML/report
+and their exact evidence constants. If the run exposes another unmet input or
+production assumption, preserve its evidence and return to the affected task
+before any replacement run; never rerun unchanged inputs.
 
 **Acceptance:** Report is `filter: null`, 5,712 generated, the exact 16
 missing-root unsupported rows, and empty expected-fail, quarantine, generation-
@@ -210,7 +232,8 @@ The first status is empty, the process probe finds no process, and Chrome report
 `149.0.7827.115`. The Cargo run is the sole generation. All later commands are
 read-only verification.
 
-**Dependency:** T08 is task-clean. Append the replacement span after
+**Dependency:** Reopened T07 is task-clean and T08 remains preserved-clean at
+`8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`. Append the replacement span after
 T09 diagnostic commit `0a355604d0862a8f07811d323acfdece912921cd` and review
 the complete ordered T09 lineage.
 
@@ -218,8 +241,8 @@ the complete ordered T09 lineage.
 
 ## 6 Cycle Completion
 
-After both tasks are clean, change only `Status` to `complete` in a separate
-commit. At that exact head run:
+After both executable tasks are clean, change only `Status` to `complete` in a
+separate commit. At that exact head run:
 
 ```sh
 CARGO_NET_OFFLINE=true just verify
