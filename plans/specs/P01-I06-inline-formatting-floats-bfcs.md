@@ -1287,6 +1287,43 @@ FRI-06 variants enter active comparison. Any count, source, variant, reason, or
 bucket difference blocks closure rather than being reclassified in the final
 evidence.
 
+### 11.2 Activation Recovery Membership
+
+The C10/C11 recovery boundary is the exact 388-row activation union with sorted
+`source<TAB>variant` SHA-256
+`3a0f78a7fdefc9f49feee9f0fcb5a035bc87f381f8fc8d96049eaa0cdcbc2eb1`.
+Its immutable supporting records are:
+
+- `plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv`, SHA-256
+  `0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691`;
+- `plans/P01-layout/P01-I06-S01-C10-post-generation-census.md`, SHA-256
+  `2c4179f559c5fa9e93c6933e0ba1a4969b758fc4a4f738d619c2751796b8bf00`;
+  and
+- `plans/P01-layout/P01-I06-S01-C10-second-lineage-census.md`, SHA-256
+  `a56b09ed4d68ee901dbc385db3d78b66bf5faeb82f844f1d531c94aef10a23b9`.
+
+This specification owns the corrected recovery partition below. Each row-set
+digest is over sorted, LF-terminated `source<TAB>variant` rows:
+
+| Recovery partition | Rows | Row-set SHA-256 |
+| --- | ---: | --- |
+| Passing control | 104 | `29f9cf9ac175c105317ff38a183048a1f0429707e22fd3b076d85b455e6504a1` |
+| Blockified-BR ordinary-box helper/serializer input | 244 | `eb9c8d005c76b0a52d9333fb39710f4b8f263189b88d74cf6f2ba7922b768460` |
+| Range explicit-root coordinate translation | 18 | `ae9121d16226cabbb602c2f326fb5cfa1034c23f612104600cba560d7fa80b23` |
+| Direct-root RTL physical placement | 2 | `a0620971c825fe0be6909c2331add26e26478c9970e1bd9eb4ff5b8d28321b40` |
+| Range root-wide line identity | 4 | `9c3930435c2a2c65d8bf87bdf22f082de00857e7727928140aec3a744d52238e` |
+| Shape-fixture explicit atomic break | 4 | `0b96e7d9a39716b0121017cdbe67345381d72044918c9cef5b31ec216364de18` |
+| Mixed-wrap continuation strut | 4 | `8a59f6f6231bcf5478f51ab9fe200169ba81198c817f923116534e09d268facc` |
+| Vertical line placement | 4 | `e2c95514201e376def0b87d6ad61940d719e5d1f84526bae47b814cfa90a9a79` |
+| Float-line final height | 4 | `7b4fc8b3bb27f912d3f39d2aadc05c243ead274fed54c20dfa43bd0825f7c61f` |
+
+The nine row sets are pairwise disjoint, total 388, and their union has the
+activation digest above. This corrected literal partition supersedes every
+earlier inferred pass/fail or category narrative. Later work may not add, omit,
+reclassify, or dynamically widen a row. Aggregate failures outside this union
+remain FRI-13-owned. The pinned records are immutable evidence, not independent
+planning authority or acceptance lineage.
+
 ## 12 FRI-06.12 Root And Sibling Handoff
 
 At inspected root revision `19590f6d9fa01c0df197c5ef07fb626c5cf18ced`,
