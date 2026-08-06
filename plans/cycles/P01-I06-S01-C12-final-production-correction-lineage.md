@@ -201,7 +201,7 @@ those failures once without modifying the worktree. The activation-only test
 enumerates exactly 388 rows and must report exactly 148 failing paths: 144
 subgrid neighbor-line mismatches and four unequal-line block-height mismatches,
 so 240 rows pass. Separately, pre-generation `just parity-all` must fail with the
-settled 616-fixture whole-corpus state. The broad command is not activation-count
+settled 520-fixture whole-corpus state. The broad command is not activation-count
 evidence. Do not edit evidence constants before generation.
 
 **Outcome:** With a clean worktree, no filter or browser override except the
