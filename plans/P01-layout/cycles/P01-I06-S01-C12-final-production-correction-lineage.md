@@ -79,6 +79,14 @@ retained parent envelope changes pre-flex `[163,145,145]` to final
 placement is already y 62/x 153 before inherited refresh. The containing-grid
 `FlowAxes` refresh conversion is confirmed correct.
 
+Post-T07 read-only diagnostics expose one interim lineage constraint. All 48
+inline-column and 48 vertical-nested checked-in rows stop before geometry on the
+same stale browser-control fact: XML records a touching next interval as `Later`,
+while T07's reviewed closed comparator correctly returns `Same`. T08 cannot edit
+that T09-owned lineage, and grid production cannot repair it. These 96 rows use
+public `compute_layout` geometry as T08 evidence and re-enter parity acceptance
+only after T09's single replacement run.
+
 Correction-attempt accounting: the committed T08 implementation and review fix
 are the third failed correction at this boundary. The reviewed specification and
 sequence therefore replace the old premise with `D-17`; no fourth correction may
@@ -192,20 +200,23 @@ empty column groups, post-refresh y 57 versus 62, area 375 versus 381 and x 202
 versus 196, and x 168 versus 153. Existing ordinary-grid and refreshed-axis
 controls remain green.
 
-**Acceptance:** All focused T08 tests pass without direction, source, family,
-rounding, or content special cases. The five checked-in subgrid family filters
-pass all 240 rows. The eight final-oracle float rows remain green and their
-production blobs are unchanged. The four unequal-line rows may remain RED only
-because checked-in XML still contains the pre-T07 helper metric; T09 replaces it.
+**Acceptance:** All focused T08 public-layout tests pass without direction,
+source, family, rounding, or content special cases and prove all five D-17
+families. The unaffected auto-row, nested-block, and vertical-auto-row checked-in
+filters pass all 144 rows. The eight final-oracle float rows remain green and
+their production blobs are unchanged. Inline-column and vertical-nested parity
+are not interim T08 gates: their 96 rows retain only the exact stale
+`Later`-versus-`Same` browser-control failure above until T09 replaces the XML.
+The four unequal-line rows likewise retain only their pre-T07 helper metric.
+T09's final lineage must make all 240 subgrid rows and all 388 activation rows
+pass; no expected-fail or synthetic substitute is authorized.
 
 **Commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
 CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_auto_rows cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
-CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_inline_column cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_nested_block cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_vertical_auto_rows cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
-CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_vertical_nested cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=fri06_float_line_exclusion cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=fri06_float_shape_exclusion cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true just check
@@ -214,9 +225,9 @@ CARGO_NET_OFFLINE=true just fmt-check
 git diff --check
 ```
 
-Broad default and generator test suites remain deferred to T09 because their
-only known failures are the checked-in pre-T07 lineage and six stale evidence
-assertions that T09 owns. No generation is run in T08.
+Broad default and generator test suites remain deferred to T09 because their only
+permitted failures are the 100 checked-in pre-T07 helper/comparator rows and six
+stale evidence assertions that T09 owns. No generation is run in T08.
 
 **Dependency:** T07's complete ordered range is task-clean. Append the correction
 span after T08's two historical spans and obtain a fresh task review over the
