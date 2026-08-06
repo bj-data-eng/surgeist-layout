@@ -197,10 +197,12 @@ or generator logic.
 
 **RED:** At the committed T07 correction head, the stale evidence constants and
 checked-in pre-T07 XML fail their focused freeze and activation tests. Reproduce
-those failures once without modifying the worktree. The pre-generation
-`just parity-all` run must reproduce the settled diagnostic activation state:
-240 of 388 rows pass and 148 fail. Do not edit evidence constants before
-generation.
+those failures once without modifying the worktree. The activation-only test
+enumerates exactly 388 rows and must report exactly 148 failing paths: 144
+subgrid neighbor-line mismatches and four unequal-line block-height mismatches,
+so 240 rows pass. Separately, pre-generation `just parity-all` must fail with the
+settled 616-fixture whole-corpus state. The broad command is not activation-count
+evidence. Do not edit evidence constants before generation.
 
 **Outcome:** With a clean worktree, no filter or browser override except the
 explicit existing pin, and no generator process, run full unfiltered
@@ -224,6 +226,7 @@ git status --porcelain
 pgrep -f '[s]urgeist-layout-generate'
 "target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" --version
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
 CARGO_NET_OFFLINE=true just parity-all
 env -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 CARGO_NET_OFFLINE=true just parity-all
