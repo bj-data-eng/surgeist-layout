@@ -116,17 +116,19 @@ view or final child offset in this task.
 
 **RED:** Before production edits, add public-layout regressions named with the
 `fri06_c12_t08a_` prefix. The auto-row control expects 411 and currently reports
-459. The shared inline-column control expects LTR/RTL x 470/527 and currently
-reports 415/570. A focused traversal control expects ancestor last-member
-distance 40 while the direct item contributes 25. Reconstruct the observable RED
-at the current source state without generation.
+459. A focused traversal control expects ancestor last-member distance 40 while
+the direct item contributes 25; exercise the same reduction for row and column
+axes. Reconstruct the observable RED at the current source state without
+generation.
 
 **Acceptance:** Auto-row scalar/member/group separation reports 411 and omitting
 the inherited root scalar never omits descendants. Row and column reductions use
 the same `GridAxisKind` path. First/last selection accumulates positive, zero,
 negative, reversed, margin/border/padding, and half-gutter edge adjustments once.
 The ancestor group is immutable and available to T08B. Ordinary grid and
-non-inherited subgrid controls remain unchanged. No generator command runs.
+non-inherited subgrid controls remain unchanged. Public inline-column placement
+remains the T08B RED and is not a T08A acceptance gate. No generator command
+runs.
 
 **Commands:**
 ```sh
@@ -159,16 +161,18 @@ projection.
 
 **RED:** Before production edits, add `fri06_c12_t08b_` public regressions. One
 nested computation expects descendant/sibling y `(62, 110)` and currently yields
-`(57, 125)`. Vertical auto expects the retained 18px envelope, area 381, child
-width 371, and x 196; current x is 202. Vertical nesting expects x 153; current x
-is 168. Repeated view derivation must produce identical groups and geometry.
+`(57, 125)`. Shared inline-column placement expects LTR/RTL x `470/527` and
+currently yields `415/570`. Vertical auto expects the retained 18px envelope,
+area 381, child width 371, and x 196; current x is 202. Vertical nesting expects
+x 153; current x is 168. Repeated view derivation must produce identical groups
+and geometry.
 
-**Acceptance:** Nested block, vertical auto, and vertical nesting match those
-exact public values. Child views never enter scalar sizing or ancestor reduction,
-and repeated placement is idempotent. The former inherited-publication
-round-trip test is removed because it tests superseded D-17; public geometry and
-view-mapping controls replace it. Auto-row and inline-column T08A controls remain
-green. No generator command runs.
+**Acceptance:** Nested block, inline columns, vertical auto, and vertical nesting
+match those exact public values. Child views never enter scalar sizing or
+ancestor reduction, and repeated placement is idempotent. The former inherited-
+publication round-trip test is removed because it tests superseded D-17; public
+geometry and view-mapping controls replace it. T08A's auto-row and ancestor-group
+controls remain green. No generator command runs.
 
 **Commands:**
 ```sh
