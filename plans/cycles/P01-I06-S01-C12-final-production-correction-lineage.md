@@ -77,8 +77,10 @@ The checked-in report from T09 commit
 generated, 16 unsupported, 144 of 388 activation rows passing, and 244 failing.
 Its report SHA-256 is
 `f46d8d8b50c722037127fdca79679649bd5cfd6db16fb24c0d69a7e5a082147a`.
-Inline-column and vertical-nested XML still carry the pre-T07 touching-interval
-observation, so T08 uses public layout evidence for those families until T09.
+Some activation XML still carry the pre-T07 touching-interval observation. In
+particular, vertical-auto reaches every geometry comparison after T08 but its 48
+rows still report expected `Later` versus observed `Same`; T08 uses public layout
+evidence for stale families until T09 replaces the settled lineage.
 
 ## 3 Known Chrome Measurement Failures
 
@@ -137,14 +139,17 @@ exact public values. Child views never enter scalar sizing or ancestor reduction
 and repeated placement is idempotent. The former inherited-publication round-trip
 test is removed because it tests superseded D-17; public geometry and view-mapping
 controls replace it. Ordinary grid and non-inherited subgrid controls remain
-unchanged. No generator command runs.
+unchanged. At the T08 head, vertical-auto parity reaches every geometry
+comparison and fails only its 48 stale expected-`Later`/observed-`Same` control
+relations; T09 owns that artifact correction. No other new test failure is
+permitted. No generator command runs.
 
 **Commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib
 CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_auto_rows cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_nested_block cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
-CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_vertical_auto_rows cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true just check
 CARGO_NET_OFFLINE=true just clippy
 CARGO_NET_OFFLINE=true just fmt-check
@@ -167,8 +172,9 @@ or generator logic.
 
 **RED:** At the committed T08 head, the stale evidence constants and checked-in
 pre-T07 XML fail their focused freeze and activation tests. Reproduce those
-failures once without modifying the worktree. Do not edit evidence constants
-before generation.
+failures once without modifying the worktree. The pre-generation `just parity-all`
+run must reproduce the settled diagnostic activation state: 144 of 388 rows pass
+and 244 fail. Do not edit evidence constants before generation.
 
 **Outcome:** With a clean worktree, no filter or browser override except the
 explicit existing pin, and no generator process, run full unfiltered
@@ -190,7 +196,9 @@ git status --porcelain
 pgrep -f '[s]urgeist-layout-generate'
 "target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" --version
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_
-CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
+CARGO_NET_OFFLINE=true just parity-all
+env -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
+CARGO_NET_OFFLINE=true just parity-all
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
@@ -218,6 +226,7 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
+CARGO_NET_OFFLINE=true just parity-all
 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' .
 git diff --check 8ffb4bc551a24d2283ad54436870ab3f5e66a473..HEAD
 git status --short
