@@ -1326,6 +1326,7 @@ fn direct_ancestor_baseline_members<Tree, M>(
     container_style: &NodeInputOf<Tree::Scalar>,
     row_tracks: &[TrackSizingOf<Tree::Scalar>],
     items: &[PendingGridItem<<Tree as Traverse>::Node, Tree::Scalar>],
+    subgrid_report: &GridSubgridReport<<Tree as Traverse>::Node>,
     container_flow_axes: FlowAxes,
 ) -> DirectAncestorBaselineMembers<<Tree as Traverse>::Node, Tree::Scalar>
 where
@@ -1335,6 +1336,7 @@ where
     let mut rows = Vec::new();
     for item in items {
         let style = tree.node_input(item.node);
+        let subgrid_item = subgrid_report.items.get(item.source_index).copied();
         let block_auto_margins = matches!(
             item.child_flow_axes.line_over_edge(style.margin),
             LengthAutoOf::Auto
@@ -1346,6 +1348,18 @@ where
             (GridAxisKind::Column, &mut columns),
             (GridAxisKind::Row, &mut rows),
         ] {
+            if subgrid_item.is_some_and(|subgrid_item| {
+                [subgrid_item.column, subgrid_item.row]
+                    .into_iter()
+                    .any(|report| {
+                        report.can_inherit()
+                            && report
+                                .mapping
+                                .is_ok_and(|mapping| mapping.parent_axis == axis)
+                    })
+            }) {
+                continue;
+            }
             let alignment = match axis {
                 GridAxisKind::Column => style.justify_self.or(container_style.justify_items),
                 GridAxisKind::Row => style.align_self.or(container_style.align_items),
@@ -1427,6 +1441,7 @@ where
         input.container_style,
         input.row_tracks,
         items,
+        input.subgrid_report,
         input.constants.flow_axes,
     );
     let column_available = input.constants.flow_axes.physical_size(definite_available);

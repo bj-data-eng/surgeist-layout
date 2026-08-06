@@ -8372,7 +8372,7 @@ fn row_subgrid_publishes_descendant_baseline_to_parent_row() {
 }
 
 #[test]
-fn row_subgrid_without_descendant_publication_uses_container_baseline() {
+fn row_subgrid_without_descendant_baseline_leaves_ancestor_group_unchanged() {
     let mut tree = OracleTree::new()
         .children(1, [2, 3])
         .children(2, [])
@@ -8406,7 +8406,7 @@ fn row_subgrid_without_descendant_publication_uses_container_baseline() {
 
     compute_oracle_grid(&mut tree);
 
-    assert_eq!(final_y(&tree, 2), 6.0);
+    assert_eq!(final_y(&tree, 2), 0.0);
     assert_eq!(final_y(&tree, 3), 0.0);
 }
 
@@ -8471,6 +8471,57 @@ fn sibling_row_subgrids_revisit_inherited_published_baselines() {
     compute_oracle_grid(&mut tree);
 
     assert_eq!(final_y(&tree, 5), 62.0);
+}
+
+#[test]
+fn fri06_c12_t08_fully_inherited_baseline_root_stays_out_of_ancestor_group() {
+    let mut tree = OracleTree::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [4])
+        .children(4, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
+                grid_template_rows: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::Grid,
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
+                grid_template_columns: vec![TrackComponent::px(60.0)],
+                grid_template_rows: vec![empty_subgrid_track()],
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .measure(2, baseline_measure(30.0, 20.0, Some(14.0), None))
+        .measure(4, baseline_measure(30.0, 20.0, Some(8.0), None));
+
+    compute_oracle_grid(&mut tree);
+
+    assert_eq!((final_y(&tree, 2), final_y(&tree, 4)), (0.0, 40.0));
 }
 
 #[test]
