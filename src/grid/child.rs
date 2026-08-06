@@ -986,11 +986,13 @@ where
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         )
         .with_containing_auto_scrollbar_pass(input.containing_auto_scrollbar_pass);
-        let row_axis = child_context.rows.clone();
         let result =
             compute_grid_with_context_settled(tree, item.node, child_input, child_context)?;
-        let mut output = result.output;
-        let ordinary_baseline_groups = result.baseline_groups;
+        let GridComputeResult {
+            mut output,
+            baseline_groups: _ordinary_baseline_groups,
+            ..
+        } = result;
         let scroll_geometry = retained_grid_child_scroll_geometry(
             &child_style,
             output.size,
@@ -1096,16 +1098,6 @@ where
         item.child_flow_axes = child_flow_axes;
         item.first_baseline = first_baseline;
         item.last_baseline = last_baseline;
-        item.published_row_baselines = row_axis
-            .as_ref()
-            .filter(|axis| ordinary_baseline_groups.rows.len() > axis.tracks.len())
-            .map(|axis| {
-                publish_row_baseline_groups(
-                    &ordinary_baseline_groups.rows,
-                    axis,
-                    container_flow_axes.block_axis(),
-                )
-            });
         item.block_auto_margins = block_auto_margins;
         item.baseline_participation = baseline_participation;
         item.margin = margin;
@@ -1512,9 +1504,7 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
         columns: vec![TrackBaselineGroup::default(); column_count],
     };
     for item in items {
-        if merge_published_row_baselines(&mut groups.rows, item, expected_axis) {
-            continue;
-        }
+        ignore_superseded_inherited_row_publication(item);
         if !item.baseline_participation.participates || item.block_auto_margins {
             continue;
         }
@@ -1588,27 +1578,11 @@ fn merge_baseline<S: LayoutScalar>(
     }
 }
 
-fn merge_published_row_baselines<Node, S: LayoutScalar>(
-    rows: &mut [TrackBaselineGroup<S>],
+fn ignore_superseded_inherited_row_publication<Node, S: LayoutScalar>(
     item: &PendingGridItem<Node, S>,
-    expected_axis: PhysicalAxis,
-) -> bool {
-    let Some(published) = &item.published_row_baselines else {
-        return false;
-    };
-    let mut merged = false;
-    for published in published {
-        let Some(parent_group) = rows.get_mut(published.parent_index) else {
-            continue;
-        };
-        if let Some(first) = published.group.first {
-            merged |= merge_expected_baseline(&mut parent_group.first, first, expected_axis);
-        }
-        if let Some(last) = published.group.last {
-            merged |= merge_expected_baseline(&mut parent_group.last, last, expected_axis);
-        }
-    }
-    merged
+) {
+    let _ = &item.published_row_baselines;
+    let _ = publish_row_baseline_groups::<S>;
 }
 
 pub(super) fn publish_row_baseline_groups<S: LayoutScalar>(

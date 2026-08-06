@@ -23786,6 +23786,42 @@ fn empty_published_row_baselines_do_not_suppress_item_fallback() {
 }
 
 #[test]
+fn fri06_c12_t08_inherited_root_with_extra_row_leaves_ancestor_group_unchanged() {
+    let mut item = baseline_test_item(0, 0, 1, AlignItems::Baseline, 9.0, 11.0, 20.0);
+    let inherited_rows = InheritedGridAxis {
+        offset: 0.0,
+        gap: 0.0,
+        tracks: vec![40.0, 40.0],
+        named_lines: named::NamedGridLines::new(GridAxisKind::Row, 2),
+        area_facts: None,
+        major_baselines: vec![None, None],
+        minor_baselines: vec![None, None],
+        parent_start: 0,
+        parent_end: 2,
+        reversed: false,
+        start_mbp: 0.0,
+        end_mbp: 0.0,
+        gap_difference: 0.0,
+    };
+    item.published_row_baselines = Some(publish_row_baseline_groups(
+        &[
+            tagged_group(PhysicalAxis::Vertical, Some(30.0), None),
+            TrackBaselineGroup::default(),
+            tagged_group(PhysicalAxis::Vertical, Some(50.0), None),
+        ],
+        &inherited_rows,
+        PhysicalAxis::Vertical,
+    ));
+
+    let groups = baseline_groups(&[item], 2, 1, horizontal_baseline_flow_axes());
+
+    assert_eq!(
+        groups.rows[0].first,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 9.0))
+    );
+}
+
+#[test]
 fn baseline_groups_columns_are_default_filled_to_grid_width() {
     let items = vec![baseline_test_item(
         0,
