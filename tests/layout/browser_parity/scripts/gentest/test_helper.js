@@ -632,10 +632,8 @@ function measureInlineBaselinePx(computedStyle, lineHeight) {
   let distance;
   if (writingMode === 'horizontal-tb') {
     distance = baselineRect.top - lineOverRect.top;
-  } else if (writingMode === 'vertical-rl' || writingMode === 'sideways-rl') {
-    distance = lineOverRect.left - baselineRect.left;
   } else {
-    distance = baselineRect.left - lineOverRect.left;
+    distance = Math.abs(lineOverRect.left - baselineRect.left);
   }
   if (!Number.isFinite(distance) || distance < 0) {
     throw new Error('inline BR baseline probe requires a finite logical block distance');

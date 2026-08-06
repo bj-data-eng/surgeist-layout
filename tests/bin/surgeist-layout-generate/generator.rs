@@ -14613,6 +14613,7 @@ let baselineDistance = 15;
 let appended = 0;
 let removed = 0;
 let lastProbe;
+const verticalLrMarkerX = { lineOver: 30, baseline: 15, lineUnder: 0 };
 
 function zeroRect(x, y) {
   return { x, y, left: x, right: x, top: y, bottom: y, width: 0, height: 0 };
@@ -14633,7 +14634,10 @@ function createElement(tagName) {
       if (writingMode === 'vertical-rl' || writingMode === 'sideways-rl') {
         return zeroRect(lineOver ? 100 : 100 - baselineDistance, 100);
       }
-      if (writingMode === 'vertical-lr' || writingMode === 'sideways-lr') {
+      if (writingMode === 'vertical-lr') {
+        return zeroRect(lineOver ? verticalLrMarkerX.lineOver : verticalLrMarkerX.baseline, 100);
+      }
+      if (writingMode === 'sideways-lr') {
         return zeroRect(lineOver ? 100 : 100 + baselineDistance, 100);
       }
       throw new Error(`unexpected writing mode ${writingMode}`);
@@ -14686,7 +14690,6 @@ if (lastProbe.style.font !== '16px "Measured Family"' ||
 
 for (const [writingMode, direction] of [
   ['vertical-rl', 'ltr'],
-  ['vertical-lr', 'rtl'],
   ['sideways-rl', 'rtl'],
   ['sideways-lr', 'ltr'],
 ]) {
@@ -14694,6 +14697,20 @@ for (const [writingMode, direction] of [
   if (measured.baseline !== '15px' || measured.lineHeight !== '20px') {
     throw new Error(`${writingMode}/${direction} did not use logical block distance: ${JSON.stringify(measured)}`);
   }
+}
+
+if (!(verticalLrMarkerX.lineOver > verticalLrMarkerX.baseline &&
+      verticalLrMarkerX.baseline > verticalLrMarkerX.lineUnder)) {
+  throw new Error(`vertical-lr fake does not reproduce Chrome marker orientation: ${JSON.stringify(verticalLrMarkerX)}`);
+}
+let verticalLr;
+try {
+  verticalLr = metrics('vertical-lr', 'ltr', '30px');
+} catch (error) {
+  throw new Error(`vertical-lr helper selected baseline - line-over = 15 - 30 = -15 and rejected it: ${String(error)}`);
+}
+if (verticalLr.baseline !== '15px' || verticalLr.lineHeight !== '30px') {
+  throw new Error(`vertical-lr Chrome marker orientation did not produce 15/30 metrics: ${JSON.stringify(verticalLr)}`);
 }
 
 baselineDistance = 25;
