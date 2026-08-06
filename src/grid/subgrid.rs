@@ -1395,8 +1395,6 @@ pub(super) fn intrinsic_subgrid_axis_parent_context<S: LayoutScalar>(
         parent_start,
         parent_end,
         reversed: mapping.reversed,
-        start_mbp: S::ZERO,
-        end_mbp: S::ZERO,
         gap_difference: S::ZERO,
     })
 }

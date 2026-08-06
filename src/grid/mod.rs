@@ -917,8 +917,6 @@ struct InheritedGridAxis<S: LayoutScalar = Scalar> {
     parent_start: usize,
     parent_end: usize,
     reversed: bool,
-    start_mbp: S,
-    end_mbp: S,
     gap_difference: S,
 }
 

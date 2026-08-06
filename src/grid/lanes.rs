@@ -1621,7 +1621,6 @@ where
             first_baseline,
             last_baseline,
             location: Point::ZERO,
-            published_row_baselines: None,
             block_offset: block_axis.offset,
             block_auto_margins,
             baseline_participation,

@@ -7330,8 +7330,6 @@ fn vertical_intrinsic_subgrid_final_sizing_keeps_definite_physical_height() {
             parent_start: 0,
             parent_end: 1,
             reversed: false,
-            start_mbp: 0.0,
-            end_mbp: 0.0,
             gap_difference: 0.0,
         }),
     };
@@ -8522,6 +8520,74 @@ fn fri06_c12_t08_fully_inherited_baseline_root_stays_out_of_ancestor_group() {
     compute_oracle_grid(&mut tree);
 
     assert_eq!((final_y(&tree, 2), final_y(&tree, 4)), (0.0, 40.0));
+}
+
+#[test]
+fn fri06_c12_t08_extra_row_keeps_direct_descendant_in_ancestor_baseline() {
+    let mut tree = OracleTree::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [4, 5])
+        .children(4, [])
+        .children(5, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
+                grid_template_rows: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::Grid,
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
+                grid_template_columns: vec![TrackComponent::px(60.0)],
+                grid_template_rows: vec![empty_subgrid_track()],
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            5,
+            NodeInput {
+                grid_row: GridPlacement::try_line(3).expect("valid implicit row placement"),
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .measure(2, baseline_measure(30.0, 20.0, Some(9.0), None))
+        .measure(4, baseline_measure(30.0, 20.0, Some(30.0), None))
+        .measure(5, baseline_measure(30.0, 20.0, Some(50.0), None));
+
+    compute_oracle_grid(&mut tree);
+
+    assert_eq!(
+        (
+            final_y(&tree, 2),
+            final_y(&tree, 3),
+            final_y(&tree, 4),
+            final_y(&tree, 5)
+        ),
+        (21.0, 0.0, 0.0, 0.0),
+    );
 }
 
 #[test]
@@ -21858,8 +21924,6 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         parent_start: 0,
         parent_end: 2,
         reversed: false,
-        start_mbp: 0.5,
-        end_mbp: 0.75,
         gap_difference: 0.25,
     };
     let parent_context = GridParentContext::<f64> {
@@ -22095,7 +22159,6 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         ))
         .expect("the test baseline is present"),
         location: Point::ZERO,
-        published_row_baselines: None,
         block_offset: 0.0,
         block_auto_margins: false,
         baseline_participation: BaselineParticipation {
@@ -22129,30 +22192,6 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
             horizontal_baseline_flow_axes(),
         ),
         Some(3.0)
-    );
-
-    let axis = InheritedGridAxis::<f64> {
-        offset: 0.0,
-        gap: 10.0,
-        tracks: vec![40.0, 40.0],
-        named_lines: named::NamedGridLines::new(GridAxisKind::Row, 2),
-        area_facts: None,
-        major_baselines: vec![None, None],
-        minor_baselines: vec![None, None],
-        parent_start: 0,
-        parent_end: 2,
-        reversed: false,
-        start_mbp: 1.5,
-        end_mbp: 2.5,
-        gap_difference: 0.25,
-    };
-    let published = publish_row_baseline_groups(&groups.rows, &axis, PhysicalAxis::Vertical);
-    assert_eq!(
-        published,
-        vec![PublishedTrackBaselineGroup::<f64> {
-            parent_index: 0,
-            group: tagged_group(PhysicalAxis::Vertical, Some(12.5), None),
-        }]
     );
 
     let inherited = inherit_subgrid_tracks(SubgridTrackInheritanceInput::<f64> {
@@ -23570,7 +23609,6 @@ fn baseline_test_item(
         ))
         .expect("the test baseline is present"),
         location: Point::ZERO,
-        published_row_baselines: None,
         block_offset: 0.0,
         block_auto_margins: false,
         baseline_participation: BaselineParticipation {
@@ -23626,8 +23664,6 @@ fn test_inherited_axis(
         parent_start,
         parent_end,
         reversed,
-        start_mbp: 0.0,
-        end_mbp: 0.0,
         gap_difference: 0.0,
     }
 }
@@ -23723,101 +23759,6 @@ fn row_baselines_keep_last_groups_per_end_row() {
     assert_eq!(
         groups.rows[1].last,
         Some(tagged_baseline(PhysicalAxis::Vertical, 12.0))
-    );
-}
-
-#[test]
-fn published_row_baselines_map_reversed_subgrid_back_to_parent_rows() {
-    let axis = InheritedGridAxis {
-        offset: 0.0,
-        gap: 10.0,
-        tracks: vec![40.0, 40.0, 40.0],
-        named_lines: named::NamedGridLines::new(GridAxisKind::Row, 3),
-        area_facts: None,
-        major_baselines: vec![None, None, None],
-        minor_baselines: vec![None, None, None],
-        parent_start: 1,
-        parent_end: 4,
-        reversed: true,
-        start_mbp: 3.0,
-        end_mbp: 7.0,
-        gap_difference: -2.0,
-    };
-    let published = publish_row_baseline_groups(
-        &[
-            tagged_group(PhysicalAxis::Vertical, Some(10.0), None),
-            tagged_group(PhysicalAxis::Vertical, Some(20.0), Some(6.0)),
-            tagged_group(PhysicalAxis::Vertical, None, Some(12.0)),
-        ],
-        &axis,
-        PhysicalAxis::Vertical,
-    );
-
-    assert_eq!(
-        published,
-        vec![
-            PublishedTrackBaselineGroup {
-                parent_index: 3,
-                group: tagged_group(PhysicalAxis::Vertical, Some(13.0), None),
-            },
-            PublishedTrackBaselineGroup {
-                parent_index: 2,
-                group: tagged_group(PhysicalAxis::Vertical, Some(18.0), Some(4.0)),
-            },
-            PublishedTrackBaselineGroup {
-                parent_index: 1,
-                group: tagged_group(PhysicalAxis::Vertical, None, Some(19.0)),
-            },
-        ]
-    );
-}
-
-#[test]
-fn empty_published_row_baselines_do_not_suppress_item_fallback() {
-    let mut item = baseline_test_item(0, 0, 1, AlignItems::Baseline, 9.0, 11.0, 20.0);
-    item.published_row_baselines = Some(Vec::new());
-
-    let groups = baseline_groups(&[item], 1, 1, horizontal_baseline_flow_axes());
-
-    assert_eq!(
-        groups.rows[0].first,
-        Some(tagged_baseline(PhysicalAxis::Vertical, 9.0))
-    );
-}
-
-#[test]
-fn fri06_c12_t08_inherited_root_with_extra_row_leaves_ancestor_group_unchanged() {
-    let mut item = baseline_test_item(0, 0, 1, AlignItems::Baseline, 9.0, 11.0, 20.0);
-    let inherited_rows = InheritedGridAxis {
-        offset: 0.0,
-        gap: 0.0,
-        tracks: vec![40.0, 40.0],
-        named_lines: named::NamedGridLines::new(GridAxisKind::Row, 2),
-        area_facts: None,
-        major_baselines: vec![None, None],
-        minor_baselines: vec![None, None],
-        parent_start: 0,
-        parent_end: 2,
-        reversed: false,
-        start_mbp: 0.0,
-        end_mbp: 0.0,
-        gap_difference: 0.0,
-    };
-    item.published_row_baselines = Some(publish_row_baseline_groups(
-        &[
-            tagged_group(PhysicalAxis::Vertical, Some(30.0), None),
-            TrackBaselineGroup::default(),
-            tagged_group(PhysicalAxis::Vertical, Some(50.0), None),
-        ],
-        &inherited_rows,
-        PhysicalAxis::Vertical,
-    ));
-
-    let groups = baseline_groups(&[item], 2, 1, horizontal_baseline_flow_axes());
-
-    assert_eq!(
-        groups.rows[0].first,
-        Some(tagged_baseline(PhysicalAxis::Vertical, 9.0))
     );
 }
 
@@ -24282,7 +24223,6 @@ fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
         first_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(7.0)),
         last_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(11.0)),
         location: Point::new(S::from_f64(17.0), S::from_f64(19.0)),
-        published_row_baselines: None,
         block_offset: S::ZERO,
         block_auto_margins: false,
         baseline_participation: BaselineParticipation {
@@ -24469,8 +24409,6 @@ where
             parent_start: 0,
             parent_end: 1,
             reversed: false,
-            start_mbp: S::ZERO,
-            end_mbp: S::ZERO,
             gap_difference: S::ZERO,
         }),
     };
@@ -24575,8 +24513,6 @@ where
             parent_start: 0,
             parent_end: 1,
             reversed: false,
-            start_mbp: S::ZERO,
-            end_mbp: S::ZERO,
             gap_difference: S::ZERO,
         }),
     };

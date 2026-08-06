@@ -161,12 +161,6 @@ impl<S: LayoutScalar> InheritedGridAxis<S> {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct PublishedTrackBaselineGroup<S: LayoutScalar = Scalar> {
-    pub(super) parent_index: usize,
-    pub(super) group: TrackBaselineGroup<S>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(super) struct BaselineShim<S: LayoutScalar = Scalar> {
     pub(super) before: S,
     pub(super) after: S,
@@ -648,7 +642,6 @@ where
             first_baseline,
             last_baseline,
             location: Point::ZERO,
-            published_row_baselines: None,
             block_offset: block_axis.offset,
             block_auto_margins,
             baseline_participation,
@@ -1236,7 +1229,6 @@ pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
     pub(super) first_baseline: PhysicalBaseline<S>,
     pub(super) last_baseline: PhysicalBaseline<S>,
     pub(super) location: Point<S>,
-    pub(super) published_row_baselines: Option<Vec<PublishedTrackBaselineGroup<S>>>,
     pub(super) block_offset: S,
     pub(super) block_auto_margins: bool,
     pub(super) baseline_participation: BaselineParticipation,
@@ -1504,7 +1496,6 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
         columns: vec![TrackBaselineGroup::default(); column_count],
     };
     for item in items {
-        ignore_superseded_inherited_row_publication(item);
         if !item.baseline_participation.participates || item.block_auto_margins {
             continue;
         }
@@ -1575,73 +1566,6 @@ fn merge_baseline<S: LayoutScalar>(
         }
         Some(_) => {}
         None => *target = Some(candidate),
-    }
-}
-
-fn ignore_superseded_inherited_row_publication<Node, S: LayoutScalar>(
-    item: &PendingGridItem<Node, S>,
-) {
-    let _ = &item.published_row_baselines;
-    let _ = publish_row_baseline_groups::<S>;
-}
-
-pub(super) fn publish_row_baseline_groups<S: LayoutScalar>(
-    local_groups: &[TrackBaselineGroup<S>],
-    axis: &InheritedGridAxis<S>,
-    expected_axis: PhysicalAxis,
-) -> Vec<PublishedTrackBaselineGroup<S>> {
-    let parent_span_len = axis.parent_end.saturating_sub(axis.parent_start);
-    let local_count = local_groups.len().min(parent_span_len);
-    local_groups
-        .iter()
-        .copied()
-        .take(parent_span_len)
-        .enumerate()
-        .filter_map(|(local_index, group)| {
-            let parent_index = if axis.reversed {
-                axis.parent_end.checked_sub(local_index + 1)?
-            } else {
-                axis.parent_start + local_index
-            };
-            let first = group.first.map(|baseline| {
-                adjust_published_baseline(
-                    baseline,
-                    if local_index == 0 {
-                        axis.start_mbp
-                    } else {
-                        axis.gap_difference
-                    },
-                    expected_axis,
-                )
-            });
-            let last = group.last.map(|baseline| {
-                adjust_published_baseline(
-                    baseline,
-                    if local_index + 1 == local_count {
-                        axis.end_mbp
-                    } else {
-                        axis.gap_difference
-                    },
-                    expected_axis,
-                )
-            });
-            (first.is_some() || last.is_some()).then_some(PublishedTrackBaselineGroup {
-                parent_index,
-                group: TrackBaselineGroup { first, last },
-            })
-        })
-        .collect()
-}
-
-fn adjust_published_baseline<S: LayoutScalar>(
-    baseline: PhysicalBaseline<S>,
-    adjustment: S,
-    expected_axis: PhysicalAxis,
-) -> PhysicalBaseline<S> {
-    if baseline.axis() == expected_axis {
-        PhysicalBaseline::new(baseline.axis(), baseline.coordinate() + adjustment)
-    } else {
-        baseline
     }
 }
 
@@ -2103,8 +2027,6 @@ fn subgrid_child_axis_context<S: LayoutScalar>(
         parent_start: start_line - 1,
         parent_end: end_line - 1,
         reversed: mapping.reversed,
-        start_mbp,
-        end_mbp,
         gap_difference: inherited.gap_difference,
     }))
 }
