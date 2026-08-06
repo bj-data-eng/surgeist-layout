@@ -205,6 +205,41 @@ pub(super) struct SubgridLeafContribution<Node, S: LayoutScalar = Scalar> {
     pub(super) align_self: AlignItems,
     pub(super) accumulated_edge_adjustment: Vec<S>,
     pub(super) accumulated_gap_adjustment: Vec<S>,
+    accumulated_start_adjustment: Vec<S>,
+    accumulated_end_adjustment: Vec<S>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SubgridAncestorBaselineAdjustments<S: LayoutScalar = Scalar> {
+    pub(super) start: S,
+    pub(super) end: S,
+}
+
+impl<Node, S: LayoutScalar> SubgridLeafContribution<Node, S> {
+    pub(super) fn scalar_adjustment(&self) -> Option<S> {
+        let start = self.ancestor_span.start.checked_sub(1)?;
+        let end = self.ancestor_span.end.checked_sub(1)?;
+        let edge_adjustments = self.accumulated_edge_adjustment.get(start..end)?;
+        let gap_adjustments = self.accumulated_gap_adjustment.get(start..end)?;
+        Some(
+            edge_adjustments
+                .iter()
+                .chain(gap_adjustments)
+                .copied()
+                .fold(S::ZERO, |sum, value| sum + value),
+        )
+    }
+
+    pub(super) fn ancestor_baseline_adjustments(
+        &self,
+    ) -> Option<SubgridAncestorBaselineAdjustments<S>> {
+        let start = self.ancestor_span.start.checked_sub(1)?;
+        let end = self.ancestor_span.end.checked_sub(2)?;
+        Some(SubgridAncestorBaselineAdjustments {
+            start: *self.accumulated_start_adjustment.get(start)?,
+            end: *self.accumulated_end_adjustment.get(end)?,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -243,6 +278,8 @@ where
                     available_inline_size_is_known: false,
                     accumulated_edge_adjustment: vec![S::ZERO; intrinsic_min.len()],
                     accumulated_gap_adjustment: vec![S::ZERO; intrinsic_min.len()],
+                    accumulated_start_adjustment: vec![S::ZERO; intrinsic_min.len()],
+                    accumulated_end_adjustment: vec![S::ZERO; intrinsic_min.len()],
                 },
             )
         })
@@ -267,6 +304,8 @@ where
                     align_self: leaf.align_self,
                     accumulated_edge_adjustment: context.accumulated_edge_adjustment,
                     accumulated_gap_adjustment: context.accumulated_gap_adjustment,
+                    accumulated_start_adjustment: context.accumulated_start_adjustment,
+                    accumulated_end_adjustment: context.accumulated_end_adjustment,
                 });
             }
             SubgridTraversalChild::Subgrid(subgrid) => {
@@ -297,6 +336,8 @@ struct SubgridTraversalContext<Node, S: LayoutScalar = Scalar> {
     available_inline_size_is_known: bool,
     accumulated_edge_adjustment: Vec<S>,
     accumulated_gap_adjustment: Vec<S>,
+    accumulated_start_adjustment: Vec<S>,
+    accumulated_end_adjustment: Vec<S>,
 }
 
 type SubgridTraversalStackEntry<Node, S = Scalar> = (
@@ -329,6 +370,8 @@ where
         || end_index >= edge_lower_bounds.len()
         || context.accumulated_edge_adjustment.len() != edge_lower_bounds.len()
         || context.accumulated_gap_adjustment.len() != edge_lower_bounds.len()
+        || context.accumulated_start_adjustment.len() != edge_lower_bounds.len()
+        || context.accumulated_end_adjustment.len() != edge_lower_bounds.len()
     {
         return Err(SubgridTraversalError::MissingIntrinsicMinTrackFacts);
     }
@@ -343,12 +386,25 @@ where
     let local_start_edge = subgrid.margins.start + subgrid.border.start + subgrid.padding.start;
     let local_end_edge = subgrid.margins.end + subgrid.border.end + subgrid.padding.end;
 
+    let start_role_adjustment = if child_line_transform.line_direction > 0 {
+        &mut context.accumulated_start_adjustment
+    } else {
+        &mut context.accumulated_end_adjustment
+    };
+    start_role_adjustment[local_start_index] =
+        start_role_adjustment[local_start_index] + local_start_edge;
     if intrinsic_min[local_start_index] {
         context.accumulated_edge_adjustment[local_start_index] =
             context.accumulated_edge_adjustment[local_start_index] + local_start_edge;
         edge_lower_bounds[local_start_index] = edge_lower_bounds[local_start_index]
             .max(context.accumulated_edge_adjustment[local_start_index]);
     }
+    let end_role_adjustment = if child_line_transform.line_direction > 0 {
+        &mut context.accumulated_end_adjustment
+    } else {
+        &mut context.accumulated_start_adjustment
+    };
+    end_role_adjustment[local_end_index] = end_role_adjustment[local_end_index] + local_end_edge;
     if intrinsic_min[local_end_index] {
         context.accumulated_edge_adjustment[local_end_index] =
             context.accumulated_edge_adjustment[local_end_index] + local_end_edge;
@@ -363,6 +419,10 @@ where
             context.accumulated_gap_adjustment[edge_index] + gap_difference;
         context.accumulated_gap_adjustment[edge_index + 1] =
             context.accumulated_gap_adjustment[edge_index + 1] + gap_difference;
+        context.accumulated_end_adjustment[edge_index] =
+            context.accumulated_end_adjustment[edge_index] + gap_difference;
+        context.accumulated_start_adjustment[edge_index + 1] =
+            context.accumulated_start_adjustment[edge_index + 1] + gap_difference;
     }
     if empty_subgrid {
         for edge_index in start_index..=end_index {
@@ -396,6 +456,8 @@ where
         available_inline_size_is_known,
         accumulated_edge_adjustment: context.accumulated_edge_adjustment,
         accumulated_gap_adjustment: context.accumulated_gap_adjustment,
+        accumulated_start_adjustment: context.accumulated_start_adjustment,
+        accumulated_end_adjustment: context.accumulated_end_adjustment,
     };
 
     for child in subgrid.children.into_iter().rev() {
@@ -428,6 +490,8 @@ where
         available_inline_size_is_known: context.available_inline_size_is_known,
         accumulated_edge_adjustment: Vec::new(),
         accumulated_gap_adjustment: Vec::new(),
+        accumulated_start_adjustment: Vec::new(),
+        accumulated_end_adjustment: Vec::new(),
     }
 }
 
@@ -549,6 +613,59 @@ pub(super) struct SubgridBaselineInheritanceReport<S: LayoutScalar = Scalar> {
     pub(super) after_mbp_minor: Vec<Option<PhysicalBaseline<S>>>,
     pub(super) final_major: Vec<Option<PhysicalBaseline<S>>>,
     pub(super) final_minor: Vec<Option<PhysicalBaseline<S>>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ChildBaselineEnvelopeView<S: LayoutScalar = Scalar> {
+    pub(super) major: Vec<Option<PhysicalBaseline<S>>>,
+    pub(super) minor: Vec<Option<PhysicalBaseline<S>>>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct ChildBaselineEnvelopeInput<S: LayoutScalar = Scalar> {
+    pub(super) physical_axis: PhysicalAxis,
+    pub(super) parent_span: GridTrackSpan,
+    pub(super) reversed: bool,
+    pub(super) start_mbp: S,
+    pub(super) end_mbp: S,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: S,
+}
+
+impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
+    pub(super) fn derive(
+        group: &AncestorBaselineGroup<S>,
+        input: ChildBaselineEnvelopeInput<S>,
+    ) -> Result<Self, SubgridTrackInheritanceError> {
+        if group.physical_axis() != input.physical_axis {
+            return Err(SubgridTrackInheritanceError::SpanOutOfRange);
+        }
+        let parent_major = group
+            .track_groups()
+            .iter()
+            .map(|track| track.first)
+            .collect::<Vec<_>>();
+        let parent_minor = group
+            .track_groups()
+            .iter()
+            .map(|track| track.last)
+            .collect::<Vec<_>>();
+        let inherited = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
+            parent_major: &parent_major,
+            parent_minor: &parent_minor,
+            physical_axis: input.physical_axis,
+            parent_span: input.parent_span,
+            reversed: input.reversed,
+            start_mbp: input.start_mbp,
+            end_mbp: input.end_mbp,
+            parent_gap: input.parent_gap,
+            subgrid_gap: input.subgrid_gap,
+        })?;
+        Ok(Self {
+            major: inherited.final_major,
+            minor: inherited.final_minor,
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -833,7 +950,11 @@ where
             input.named_columns,
             input.named_rows,
             input.area_facts,
-            child_style.align_self.unwrap_or(AlignItems::Stretch),
+            match input.axis {
+                GridAxisKind::Column => child_style.justify_self,
+                GridAxisKind::Row => child_style.align_self,
+            }
+            .unwrap_or(AlignItems::Stretch),
         )?
         else {
             continue;
@@ -1166,10 +1287,11 @@ where
             &initialized.context.named_columns,
             &initialized.context.named_rows,
             initialized.context.area_facts.as_ref(),
-            child_style
-                .align_self
-                .or(style.align_items)
-                .unwrap_or(AlignItems::Stretch),
+            match queried_axis {
+                GridAxisKind::Column => child_style.justify_self.or(style.justify_items),
+                GridAxisKind::Row => child_style.align_self.or(style.align_items),
+            }
+            .unwrap_or(AlignItems::Stretch),
         )? {
             traversal_children.push(child);
         }

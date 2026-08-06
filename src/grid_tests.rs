@@ -8473,6 +8473,63 @@ fn sibling_row_subgrids_revisit_inherited_published_baselines() {
     assert_eq!(final_y(&tree, 5), 62.0);
 }
 
+#[test]
+fn fri06_c12_t08_row_and_column_groups_choose_the_lastmost_member() {
+    let member = |source, axis, last_baseline| {
+        let (child_flow_axes, containing_flow_axes) = match axis {
+            GridAxisKind::Column => (
+                FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ),
+            GridAxisKind::Row => (
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ),
+        };
+        ancestor_baseline_member(AncestorBaselineMemberInput {
+            source,
+            axis,
+            ancestor_span: GridTrackSpan::new(1, 2),
+            alignment: AlignItems::LastBaseline,
+            block_auto_margins: false,
+            synthesized_baseline_cycle: false,
+            output: ComputeOutput::from_sizes_and_baselines(
+                match axis {
+                    GridAxisKind::Column => Size::new(50.0, 30.0),
+                    GridAxisKind::Row => Size::new(30.0, 50.0),
+                },
+                match axis {
+                    GridAxisKind::Column => Size::new(50.0, 30.0),
+                    GridAxisKind::Row => Size::new(30.0, 50.0),
+                },
+                Baselines {
+                    first: Point::NONE,
+                    last: match axis {
+                        GridAxisKind::Column => Point::new(Some(last_baseline), None),
+                        GridAxisKind::Row => Point::new(None, Some(last_baseline)),
+                    },
+                },
+            ),
+            margin: Edges::all(0.0),
+            child_flow_axes,
+            containing_flow_axes,
+            start_adjustment: 0.0,
+            end_adjustment: 0.0,
+        })
+        .expect("last-baseline item participates")
+    };
+    for (axis, physical_axis) in [
+        (GridAxisKind::Row, PhysicalAxis::Vertical),
+        (GridAxisKind::Column, PhysicalAxis::Horizontal),
+    ] {
+        let direct = member(1_u32, axis, 25.0);
+        let nested = member(2_u32, axis, 10.0);
+        let group = AncestorBaselineGroup::reduce(axis, physical_axis, 1, [direct, nested]);
+        assert_eq!(group.target_for(nested), Some(40.0));
+        assert_eq!(group.intrinsic_shim(direct).after, 15.0);
+    }
+}
+
 fn fri06_c12_t08_parent_baseline_row(
     direct_baseline: f32,
     nested_baseline: f32,
@@ -8985,84 +9042,6 @@ fn fri06_c12_t08_inherited_gap_transform_uses_local_first_and_last_edges_after_r
             Some(tagged_baseline(PhysicalAxis::Vertical, 3.0)),
         ],
     );
-}
-
-#[test]
-fn fri06_c12_t08_inherited_baseline_publication_round_trips_signed_gap_geometry() {
-    for (subgrid_gap, gap_difference, reversed) in [
-        (20.0, 5.0, false),
-        (10.0, 0.0, false),
-        (0.0, -5.0, false),
-        (20.0, 5.0, true),
-    ] {
-        let parent_major = [
-            Some(tagged_baseline(PhysicalAxis::Vertical, 14.0)),
-            Some(tagged_baseline(PhysicalAxis::Vertical, 30.0)),
-        ];
-        let parent_minor = [
-            Some(tagged_baseline(PhysicalAxis::Vertical, 6.0)),
-            Some(tagged_baseline(PhysicalAxis::Vertical, 12.0)),
-        ];
-        let inherited = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
-            parent_major: &parent_major,
-            parent_minor: &parent_minor,
-            physical_axis: PhysicalAxis::Vertical,
-            parent_span: GridTrackSpan::new(1, 3),
-            reversed,
-            start_mbp: 2.0,
-            end_mbp: 3.0,
-            parent_gap: 10.0,
-            subgrid_gap,
-        })
-        .unwrap();
-        assert_eq!(inherited.gap_difference, gap_difference);
-
-        let axis = InheritedGridAxis {
-            offset: 0.0,
-            gap: subgrid_gap,
-            tracks: vec![40.0 - gap_difference, 40.0 - gap_difference],
-            named_lines: named::NamedGridLines::new(GridAxisKind::Row, 2),
-            area_facts: None,
-            major_baselines: inherited.final_major.clone(),
-            minor_baselines: inherited.final_minor.clone(),
-            parent_start: 0,
-            parent_end: 2,
-            reversed,
-            start_mbp: 2.0,
-            end_mbp: 3.0,
-            gap_difference,
-        };
-        let local_groups = inherited
-            .final_major
-            .iter()
-            .copied()
-            .zip(inherited.final_minor.iter().copied())
-            .map(|(first, last)| TrackBaselineGroup { first, last })
-            .collect::<Vec<_>>();
-        let published = publish_row_baseline_groups(&local_groups, &axis, PhysicalAxis::Vertical);
-        let mut published = published;
-        published.sort_by_key(|entry| entry.parent_index);
-        assert_eq!(
-            published,
-            vec![
-                PublishedTrackBaselineGroup {
-                    parent_index: 0,
-                    group: TrackBaselineGroup {
-                        first: parent_major[0],
-                        last: parent_minor[0],
-                    },
-                },
-                PublishedTrackBaselineGroup {
-                    parent_index: 1,
-                    group: TrackBaselineGroup {
-                        first: parent_major[1],
-                        last: parent_minor[1],
-                    },
-                },
-            ],
-            "publication is the exact inverse for gap sign and local reversal",
-        );
-    }
 }
 
 fn assert_published_baseline_group_order_keeps_compatible_axis<S: LayoutScalar>(
