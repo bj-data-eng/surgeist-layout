@@ -83,6 +83,12 @@ particular, vertical-auto reaches every geometry comparison after T08 but its 48
 rows still report expected `Later` versus observed `Same`; T08 uses public layout
 evidence for stale families until T09 replaces the settled lineage.
 
+At the final T08 head, the production correction resolves 96 of those diagnostic
+activation failures without changing checked-in XML: all 48 auto-row and all 48
+nested-block rows. The exact pre-generation activation state is therefore 240 of
+388 rows passing and 148 failing, with no new failures: 144 stale subgrid
+neighbor-line comparisons and four stale unequal-line block heights.
+
 At T08 head `8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`, the first
 unfiltered T09 attempt ran once and stopped without a commit. Its report generated
 5,708 rows, retained the exact 16 missing-root unsupported rows, and recorded one
@@ -193,7 +199,7 @@ or generator logic.
 checked-in pre-T07 XML fail their focused freeze and activation tests. Reproduce
 those failures once without modifying the worktree. The pre-generation
 `just parity-all` run must reproduce the settled diagnostic activation state:
-144 of 388 rows pass and 244 fail. Do not edit evidence constants before
+240 of 388 rows pass and 148 fail. Do not edit evidence constants before
 generation.
 
 **Outcome:** With a clean worktree, no filter or browser override except the
