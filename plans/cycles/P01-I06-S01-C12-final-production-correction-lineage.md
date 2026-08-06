@@ -26,9 +26,9 @@ commit `16991d7dd0b5dca7777518716a8a4f7ce4be2692`, entry
 ## 1 Outcome
 
 Preserve the task-clean T01-T07 results. Replace the superseded T08 inherited-
-group publication model with D-18 direct descendant participation in two bounded
-production tasks, then derive exactly one final full browser lineage after both
-tasks are independently clean.
+group publication model with D-18 direct descendant participation in one atomic
+production task, then derive exactly one final full browser lineage after that
+task is independently clean.
 
 ## 2 Boundary And Current Evidence
 
@@ -88,11 +88,9 @@ entry is authorized.
 ## 4 Impacts
 
 - **Public API and compatibility:** unchanged; every D-18 carrier is private.
-- **Production:** T08A owns `src/grid/tracks.rs`, `src/grid/subgrid.rs`, and
-  focused `src/grid_tests.rs`; T08B owns `src/grid/child.rs`, the child-view part
-  of `src/grid/subgrid.rs`, and focused `src/grid_tests.rs`. T08B may reconcile a
-  private `tracks.rs` interface only when T08A's reviewed carrier requires it.
-- **Fixture/helper/parser/comparator:** unchanged in T08A and T08B.
+- **Production:** T08 owns `src/grid/tracks.rs`, `src/grid/subgrid.rs`,
+  `src/grid/child.rs`, and focused `src/grid_tests.rs` as one atomic correction.
+- **Fixture/helper/parser/comparator:** unchanged in T08.
 - **Generated artifacts:** T09 alone replaces the 5,712 XML files and
   `xml/generation-reports/all.json`; generator Rust changes are evidence constants
   only.
@@ -102,81 +100,49 @@ entry is authorized.
 
 ## 5 Tasks
 
-### 5.1 `P01/I06/S01/C12/T08A` Flatten Ancestor Baseline Membership
+### 5.1 `P01/I06/S01/C12/T08` Flatten And Consume Ancestor Baseline Groups
 
-**Files/area:** `src/grid/tracks.rs`, `src/grid/subgrid.rs`, and
-`src/grid_tests.rs`.
+**Files/area:** `src/grid/tracks.rs`, `src/grid/subgrid.rs`,
+`src/grid/child.rs`, and `src/grid_tests.rs`.
 
 **Outcome:** Extend the existing axis-parametric subgrid traversal to emit
 separate `FlattenedScalarContribution` and `AncestorBaselineMember` values.
 Suppress a fully inherited root only from the ordinary scalar pass, retain every
 descendant exactly once, and reduce row and column members into one immutable
-ancestor first/last group before intrinsic baseline shims. Do not derive a child
-view or final child offset in this task.
+ancestor first/last group before intrinsic baseline shims. Derive a non-
+publishable `ChildBaselineEnvelopeView` from that immutable group, map it into
+each child's local track order and logical direction, and align each affected
+item once. Remove the fully inherited child-to-parent publication inverse and
+fixed-point premise while preserving ordinary non-inherited baseline publication
+and containing-grid `FlowAxes` projection.
 
 **RED:** Before production edits, add public-layout regressions named with the
-`fri06_c12_t08a_` prefix. The auto-row control expects 411 and currently reports
+`fri06_c12_t08_` prefix. The auto-row control expects 411 and currently reports
 459. A focused traversal control expects ancestor last-member distance 40 while
 the direct item contributes 25; exercise the same reduction for row and column
-axes. Reconstruct the observable RED at the current source state without
-generation.
+axes. One nested computation expects descendant/sibling y `(62, 110)` and
+currently yields `(57, 125)`. Shared inline-column placement expects LTR/RTL x
+`470/527` and currently yields `415/570`. Vertical auto expects the retained 18px
+envelope, area 381, child width 371, and x 196; current x is 202. Vertical nesting
+expects x 153; current x is 168. Repeated view derivation must produce identical
+groups and geometry. Reconstruct the observable RED at the current source state
+without generation.
 
 **Acceptance:** Auto-row scalar/member/group separation reports 411 and omitting
 the inherited root scalar never omits descendants. Row and column reductions use
 the same `GridAxisKind` path. First/last selection accumulates positive, zero,
 negative, reversed, margin/border/padding, and half-gutter edge adjustments once.
-The ancestor group is immutable and available to T08B. Ordinary grid and
-non-inherited subgrid controls remain unchanged. Public inline-column placement
-remains the T08B RED and is not a T08A acceptance gate. No generator command
-runs.
-
-**Commands:**
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08a_
-CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_auto_rows cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
-CARGO_NET_OFFLINE=true just check
-CARGO_NET_OFFLINE=true just clippy
-CARGO_NET_OFFLINE=true just fmt-check
-git diff --check
-```
-
-**Dependency:** T07 is task-clean. The fresh T08A span is reviewed independently;
-the superseded historical T08 spans remain part of the final reconciled T08
-review after T08B.
-
-**Intended commit:** `refactor(layout): flatten subgrid baseline members`.
-
-### 5.2 `P01/I06/S01/C12/T08B` Align Children From Ancestor Group Views
-
-**Files/area:** `src/grid/child.rs`, `src/grid/subgrid.rs`, and
-`src/grid_tests.rs`; `src/grid/tracks.rs` only for private interface
-reconciliation required by T08A.
-
-**Outcome:** Derive a non-publishable `ChildBaselineEnvelopeView` from the
-immutable ancestor group and map it into each child's local track order and
-logical direction. Align each affected item once. Remove the fully inherited
-child-to-parent publication inverse and fixed-point premise while preserving
-ordinary non-inherited baseline publication and containing-grid `FlowAxes`
-projection.
-
-**RED:** Before production edits, add `fri06_c12_t08b_` public regressions. One
-nested computation expects descendant/sibling y `(62, 110)` and currently yields
-`(57, 125)`. Shared inline-column placement expects LTR/RTL x `470/527` and
-currently yields `415/570`. Vertical auto expects the retained 18px envelope,
-area 381, child width 371, and x 196; current x is 202. Vertical nesting expects
-x 153; current x is 168. Repeated view derivation must produce identical groups
-and geometry.
-
-**Acceptance:** Nested block, inline columns, vertical auto, and vertical nesting
-match those exact public values. Child views never enter scalar sizing or
-ancestor reduction, and repeated placement is idempotent. The former inherited-
-publication round-trip test is removed because it tests superseded D-17; public
-geometry and view-mapping controls replace it. T08A's auto-row and ancestor-group
-controls remain green. No generator command runs.
+Nested block, inline columns, vertical auto, and vertical nesting match their
+exact public values. Child views never enter scalar sizing or ancestor reduction,
+and repeated placement is idempotent. The former inherited-publication round-trip
+test is removed because it tests superseded D-17; public geometry and view-mapping
+controls replace it. Ordinary grid and non-inherited subgrid controls remain
+unchanged. No generator command runs.
 
 **Commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c12_t08_
+CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_auto_rows cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_nested_block cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true SURGEIST_PARITY_FILTER=subgrid_baseline_vertical_auto_rows cargo test --locked --offline -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 CARGO_NET_OFFLINE=true just check
@@ -185,13 +151,13 @@ CARGO_NET_OFFLINE=true just fmt-check
 git diff --check
 ```
 
-**Dependency:** T08A is task-clean. After T08B, review the complete reconciled
-T08 implementation lineage: both historical spans, T08A, and T08B. This full
-review replaces every task verdict invalidated by D-18.
+**Dependency:** T07 is task-clean. Review the complete reconciled T08
+implementation lineage: both historical spans and the fresh correction span.
+This full review replaces every task verdict invalidated by D-18.
 
 **Intended commit:** `fix(layout): align subgrids from ancestor baseline groups`.
 
-### 5.3 `P01/I06/S01/C12/T09` Replace Final Browser Lineage
+### 5.2 `P01/I06/S01/C12/T09` Replace Final Browser Lineage
 
 **Files/area:** `tests/bin/surgeist-layout-generate/generator.rs` evidence
 constants, `tests/layout/browser_parity.rs` evidence constants, all 5,712
@@ -199,7 +165,7 @@ manifest-owned XML files, and `xml/generation-reports/all.json`. No helper, HTML
 parser, serializer, comparator, production, API, manifest, dependency, feature,
 or generator logic.
 
-**RED:** At the committed T08B head, the stale evidence constants and checked-in
+**RED:** At the committed T08 head, the stale evidence constants and checked-in
 pre-T07 XML fail their focused freeze and activation tests. Reproduce those
 failures once without modifying the worktree. Do not edit evidence constants
 before generation.
@@ -236,7 +202,7 @@ The first status is empty, the process probe finds no process, and Chrome report
 `149.0.7827.115`. The Cargo run is the sole generation. All later commands are
 read-only verification.
 
-**Dependency:** T08A and T08B are task-clean. Append the replacement span after
+**Dependency:** T08 is task-clean. Append the replacement span after
 T09 diagnostic commit `0a355604d0862a8f07811d323acfdece912921cd` and review
 the complete ordered T09 lineage.
 
@@ -244,7 +210,7 @@ the complete ordered T09 lineage.
 
 ## 6 Cycle Completion
 
-After all three tasks are clean, change only `Status` to `complete` in a separate
+After both tasks are clean, change only `Status` to `complete` in a separate
 commit. At that exact head run:
 
 ```sh
