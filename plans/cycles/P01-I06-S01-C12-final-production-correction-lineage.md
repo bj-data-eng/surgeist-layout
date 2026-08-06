@@ -222,8 +222,8 @@ report, process, or temporary resource remains.
 
 **Commands:**
 ```sh
-git status --porcelain
-pgrep -f '[s]urgeist-layout-generate'
+test -z "$(git status --porcelain)"
+! pgrep -f '[s]urgeist-layout-generate'
 "target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" --version
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
@@ -259,9 +259,9 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just parity-all
-rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' .
+! rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' .
 git diff --check 8ffb4bc551a24d2283ad54436870ab3f5e66a473..HEAD
-git status --short
+test -z "$(git status --short)"
 ```
 
 The unsafe scan returns no match and final status is clean. Record exact task
