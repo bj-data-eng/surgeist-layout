@@ -1356,6 +1356,55 @@ render, or root repositories.
 FRI-06 is incomplete while any row lacks its named source, front-door test, and
 applicable browser/artifact evidence.
 
+### 13.1 Mechanical Containment Contract
+
+The immutable mechanical-review evidence is
+`plans/P01-layout/P01-I06-mechanical-refactoring-review-findings.md`, SHA-256
+`11437dd9dfe83d41ae6b01e41453d9cc1a893172c6977e5b3d77346aa3948f34`.
+Its six findings are behavior-preserving opportunities, not new correctness
+findings and not authority to change public API, dependencies, features, MSRV,
+fixtures, generator logic, generated artifacts, or repository ownership.
+
+Two bounded containment results are already part of the required FRI-06 state:
+
+- C03 realizes `MR-006` and only the scalar-generic `OracleTreeOf<S>` slice of
+  `MR-002` under the retained contract at
+  `plans/P01-layout/P01-I06-S01-C03-post-c02-sprawl-containment.md`, SHA-256
+  `0c88ec011067e25d61d0ddfdf90ad47e9e5db0149dbdc214e8326668665711e4`.
+  One private non-box classifier preserves node-input, child, and measurement
+  first-error order; one generic oracle implementation preserves both scalar
+  lanes and every specialized observation/failure behavior.
+- C07 realizes `MR-001`, `MR-004`, and `MR-005` under the retained contract at
+  `plans/P01-layout/P01-I06-S01-C07-post-c05-sprawl-containment.md`, SHA-256
+  `3e9d894791ffc3fa9ce772350a7fd9d667979dc5d86c37affebc2922b8c1322d`.
+  Shaped-text validation and selection remain linear without changing operation
+  order; scroll-padding and geometry-error glue preserve physical edges, sites,
+  run modes, and dependency direction; signed zero, layout rounding, and
+  physical-edge selection have one crate-private policy each.
+
+The final C13 containment result evaluates the same immutable six-item set at the
+completed C12 source. Each row has one exact disposition: its already-realized
+contract remains present and characterized; its remaining equivalent duplication
+is consolidated under the rule below; or a named current-source counterexample
+proves that the original equivalence predicate no longer holds. Absence of a
+disposition is not closure.
+
+| Item | Final required disposition |
+| --- | --- |
+| `MR-001` shaped-text processing | Preserve C07's source-order first-duplicate result, allocation-free intrinsic summary, incremental candidate scan, operation order, and deterministic linear scaling evidence. Remove only a reintroduced equivalent scan or allocation. |
+| `MR-002` test tree harnesses | Preserve the one generic `OracleTreeOf<S>`. Classify every remaining local tree as an ordinary map-backed input tree or a specialized failure/observation/order/cache/topology fake. Consolidate the ordinary equivalent class through typed test support; retain each specialized fake with its distinguishing behavior visible. |
+| `MR-003` layout math helpers | For option fallback/unwrapping, optional addition, aspect-ratio projection, resolution-to-zero/optional resolution, and containing-flow padding/border resolution, consolidate only call sites with identical percentage basis, scalar operation order, zero clamping, and min/max order. Keep policy-specific operations local and named; each unmerged candidate identifies the concrete differing predicate. |
+| `MR-004` scroll and geometry glue | Preserve C07's one scroll-padding conversion and compute-owned own/child geometry adapters, including physical-edge mapping, site, run mode, error variant, and module dependency direction. Remove only reintroduced exact duplicates. |
+| `MR-005` scalar and geometry primitives | Preserve C07's one signed-zero canonicalizer, exact `(value + 0.5).floor()` layout-coordinate rounding, and physical-edge selector. General scalar rounding, logical-edge selection, validation, and clamp policy remain distinct. |
+| `MR-006` non-box validation | Preserve C03's one private reason classifier, exact first-error order, node/site payload, and role-specific parent handling. Remove only reintroduced exact duplicates. |
+
+Mechanical consolidation is accepted only when all existing public geometry,
+error, cache, fragment, scalar-lane, and parity observations remain unchanged.
+The final C12 manifest, helper, report, and XML bodies remain byte-identical; C13
+does not run or alter the generator. No macro-driven wholesale rewrite, broad
+helper trait, public test API, new lint allowance, or executable `unsafe` is part
+of this contract.
+
 ## 14 FRI-06.14 Initiative Acceptance
 
 FRI-06 is complete only when:
@@ -1428,6 +1477,8 @@ FRI-06 is complete only when:
     diff/provenance, and the tracked/non-ignored Rust unsafe scan are clean;
 19. all FRI-06-owned dead-code allowances are removed and no new lint suppression
     or executable `unsafe` exists; and
-20. no dependency, feature, MSRV, generator architecture, root/sibling,
+20. the retained C03/C07 containment contracts and all six final dispositions in
+    `FRI-06.13.1` hold without public behavior or artifact change; and
+21. no dependency, feature, MSRV, generator architecture, root/sibling,
     FRI-09/10/11/12 behavior, FRI-13 aggregate gate, or unrelated change becomes
     part of FRI-06.
