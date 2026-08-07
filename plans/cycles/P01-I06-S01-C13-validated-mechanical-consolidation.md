@@ -306,18 +306,46 @@ predicates, the MR-003 merged classes and named counterexamples, and the unchang
 MR-001/MR-004/MR-005/MR-006 owners in the final completion evidence and candidate
 handoff. The six rows together are the durable final disposition.
 
+Revalidate the four earlier dispositions at their current owners:
+
+- MR-001: `InlineTextInputOf::try_new` in `src/node_input.rs` retains source-order
+  first-duplicate selection, while the private line summary and incremental scan
+  in `src/inline.rs` retain allocation-free intrinsic sizing and deterministic
+  linear scaling; `fri06_mr02_duplicate_id_` and `fri06_mr02_inline_linear_` pass.
+- MR-004: `OptimalRegionInsetsOf::from_scroll_padding`,
+  `layout_own_geometry_error`, and `layout_child_geometry_error` in
+  `src/compute.rs` remain the single owners; `fri06_mr02_scroll_padding_` and
+  `fri06_mr02_geometry_error_` pass.
+- MR-005: `scalar::canonical_zero`, `scalar::round_layout_coordinate`, and
+  `Edges::at_physical_side` remain the single exact primitive owners;
+  `fri06_mr02_signed_zero_`, `fri06_mr02_layout_round_`, and
+  `fri06_mr02_physical_edge_` pass.
+- MR-006: private `compute::non_box_node_role_error` retains exact first-error
+  order and role-specific parent handling; `fri06_mr01_non_box_` passes.
+
 After all task reviews are clean, change only `Status` to `complete` in a separate
 commit. At that exact head run:
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t09_final_lineage_hashes_match_preserved_run
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr01_non_box_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr01_oracle_generic_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_duplicate_id_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_inline_linear_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_scroll_padding_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_geometry_error_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_signed_zero_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_layout_round_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_physical_edge_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 test "$(shasum -a 256 plans/P01-layout/P01-I06-mechanical-refactoring-review-findings.md | cut -d ' ' -f 1)" = 11437dd9dfe83d41ae6b01e41453d9cc1a893172c6977e5b3d77346aa3948f34
 git diff --exit-code dc82c4566ad0ab95c443638aab8fda15fca8db78..HEAD -- Cargo.toml Cargo.lock README.md tests/layout/browser_parity tests/layout/browser_parity.rs tests/bin/surgeist-layout-generate.rs tests/bin/surgeist-layout-generate/generator.rs plans/P01-layout/P01-index.md plans/P01-layout/P01-initial-review-findings.md
-! rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' .
+git ls-files --cached --others --exclude-standard '*.rs' > /tmp/surgeist-layout-c13-owned-rust.txt
+! xargs rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' < /tmp/surgeist-layout-c13-owned-rust.txt
+rm /tmp/surgeist-layout-c13-owned-rust.txt
 git diff --check dc82c4566ad0ab95c443638aab8fda15fca8db78..HEAD
 test -z "$(git status --short)"
 ```
@@ -325,7 +353,9 @@ test -z "$(git status --short)"
 The hash test proves all six frozen C12 artifact digests without generation. The
 path diff proves no manifest, lockfile, crate docs, fixture, helper, generator,
 generated output, authoritative ownership index, or 59-finding assignment
-changed. A fresh
+changed. The owned-Rust manifest includes every tracked and non-ignored untracked
+Rust file and the scan must return no match; classify any match before advancing.
+A fresh
 `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `dc82c4566ad0ab95c443638aab8fda15fca8db78..cycle_head`, including the complete
 MR-002 source inventory and all MR-003 equivalence/counterexample predicates.
