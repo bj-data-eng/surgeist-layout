@@ -2182,6 +2182,7 @@ struct LeafResolvedValues<S: LayoutScalar> {
     node_min_size: Size<Option<S>>,
     node_max_size: Size<Option<S>>,
     preferred_intrinsic_availability: Size<Option<AvailableOf<S>>>,
+    flex_basis_intrinsic_availability: Size<Option<AvailableOf<S>>>,
     aspect_ratio: Option<AspectRatioOf<S>>,
 }
 
@@ -2297,6 +2298,21 @@ where
                 )
             }
         };
+    let flex_basis_intrinsic =
+        if input.parent_formatting_context() == super::ParentFormattingContext::Flex {
+            if style.flex_basis.is_min_content() {
+                Some(AvailableOf::MIN_CONTENT)
+            } else if style.flex_basis.is_max_content() {
+                Some(AvailableOf::MAX_CONTENT)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+    let flex_basis_intrinsic_availability = input
+        .available()
+        .map(|available| flex_basis_intrinsic.filter(|intrinsic| *intrinsic == available));
 
     Ok(LeafResolvedValues {
         margin,
@@ -2306,6 +2322,7 @@ where
         node_min_size,
         node_max_size,
         preferred_intrinsic_availability,
+        flex_basis_intrinsic_availability,
         aspect_ratio,
     })
 }
@@ -2557,6 +2574,10 @@ where
     )
     .zip_map(
         resolved.preferred_intrinsic_availability,
+        |available, intrinsic| intrinsic.unwrap_or(available),
+    )
+    .zip_map(
+        resolved.flex_basis_intrinsic_availability,
         |available, intrinsic| intrinsic.unwrap_or(available),
     );
 

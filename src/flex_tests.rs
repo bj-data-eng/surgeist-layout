@@ -27,7 +27,7 @@ struct Fri07C01IntrinsicTree<S: LayoutScalar> {
     children: HashMap<u32, Vec<u32>>,
     styles: HashMap<u32, NodeInputOf<S>>,
     measured_nodes: Vec<u32>,
-    child_requests: RefCell<HashMap<u32, Vec<ComputeInputOf<S>>>>,
+    leaf_requests: RefCell<HashMap<u32, Vec<LeafMeasureInputOf<S>>>>,
     mode: Fri07C01IntrinsicMeasureMode,
 }
 
@@ -37,7 +37,7 @@ impl<S: LayoutScalar> Fri07C01IntrinsicTree<S> {
             children: HashMap::new(),
             styles: HashMap::new(),
             measured_nodes: Vec::new(),
-            child_requests: RefCell::new(HashMap::new()),
+            leaf_requests: RefCell::new(HashMap::new()),
             mode,
         }
     }
@@ -57,8 +57,8 @@ impl<S: LayoutScalar> Fri07C01IntrinsicTree<S> {
         self
     }
 
-    fn child_requests(&self, node: u32) -> Vec<ComputeInputOf<S>> {
-        self.child_requests
+    fn leaf_requests(&self, node: u32) -> Vec<LeafMeasureInputOf<S>> {
+        self.leaf_requests
             .borrow()
             .get(&node)
             .cloned()
@@ -111,9 +111,14 @@ impl<S: LayoutScalar> LayoutTree for Fri07C01IntrinsicTree<S> {
 
     fn measure_leaf(
         &self,
-        _node: Self::Node,
+        node: Self::Node,
         input: LeafMeasureInputOf<Self::Scalar>,
     ) -> Option<Result<Size<Self::Scalar>, Self::MeasureError>> {
+        self.leaf_requests
+            .borrow_mut()
+            .entry(node)
+            .or_default()
+            .push(input);
         match self.mode {
             Fri07C01IntrinsicMeasureMode::ProviderFailure => {
                 Some(Err(Fri07C01IntrinsicMeasureError::ProviderFailure))
@@ -134,20 +139,6 @@ impl<S: LayoutScalar> LayoutTree for Fri07C01IntrinsicTree<S> {
                 )))
             }
         }
-    }
-
-    fn cache_get(
-        &self,
-        node: Self::Node,
-        input: &ComputeInputOf<Self::Scalar>,
-        _context: CacheKeyContext,
-    ) -> Option<ComputeOutputOf<Self::Scalar>> {
-        self.child_requests
-            .borrow_mut()
-            .entry(node)
-            .or_default()
-            .push(*input);
-        None
     }
 }
 
@@ -347,29 +338,53 @@ fn fri07_c01_intrinsic_recomputation_tree<S: LayoutScalar>(
 }
 
 fn assert_fri07_c01_intrinsic_provider_constraint_survives_recomputation<S: LayoutScalar>() {
-    for (flex_basis, expected) in [
-        (FlexBasisOf::<S>::MIN_CONTENT, AvailableOf::MIN_CONTENT),
-        (FlexBasisOf::<S>::MAX_CONTENT, AvailableOf::MAX_CONTENT),
-    ] {
-        let tree = fri07_c01_intrinsic_recomputation_tree(flex_basis);
-        compute_layout(&tree, 1, fri07_c01_intrinsic_request())
-            .expect("intrinsic flex basis remains supported through final layout");
+    let scenarios = [
+        (
+            FlexBasisOf::<S>::MIN_CONTENT,
+            MeasurementAvailableOf::MIN_CONTENT,
+        ),
+        (
+            FlexBasisOf::<S>::MAX_CONTENT,
+            MeasurementAvailableOf::MAX_CONTENT,
+        ),
+    ];
+    let observed = scenarios
+        .iter()
+        .map(|(flex_basis, _)| {
+            let tree = fri07_c01_intrinsic_recomputation_tree(flex_basis.clone());
+            let batch = compute_layout(&tree, 1, fri07_c01_intrinsic_request())
+                .expect("intrinsic flex basis remains supported through final layout");
+            let requests = tree
+                .leaf_requests(2)
+                .into_iter()
+                .map(|input| {
+                    (
+                        input.known_content_size().width,
+                        input.available_content_size().width,
+                    )
+                })
+                .collect::<Vec<_>>();
+            (requests, fri07_c01_intrinsic_output(&batch, 2).size.width)
+        })
+        .collect::<Vec<_>>();
+    let expected = scenarios
+        .into_iter()
+        .map(|(_, expected)| {
+            (
+                vec![
+                    (None, expected),
+                    (Some(S::from_f64(200.0)), expected),
+                    (None, expected),
+                ],
+                S::from_f64(200.0),
+            )
+        })
+        .collect::<Vec<_>>();
 
-        let observed = tree
-            .child_requests(2)
-            .into_iter()
-            .map(|input| (input.run_mode(), input.available().width))
-            .collect::<Vec<_>>();
-        assert_eq!(
-            observed,
-            vec![
-                (RunMode::PerformRootLayout, expected),
-                (RunMode::ComputeSize, expected),
-                (RunMode::PerformLayout, expected),
-            ],
-            "every initial, cross-recomputation, and final child request must retain the selected intrinsic main-axis constraint",
-        );
-    }
+    assert_eq!(
+        observed, expected,
+        "the provider must receive each selected intrinsic main-axis constraint for initial, cross-recomputation, and final requests while grown final geometry remains 200px",
+    );
 }
 
 #[test]
