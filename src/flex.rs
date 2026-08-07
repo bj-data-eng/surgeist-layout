@@ -772,12 +772,30 @@ impl FlexAxes {
         self.set_edge_at_side(edges, self.main_end_side, value);
     }
 
+    #[cfg(test)]
     pub(crate) fn set_cross_start_edge<T>(self, edges: &mut Edges<T>, value: T) {
         self.set_edge_at_side(edges, self.cross_start_side, value);
     }
 
+    #[cfg(test)]
     pub(crate) fn set_cross_end_edge<T>(self, edges: &mut Edges<T>, value: T) {
         self.set_edge_at_side(edges, self.cross_end_side, value);
+    }
+
+    pub(crate) fn set_normal_cross_start_edge<T>(self, edges: &mut Edges<T>, value: T) {
+        self.set_edge_at_side(
+            edges,
+            self.normal_axis_start_side(self.cross_logical_axis),
+            value,
+        );
+    }
+
+    pub(crate) fn set_normal_cross_end_edge<T>(self, edges: &mut Edges<T>, value: T) {
+        self.set_edge_at_side(
+            edges,
+            self.normal_axis_end_side(self.cross_logical_axis),
+            value,
+        );
     }
 
     #[must_use]
@@ -2263,37 +2281,51 @@ fn resolve_cross_axis_auto_margins<Node, S: LayoutScalar>(
     line_cross_size: S,
     constants: &Constants<S>,
 ) {
-    let auto_start = constants.axes.cross_start_edge(item.margin_is_auto);
-    let auto_end = constants.axes.cross_end_edge(item.margin_is_auto);
+    let auto_start = constants.axes.normal_cross_start_edge(item.margin_is_auto);
+    let auto_end = constants.axes.normal_cross_end_edge(item.margin_is_auto);
     if !auto_start && !auto_end {
         return;
     }
     if auto_start {
         constants
             .axes
-            .set_cross_start_edge(&mut item.margin, S::ZERO);
+            .set_normal_cross_start_edge(&mut item.margin, S::ZERO);
     }
     if auto_end {
-        constants.axes.set_cross_end_edge(&mut item.margin, S::ZERO);
+        constants
+            .axes
+            .set_normal_cross_end_edge(&mut item.margin, S::ZERO);
     }
 
     let free_space = line_cross_size
         - constants.axes.cross_size(item.target_size)
         - constants.axes.cross_edge_sum(item.margin);
+    if free_space <= S::ZERO {
+        let overflow_end = line_cross_size
+            - constants.axes.cross_size(item.target_size)
+            - constants.axes.normal_cross_start_edge(item.margin);
+        constants
+            .axes
+            .set_normal_cross_end_edge(&mut item.margin, overflow_end);
+        return;
+    }
+
     if auto_start && auto_end {
         let margin = free_space / S::from_f64(2.0);
         constants
             .axes
-            .set_cross_start_edge(&mut item.margin, margin);
-        constants.axes.set_cross_end_edge(&mut item.margin, margin);
+            .set_normal_cross_start_edge(&mut item.margin, margin);
+        constants
+            .axes
+            .set_normal_cross_end_edge(&mut item.margin, margin);
     } else if auto_start {
         constants
             .axes
-            .set_cross_start_edge(&mut item.margin, free_space);
+            .set_normal_cross_start_edge(&mut item.margin, free_space);
     } else if auto_end {
         constants
             .axes
-            .set_cross_end_edge(&mut item.margin, free_space);
+            .set_normal_cross_end_edge(&mut item.margin, free_space);
     }
 }
 

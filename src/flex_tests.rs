@@ -10,6 +10,401 @@ use crate::*;
 type FlexTree<S = Scalar> = OracleTreeOf<S>;
 type RecursiveTree = OracleTree;
 
+fn fri07_c01_cross_auto_margin_output<S: LayoutScalar>(
+    block_start: LengthAutoOf<S>,
+    block_end: LengthAutoOf<S>,
+) -> NodeOutputOf<S> {
+    fri07_c01_cross_auto_margin_case(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        FlexDirection::Row,
+        FlexWrap::NoWrap,
+        40.0,
+        60.0,
+        (block_start, block_end),
+        AlignItems::FlexStart,
+    )
+}
+
+fn fri07_c01_cross_auto_margin_case<S: LayoutScalar>(
+    flow_axes: FlowAxes,
+    flex_direction: FlexDirection,
+    flex_wrap: FlexWrap,
+    line_cross: f64,
+    item_cross: f64,
+    logical_cross_margin: (LengthAutoOf<S>, LengthAutoOf<S>),
+    align_items: AlignItems,
+) -> NodeOutputOf<S> {
+    let axes = FlexAxes::new(flow_axes, flex_direction, flex_wrap);
+    let (logical_cross_start, logical_cross_end) = logical_cross_margin;
+    let zero = LengthAutoOf::ZERO;
+    let margin = if flex_direction.is_row() {
+        flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+            zero,
+            zero,
+            logical_cross_start,
+            logical_cross_end,
+        ))
+    } else {
+        flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+            logical_cross_start,
+            logical_cross_end,
+            zero,
+            zero,
+        ))
+    };
+    let container_size = axes.size_from_main_cross(S::from_f64(100.0), S::from_f64(line_cross));
+    let item_size = axes.size_from_main_cross(S::from_f64(20.0), S::from_f64(item_cross));
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                flex_direction,
+                flex_wrap,
+                size: container_size.map(PreferredSizeOf::px),
+                align_items: Some(align_items),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                size: item_size.map(PreferredSizeOf::px),
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                margin,
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(200.0))))
+            .expect("cross auto-margin viewport is finite"),
+    )
+    .expect("cross auto-margin layout succeeds");
+
+    batch
+        .final_entries()
+        .iter()
+        .find(|entry| entry.node() == 2)
+        .expect("cross auto-margin layout publishes the flex item")
+        .output()
+}
+
+#[test]
+fn fri07_c01_cross_auto_margin_both_auto_overflow_anchors_normal_logical_start() {
+    let output = fri07_c01_cross_auto_margin_output::<f32>(LengthAutoOf::AUTO, LengthAutoOf::AUTO);
+
+    assert_eq!(output.margin.top, 0.0);
+    assert_eq!(output.margin.bottom, -20.0);
+    assert_eq!(output.location, Point::new(0.0, 0.0));
+}
+
+#[test]
+fn fri07_c01_cross_auto_margin_auto_start_overflow_replaces_fixed_opposite() {
+    let output =
+        fri07_c01_cross_auto_margin_output::<f32>(LengthAutoOf::AUTO, LengthAutoOf::px(5.0));
+
+    assert_eq!(output.margin.top, 0.0);
+    assert_eq!(output.margin.bottom, -20.0);
+    assert_eq!(output.location, Point::new(0.0, 0.0));
+}
+
+fn assert_fri07_c01_cross_auto_margin_signed_matrix<S: LayoutScalar>() {
+    let px = |value| LengthAutoOf::px(S::from_f64(value));
+    for (name, line, item, start, end, expected_start, expected_end) in [
+        ("positive neither", 40.0, 20.0, px(3.0), px(5.0), 3.0, 5.0),
+        (
+            "positive start",
+            40.0,
+            20.0,
+            LengthAutoOf::AUTO,
+            px(5.0),
+            15.0,
+            5.0,
+        ),
+        (
+            "positive end",
+            40.0,
+            20.0,
+            px(5.0),
+            LengthAutoOf::AUTO,
+            5.0,
+            15.0,
+        ),
+        (
+            "positive both",
+            40.0,
+            20.0,
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+            10.0,
+            10.0,
+        ),
+        ("zero neither", 40.0, 32.0, px(3.0), px(5.0), 3.0, 5.0),
+        (
+            "zero start",
+            40.0,
+            35.0,
+            LengthAutoOf::AUTO,
+            px(5.0),
+            0.0,
+            5.0,
+        ),
+        (
+            "zero end",
+            40.0,
+            35.0,
+            px(5.0),
+            LengthAutoOf::AUTO,
+            5.0,
+            0.0,
+        ),
+        (
+            "zero both",
+            40.0,
+            40.0,
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+            0.0,
+            0.0,
+        ),
+        ("negative neither", 40.0, 60.0, px(3.0), px(5.0), 3.0, 5.0),
+        (
+            "negative start",
+            40.0,
+            60.0,
+            LengthAutoOf::AUTO,
+            px(5.0),
+            0.0,
+            -20.0,
+        ),
+        (
+            "negative end",
+            40.0,
+            60.0,
+            px(5.0),
+            LengthAutoOf::AUTO,
+            5.0,
+            -25.0,
+        ),
+        (
+            "negative both",
+            40.0,
+            60.0,
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+            0.0,
+            -20.0,
+        ),
+    ] {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let axes = FlexAxes::new(flow_axes, FlexDirection::Row, FlexWrap::NoWrap);
+        let output = fri07_c01_cross_auto_margin_case(
+            flow_axes,
+            FlexDirection::Row,
+            FlexWrap::NoWrap,
+            line,
+            item,
+            (start, end),
+            AlignItems::FlexStart,
+        );
+
+        assert_eq!(
+            axes.normal_cross_start_edge(output.margin),
+            S::from_f64(expected_start),
+            "{name} logical start"
+        );
+        assert_eq!(
+            axes.normal_cross_end_edge(output.margin),
+            S::from_f64(expected_end),
+            "{name} logical end"
+        );
+    }
+}
+
+#[test]
+fn fri07_c01_cross_auto_margin_signed_space_covers_every_auto_edge_pattern() {
+    assert_fri07_c01_cross_auto_margin_signed_matrix::<f32>();
+    assert_fri07_c01_cross_auto_margin_signed_matrix::<f64>();
+}
+
+fn fri07_c01_cross_auto_margin_origin_from_side<S: LayoutScalar>(
+    side: PhysicalSide,
+    container_extent: S,
+    item_extent: S,
+) -> S {
+    match side {
+        PhysicalSide::Top | PhysicalSide::Left => S::ZERO,
+        PhysicalSide::Right | PhysicalSide::Bottom => container_extent - item_extent,
+    }
+}
+
+fn assert_fri07_c01_cross_auto_margin_axis_mapping<S: LayoutScalar>() {
+    for flow_axes in fri05_c04_flex_all_flow_axes() {
+        for flex_direction in [
+            FlexDirection::Row,
+            FlexDirection::RowReverse,
+            FlexDirection::Column,
+            FlexDirection::ColumnReverse,
+        ] {
+            let axes = FlexAxes::new(flow_axes, flex_direction, FlexWrap::NoWrap);
+            let output = fri07_c01_cross_auto_margin_case::<S>(
+                flow_axes,
+                flex_direction,
+                FlexWrap::NoWrap,
+                40.0,
+                60.0,
+                (LengthAutoOf::AUTO, LengthAutoOf::AUTO),
+                AlignItems::FlexStart,
+            );
+            let normal_cross_start = if flex_direction.is_row() {
+                flow_axes.block_start()
+            } else {
+                flow_axes.inline_start()
+            };
+
+            assert_eq!(
+                axes.normal_cross_start_edge(output.margin),
+                S::ZERO,
+                "{flow_axes:?} {flex_direction:?} logical start"
+            );
+            assert_eq!(
+                axes.normal_cross_end_edge(output.margin),
+                S::from_f64(-20.0),
+                "{flow_axes:?} {flex_direction:?} logical end"
+            );
+            assert_eq!(
+                axes.cross_point(output.location),
+                fri07_c01_cross_auto_margin_origin_from_side(
+                    normal_cross_start,
+                    S::from_f64(40.0),
+                    S::from_f64(60.0),
+                ),
+                "{flow_axes:?} {flex_direction:?} cross geometry"
+            );
+            assert_eq!(
+                axes.main_point(output.location),
+                fri07_c01_cross_auto_margin_origin_from_side(
+                    axes.main_start_side(),
+                    S::from_f64(100.0),
+                    S::from_f64(20.0),
+                ),
+                "{flow_axes:?} {flex_direction:?} main geometry"
+            );
+            assert_eq!(
+                output.size,
+                axes.size_from_main_cross(S::from_f64(20.0), S::from_f64(60.0)),
+                "{flow_axes:?} {flex_direction:?} physical size"
+            );
+        }
+    }
+}
+
+#[test]
+fn fri07_c01_cross_auto_margin_maps_all_flows_axes_and_main_reversals() {
+    assert_fri07_c01_cross_auto_margin_axis_mapping::<f32>();
+    assert_fri07_c01_cross_auto_margin_axis_mapping::<f64>();
+}
+
+fn assert_fri07_c01_cross_auto_margin_wrap_progression<S: LayoutScalar>() {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    for (flex_wrap, expected_cross) in [(FlexWrap::Wrap, 0.0), (FlexWrap::WrapReverse, -20.0)] {
+        let axes = FlexAxes::new(flow_axes, FlexDirection::Row, flex_wrap);
+        let output = fri07_c01_cross_auto_margin_case::<S>(
+            flow_axes,
+            FlexDirection::Row,
+            flex_wrap,
+            40.0,
+            60.0,
+            (LengthAutoOf::AUTO, LengthAutoOf::AUTO),
+            AlignItems::FlexStart,
+        );
+
+        assert_eq!(axes.normal_cross_start_edge(output.margin), S::ZERO);
+        assert_eq!(axes.normal_cross_end_edge(output.margin), S::ZERO);
+        assert_eq!(
+            axes.cross_point(output.location),
+            S::from_f64(expected_cross),
+            "{flex_wrap:?} keeps its wrap-aware physical progression"
+        );
+    }
+}
+
+#[test]
+fn fri07_c01_cross_auto_margin_wrap_reversal_only_reverses_line_progression() {
+    assert_fri07_c01_cross_auto_margin_wrap_progression::<f32>();
+    assert_fri07_c01_cross_auto_margin_wrap_progression::<f64>();
+}
+
+fn assert_fri07_c01_cross_auto_margin_controls<S: LayoutScalar>() {
+    let viewport = || {
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(200.0))))
+            .expect("cross auto-margin control viewport is finite")
+    };
+    let main_auto_tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::px(S::from_f64(40.0)),
+                ),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                size: Size::splat_clone(PreferredSizeOf::px(S::from_f64(20.0))),
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                margin: Edges::new(
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::AUTO,
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    let main_auto_batch = compute_layout(&main_auto_tree, 1, viewport())
+        .expect("ordinary main-axis auto margin remains supported");
+    let main_auto = main_auto_batch
+        .final_entries()
+        .iter()
+        .find(|entry| entry.node() == 2)
+        .expect("main-axis control publishes the item")
+        .output();
+    assert_eq!(main_auto.margin.left, S::from_f64(80.0));
+    assert_eq!(main_auto.location, Point::new(S::from_f64(80.0), S::ZERO));
+
+    let centered = fri07_c01_cross_auto_margin_case::<S>(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        FlexDirection::Row,
+        FlexWrap::NoWrap,
+        40.0,
+        20.0,
+        (LengthAutoOf::ZERO, LengthAutoOf::ZERO),
+        AlignItems::Center,
+    );
+    assert_eq!(centered.margin, Edges::ZERO);
+    assert_eq!(centered.location, Point::new(S::ZERO, S::from_f64(10.0)));
+}
+
+#[test]
+fn fri07_c01_cross_auto_margin_preserves_main_auto_and_non_auto_cross_alignment() {
+    assert_fri07_c01_cross_auto_margin_controls::<f32>();
+    assert_fri07_c01_cross_auto_margin_controls::<f64>();
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Fri07C01IntrinsicMeasureError {
     ProviderFailure,
