@@ -274,7 +274,7 @@ fn compute_grid_with_context<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-    parent_context: GridParentContext<Tree::Scalar>,
+    parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -286,7 +286,7 @@ fn compute_grid_with_context_settled<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-    parent_context: GridParentContext<Tree::Scalar>,
+    parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -319,7 +319,7 @@ fn compute_grid_with_context_result<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-    parent_context: GridParentContext<Tree::Scalar>,
+    parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -625,7 +625,7 @@ fn compute_grid_lanes_with_context_result<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-    parent_context: GridParentContext<Tree::Scalar>,
+    parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
     style: NodeInputOf<Tree::Scalar>,
     constants: Constants<Tree::Scalar>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
@@ -887,12 +887,12 @@ where
 }
 
 #[derive(Clone, Debug)]
-struct GridParentContext<S: LayoutScalar = Scalar> {
-    columns: Option<InheritedGridAxis<S>>,
-    rows: Option<InheritedGridAxis<S>>,
+struct GridParentContext<S: LayoutScalar = Scalar, Node = ()> {
+    columns: Option<InheritedGridAxis<S, Node>>,
+    rows: Option<InheritedGridAxis<S, Node>>,
 }
 
-impl<S: LayoutScalar> GridParentContext<S> {
+impl<S: LayoutScalar, Node> GridParentContext<S, Node> {
     fn none() -> Self {
         Self {
             columns: None,
@@ -903,10 +903,17 @@ impl<S: LayoutScalar> GridParentContext<S> {
     fn has_inherited_axis(&self) -> bool {
         self.columns.is_some() || self.rows.is_some()
     }
+
+    fn geometry_only(&self) -> GridParentContext<S> {
+        GridParentContext {
+            columns: self.columns.as_ref().map(InheritedGridAxis::geometry_only),
+            rows: self.rows.as_ref().map(InheritedGridAxis::geometry_only),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
-struct InheritedGridAxis<S: LayoutScalar = Scalar> {
+struct InheritedGridAxis<S: LayoutScalar = Scalar, Node = ()> {
     offset: S,
     gap: S,
     tracks: Vec<S>,
@@ -914,18 +921,34 @@ struct InheritedGridAxis<S: LayoutScalar = Scalar> {
     area_facts: Option<GridAreaNameFacts>,
     major_baselines: Vec<Option<PhysicalBaseline<S>>>,
     minor_baselines: Vec<Option<PhysicalBaseline<S>>>,
-    owner_baseline_targets: Option<InheritedGridOwnerBaselineTargets<S>>,
+    owner_baseline_targets: Option<InheritedGridOwnerBaselineTargets<Node, S>>,
     parent_start: usize,
     parent_end: usize,
     reversed: bool,
 }
 
+impl<S: LayoutScalar, Node> InheritedGridAxis<S, Node> {
+    fn geometry_only(&self) -> InheritedGridAxis<S> {
+        InheritedGridAxis {
+            offset: self.offset,
+            gap: self.gap,
+            tracks: self.tracks.clone(),
+            named_lines: self.named_lines.clone(),
+            area_facts: self.area_facts.clone(),
+            major_baselines: self.major_baselines.clone(),
+            minor_baselines: self.minor_baselines.clone(),
+            owner_baseline_targets: None,
+            parent_start: self.parent_start,
+            parent_end: self.parent_end,
+            reversed: self.reversed,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
-struct InheritedGridOwnerBaselineTargets<S: LayoutScalar = Scalar> {
-    group: AncestorBaselineGroup<S>,
-    mapping: CheckedInheritedAxisMapping<S>,
-    major_placement_required: bool,
-    minor_placement_required: bool,
+struct InheritedGridOwnerBaselineTargets<Node, S: LayoutScalar = Scalar> {
+    group: AncestorBaselineGroup<Node, S>,
+    mapping: CheckedOwnerToCurrentPlacementMap<Node, S>,
 }
 
 #[derive(Clone)]
@@ -1028,7 +1051,7 @@ fn initialize_grid_tracks<Tree, M>(
     node: <Tree as Traverse>::Node,
     style: &NodeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
-    parent_context: &GridParentContext<Tree::Scalar>,
+    parent_context: &GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
     _available: Size<AvailableOf<Tree::Scalar>>,
 ) -> LayoutResultOf<
     <Tree as Traverse>::Node,
@@ -1117,11 +1140,12 @@ where
     let explicit_columns = column_tracks.len();
     let explicit_rows = row_tracks.len();
     let mut report = GridComputationReport::default();
+    let geometry_parent_context = parent_context.geometry_only();
     let named_context = match build_grid_named_context_with_report(
         style,
         explicit_columns,
         explicit_rows,
-        parent_context,
+        &geometry_parent_context,
     ) {
         Ok((context, named_report)) => {
             report.merge_named_grid(named_report);
@@ -1829,7 +1853,7 @@ struct GridChildLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
     row_intrinsic_sizes: &'a [S],
     output_size: Size<S>,
     subgrid_report: &'a GridSubgridReport<Node>,
-    parent_context: &'a GridParentContext<S>,
+    parent_context: &'a GridParentContext<S, Node>,
     placements: &'a GridPlacementContext<Node>,
     containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
 }
@@ -2076,7 +2100,7 @@ struct GridLayoutContext<'a, Node, S: LayoutScalar = Scalar> {
     inherited_column_offset: Option<S>,
     inherited_row_offset: Option<S>,
     subgrid_report: &'a GridSubgridReport<Node>,
-    parent_context: &'a GridParentContext<S>,
+    parent_context: &'a GridParentContext<S, Node>,
     placements: &'a GridPlacementContext<Node>,
     containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
 }

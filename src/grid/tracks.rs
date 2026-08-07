@@ -185,18 +185,19 @@ impl<Node, S: LayoutScalar> AncestorBaselineMember<Node, S> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct AncestorBaselineGroup<S: LayoutScalar = Scalar> {
+pub(super) struct AncestorBaselineGroup<Node, S: LayoutScalar = Scalar> {
+    owner: Node,
     axis: GridAxisKind,
     physical_axis: crate::geometry::PhysicalAxis,
     targets: Vec<TrackAncestorBaselineTargets<S>>,
     reversed_targets: Vec<TrackAncestorBaselineTargets<S>>,
     reversed_major_translation: Vec<S>,
     reversed_minor_translation: Vec<S>,
-    downward_view: bool,
 }
 
-impl<S: LayoutScalar> AncestorBaselineGroup<S> {
-    pub(super) fn reduce<Node: Copy>(
+impl<Node: Copy, S: LayoutScalar> AncestorBaselineGroup<Node, S> {
+    pub(super) fn reduce(
+        owner: Node,
         axis: GridAxisKind,
         physical_axis: crate::geometry::PhysicalAxis,
         track_count: usize,
@@ -262,17 +263,17 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
             }
         }
         Self {
+            owner,
             axis,
             physical_axis,
             targets,
             reversed_targets,
             reversed_major_translation,
             reversed_minor_translation,
-            downward_view: false,
         }
     }
 
-    pub(super) fn intrinsic_shim<Node: Copy>(
+    pub(super) fn intrinsic_shim(
         &self,
         member: AncestorBaselineMember<Node, S>,
     ) -> BaselineShim<S> {
@@ -314,10 +315,7 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         )
     }
 
-    pub(super) fn target_for<Node: Copy>(
-        &self,
-        member: AncestorBaselineMember<Node, S>,
-    ) -> Option<S> {
+    pub(super) fn target_for(&self, member: AncestorBaselineMember<Node, S>) -> Option<S> {
         if member.axis != self.axis || member.physical_axis != self.physical_axis {
             return None;
         }
@@ -325,7 +323,7 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
             .map(AncestorBaselineTarget::finite_owner_logical_target)
     }
 
-    pub(super) fn placement_offset<Node: Copy>(
+    pub(super) fn placement_offset(
         &self,
         member: AncestorBaselineMember<Node, S>,
         available_span_size: S,
@@ -342,7 +340,7 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         ))
     }
 
-    pub(super) fn placement_offset_for_target<Node: Copy>(
+    pub(super) fn placement_offset_for_target(
         &self,
         member: AncestorBaselineMember<Node, S>,
         shared: S,
@@ -363,7 +361,7 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         }
     }
 
-    pub(super) fn synthesized_opposite_placement_offset<Node: Copy>(
+    pub(super) fn synthesized_opposite_placement_offset(
         &self,
         member: AncestorBaselineMember<Node, S>,
         opposite_member: AncestorBaselineMember<Node, S>,
@@ -395,6 +393,10 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         self.axis
     }
 
+    pub(super) const fn owner(&self) -> Node {
+        self.owner
+    }
+
     pub(super) const fn physical_axis(&self) -> crate::geometry::PhysicalAxis {
         self.physical_axis
     }
@@ -415,6 +417,24 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         selected_track: usize,
     ) -> Option<AncestorBaselineTarget<S>> {
         let track = self.targets.get(selected_track)?;
+        match role {
+            AncestorBaselineRole::First => track.first,
+            AncestorBaselineRole::Last => track.last,
+        }
+    }
+
+    pub(super) fn target_record_for_progression(
+        &self,
+        role: AncestorBaselineRole,
+        selected_track: usize,
+        opposite_progression: bool,
+    ) -> Option<AncestorBaselineTarget<S>> {
+        let targets = if opposite_progression {
+            &self.reversed_targets
+        } else {
+            &self.targets
+        };
+        let track = targets.get(selected_track)?;
         match role {
             AncestorBaselineRole::First => track.first,
             AncestorBaselineRole::Last => track.last,
@@ -446,55 +466,11 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         }
     }
 
-    pub(super) fn mapped_child_owner_targets(
-        &self,
-        parent_span: GridTrackSpan,
-        reversed: bool,
-    ) -> Option<Self> {
-        let track_count = parent_span.checked_len()?;
-        let source = if reversed {
-            &self.reversed_targets
-        } else {
-            &self.targets
-        };
-        let targets = (0..track_count)
-            .map(|local_track| {
-                let source_track = if reversed {
-                    parent_span.end.checked_sub(local_track + 2)?
-                } else {
-                    parent_span.start.checked_sub(1)? + local_track
-                };
-                let source = source.get(source_track)?;
-                let map_target = |mut target: AncestorBaselineTarget<S>| {
-                    target.selected_ancestor_track = local_track;
-                    target
-                };
-                Some(TrackAncestorBaselineTargets {
-                    first: source.first.map(map_target),
-                    last: source.last.map(map_target),
-                })
-            })
-            .collect::<Option<Vec<_>>>()?;
-        Some(Self {
-            axis: self.axis,
-            physical_axis: self.physical_axis,
-            reversed_targets: targets.clone(),
-            targets,
-            reversed_major_translation: vec![S::ZERO; track_count],
-            reversed_minor_translation: vec![S::ZERO; track_count],
-            downward_view: true,
-        })
-    }
-
     pub(super) fn reversed_child_view_translations(&self) -> (&[S], &[S]) {
         (
             &self.reversed_major_translation,
             &self.reversed_minor_translation,
         )
-    }
-
-    pub(super) const fn is_downward_view(&self) -> bool {
-        self.downward_view
     }
 }
 
@@ -557,6 +533,7 @@ where
     let column_subgrid_contributions = apply_subgrid_intrinsic_contributions(
         tree,
         SubgridIntrinsicContributionInput {
+            owner: node,
             constants,
             container_style: style,
             axis: GridAxisKind::Column,
@@ -581,6 +558,7 @@ where
     let row_subgrid_contributions = apply_subgrid_intrinsic_contributions(
         tree,
         SubgridIntrinsicContributionInput {
+            owner: node,
             constants,
             container_style: style,
             axis: GridAxisKind::Row,
@@ -855,6 +833,7 @@ where
     }
 
     let row_baseline_groups = ancestor_baseline_group_for_intrinsic_contributions(
+        node,
         &row_contributions,
         row_count,
         constants.flow_axes.block_axis(),
@@ -881,11 +860,13 @@ where
 }
 
 fn ancestor_baseline_group_for_intrinsic_contributions<Node: Copy, S: LayoutScalar>(
+    owner: Node,
     contributions: &[RowIntrinsicContribution<Node, S>],
     row_count: usize,
     expected_axis: crate::geometry::PhysicalAxis,
-) -> AncestorBaselineGroup<S> {
+) -> AncestorBaselineGroup<Node, S> {
     AncestorBaselineGroup::reduce(
+        owner,
         GridAxisKind::Row,
         expected_axis,
         row_count,
@@ -897,7 +878,7 @@ fn ancestor_baseline_group_for_intrinsic_contributions<Node: Copy, S: LayoutScal
 
 fn row_baseline_shim<Node: Copy, S: LayoutScalar>(
     item: RowIntrinsicContribution<Node, S>,
-    group: &AncestorBaselineGroup<S>,
+    group: &AncestorBaselineGroup<Node, S>,
 ) -> BaselineShim<S> {
     let Some(member) = item.baseline_member else {
         return BaselineShim::default();
@@ -977,7 +958,7 @@ fn intrinsic_baseline_envelope_deltas<S: LayoutScalar>(
 
 fn intrinsic_baseline_shim_census<Node: Copy, S: LayoutScalar>(
     contributions: &[RowIntrinsicContribution<Node, S>],
-    group: &AncestorBaselineGroup<S>,
+    group: &AncestorBaselineGroup<Node, S>,
     track_count: usize,
 ) -> Vec<BaselineShim<S>> {
     let mut shims: Vec<BaselineShim<S>> = vec![BaselineShim::default(); track_count];
@@ -1170,6 +1151,7 @@ pub(super) fn ancestor_baseline_member<Node: Copy, S: LayoutScalar>(
 }
 
 pub(super) struct FinalAncestorBaselineGroupInput<'a, Node, S: LayoutScalar = Scalar> {
+    pub(super) owner: Node,
     pub(super) constants: &'a Constants<S>,
     pub(super) axis: GridAxisKind,
     pub(super) track_count: usize,
@@ -1187,21 +1169,23 @@ pub(super) struct FinalAncestorBaselineGroupInput<'a, Node, S: LayoutScalar = Sc
     pub(super) direct_members: Vec<AncestorBaselineMember<Node, S>>,
 }
 
-pub(super) struct FinalAncestorBaselineGroup<S: LayoutScalar = Scalar> {
-    pub(super) group: AncestorBaselineGroup<S>,
+pub(super) struct FinalAncestorBaselineGroup<Node, S: LayoutScalar = Scalar> {
+    pub(super) group: AncestorBaselineGroup<Node, S>,
     pub(super) downward_major_translation: Vec<S>,
     pub(super) downward_minor_translation: Vec<S>,
 }
 
+type FinalAncestorBaselineGroupLayoutResult<Tree, M> = LayoutResultOf<
+    <Tree as Traverse>::Node,
+    FinalAncestorBaselineGroup<<Tree as Traverse>::Node, <Tree as Traverse>::Scalar>,
+    <Tree as Traverse>::Scalar,
+    M,
+>;
+
 pub(super) fn ancestor_baseline_group_for_final_placement<Tree, M>(
     tree: &mut Tree,
     input: FinalAncestorBaselineGroupInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
-) -> LayoutResultOf<
-    <Tree as Traverse>::Node,
-    FinalAncestorBaselineGroup<Tree::Scalar>,
-    Tree::Scalar,
-    M,
->
+) -> FinalAncestorBaselineGroupLayoutResult<Tree, M>
 where
     Tree: Compute<M>,
 {
@@ -1210,6 +1194,7 @@ where
     if input.track_count == 0 || input.subgrid_report.items.is_empty() {
         return Ok(FinalAncestorBaselineGroup {
             group: AncestorBaselineGroup::reduce(
+                input.owner,
                 input.axis,
                 physical_axis,
                 input.track_count,
@@ -1245,6 +1230,7 @@ where
     else {
         return Ok(FinalAncestorBaselineGroup {
             group: AncestorBaselineGroup::reduce(
+                input.owner,
                 input.axis,
                 physical_axis,
                 input.track_count,
@@ -1345,6 +1331,7 @@ where
     }
 
     let group = AncestorBaselineGroup::reduce(
+        input.owner,
         input.axis,
         physical_axis,
         input.track_count,
@@ -1794,6 +1781,7 @@ fn apply_resolved_intrinsic_subgrid_area_constraints<S: LayoutScalar>(
 }
 
 struct SubgridIntrinsicContributionInput<'a, Node, S: LayoutScalar = Scalar> {
+    owner: Node,
     constants: &'a Constants<S>,
     container_style: &'a NodeInputOf<S>,
     axis: GridAxisKind,
@@ -1816,7 +1804,7 @@ struct SubgridIntrinsicContributionInput<'a, Node, S: LayoutScalar = Scalar> {
 struct SubgridIntrinsicContributionReport<Node, S: LayoutScalar = Scalar> {
     contributing_roots: Vec<Node>,
     row_contributions: Vec<RowIntrinsicContribution<Node, S>>,
-    ancestor_baseline_group: AncestorBaselineGroup<S>,
+    ancestor_baseline_group: AncestorBaselineGroup<Node, S>,
     baseline_views: Vec<SubgridBaselineViewTransform<S>>,
 }
 
@@ -1836,6 +1824,7 @@ where
             row_contributions: Vec::new(),
             baseline_views: Vec::new(),
             ancestor_baseline_group: AncestorBaselineGroup::reduce(
+                input.owner,
                 input.axis,
                 grid_axis_physical_axis(input.constants.flow_axes, input.axis),
                 input.tracks.len(),
@@ -1874,6 +1863,7 @@ where
             row_contributions: Vec::new(),
             baseline_views: Vec::new(),
             ancestor_baseline_group: AncestorBaselineGroup::reduce(
+                input.owner,
                 input.axis,
                 grid_axis_physical_axis(input.constants.flow_axes, input.axis),
                 input.tracks.len(),
@@ -2122,6 +2112,7 @@ where
     }
 
     let ancestor_baseline_group = AncestorBaselineGroup::reduce(
+        input.owner,
         input.axis,
         grid_axis_physical_axis(input.constants.flow_axes, input.axis),
         input.tracks.len(),
@@ -2353,6 +2344,7 @@ where
         apply_subgrid_intrinsic_contributions(
             tree,
             SubgridIntrinsicContributionInput {
+                owner: node,
                 constants: grid.constants,
                 container_style: grid.style,
                 axis: GridAxisKind::Row,
@@ -2381,6 +2373,7 @@ where
             row_contributions: Vec::new(),
             baseline_views: Vec::new(),
             ancestor_baseline_group: AncestorBaselineGroup::reduce(
+                node,
                 GridAxisKind::Row,
                 grid.constants.flow_axes.block_axis(),
                 row_count,
@@ -2521,6 +2514,7 @@ where
     }
 
     let row_baseline_groups = ancestor_baseline_group_for_intrinsic_contributions(
+        node,
         &row_contributions,
         row_count,
         grid.constants.flow_axes.block_axis(),
@@ -2673,7 +2667,7 @@ pub(super) struct PercentTrackContent<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) style: &'a NodeInputOf<S>,
     pub(super) constants: &'a Constants<S>,
     pub(super) sizing_flow_axes: FlowAxes,
-    pub(super) parent_context: &'a GridParentContext<S>,
+    pub(super) parent_context: &'a GridParentContext<S, Node>,
     pub(super) column_tracks: &'a [TrackSizingOf<S>],
     pub(super) row_tracks: &'a [TrackSizingOf<S>],
     pub(super) columns: &'a [S],
@@ -2817,8 +2811,8 @@ where
     Ok(sizing_flow_axes.physical_size(content_size))
 }
 
-fn inherits_opposite_subgrid_axis<S: LayoutScalar>(
-    parent_context: &GridParentContext<S>,
+fn inherits_opposite_subgrid_axis<Node, S: LayoutScalar>(
+    parent_context: &GridParentContext<S, Node>,
     axis: GridAxisKind,
 ) -> bool {
     // Additive standalone percent sizing is only for grids that actually inherit
