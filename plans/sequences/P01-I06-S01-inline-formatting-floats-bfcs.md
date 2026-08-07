@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/P01-I06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`c94b388c1bb31b94a1b09bb287440e7ca22338da60d6bf161d7d3b7d7ec0fe38`,
-committed as `967f3ca9d71ddec1451e69bc6cccf60d9399d511`.
+`7409fa58bd333731976b765cef36491a6f8f51a4170c6b62e9622f4ac4b01105`,
+committed as `d80db2c86f4b9111a1b10eecd7d0a2d2939f0b09`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -301,16 +301,17 @@ cover the complete pinned recovery membership.
 atomic-baseline, physical-placement, comparator, fixture, and acceptance portions
 of `FRI-06.5`, `FRI-06.7`, `FRI-06.9` through `FRI-06.11.3`, and `FRI-06.14`.
 **Prerequisites:** `P01/I06/S01/C11` complete and remotely verified.
-**Entry state:** C11 supplies settled fixture inputs; D-18 production is closed,
-and C12 preserves the sole successful full lineage with only the D-19 endpoint
-comparison boundary unresolved.
-**Bounded outcome:** Complete D-19 without changing public API, production,
-fixtures, helper, parser, generated output, or the closed interval relation, then
-adopt the preserved final lineage without another generation.
-**Observable exit evidence:** The D-18 controls, exact D-19 48/48/48 endpoint
-accounting and private line-membership proof, and final browser/artifact
-acceptance in `FRI-06.14` pass with no second full run, generator-architecture,
-or later-owned behavior change.
+**Entry state:** C11 supplies settled fixture inputs and C12 preserves the sole
+successful full lineage; diagnosis reopens D-18's axis-parametric direct/flattened
+alignment and auto-track closure before the dependent D-19 endpoint comparison.
+**Bounded outcome:** Complete D-18's settled row/block and column/inline target
+consumption, one-pass auto sizing, and one-time half-gutter mapping; then complete
+D-19 and adopt the preserved lineage without changing public API, fixtures,
+helper, parser, generated output, or running another generation.
+**Observable exit evidence:** The exact D-18 full-fixture row/column, auto-track,
+and half-gutter controls pass before exact D-19 48/48/48 endpoint accounting and
+private line-membership proof; final `FRI-06.14` browser/artifact acceptance passes
+with no second full run, generator-architecture, or later-owned behavior change.
 **Handoff:** C13 receives the behavior-correct candidate with generator inputs
 and outputs frozen.
 
