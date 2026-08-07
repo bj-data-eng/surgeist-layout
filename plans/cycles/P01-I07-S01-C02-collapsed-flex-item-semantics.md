@@ -1,6 +1,6 @@
 # P01-I07-S01-C02 Collapsed Flex-Item Semantics
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `P01/I07/S01/C02`
 
