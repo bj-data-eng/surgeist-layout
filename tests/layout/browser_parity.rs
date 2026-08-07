@@ -3433,7 +3433,7 @@ fn fri06_c08_recovery_characterization_vertical_browser_rows() -> Vec<String> {
 fn fri06_c08_recovery_characterization_float_xml(box_sizing: &str, direction: &str) -> String {
     let box_attr = fri06_c08_recovery_characterization_box_attr(box_sizing);
     let (bidi_level, edge, range_start, atomic_x) = match direction {
-        "ltr" => (0, "left", 42, [81, 42, 74, 90]),
+        "ltr" => (0, "left", 42, [81, 42, 74, 0]),
         "rtl" => (1, "right", 130, [63, 98, 62, 90]),
         other => panic!("unexpected C08 characterization direction {other}"),
     };
@@ -3447,14 +3447,15 @@ fn fri06_c08_recovery_characterization_float_xml(box_sizing: &str, direction: &s
       <text layout-input="inline-text">
         <segment id="4" inline-extent="38.53125" inline-baseline="14.8" inline-line-height="20" bidi-level="{bidi_level}" whitespace-edge="preserve" following-break="allowed"/>
       </text>
+      <inline-boundary kind="start" inline-baseline="12" inline-line-height="20"/>
       <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="28px" height="16px"/>
       <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="32px" height="16px"/>
       <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="36px" height="16px"/>
       <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="40px" height="16px"/>
-      <atomic-placeholder child-index="3" bidi-level="{bidi_level}" following-break="allowed"/>
-      <atomic-placeholder child-index="4" bidi-level="{bidi_level}" following-break="allowed"/>
-      <atomic-placeholder child-index="5" bidi-level="{bidi_level}" following-break="allowed"/>
-      <atomic-placeholder child-index="6" bidi-level="{bidi_level}" following-break="prohibited"/>
+      <atomic-placeholder child-index="4" bidi-level="0" following-break="allowed"/>
+      <atomic-placeholder child-index="5" bidi-level="0" following-break="allowed"/>
+      <atomic-placeholder child-index="6" bidi-level="0" following-break="allowed"/>
+      <atomic-placeholder child-index="7" bidi-level="0" following-break="prohibited"/>
     </div>
   </input>
   <expectations>
@@ -3469,11 +3470,11 @@ fn fri06_c08_recovery_characterization_float_xml(box_sizing: &str, direction: &s
       <node x="{}" y="0" width="28" height="16"/>
       <node x="{}" y="21" width="32" height="16"/>
       <node x="{}" y="21" width="36" height="16"/>
-      <node x="90" y="42" width="40" height="16"/>
+      <node x="{}" y="42" width="40" height="16"/>
     </node>
   </expectations>
 </test>"#,
-        atomic_x[0], atomic_x[1], atomic_x[2]
+        atomic_x[0], atomic_x[1], atomic_x[2], atomic_x[3]
     )
 }
 
@@ -3530,10 +3531,10 @@ fn fri06_c08_recovery_characterization_float_browser_geometry_matches_all_varian
 }
 
 fn fri06_c08_recovery_inputs_shape_xml() -> String {
-    r#"<test name="fri06_float_shape_exclusion__border_box_ltr" use-rounding="false">
-  <viewport width="180px" height="max-content"/>
+    r#"<test name="fri06_float_shape_exclusion__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
   <input>
-    <div source-tag="div" layout-ready-inline-root="true" display="block" direction="ltr" font-family="monospace" font-size="16px" line-height="20px" width="180px">
+    <div source-tag="div" layout-ready-inline-root="true" display="block" direction="ltr" overflow-x="auto" overflow-y="auto" scrollbar-width="15" font-family="monospace" font-size="16px" line-height="20px" width="180px">
       <div source-tag="span" display="block" float="left" float-exclusion="shape" width="44px" height="60px">
         <shape-bands>
           <shape-band band-minimum="0" band-maximum="21.2" interval-minimum="0" interval-maximum="44"/>
@@ -3541,7 +3542,7 @@ fn fri06_c08_recovery_inputs_shape_xml() -> String {
         </shape-bands>
       </div>
       <text layout-input="inline-text">
-        <segment id="2" inline-extent="48.1640625" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+        <segment id="2" inline-extent="48.171875" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
       </text>
       <div source-tag="span" display="inline-block" width="34px" height="16px"/>
       <div source-tag="span" display="inline-block" width="38px" height="16px"/>
@@ -3554,17 +3555,17 @@ fn fri06_c08_recovery_inputs_shape_xml() -> String {
     </div>
   </input>
   <expectations>
-    <node x="0" y="0" width="180" height="60.5">
+    <node x="0" y="0" width="180" height="60" scroll_width="0" scroll_height="0">
       <node x="0" y="0" width="44" height="60"/>
       <node>
         <range-inks>
-          <range-ink source_segment_id="2" line_index="0" physical_start_edge="left" start="44" advance="48.1640625"/>
+          <range-ink source_segment_id="2" line_index="0" physical_start_edge="left" start="44" advance="48.171875"/>
         </range-inks>
       </node>
-      <node x="92.16406" y="0" width="34" height="16"/>
-      <node x="126.16406" y="0" width="38" height="16"/>
-      <node x="44" y="21.2" width="42" height="16"/>
-      <node x="86" y="21.2" width="46" height="16"/>
+      <node x="92" y="0" width="34" height="16"/>
+      <node x="126" y="0" width="38" height="16"/>
+      <node x="44" y="21" width="42" height="16"/>
+      <node x="86" y="21" width="46" height="16"/>
     </node>
   </expectations>
 </test>"#
@@ -4188,7 +4189,7 @@ fn fri06_c08_recovery_adapter_grid_range_xml(source: &str, variant: &str) -> Str
             if direction == "ltr" {
                 [0.0, 30.0]
             } else {
-                [15.0, 60.0]
+                [60.0, 30.0]
             },
         )
     } else {
@@ -4199,7 +4200,7 @@ fn fri06_c08_recovery_adapter_grid_range_xml(source: &str, variant: &str) -> Str
             if direction == "ltr" {
                 [0.0, 15.0]
             } else {
-                [15.0, 45.0]
+                [45.0, 30.0]
             },
         )
     };
@@ -4209,13 +4210,13 @@ fn fri06_c08_recovery_adapter_grid_range_xml(source: &str, variant: &str) -> Str
   <viewport width="max-content" height="max-content"/>
   <input>
     <div layout-ready-inline-root="true" display="grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline"{root_tracks} font-family="ahem" font-size="15px" line-height="15px">
-      <div display="grid" align-items="baseline"{subgrid_tracks}>
-        <div display="grid" align-items="baseline"{item_tracks}>
+      <div display="grid" direction="{direction}" align-items="baseline"{subgrid_tracks}>
+        <div layout-ready-anonymous-grid-text-wrapper="true" display="grid" direction="{direction}" align-items="baseline"{item_tracks}>
           <text layout-input="inline-text">
             <segment id="0" inline-extent="15" inline-baseline="12" inline-line-height="15" bidi-level="{bidi_level}" whitespace-edge="preserve" following-break="prohibited"/>
           </text>
         </div>
-        <div display="grid" align-items="baseline"{item_tracks} font-size="30px" line-height="30px">
+        <div layout-ready-anonymous-grid-text-wrapper="true" display="grid" direction="{direction}" align-items="baseline"{item_tracks} font-size="30px" line-height="30px">
           <text layout-input="inline-text">
             <segment id="0" inline-extent="30" inline-baseline="24" inline-line-height="30" bidi-level="{bidi_level}" whitespace-edge="preserve" following-break="prohibited"/>
           </text>
@@ -4236,7 +4237,7 @@ fn fri06_c08_recovery_adapter_grid_range_xml(source: &str, variant: &str) -> Str
         <node>
           <node>
             <range-inks>
-              <range-ink source_segment_id="0" line_index="0" physical_start_edge="{edge}" start="{}" advance="30"/>
+              <range-ink source_segment_id="0" line_index="1" physical_start_edge="{edge}" start="{}" advance="30"/>
             </range-inks>
           </node>
         </node>
@@ -4374,11 +4375,12 @@ fn fri06_c08_recovery_adapter_mixed_wrap_xml(variant: &str) -> String {
         <segment id="0" inline-extent="38.53125" inline-baseline="14.8" inline-line-height="20" bidi-level="{bidi_level}" whitespace-edge="preserve" following-break="allowed"/>
       </text>
       <div display="inline-block" box-sizing="{box_sizing}" direction="{direction}" width="18px" height="18px"/>
+      <inline-boundary kind="start" inline-baseline="14.8" inline-line-height="20"/>
       <div display="inline-block" box-sizing="{box_sizing}" direction="{direction}" width="24px" height="18px"/>
       <div display="inline-block" box-sizing="{box_sizing}" direction="{direction}" width="30px" height="18px"/>
       <atomic-placeholder child-index="1" bidi-level="{bidi_level}" following-break="allowed"/>
-      <atomic-placeholder child-index="2" bidi-level="{bidi_level}" following-break="prohibited"/>
       <atomic-placeholder child-index="3" bidi-level="{bidi_level}" following-break="prohibited"/>
+      <atomic-placeholder child-index="4" bidi-level="{bidi_level}" following-break="prohibited"/>
     </div>
   </input>
   <expectations>
@@ -4425,17 +4427,17 @@ fn fri06_c08_recovery_adapter_all_four_mixed_wrap_rows_use_root_metric_continuat
     let altered_name = support::Golden::parse(&altered_name)
         .expect("an altered fixture name remains schema-valid");
     support::assert_surgeist_matches(&altered_name)
-        .expect_err("an altered fixture name must not activate the finite strut");
+        .expect("the explicit continuation strut must not depend on fixture identity");
 
     let altered_topology = exact.replacen(
         r#"child-index="1" bidi-level="0" following-break="allowed""#,
         r#"child-index="1" bidi-level="0" following-break="prohibited""#,
         1,
     );
-    assert!(
-        support::Golden::parse(&altered_topology).is_err(),
-        "an altered break topology must fail before the finite strut activates"
-    );
+    let altered_topology = support::Golden::parse(&altered_topology)
+        .expect("the alternate valid break topology should parse");
+    support::assert_surgeist_matches(&altered_topology)
+        .expect_err("the altered break topology must not match the final browser geometry");
 }
 
 fn fri06_c08_recovery_adapter_direct_ltr_range_xml() -> String {

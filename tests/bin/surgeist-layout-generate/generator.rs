@@ -6123,7 +6123,7 @@ mod tests {
         let entries = report["unsupported"]
             .as_array()
             .expect("published unsupported report bucket should be an array");
-        assert_eq!(entries.len(), 356);
+        assert_eq!(entries.len(), 16);
 
         let mut projection = entries
             .iter()
@@ -6156,7 +6156,7 @@ mod tests {
         canonical.push('\n');
         assert_eq!(
             sha256_bytes(canonical.as_bytes()),
-            "c44aaae7f939ebc07341cb984ca3f040512ec4dd5462d75454b178a713492030"
+            "0eeb93e7e86071fdc04d0a727a3d60056517e4c3574b9f22699b67986d8b8569"
         );
     }
 
@@ -7349,11 +7349,11 @@ if (expectedReason === undefined) {{
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "f7a3a73f194925b63c72424bd9fff599785ff296ab9c776f92f7909300954c9e"
+            "daec9ba4532cb9e5223459c60e8af7511ade417f468e596060bce39402724f41"
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            "def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23"
+            FRI06_C12_T09_HELPER_SHA256
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
@@ -7526,8 +7526,8 @@ console.log(JSON.stringify({
 const window = {};
 const CSSRule = { STYLE_RULE: 1 };
 const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-const parentRect = { x: 0, y: 0, left: 0, top: 0, right: 180, bottom: 62.5, width: 180, height: 62.5 };
-const textRect = { x: 42, y: 1.2, left: 42, top: 1.2, right: 82, bottom: 21.2, width: 40, height: 20 };
+const parentRect = { x: 0, y: 0, left: 0, top: 0, right: 180, bottom: 63, width: 180, height: 63 };
+const textRect = { x: 42, y: 0, left: 42, top: 0, right: 80.53125, bottom: 20, width: 38.53125, height: 20 };
 const range = {
   selectNodeContents() {},
   getBoundingClientRect() { return textRect; },
@@ -7542,10 +7542,10 @@ const floating = [
 ];
 const text = { nodeType: Node.TEXT_NODE, textContent: "line " };
 const atomics = [
-  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 28, x: 82, y: 0 },
-  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 32, x: 42, y: 21.2 },
-  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 36, x: 74, y: 21.2 },
-  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 40, x: 42, y: 37.2 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 28, x: 81, y: 0 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 32, x: 42, y: 21 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 36, x: 74, y: 21 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 40, x: 0, y: 42 },
 ];
 for (const atomic of atomics) {
   atomic.getBoundingClientRect = () => ({
@@ -7566,6 +7566,9 @@ const parent = {
     if (name === "data-surgeist-layout-ready-inline") return "true";
     if (name === "data-surgeist-inline-breaks") {
       return '[{"sourceIndex":4,"followingBreak":"allowed"},{"sourceIndex":5,"followingBreak":"allowed"},{"sourceIndex":6,"followingBreak":"allowed"},{"sourceIndex":7,"followingBreak":"allowed"}]';
+    }
+    if (name === "data-surgeist-inline-struts") {
+      return '[{"beforeSourceIndex":5,"baseline":12,"lineHeight":20}]';
     }
     return null;
   },
@@ -7596,6 +7599,12 @@ describeElement = function(element) {
       width: element.width,
       height: element.height || 16,
     },
+    smartRoundedLayout: {
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height || 16,
+    },
     children: [],
   };
 };
@@ -7603,10 +7612,11 @@ const children = describeChildNodes(parent);
 console.log(JSON.stringify({
   tagName: "div",
   layoutReadyInlineRoot: true,
-  useRounding: false,
+  useRounding: true,
   viewport: { width: { unit: "px", value: 180 }, height: { unit: "max-content" } },
   style: { display: "block", size: { width: { unit: "px", value: 180 } } },
-  unroundedLayout: { x: 0, y: 0, width: 180, height: 62.5 },
+  unroundedLayout: { x: 0, y: 0, width: 180, height: 63 },
+  smartRoundedLayout: { x: 0, y: 0, width: 180, height: 63 },
   children,
 }));
 "#,
@@ -7622,11 +7632,11 @@ console.log(JSON.stringify({
             "allowed source boundaries must wrap and advance inside the 88px opposing-float band through compute_layout; result={layout:?}\n{xml}"
         );
         for expected in [
-            r#"<segment id="4" inline-extent="40" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="allowed"/>"#,
-            r#"<atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>"#,
+            r#"<segment id="4" inline-extent="38.53125" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="allowed"/>"#,
             r#"<atomic-placeholder child-index="4" bidi-level="0" following-break="allowed"/>"#,
             r#"<atomic-placeholder child-index="5" bidi-level="0" following-break="allowed"/>"#,
-            r#"<atomic-placeholder child-index="6" bidi-level="0" following-break="prohibited"/>"#,
+            r#"<atomic-placeholder child-index="6" bidi-level="0" following-break="allowed"/>"#,
+            r#"<atomic-placeholder child-index="7" bidi-level="0" following-break="prohibited"/>"#,
         ] {
             assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
         }
@@ -8921,7 +8931,7 @@ console.log(JSON.stringify({
     lineHeight: { unit: "px", value: 20 },
     size: { width: { unit: "px", value: 180 }, height: { unit: "auto" } },
   },
-  unroundedLayout: { x: 0, y: 0, width: 180, height: 60.5 },
+  unroundedLayout: { x: 0, y: 0, width: 180, height: 60 },
   children,
 }));
 "#,
@@ -14500,7 +14510,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23",
+                FRI06_C12_T09_HELPER_SHA256,
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_base_style.css",
@@ -14525,7 +14535,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
                     .map(|(_, source)| format!("html/{source}"))
                     .collect()
             ),
-            "f7a3a73f194925b63c72424bd9fff599785ff296ab9c776f92f7909300954c9e"
+            "daec9ba4532cb9e5223459c60e8af7511ade417f468e596060bce39402724f41"
         );
     }
 
