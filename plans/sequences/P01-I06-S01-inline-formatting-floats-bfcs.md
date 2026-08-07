@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/P01-I06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`7409fa58bd333731976b765cef36491a6f8f51a4170c6b62e9622f4ac4b01105`,
-committed as `d80db2c86f4b9111a1b10eecd7d0a2d2939f0b09`.
+`ac08d4c8df8a8da7cd0698eb2618f1fa5478c5b477bdedc07800543804fbd9ea`,
+committed as `9cbd01560705b7d81579804eedf904999b82ee0c`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -302,16 +302,23 @@ atomic-baseline, physical-placement, comparator, fixture, and acceptance portion
 of `FRI-06.5`, `FRI-06.7`, `FRI-06.9` through `FRI-06.11.3`, and `FRI-06.14`.
 **Prerequisites:** `P01/I06/S01/C11` complete and remotely verified.
 **Entry state:** C11 supplies settled fixture inputs and C12 preserves the sole
-successful full lineage; diagnosis reopens D-18's axis-parametric direct/flattened
-alignment and auto-track closure before the dependent D-19 endpoint comparison.
-**Bounded outcome:** Complete D-18's settled row/block and column/inline target
-consumption, one-pass auto sizing, and one-time half-gutter mapping; then complete
-D-19 and adopt the preserved lineage without changing public API, fixtures,
-helper, parser, generated output, or running another generation.
-**Observable exit evidence:** The exact D-18 full-fixture row/column, auto-track,
-and half-gutter controls pass before exact D-19 48/48/48 endpoint accounting and
-private line-membership proof; final `FRI-06.14` browser/artifact acceptance passes
-with no second full run, generator-architecture, or later-owned behavior change.
+successful full lineage; diagnosis reopens D-18 because current source mutates an
+already reduced group instead of translating its immutable owner target into the
+placement coordinates of the inheriting current grid. D-19 remains dependent on
+that production closure.
+**Bounded outcome:** Complete D-18's immutable per-track target records and
+checked current-grid placement phase for row/block and column/inline consumers,
+including internally derived role/reversal/gutter translation, while preserving
+one-pass auto sizing and distinct child-envelope views; then complete D-19 and
+adopt the preserved lineage without changing public API, fixtures, helper,
+parser, generated output, or running another generation.
+**Observable exit evidence:** D-18 proves complete-record reduction and identical
+row/column placement for positive, equal, and negative half-gaps, reversed and
+non-reversed roles, terminal and owner-direct zero cases, MBP separation,
+repeatability, ordered invalid-input propagation, atomic failure, and the exact
+full-fixture controls before D-19 48/48/48 endpoint accounting and private
+line-membership proof; final `FRI-06.14` browser/artifact acceptance passes with
+no second full run, generator-architecture, or later-owned behavior change.
 **Handoff:** C13 receives the behavior-correct candidate with generator inputs
 and outputs frozen.
 
