@@ -170,12 +170,18 @@ fixtures, generator logic, generated artifacts, manifests, or public API.
 `fri06_c12_t08_vertical_nested_direct_members_use_ancestor_half_gap`, and
 `fri06_c12_t08_representative_xml_has_strict_ordinary_geometry` test-first. The
 first three preserve the diagnosed wrong and required values in Section 2. The
-fourth parses each of the three preserved representative XML files through the
-real `Golden`, clones only its expectation tree, recursively clears
-`browser_control` observations, proves the layout-ready `root` input is
-unchanged, and invokes the real strict layout assertion. It fails only ordinary
-geometry before correction; no comparator exception, generated edit, or
-generation command supplies RED.
+fourth parses exactly these preserved representative files through the real
+`Golden`:
+
+- `tests/layout/browser_parity/xml/subgrid/subgrid_baseline_inline_column_inner_col1_first__border_box_ltr.xml`;
+- `tests/layout/browser_parity/xml/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_first__border_box_ltr.xml`;
+  and
+- `tests/layout/browser_parity/xml/subgrid/subgrid_baseline_vertical_nested_inner_row1_first__border_box_ltr.xml`.
+
+It clones only each expectation tree, recursively clears `browser_control`
+observations, proves the layout-ready `root` input is unchanged, and invokes the
+real strict layout assertion. It fails only ordinary geometry before correction;
+no comparator exception, generated edit, or generation command supplies RED.
 
 **Outcome:** Derive one pre-growth ancestor-member census for scalar auto-track
 sizing and baseline shims. After tracks settle, reduce direct and flattened
