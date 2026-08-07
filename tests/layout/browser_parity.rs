@@ -36,6 +36,52 @@ fn runs_browser_parity_smoke_fixture_against_surgeist_layout() {
     support::assert_surgeist_matches(&golden).expect("surgeist layout should match fixture");
 }
 
+fn clear_browser_control_observations(expectation: &mut support::Expectation) {
+    expectation.browser_control = None;
+    for child in &mut expectation.children {
+        clear_browser_control_observations(child);
+    }
+}
+
+#[test]
+fn fri06_c12_t08_representative_xml_has_strict_ordinary_geometry() {
+    let fixtures = [
+        include_str!(
+            "browser_parity/xml/subgrid/subgrid_baseline_inline_column_inner_col1_first__border_box_ltr.xml"
+        ),
+        include_str!(
+            "browser_parity/xml/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_first__border_box_ltr.xml"
+        ),
+        include_str!(
+            "browser_parity/xml/subgrid/subgrid_baseline_vertical_nested_inner_row1_first__border_box_ltr.xml"
+        ),
+    ];
+
+    let mut mismatches = Vec::new();
+    for fixture in fixtures {
+        let golden = support::Golden::parse(fixture)
+            .expect("preserved representative subgrid fixture should parse");
+        let root_before = format!("{:?}", golden.root);
+        let mut expectations = golden.expectations.clone();
+        clear_browser_control_observations(&mut expectations);
+        let ordinary_geometry = support::Golden {
+            expectations,
+            ..golden
+        };
+        assert_eq!(format!("{:?}", ordinary_geometry.root), root_before);
+
+        if let Err(error) = support::assert_surgeist_matches(&ordinary_geometry) {
+            mismatches.push(format!("{}: {error}", ordinary_geometry.name));
+        }
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "representative ordinary geometry mismatches:\n{}",
+        mismatches.join("\n")
+    );
+}
+
 #[test]
 fn block_item_boundary_margin_variants_match_browser() {
     let fixtures = [

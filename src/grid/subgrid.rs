@@ -1,6 +1,6 @@
 use super::*;
-use crate::geometry::LogicalSizeOf;
 use crate::geometry::PhysicalAxis;
+use crate::geometry::{FlowAxes, LogicalSizeOf};
 use crate::output::PhysicalBaseline;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -106,7 +106,7 @@ impl GridTrackSpan {
         Self { start, end }
     }
 
-    fn checked_len(self) -> Option<usize> {
+    pub(super) fn checked_len(self) -> Option<usize> {
         self.end
             .checked_sub(self.start)
             .filter(|length| *length > 0)
@@ -207,6 +207,7 @@ pub(super) struct SubgridLeafContribution<Node, S: LayoutScalar = Scalar> {
     pub(super) accumulated_gap_adjustment: Vec<S>,
     accumulated_start_adjustment: Vec<S>,
     accumulated_end_adjustment: Vec<S>,
+    outer_half_gap: S,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -232,13 +233,27 @@ impl<Node, S: LayoutScalar> SubgridLeafContribution<Node, S> {
 
     pub(super) fn ancestor_baseline_adjustments(
         &self,
+        containing_flow_axes: FlowAxes,
+        axis: GridAxisKind,
     ) -> Option<SubgridAncestorBaselineAdjustments<S>> {
         let start = self.ancestor_span.start.checked_sub(1)?;
         let end = self.ancestor_span.end.checked_sub(2)?;
-        Some(SubgridAncestorBaselineAdjustments {
+        let mut adjustments = SubgridAncestorBaselineAdjustments {
             start: *self.accumulated_start_adjustment.get(start)?,
             end: *self.accumulated_end_adjustment.get(end)?,
-        })
+        };
+        let logical_axis = match axis {
+            GridAxisKind::Column => LogicalAxis::Inline,
+            GridAxisKind::Row => LogicalAxis::Block,
+        };
+        if containing_flow_axes
+            .logical_axis_progression(logical_axis)
+            .is_decreasing()
+        {
+            adjustments.start = adjustments.start + self.outer_half_gap;
+            adjustments.end = adjustments.end - self.outer_half_gap;
+        }
+        Some(adjustments)
     }
 }
 
@@ -246,6 +261,16 @@ impl<Node, S: LayoutScalar> SubgridLeafContribution<Node, S> {
 pub(super) struct SubgridTraversalReport<Node, S: LayoutScalar = Scalar> {
     pub(super) edge_lower_bounds: Vec<S>,
     pub(super) leaves: Vec<SubgridLeafContribution<Node, S>>,
+    pub(super) baseline_views: Vec<SubgridBaselineViewTransform<S>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SubgridBaselineViewTransform<S: LayoutScalar = Scalar> {
+    pub(super) parent_span: GridTrackSpan,
+    pub(super) reversed: bool,
+    pub(super) root: bool,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: S,
 }
 
 pub(super) fn traverse_subgrid_intrinsic<Node, S: LayoutScalar>(
@@ -262,6 +287,7 @@ where
     };
     let mut edge_lower_bounds = vec![S::ZERO; intrinsic_min.len()];
     let mut leaves = Vec::new();
+    let mut baseline_views = Vec::new();
     let mut stack = input
         .root_children
         .into_iter()
@@ -280,6 +306,7 @@ where
                     accumulated_gap_adjustment: vec![S::ZERO; intrinsic_min.len()],
                     accumulated_start_adjustment: vec![S::ZERO; intrinsic_min.len()],
                     accumulated_end_adjustment: vec![S::ZERO; intrinsic_min.len()],
+                    outer_half_gap: S::ZERO,
                 },
             )
         })
@@ -306,9 +333,17 @@ where
                     accumulated_gap_adjustment: context.accumulated_gap_adjustment,
                     accumulated_start_adjustment: context.accumulated_start_adjustment,
                     accumulated_end_adjustment: context.accumulated_end_adjustment,
+                    outer_half_gap: context.outer_half_gap,
                 });
             }
             SubgridTraversalChild::Subgrid(subgrid) => {
+                baseline_views.push(SubgridBaselineViewTransform {
+                    parent_span: translate_span_to_ancestor(&context, subgrid.span_in_parent)?,
+                    reversed: subgrid.reversed,
+                    root: context.root_node.is_none(),
+                    parent_gap: subgrid.parent_gap,
+                    subgrid_gap: subgrid.subgrid_gap,
+                });
                 apply_subgrid_edge_placeholders(
                     intrinsic_min,
                     &mut edge_lower_bounds,
@@ -323,6 +358,7 @@ where
     Ok(SubgridTraversalReport {
         edge_lower_bounds,
         leaves,
+        baseline_views,
     })
 }
 
@@ -338,6 +374,7 @@ struct SubgridTraversalContext<Node, S: LayoutScalar = Scalar> {
     accumulated_gap_adjustment: Vec<S>,
     accumulated_start_adjustment: Vec<S>,
     accumulated_end_adjustment: Vec<S>,
+    outer_half_gap: S,
 }
 
 type SubgridTraversalStackEntry<Node, S = Scalar> = (
@@ -414,6 +451,9 @@ where
 
     let empty_subgrid = subgrid.children.is_empty();
     let gap_difference = (subgrid.subgrid_gap - subgrid.parent_gap) / S::from_f64(2.0);
+    if context.root_node.is_none() {
+        context.outer_half_gap = gap_difference;
+    }
     for edge_index in start_index..end_index {
         context.accumulated_gap_adjustment[edge_index] =
             context.accumulated_gap_adjustment[edge_index] + gap_difference;
@@ -458,6 +498,7 @@ where
         accumulated_gap_adjustment: context.accumulated_gap_adjustment,
         accumulated_start_adjustment: context.accumulated_start_adjustment,
         accumulated_end_adjustment: context.accumulated_end_adjustment,
+        outer_half_gap: context.outer_half_gap,
     };
 
     for child in subgrid.children.into_iter().rev() {
@@ -492,6 +533,7 @@ where
         accumulated_gap_adjustment: Vec::new(),
         accumulated_start_adjustment: Vec::new(),
         accumulated_end_adjustment: Vec::new(),
+        outer_half_gap: context.outer_half_gap,
     }
 }
 
@@ -623,7 +665,9 @@ pub(super) struct ChildBaselineEnvelopeView<S: LayoutScalar = Scalar> {
 
 #[derive(Clone, Copy)]
 pub(super) struct ChildBaselineEnvelopeInput<S: LayoutScalar = Scalar> {
+    pub(super) axis: GridAxisKind,
     pub(super) physical_axis: PhysicalAxis,
+    pub(super) ancestor_progression_decreasing: bool,
     pub(super) parent_span: GridTrackSpan,
     pub(super) reversed: bool,
     pub(super) start_mbp: S,
@@ -636,20 +680,34 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
     pub(super) fn derive(
         group: &AncestorBaselineGroup<S>,
         input: ChildBaselineEnvelopeInput<S>,
+        downward_major_translation: &[S],
+        downward_minor_translation: &[S],
     ) -> Result<Self, SubgridTrackInheritanceError> {
         if group.physical_axis() != input.physical_axis {
             return Err(SubgridTrackInheritanceError::SpanOutOfRange);
         }
-        let parent_major = group
+        let mut parent_major = group
             .track_groups()
             .iter()
             .map(|track| track.first)
             .collect::<Vec<_>>();
-        let parent_minor = group
+        for (baseline, translation) in parent_major
+            .iter_mut()
+            .zip(downward_major_translation.iter().copied())
+        {
+            subtract_baseline(baseline, translation, input.physical_axis);
+        }
+        let mut parent_minor = group
             .track_groups()
             .iter()
             .map(|track| track.last)
             .collect::<Vec<_>>();
+        for (baseline, translation) in parent_minor
+            .iter_mut()
+            .zip(downward_minor_translation.iter().copied())
+        {
+            subtract_baseline(baseline, -translation, input.physical_axis);
+        }
         let inherited = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
             parent_major: &parent_major,
             parent_minor: &parent_minor,
@@ -661,10 +719,29 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
             parent_gap: input.parent_gap,
             subgrid_gap: input.subgrid_gap,
         })?;
-        Ok(Self {
-            major: inherited.final_major,
-            minor: inherited.final_minor,
-        })
+        let edge_translation = if input.axis == GridAxisKind::Column {
+            -(input.start_mbp + input.end_mbp)
+        } else {
+            S::ZERO
+        };
+        let mut major = inherited.final_major;
+        let mut minor = inherited.final_minor;
+        for baseline in &mut major {
+            subtract_baseline(baseline, edge_translation, input.physical_axis);
+        }
+        for baseline in &mut minor {
+            subtract_baseline(baseline, edge_translation, input.physical_axis);
+        }
+        if input.ancestor_progression_decreasing && !group.is_downward_view() {
+            let half_gap = (input.subgrid_gap - input.parent_gap) / S::from_f64(2.0);
+            for baseline in &mut major {
+                subtract_baseline(baseline, half_gap, input.physical_axis);
+            }
+            for baseline in &mut minor {
+                subtract_baseline(baseline, -half_gap, input.physical_axis);
+            }
+        }
+        Ok(Self { major, minor })
     }
 }
 

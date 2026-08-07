@@ -4762,6 +4762,25 @@ fn baseline_measure(
     )
 }
 
+fn vertical_baseline_measure(
+    width: Scalar,
+    height: Scalar,
+    first_baseline: Option<Scalar>,
+    last_baseline_from_right: Option<Scalar>,
+) -> ComputeOutput {
+    ComputeOutput::from_sizes_and_baselines(
+        Size::new(width, height),
+        Size::new(width, height),
+        crate::Baselines {
+            first: Point::new(first_baseline, None),
+            last: Point::new(
+                last_baseline_from_right.map(|from_right| width - from_right),
+                None,
+            ),
+        },
+    )
+}
+
 fn compute_oracle_grid(tree: &mut OracleTree) {
     compute_root(
         tree,
@@ -8645,6 +8664,220 @@ fn fri06_c12_t08_row_and_column_groups_choose_the_lastmost_member() {
         assert_eq!(group.target_for(nested), Some(40.0));
         assert_eq!(group.intrinsic_shim(direct).after, 15.0);
     }
+}
+
+#[test]
+fn fri06_c12_t08_inline_column_direct_members_consume_column_group() {
+    let mut tree = OracleTree::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+                grid_template_columns: vec![TrackComponent::px(100.0)],
+                grid_template_rows: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                grid_row: GridPlacement::try_line(1).expect("valid first row"),
+                justify_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                grid_row: GridPlacement::try_line(2).expect("valid second row"),
+                justify_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .measure(2, vertical_baseline_measure(30.0, 20.0, Some(25.0), None))
+        .measure(3, vertical_baseline_measure(50.0, 20.0, Some(10.0), None));
+
+    compute_oracle_grid(&mut tree);
+
+    let first = tree.final_layout(2).expect("first direct item is laid out");
+    let second = tree
+        .final_layout(3)
+        .expect("second direct item is laid out");
+    assert_eq!(second.location.x, 15.0);
+    assert_eq!(first.location.x + 25.0, second.location.x + 10.0);
+}
+
+#[test]
+fn fri06_c12_t08_vertical_auto_rows_preserve_full_fixture_targets() {
+    let mut tree = OracleTree::new()
+        .children(1, [2, 3, 5, 6, 7])
+        .children(2, [])
+        .children(3, [4])
+        .children(4, [])
+        .children(5, [])
+        .children(6, [])
+        .children(7, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(PreferredSize::px(600.0), PreferredSize::px(400.0)),
+                grid_template_rows: vec![
+                    TrackComponent::AUTO,
+                    TrackComponent::AUTO,
+                    TrackComponent::AUTO,
+                ],
+                grid_template_columns: vec![
+                    TrackComponent::px(100.0),
+                    TrackComponent::px(100.0),
+                    TrackComponent::px(100.0),
+                    TrackComponent::px(100.0),
+                ],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                grid_row: GridPlacement::try_line(1).expect("valid first row"),
+                grid_column: GridPlacement::try_line(1).expect("valid first column"),
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                grid_row: GridPlacement::try_line(1).expect("valid first row"),
+                grid_column: GridPlacement::try_line(2).expect("valid second column"),
+                grid_template_rows: vec![empty_subgrid_track()],
+                grid_template_columns: vec![TrackComponent::px(100.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            5,
+            NodeInput {
+                grid_row: GridPlacement::try_line(1).expect("valid first row"),
+                grid_column: GridPlacement::try_line(3).expect("valid third column"),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            6,
+            NodeInput {
+                grid_row: GridPlacement::try_line(2).expect("valid second row"),
+                grid_column: GridPlacement::try_line(3).expect("valid third column"),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            7,
+            NodeInput {
+                grid_row: GridPlacement::try_line(3).expect("valid third row"),
+                grid_column: GridPlacement::try_line(3).expect("valid third column"),
+                ..NodeInput::default()
+            },
+        )
+        .measure(2, vertical_baseline_measure(10.0, 20.0, Some(9.0), None))
+        .measure(4, vertical_baseline_measure(10.0, 20.0, Some(1.0), None));
+
+    compute_root(
+        &mut tree,
+        1,
+        Size::new(Available::Definite(600.0), Available::Definite(400.0)),
+    )
+    .expect("vertical auto-row fixture computes");
+    round_layout(&mut tree, 1).expect("vertical auto-row fixture rounds");
+
+    assert_eq!(
+        [5_u32, 6, 7].map(|node| {
+            tree.final_layout(node)
+                .expect("auto-row probe is laid out")
+                .size
+                .width
+        }),
+        [212.0, 194.0, 194.0],
+    );
+}
+
+#[test]
+fn fri06_c12_t08_vertical_nested_direct_members_use_ancestor_half_gap() {
+    let mut tree = OracleTree::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [4])
+        .children(4, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(PreferredSize::px(130.0), PreferredSize::px(80.0)),
+                grid_template_rows: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
+                grid_template_columns: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                grid_row: GridPlacement::try_line(2).expect("valid second row"),
+                grid_column: GridPlacement::try_line(2).expect("valid second column"),
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid inherited row span"),
+                grid_column: GridPlacement::try_line(1).expect("valid first column"),
+                grid_template_rows: vec![empty_subgrid_track()],
+                grid_template_columns: vec![TrackComponent::px(40.0)],
+                gap: Size::new(Length::px(20.0), Length::ZERO),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                grid_row: GridPlacement::try_line(2).expect("valid inherited second row"),
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .measure(2, vertical_baseline_measure(30.0, 20.0, Some(20.0), None))
+        .measure(4, vertical_baseline_measure(30.0, 20.0, Some(5.0), None));
+
+    compute_oracle_grid(&mut tree);
+
+    let direct = tree.final_layout(2).expect("direct member is laid out");
+    let nested = tree.final_layout(4).expect("flattened member is laid out");
+    assert_eq!((direct.location.x, nested.location.x), (5.0, 25.0));
 }
 
 fn fri06_c12_t08_parent_baseline_row(

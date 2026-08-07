@@ -116,6 +116,7 @@ pub(super) struct AncestorBaselineGroup<S: LayoutScalar = Scalar> {
     axis: GridAxisKind,
     physical_axis: crate::geometry::PhysicalAxis,
     tracks: Vec<TrackBaselineGroup<S>>,
+    downward_view: bool,
 }
 
 impl<S: LayoutScalar> AncestorBaselineGroup<S> {
@@ -135,6 +136,7 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
             axis,
             physical_axis,
             tracks,
+            downward_view: true,
         }
     }
 
@@ -173,6 +175,7 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
             axis,
             physical_axis,
             tracks,
+            downward_view: false,
         }
     }
 
@@ -233,6 +236,52 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         .and_then(|baseline| baseline.coordinate_on(self.physical_axis))
     }
 
+    pub(super) fn placement_offset<Node: Copy>(
+        &self,
+        member: AncestorBaselineMember<Node, S>,
+        available_span_size: S,
+        margin_box_size: S,
+        start_margin: S,
+    ) -> Option<S> {
+        let shared = self.target_for(member)?;
+        match member.role {
+            AncestorBaselineRole::First => {
+                Some(shared - member.containing_logical_distance + start_margin)
+            }
+            AncestorBaselineRole::Last => Some(
+                available_span_size
+                    - (shared - member.containing_logical_distance)
+                    - margin_box_size
+                    + start_margin,
+            ),
+        }
+    }
+
+    pub(super) fn synthesized_opposite_placement_offset<Node: Copy>(
+        &self,
+        member: AncestorBaselineMember<Node, S>,
+        opposite_member: AncestorBaselineMember<Node, S>,
+        available_span_size: S,
+        start_margin: S,
+        end_margin: S,
+    ) -> Option<S> {
+        let track = self.tracks.get(member.selected_track)?;
+        let opposite_target = match member.role {
+            AncestorBaselineRole::First => track.last,
+            AncestorBaselineRole::Last => track.first,
+        }
+        .and_then(|baseline| baseline.coordinate_on(self.physical_axis))?;
+        match member.role {
+            AncestorBaselineRole::First => Some(
+                available_span_size - opposite_target + opposite_member.containing_logical_distance,
+            ),
+            AncestorBaselineRole::Last => Some(
+                opposite_target - opposite_member.containing_logical_distance + start_margin
+                    - end_margin,
+            ),
+        }
+    }
+
     pub(super) const fn axis(&self) -> GridAxisKind {
         self.axis
     }
@@ -243,6 +292,10 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
 
     pub(super) fn track_groups(&self) -> &[TrackBaselineGroup<S>] {
         &self.tracks
+    }
+
+    pub(super) const fn is_downward_view(&self) -> bool {
+        self.downward_view
     }
 }
 
@@ -625,7 +678,6 @@ where
             );
         }
     }
-
     Ok((columns, rows))
 }
 
@@ -652,6 +704,148 @@ fn row_baseline_shim<Node: Copy, S: LayoutScalar>(
         return BaselineShim::default();
     };
     group.intrinsic_shim(member)
+}
+
+fn redistribute_intrinsic_baseline_envelopes<S: LayoutScalar>(
+    sizes: &mut [S],
+    shims: &[BaselineShim<S>],
+    views: &[SubgridBaselineViewTransform<S>],
+    containing_flow_axes: FlowAxes,
+) {
+    let deltas = intrinsic_baseline_envelope_deltas(sizes, shims, views, containing_flow_axes);
+    for (size, delta) in sizes.iter_mut().zip(deltas) {
+        *size = (*size + delta).max(S::ZERO);
+    }
+}
+
+fn intrinsic_baseline_envelope_deltas<S: LayoutScalar>(
+    track_sizes: &[S],
+    shims: &[BaselineShim<S>],
+    views: &[SubgridBaselineViewTransform<S>],
+    containing_flow_axes: FlowAxes,
+) -> Vec<S> {
+    let mut deltas = vec![S::ZERO; track_sizes.len()];
+    if !containing_flow_axes
+        .logical_axis_progression(LogicalAxis::Block)
+        .is_decreasing()
+    {
+        return deltas;
+    }
+    for transform in views {
+        if !transform.root {
+            continue;
+        }
+        let Some(span_len) = transform.parent_span.checked_len() else {
+            continue;
+        };
+        let Some(last_local_index) = span_len.checked_sub(1).filter(|index| *index > 0) else {
+            continue;
+        };
+        let first_ancestor_index = if transform.reversed {
+            transform.parent_span.end.saturating_sub(2)
+        } else {
+            transform.parent_span.start.saturating_sub(1)
+        };
+        let Some(first_shim) = shims.get(first_ancestor_index).copied() else {
+            continue;
+        };
+        let first_envelope = first_shim.before + first_shim.after;
+        for local_index in 1..=last_local_index {
+            let ancestor_index = if transform.reversed {
+                transform.parent_span.end.saturating_sub(local_index + 2)
+            } else {
+                transform.parent_span.start.saturating_sub(1) + local_index
+            };
+            let Some(source_size) = track_sizes.get(ancestor_index).copied() else {
+                continue;
+            };
+            if first_ancestor_index >= track_sizes.len() {
+                continue;
+            }
+            let Some(shim) = shims.get(ancestor_index).copied() else {
+                continue;
+            };
+            let half_gap = (transform.subgrid_gap - transform.parent_gap) / S::from_f64(2.0);
+            let transfer = (shim.after - first_envelope + half_gap)
+                .max(S::ZERO)
+                .min(source_size);
+            deltas[ancestor_index] = deltas[ancestor_index] - transfer;
+            deltas[first_ancestor_index] = deltas[first_ancestor_index] + transfer;
+        }
+    }
+    deltas
+}
+
+fn intrinsic_baseline_shim_census<Node: Copy, S: LayoutScalar>(
+    contributions: &[RowIntrinsicContribution<Node, S>],
+    group: &AncestorBaselineGroup<S>,
+    track_count: usize,
+) -> Vec<BaselineShim<S>> {
+    let mut shims: Vec<BaselineShim<S>> = vec![BaselineShim::default(); track_count];
+    for contribution in contributions {
+        let shim = row_baseline_shim(*contribution, group);
+        if let Some(first) = shims.get_mut(contribution.start) {
+            first.before = first.before.max(shim.before);
+        }
+        if let Some(last_index) = contribution.end.checked_sub(1)
+            && let Some(last) = shims.get_mut(last_index)
+        {
+            last.after = last.after.max(shim.after);
+        }
+    }
+    shims
+}
+
+fn intrinsic_downward_minor_translations<S: LayoutScalar>(
+    shims: &[BaselineShim<S>],
+    views: &[SubgridBaselineViewTransform<S>],
+    track_count: usize,
+    containing_flow_axes: FlowAxes,
+) -> Vec<S> {
+    let mut translations = vec![S::ZERO; track_count];
+    if !containing_flow_axes
+        .logical_axis_progression(LogicalAxis::Block)
+        .is_decreasing()
+    {
+        return translations;
+    }
+    for transform in views {
+        if !transform.root {
+            continue;
+        }
+        let Some(span_len) = transform.parent_span.checked_len() else {
+            continue;
+        };
+        let Some(last_local_index) = span_len.checked_sub(1).filter(|index| *index > 0) else {
+            continue;
+        };
+        let last_ancestor_index = if transform.reversed {
+            transform
+                .parent_span
+                .end
+                .saturating_sub(last_local_index + 2)
+        } else {
+            transform.parent_span.start.saturating_sub(1) + last_local_index
+        };
+        let Some(last) = shims.get(last_ancestor_index) else {
+            continue;
+        };
+        for local_index in 0..=last_local_index {
+            let ancestor_index = if transform.reversed {
+                transform.parent_span.end.saturating_sub(local_index + 2)
+            } else {
+                transform.parent_span.start.saturating_sub(1) + local_index
+            };
+            let Some((shim, current)) = shims
+                .get(ancestor_index)
+                .zip(translations.get_mut(ancestor_index))
+            else {
+                continue;
+            };
+            *current = current.max((last.after - shim.after).max(S::ZERO));
+        }
+    }
+    translations
 }
 
 pub(super) struct AncestorBaselineMemberInput<Node, S: LayoutScalar = Scalar> {
@@ -770,22 +964,37 @@ pub(super) struct FinalAncestorBaselineGroupInput<'a, Node, S: LayoutScalar = Sc
     pub(super) direct_members: Vec<AncestorBaselineMember<Node, S>>,
 }
 
+pub(super) struct FinalAncestorBaselineGroup<S: LayoutScalar = Scalar> {
+    pub(super) group: AncestorBaselineGroup<S>,
+    pub(super) downward_major_translation: Vec<S>,
+    pub(super) downward_minor_translation: Vec<S>,
+}
+
 pub(super) fn ancestor_baseline_group_for_final_placement<Tree, M>(
     tree: &mut Tree,
     input: FinalAncestorBaselineGroupInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, AncestorBaselineGroup<Tree::Scalar>, Tree::Scalar, M>
+) -> LayoutResultOf<
+    <Tree as Traverse>::Node,
+    FinalAncestorBaselineGroup<Tree::Scalar>,
+    Tree::Scalar,
+    M,
+>
 where
     Tree: Compute<M>,
 {
     let physical_axis = grid_axis_physical_axis(input.constants.flow_axes, input.axis);
     let mut members = input.direct_members;
     if input.track_count == 0 || input.subgrid_report.items.is_empty() {
-        return Ok(AncestorBaselineGroup::reduce(
-            input.axis,
-            physical_axis,
-            input.track_count,
-            members,
-        ));
+        return Ok(FinalAncestorBaselineGroup {
+            group: AncestorBaselineGroup::reduce(
+                input.axis,
+                physical_axis,
+                input.track_count,
+                members,
+            ),
+            downward_major_translation: vec![Tree::Scalar::ZERO; input.track_count],
+            downward_minor_translation: vec![Tree::Scalar::ZERO; input.track_count],
+        });
     }
 
     let fallback_track_facts = vec![false; input.track_count];
@@ -811,14 +1020,19 @@ where
         },
     )?
     else {
-        return Ok(AncestorBaselineGroup::reduce(
-            input.axis,
-            physical_axis,
-            input.track_count,
-            members,
-        ));
+        return Ok(FinalAncestorBaselineGroup {
+            group: AncestorBaselineGroup::reduce(
+                input.axis,
+                physical_axis,
+                input.track_count,
+                members,
+            ),
+            downward_major_translation: vec![Tree::Scalar::ZERO; input.track_count],
+            downward_minor_translation: vec![Tree::Scalar::ZERO; input.track_count],
+        });
     };
 
+    let baseline_views = report.baseline_views;
     for leaf in report.leaves {
         let child_style = tree.node_input(leaf.node).clone();
         if !is_in_flow_grid_child(&child_style)
@@ -884,7 +1098,9 @@ where
                 }
                 _ => false,
             };
-        let Some(adjustments) = leaf.ancestor_baseline_adjustments() else {
+        let Some(adjustments) =
+            leaf.ancestor_baseline_adjustments(input.constants.flow_axes, input.axis)
+        else {
             continue;
         };
         if let Some(member) = ancestor_baseline_member(AncestorBaselineMemberInput {
@@ -905,12 +1121,74 @@ where
         }
     }
 
-    Ok(AncestorBaselineGroup::reduce(
+    let group = AncestorBaselineGroup::reduce(
         input.axis,
         physical_axis,
         input.track_count,
-        members,
-    ))
+        members.iter().copied(),
+    );
+    let (downward_major_translation, downward_minor_translation) = if input.axis
+        == GridAxisKind::Row
+        && input
+            .intrinsic_min_track_facts
+            .is_some_and(|facts| facts.iter().any(|fact| *fact))
+    {
+        let mut shims: Vec<BaselineShim<Tree::Scalar>> =
+            vec![BaselineShim::default(); input.track_count];
+        for member in members {
+            let shim = group.intrinsic_shim(member);
+            if let Some(track) = shims.get_mut(member.selected_track) {
+                track.before = track.before.max(shim.before);
+                track.after = track.after.max(shim.after);
+            }
+        }
+        let mut descendant_tracks = vec![false; input.track_count];
+        for view in baseline_views.iter().filter(|view| !view.root) {
+            let start = view.parent_span.start.saturating_sub(1);
+            let end = view
+                .parent_span
+                .end
+                .saturating_sub(1)
+                .min(input.track_count);
+            if let Some(tracks) = descendant_tracks.get_mut(start..end) {
+                tracks.fill(true);
+            }
+        }
+        let mut major = shims
+            .iter()
+            .zip(&descendant_tracks)
+            .map(|(shim, descendant)| {
+                descendant
+                    .then_some(shim.before)
+                    .unwrap_or(Tree::Scalar::ZERO)
+            })
+            .collect::<Vec<_>>();
+        if let Some(first) = major.first_mut() {
+            *first = Tree::Scalar::ZERO;
+        }
+        let mut minor = intrinsic_downward_minor_translations(
+            &shims,
+            &baseline_views,
+            input.track_count,
+            input.constants.flow_axes,
+        );
+        for (translation, descendant) in minor.iter_mut().zip(descendant_tracks) {
+            if !descendant {
+                *translation = Tree::Scalar::ZERO;
+            }
+        }
+        (major, minor)
+    } else {
+        (
+            vec![Tree::Scalar::ZERO; input.track_count],
+            vec![Tree::Scalar::ZERO; input.track_count],
+        )
+    };
+    Ok(FinalAncestorBaselineGroup {
+        group,
+        downward_major_translation,
+        downward_minor_translation,
+    })
 }
 
 #[cfg(test)]
@@ -1316,6 +1594,7 @@ struct SubgridIntrinsicContributionReport<Node, S: LayoutScalar = Scalar> {
     contributing_roots: Vec<Node>,
     row_contributions: Vec<RowIntrinsicContribution<Node, S>>,
     ancestor_baseline_group: AncestorBaselineGroup<S>,
+    baseline_views: Vec<SubgridBaselineViewTransform<S>>,
 }
 
 type SubgridIntrinsicContributionResult<Node, S, M> =
@@ -1332,6 +1611,7 @@ where
         return Ok(SubgridIntrinsicContributionReport {
             contributing_roots: Vec::new(),
             row_contributions: Vec::new(),
+            baseline_views: Vec::new(),
             ancestor_baseline_group: AncestorBaselineGroup::reduce(
                 input.axis,
                 grid_axis_physical_axis(input.constants.flow_axes, input.axis),
@@ -1369,6 +1649,7 @@ where
         return Ok(SubgridIntrinsicContributionReport {
             contributing_roots: Vec::new(),
             row_contributions: Vec::new(),
+            baseline_views: Vec::new(),
             ancestor_baseline_group: AncestorBaselineGroup::reduce(
                 input.axis,
                 grid_axis_physical_axis(input.constants.flow_axes, input.axis),
@@ -1385,6 +1666,7 @@ where
         }
     }
 
+    let baseline_views = report.baseline_views;
     let mut leaves = report.leaves;
     leaves.sort_by_key(|leaf| {
         leaf.ancestor_span
@@ -1472,7 +1754,9 @@ where
         let Some(scalar_adjustment) = leaf.scalar_adjustment() else {
             continue;
         };
-        let Some(baseline_adjustments) = leaf.ancestor_baseline_adjustments() else {
+        let Some(baseline_adjustments) =
+            leaf.ancestor_baseline_adjustments(input.constants.flow_axes, input.axis)
+        else {
             continue;
         };
         let contribution = grid_axis_intrinsic_contribution_size(
@@ -1670,6 +1954,7 @@ where
         contributing_roots,
         row_contributions,
         ancestor_baseline_group,
+        baseline_views,
     })
 }
 
@@ -1871,6 +2156,7 @@ where
         SubgridIntrinsicContributionReport {
             contributing_roots: Vec::new(),
             row_contributions: Vec::new(),
+            baseline_views: Vec::new(),
             ancestor_baseline_group: AncestorBaselineGroup::reduce(
                 GridAxisKind::Row,
                 grid.constants.flow_axes.block_axis(),
@@ -1883,6 +2169,7 @@ where
     let SubgridIntrinsicContributionReport {
         contributing_roots: published_row_subgrid_roots,
         mut row_contributions,
+        baseline_views,
         ..
     } = subgrid_contributions;
 
@@ -2015,6 +2302,8 @@ where
         row_count,
         grid.constants.flow_axes.block_axis(),
     );
+    let row_baseline_shims =
+        intrinsic_baseline_shim_census(&row_contributions, &row_baseline_groups, row_count);
     for item in row_contributions {
         if !item.contributes_to_row_size {
             continue;
@@ -2041,6 +2330,12 @@ where
             );
         }
     }
+    redistribute_intrinsic_baseline_envelopes(
+        &mut rows,
+        &row_baseline_shims,
+        &baseline_views,
+        grid.constants.flow_axes,
+    );
 
     Ok(rows)
 }
