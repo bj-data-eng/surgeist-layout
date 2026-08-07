@@ -107,15 +107,24 @@ the public and algorithmic FRI-06 contract is already present:
   zero quarantine/failure/expected-fail rows, and SHA-256
   `f46d8d8b50c722037127fdca79679649bd5cfd6db16fb24c0d69a7e5a082147a`.
 
-The remaining source gap is confined to `D-18`. Current subgrid sizing still
-reduces and republishes a fully inherited child-local baseline group instead of
-placing flattened descendants directly in the ancestor group. Public geometry
-therefore remains `(57, 125)` rather than browser `(62, 110)` for the nested
-block control, `459` rather than `411` for auto rows, `415/570` rather than
-`470/527` for inline columns, `202` rather than `196` for vertical auto rows,
-and `168` rather than `153` for vertical nesting. The checked-in report records
-144 passing and 244 failing activation rows; 96 stale browser-control rows are
-expected to reach geometry only after the single settled replacement lineage.
+At current source `22c18806a3cd01afee0d0bdcedee2ae9b194593c`, `D-18` is
+closed: the flattened descendant model reaches browser geometry for nested
+block, auto-row, inline-column, vertical-auto-row, and vertical-nested controls.
+The sole settled full regeneration has also run successfully and is preserved
+as uncommitted lineage evidence: helper SHA-256
+`42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2`,
+report SHA-256
+`8d59c87d1fcc185bda0372968ae81dbeff74f241c17335db98629ad49f1f463f`,
+complete XML SHA-256
+`d2530aa79f214b536e46aee263095a6e7c0a1d7a329bdce7baeb194af3670896`,
+and inventory SHA-256
+`0c327c2d93b140ea5ed5660e45ad947a0afb583b9aa97b3163ea59b45d371715`.
+It records 5,712 generated and the exact 16 missing-root unsupported rows with
+no failed, quarantined, or expected-fail row. Activation is 244 passing and 144
+failing solely because the comparator equates Chrome's categorical
+`next_line = Later` with the model's closed-overlap `Same` at a shared endpoint.
+`D-19` is the only remaining behavior gap. It changes no generator input or output, so the
+successful lineage is retained and a second full generation is forbidden.
 
 The cycle base `8ffb4bc551a24d2283ad54436870ab3f5e66a473` remains the
 immutable pre-activation artifact baseline: its report has 5,324 generated and
@@ -146,7 +155,7 @@ are absent is also no longer true; FRI-06 consumes those completed contracts.
 | `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 initially unsupported variants identified below and includes exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. The layout-ready-inline opt-in supplies level zero unless an exact source-indexed marker supplies another bidi level. A marker may explicitly scope its applicability to one computed `ltr` or `rtl` variant; direction selects that authored record but never derives its level. Pinned Chrome is the default geometry oracle. An exact row may instead be a visible known Chrome measurement failure only under the certainty, evidence-record, synthetic-substitute, and revalidation contract in `FRI-06.11`; disagreement with layout alone never qualifies. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 | `D-17` | Superseded by `D-18`. It correctly separated scalar size, group membership, and parent envelope phases, but its publication-as-an-exact-inverse premise still required reconstructing ancestor transform history from a child-local scalar. Three bounded corrections could satisfy the nested coordinates or the intrinsic and round-trip controls, but not all of them together. |
 | `D-18` | Final subgrid-baseline controls use one axis-parametric flattened-membership model. In a fully inherited axis, the subgrid root is empty for track sizing and baseline grouping; its participating descendants enter the ancestor's group directly with the accumulated margin/border/padding and half-gutter adjustments already retained by subgrid traversal. A child physical baseline converts once to a typed ancestor-track logical distance. Scalar intrinsic contribution, ancestor baseline membership, reduced ancestor first/last group, and non-publishable child envelope view are distinct phases. The immutable ancestor group is reduced once, then sliced and mapped downward for child alignment; a child view is never republished upward and no inherited-axis fixed-point loop or publication inverse exists. Non-inherited axes retain ordinary local grid-container baseline behavior. Refreshed area sizing and the final physical projection remain owned by the containing grid's `FlowAxes`. |
-| `D-19` | Browser control observations and model control geometry remain distinct evidence. The browser may use its non-model `<br>` rectangle only to report source/slot/neighboring-line effects; layout publishes the specification-required zero-size aligned control. When that model point lies within tolerance of the exact shared endpoint of both adjacent model neighbor intervals, closed overlap makes both geometric relations `Same` and the browser's categorical relation is not comparable to model geometry. The comparator records that one field as endpoint-unobservable instead of equating the two meanings. Exact neighboring node geometry remains strict, the browser observation remains serialized, and a private line-builder regression proves that the forced break commits between the two model participants. This generic predicate reads no fixture identity or expectation to create layout input, adds no public line-identity surface, and is not a Chrome failure, expected-fail, or synthetic geometry substitute. |
+| `D-19` | Browser control observations and model control geometry remain distinct evidence. The browser may use its non-model `<br>` rectangle only to report source/slot/neighboring-line effects; layout publishes the specification-required zero-size aligned control. When that model point lies within tolerance of the exact shared endpoint of both adjacent model neighbor intervals, closed overlap makes both geometric relations `Same` and the browser's categorical `next_line = Later` is not comparable to model geometry. The comparator records only that field as endpoint-unobservable instead of equating the two meanings. Exact neighboring node geometry remains strict, the browser observation remains serialized, and a private line-builder regression proves that the forced break commits between the two model participants. This generic predicate reads no fixture identity or expectation to create layout input, adds no public line-identity surface, and is not a Chrome failure, expected-fail, or synthetic geometry substitute. |
 
 Rejected alternatives:
 
@@ -1344,9 +1353,16 @@ of these predicates hold after ordinary node geometry has compared:
 The comparator preserves the browser value, reports the field through a typed
 endpoint-unobservable result, and skips only that non-equivalent categorical
 equality. It does not change the closed relation, model output, input parser,
-fixture, helper, or generated XML. The activation test accounts for exactly 144
-such fields across the inline-column, vertical-auto-row, and vertical-nested
-subgrid families; every other browser-control field remains directly compared.
+fixture, helper, or generated XML. The exact activation partition is:
+
+| Family | Sources x variants | Endpoint-unobservable field | Browser / model |
+| --- | ---: | --- | --- |
+| `subgrid_baseline_inline_column_*` | 12 x 4 = 48 | `next_line` | `Later` / `Same` |
+| `subgrid_baseline_vertical_auto_rows_*` | 12 x 4 = 48 | `next_line` | `Later` / `Same` |
+| `subgrid_baseline_vertical_nested_*` | 12 x 4 = 48 | `next_line` | `Later` / `Same` |
+
+The activation test proves that exact 48/48/48 set and exactly 144 fields; every
+other browser-control field remains directly compared.
 The private line-builder regression independently proves that the control ends
 the preceding source slice and the following atomic begins the next line. Any
 different count, family, missing exact node-geometry comparison, or non-endpoint
@@ -1532,9 +1548,11 @@ FRI-06 is complete only when:
     public-front-door synthetic substitute, visible row accounting, and a future
     revalidation trigger;
 15. the bounded HTML/parser/helper/fixture inputs and `D-18` production model
-    settle before exactly one acceptance full regeneration; earlier
-    assumption-failing full runs remain diagnostic, and subsequent acceptance
-    checks are read-only and provenance-clean;
+    settle before exactly one acceptance full regeneration; that successful run
+    is the preserved `FRI-06.3` lineage, `D-19` changes none of its inputs or
+    outputs, no second full generation is authorized, earlier assumption-failing
+    full runs remain diagnostic, and subsequent acceptance checks are read-only
+    and provenance-clean;
 16. FRI-06-owned mixed-text, vertical/outside-block BR, and active float/BFC
     cases leave unsupported accounting and pass focused parity;
 17. public exports and crate/parity docs describe the text/layout/shape/root
