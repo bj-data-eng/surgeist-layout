@@ -527,13 +527,17 @@ At minimum, focused evidence proves:
     Taffy import, MSRV, root-owned artifacts, and unrelated corpus rows; and
 13. zero executable Surgeist-owned `unsafe`, no new allow/expect/suppression,
     clean diff checks, configured formatting, check, test, Clippy, generator-
-    feature, full parity, corpus, and Taffy gates.
+    feature, exact FRI-07-owned parity, corpus, and Taffy gates.
 
 The configured acceptance commands derive from `justfile`, `Cargo.toml`, and the
 browser-parity README. They include `just verify`, `just verify-generator`,
-`just parity-all`, `just corpus-check`, and `just taffy-check`, plus focused
-task commands and repository-wide owned-Rust unsafe scanning. All Cargo commands
-run locked/offline with already-present tooling.
+`just corpus-check`, and `just taffy-check`, plus focused task commands, exact
+FRI-07-owned parity commands, and repository-wide owned-Rust unsafe scanning.
+The ignored repository-wide `just parity-all` command remains the FRI-13
+aggregate release gate. FRI-07 may run it only as a diagnostic compared with an
+immutable entry inventory; its known later-owned failures are not an FRI-07
+acceptance gate. All Cargo commands run locked/offline with already-present
+tooling.
 
 ## 13 FRI-07.13 Architecture And Sprawl Containment
 
