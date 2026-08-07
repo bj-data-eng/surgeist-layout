@@ -1956,6 +1956,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/grid/subgrid.rs", include_str!("grid/subgrid.rs")),
         ("src/grid/tracks.rs", include_str!("grid/tracks.rs")),
         ("src/inline.rs", include_str!("inline.rs")),
+        ("src/layout_math.rs", include_str!("layout_math.rs")),
         ("src/lib.rs", include_str!("lib.rs")),
         ("src/node_input.rs", include_str!("node_input.rs")),
         ("src/output.rs", include_str!("output.rs")),

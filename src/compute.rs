@@ -8,6 +8,7 @@ use super::{
     Size, SizingMode, Traverse,
 };
 use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
+use crate::layout_math::{MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt, OptionalSizeExt};
 use crate::scalar::round_layout_coordinate;
 use crate::scroll::{
     CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
@@ -1826,7 +1827,8 @@ where
 
     Ok(root_known_on_axis(
         inline_axis,
-        available_inline.clamp_optional(None, root_physical_axis_value(max_size, inline_axis)),
+        available_inline
+            .clamp_max_before_min_optional(None, root_physical_axis_value(max_size, inline_axis)),
     ))
 }
 
@@ -2400,7 +2402,7 @@ where
         } = node_size
     {
         let size = Size::new(width, height)
-            .clamp_optional(node_min_size, node_max_size)
+            .clamp_max_before_min_optional(node_min_size, node_max_size)
             .max_optional(padding_border_size.map(Some));
         return Ok(ComputeOutputOf::from_outer_size(size));
     }
@@ -2433,7 +2435,7 @@ where
             )
         };
         let aspect_size = Size::new(unclamped.width, aspect_height)
-            .clamp_optional(resolved.node_min_size, resolved.node_max_size)
+            .clamp_max_before_min_optional(resolved.node_min_size, resolved.node_max_size)
             .max_optional(padding_border_size.map(Some));
 
         let mut output =
@@ -2525,8 +2527,10 @@ where
             .set_optional(input.known().width)
             .set_optional(resolved.node_size.width)
             .map_definite(|value| {
-                value.clamp_optional(resolved.node_min_size.width, resolved.node_max_size.width)
-                    - content_box_inset.horizontal_sum()
+                value.clamp_max_before_min_optional(
+                    resolved.node_min_size.width,
+                    resolved.node_max_size.width,
+                ) - content_box_inset.horizontal_sum()
             }),
         input
             .known()
@@ -2537,8 +2541,10 @@ where
             .set_optional(input.known().height)
             .set_optional(resolved.node_size.height)
             .map_definite(|value| {
-                value.clamp_optional(resolved.node_min_size.height, resolved.node_max_size.height)
-                    - content_box_inset.vertical_sum()
+                value.clamp_max_before_min_optional(
+                    resolved.node_min_size.height,
+                    resolved.node_max_size.height,
+                ) - content_box_inset.vertical_sum()
             }),
     )
     .zip_map(
@@ -2914,69 +2920,14 @@ impl<S: LayoutScalar> EdgesResultExt<S>
     }
 }
 
-trait SizeOptionExt {
-    type Scalar: LayoutScalar;
-
-    fn or(self, other: Self) -> Self;
-    fn unwrap_or(self, fallback: Size<Self::Scalar>) -> Size<Self::Scalar>;
-    fn add_optional(self, amount: Size<Self::Scalar>) -> Self;
-    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatioOf<Self::Scalar>>) -> Self;
-}
-
-impl<S: LayoutScalar> SizeOptionExt for Size<Option<S>> {
-    type Scalar = S;
-
-    fn or(self, other: Self) -> Self {
-        Size::new(self.width.or(other.width), self.height.or(other.height))
-    }
-
-    fn unwrap_or(self, fallback: Size<S>) -> Size<S> {
-        Size::new(
-            self.width.unwrap_or(fallback.width),
-            self.height.unwrap_or(fallback.height),
-        )
-    }
-
-    fn add_optional(self, amount: Size<S>) -> Self {
-        Size::new(
-            self.width.map(|width| width + amount.width),
-            self.height.map(|height| height + amount.height),
-        )
-    }
-
-    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatioOf<S>>) -> Self {
-        let Some(ratio) = aspect_ratio else {
-            return self;
-        };
-        let ratio = ratio.get();
-        match (self.width, self.height) {
-            (Some(width), None) => Size::new(Some(width), Some(width / ratio)),
-            (None, Some(height)) => Size::new(Some(height * ratio), Some(height)),
-            _ => self,
-        }
-    }
-}
-
 trait SizeExt {
     type Scalar: LayoutScalar;
 
-    fn clamp_optional(
-        self,
-        min: Size<Option<Self::Scalar>>,
-        max: Size<Option<Self::Scalar>>,
-    ) -> Self;
     fn max_optional(self, min: Size<Option<Self::Scalar>>) -> Self;
 }
 
 impl<S: LayoutScalar> SizeExt for Size<S> {
     type Scalar = S;
-
-    fn clamp_optional(self, min: Size<Option<S>>, max: Size<Option<S>>) -> Self {
-        Size::new(
-            self.width.clamp_optional(min.width, max.width),
-            self.height.clamp_optional(min.height, max.height),
-        )
-    }
 
     fn max_optional(self, min: Size<Option<S>>) -> Self {
         Size::new(
@@ -2986,16 +2937,59 @@ impl<S: LayoutScalar> SizeExt for Size<S> {
     }
 }
 
-trait ScalarExt {
-    fn clamp_optional(self, min: Option<Self>, max: Option<Self>) -> Self
-    where
-        Self: Sized;
-}
+#[cfg(test)]
+mod fri06_c13_t05_characterization_tests {
+    use super::*;
 
-impl<S: LayoutScalar> ScalarExt for S {
-    fn clamp_optional(self, min: Option<Self>, max: Option<Self>) -> Self {
-        let value = max.map_or(self, |max| self.min(max));
-        min.map_or(value, |min| value.max(min))
+    fn characterize<S: LayoutScalar>() {
+        let scalar = S::from_f64;
+        let optional = Size::new(None, Some(scalar(9.0)));
+
+        assert_eq!(
+            optional.or(Size::new(Some(scalar(4.0)), Some(scalar(3.0)))),
+            Size::new(Some(scalar(4.0)), Some(scalar(9.0)))
+        );
+        assert_eq!(
+            optional.unwrap_or(Size::new(scalar(6.0), scalar(7.0))),
+            Size::new(scalar(6.0), scalar(9.0))
+        );
+        assert_eq!(
+            optional.add_optional(Size::new(scalar(2.0), scalar(3.0))),
+            Size::new(None, Some(scalar(12.0)))
+        );
+
+        let Some(ratio) = AspectRatioOf::new(scalar(2.0)) else {
+            panic!("finite positive test aspect ratio must be accepted");
+        };
+        assert_eq!(
+            Size::new(Some(scalar(12.0)), None).apply_aspect_ratio(Some(ratio)),
+            Size::new(Some(scalar(12.0)), Some(scalar(6.0)))
+        );
+        assert_eq!(
+            Size::new(None, Some(scalar(7.0))).apply_aspect_ratio(Some(ratio)),
+            Size::new(Some(scalar(14.0)), Some(scalar(7.0)))
+        );
+        assert_eq!(
+            Size::new(scalar(8.0), scalar(12.0)).clamp_max_before_min_optional(
+                Size::new(Some(scalar(3.0)), None),
+                Size::new(Some(scalar(10.0)), Some(scalar(11.0))),
+            ),
+            Size::new(scalar(8.0), scalar(11.0))
+        );
+        assert_eq!(
+            scalar(5.0).clamp_max_before_min_optional(Some(scalar(10.0)), Some(scalar(3.0))),
+            scalar(10.0)
+        );
+    }
+
+    #[test]
+    fn fri06_c13_t05_compute_optional_math_and_clamp_order_preserve_f32() {
+        characterize::<f32>();
+    }
+
+    #[test]
+    fn fri06_c13_t05_compute_optional_math_and_clamp_order_preserve_f64() {
+        characterize::<f64>();
     }
 }
 

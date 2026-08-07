@@ -1,7 +1,7 @@
 use super::{
-    AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
-    ComputeInputOf, ComputeOutputOf, DefaultScalar, Direction, Display, Edges, GridAutoFlow,
-    GridPlacement, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
+    AlignContent, AlignItems, AvailableOf, BaselinesOf, BoxSizing, Compute, ComputeInputOf,
+    ComputeOutputOf, DefaultScalar, Direction, Display, Edges, GridAutoFlow, GridPlacement,
+    LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
     LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf, NodeInputOf, NodeOutputOf,
     Overflow, Point, Position, PreferredSizeOf, RequestedAxis, RunMode, Scalar, Size,
     SizingAlgorithm, SizingMode, TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
@@ -12,6 +12,7 @@ use crate::compute::{
     resolve_preferred_sizing, sizing_resolution_error,
 };
 use crate::geometry::{LogicalAxis, LogicalSizeOf, PhysicalAxis};
+use crate::layout_math::{OptionalSizeExt, UncheckedOptionalSizeSubExt};
 use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
 use crate::scroll::{
@@ -485,7 +486,7 @@ where
         .physical_size(intrinsic_sizing_content_size);
     let intrinsic_outer_size = (intrinsic_sizing_physical_size
         + constants.content_box_inset.sum_axes())
-    .clamp_optional(constants.node_min_size, constants.node_max_size)
+    .clamp_min_before_max_optional(constants.node_min_size, constants.node_max_size)
     .max(padding_border_size);
     let output_size = input
         .known()
@@ -757,7 +758,7 @@ where
     let padding_border_size = (constants.padding + constants.border).sum_axes();
     let intrinsic_outer_size = (sizing_flow_axes.physical_size(logical_content_size)
         + constants.content_box_inset.sum_axes())
-    .clamp_optional(constants.node_min_size, constants.node_max_size)
+    .clamp_min_before_max_optional(constants.node_min_size, constants.node_max_size)
     .max(padding_border_size);
     let output_size = input
         .known()
@@ -2373,7 +2374,7 @@ impl<S: LayoutScalar> Constants<S> {
         let content_box_inset = if canonical_ordinary_reservation {
             let provisional_outer_size = input
                 .known()
-                .or(style_size.clamp_optional(min_size, max_size))
+                .or(style_size.clamp_min_before_max_optional(min_size, max_size))
                 .max_optional(padding_border_size.map(Some));
             let unconstrained_scroll_box_size = padding_border_size
                 + Size::splat(style.scrollbar_width.get() + style.scrollbar_width.get());
@@ -2400,18 +2401,19 @@ impl<S: LayoutScalar> Constants<S> {
         };
         let explicit_definite_outer_size = input.known().or(style_size);
         let explicit_definite_content_size =
-            explicit_definite_outer_size.sub_optional(content_box_inset.sum_axes());
+            explicit_definite_outer_size.sub_optional_unchecked(content_box_inset.sum_axes());
         let node_outer_size = input
             .known()
-            .or(style_size.clamp_optional(min_size, max_size))
+            .or(style_size.clamp_min_before_max_optional(min_size, max_size))
             .max_optional(padding_border_size.map(Some));
-        let node_inner_size = node_outer_size.sub_optional(content_box_inset.sum_axes());
+        let node_inner_size = node_outer_size.sub_optional_unchecked(content_box_inset.sum_axes());
         let available_size = input
             .available()
             .zip_map(max_size, intrinsic_available_size_for_axis)
-            .clamp_optional(min_size, max_size)
+            .clamp_min_before_max_optional(min_size, max_size)
             .max_optional(padding_border_size.map(Some));
-        let available_inner_size = available_size.sub_optional(content_box_inset.sum_axes());
+        let available_inner_size =
+            available_size.sub_optional_unchecked(content_box_inset.sum_axes());
 
         Ok(Self {
             flow_axes,
@@ -2515,24 +2517,35 @@ fn resolution_optional<S: LayoutScalar>(
 }
 
 trait SizeOptionExt {
-    fn or(self, other: Self) -> Self;
     type Scalar: LayoutScalar;
-    fn unwrap_or(self, fallback: Size<Self::Scalar>) -> Size<Self::Scalar>;
-    fn add_optional(self, amount: Size<Self::Scalar>) -> Self;
-    fn sub_optional(self, amount: Size<Self::Scalar>) -> Self;
-    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatioOf<Self::Scalar>>) -> Self;
-    fn clamp_optional(self, min: Self, max: Self) -> Self;
+    fn clamp_min_before_max_optional(self, min: Self, max: Self) -> Self;
+    fn clamp_optional(self, min: Self, max: Self) -> Self
+    where
+        Self: Sized,
+    {
+        self.clamp_min_before_max_optional(min, max)
+    }
     fn max_optional(self, other: Self) -> Self;
 }
 
 trait SizeExt {
     type Scalar: LayoutScalar;
     fn max(self, other: Self) -> Self;
-    fn clamp_optional(
+    fn clamp_min_before_max_optional(
         self,
         min: Size<Option<Self::Scalar>>,
         max: Size<Option<Self::Scalar>>,
     ) -> Self;
+    fn clamp_optional(
+        self,
+        min: Size<Option<Self::Scalar>>,
+        max: Size<Option<Self::Scalar>>,
+    ) -> Self
+    where
+        Self: Sized,
+    {
+        self.clamp_min_before_max_optional(min, max)
+    }
 }
 
 impl<S: LayoutScalar> SizeExt for Size<S> {
@@ -2542,10 +2555,12 @@ impl<S: LayoutScalar> SizeExt for Size<S> {
         Size::new(self.width.max(other.width), self.height.max(other.height))
     }
 
-    fn clamp_optional(self, min: Size<Option<S>>, max: Size<Option<S>>) -> Self {
+    fn clamp_min_before_max_optional(self, min: Size<Option<S>>, max: Size<Option<S>>) -> Self {
         Size::new(
-            self.width.clamp_optional(min.width, max.width),
-            self.height.clamp_optional(min.height, max.height),
+            self.width
+                .clamp_min_before_max_optional(min.width, max.width),
+            self.height
+                .clamp_min_before_max_optional(min.height, max.height),
         )
     }
 }
@@ -2553,36 +2568,7 @@ impl<S: LayoutScalar> SizeExt for Size<S> {
 impl<S: LayoutScalar> SizeOptionExt for Size<Option<S>> {
     type Scalar = S;
 
-    fn or(self, other: Self) -> Self {
-        Size::new(self.width.or(other.width), self.height.or(other.height))
-    }
-
-    fn unwrap_or(self, fallback: Size<S>) -> Size<S> {
-        Size::new(
-            self.width.unwrap_or(fallback.width),
-            self.height.unwrap_or(fallback.height),
-        )
-    }
-
-    fn add_optional(self, amount: Size<S>) -> Self {
-        self.zip_map(amount, |value, amount| value.map(|value| value + amount))
-    }
-
-    fn sub_optional(self, amount: Size<S>) -> Self {
-        self.zip_map(amount, |value, amount| value.map(|value| value - amount))
-    }
-
-    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatioOf<S>>) -> Self {
-        match (self.width, self.height, aspect_ratio) {
-            (Some(width), None, Some(ratio)) => Size::new(Some(width), Some(width / ratio.get())),
-            (None, Some(height), Some(ratio)) => {
-                Size::new(Some(height * ratio.get()), Some(height))
-            }
-            _ => self,
-        }
-    }
-
-    fn clamp_optional(self, min: Self, max: Self) -> Self {
+    fn clamp_min_before_max_optional(self, min: Self, max: Self) -> Self {
         self.zip_map(min, |value, min| match (value, min) {
             (Some(value), Some(min)) => Some(value.max(min)),
             (value, _) => value,
@@ -2602,14 +2588,53 @@ impl<S: LayoutScalar> SizeOptionExt for Size<Option<S>> {
 }
 
 trait ScalarExt {
-    fn clamp_optional(self, min: Option<Self>, max: Option<Self>) -> Self
+    fn clamp_min_before_max_optional(self, min: Option<Self>, max: Option<Self>) -> Self
     where
         Self: Sized;
 }
 
 impl<S: LayoutScalar> ScalarExt for S {
-    fn clamp_optional(self, min: Option<Self>, max: Option<Self>) -> Self {
+    fn clamp_min_before_max_optional(self, min: Option<Self>, max: Option<Self>) -> Self {
         let value = min.map_or(self, |min| self.max(min));
         max.map_or(value, |max| value.min(max))
+    }
+}
+
+#[cfg(test)]
+mod fri06_c13_t05_characterization_tests {
+    use super::*;
+
+    fn characterize<S: LayoutScalar>() {
+        let scalar = S::from_f64;
+
+        assert_eq!(
+            Size::new(Some(scalar(2.0)), Some(scalar(9.0)))
+                .sub_optional_unchecked(Size::new(scalar(5.0), scalar(4.0))),
+            Size::new(Some(scalar(-3.0)), Some(scalar(5.0)))
+        );
+        assert_eq!(
+            Size::new(scalar(8.0), scalar(12.0)).clamp_min_before_max_optional(
+                Size::new(Some(scalar(3.0)), None),
+                Size::new(Some(scalar(10.0)), Some(scalar(11.0))),
+            ),
+            Size::new(scalar(8.0), scalar(11.0))
+        );
+        assert_eq!(
+            Size::new(Some(scalar(5.0)), Some(scalar(5.0))).clamp_min_before_max_optional(
+                Size::new(Some(scalar(10.0)), Some(scalar(10.0))),
+                Size::new(Some(scalar(3.0)), Some(scalar(3.0))),
+            ),
+            Size::new(Some(scalar(3.0)), Some(scalar(3.0)))
+        );
+    }
+
+    #[test]
+    fn fri06_c13_t05_grid_unchecked_subtraction_and_clamp_order_preserve_f32() {
+        characterize::<f32>();
+    }
+
+    #[test]
+    fn fri06_c13_t05_grid_unchecked_subtraction_and_clamp_order_preserve_f64() {
+        characterize::<f64>();
     }
 }
