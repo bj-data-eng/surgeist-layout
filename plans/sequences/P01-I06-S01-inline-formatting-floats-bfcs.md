@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/P01-I06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`0f0a1f03eba4e79954efefcd6dd114547af27e891d2acc35ef54a398e542acad`,
-committed as `0344d20801c0b93d600bcf7f20f461c929b49ab9`.
+`c94b388c1bb31b94a1b09bb287440e7ca22338da60d6bf161d7d3b7d7ec0fe38`,
+committed as `967f3ca9d71ddec1451e69bc6cccf60d9399d511`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -297,18 +297,20 @@ cover the complete pinned recovery membership.
 
 ### 4.12 `P01/I06/S01/C12` Final Production Correction And Lineage
 **Specification sources:** `FRI-06.4 D-01`, `D-04`, `D-06`, `D-07`, `D-09`,
-`D-11`, `D-12`, `D-13`, `D-16`, and `D-18`; line, metric-fragment, atomic-baseline,
-physical-placement, comparator, fixture, and acceptance portions of `FRI-06.5`,
-`FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and `FRI-06.14`.
+`D-11`, `D-12`, `D-13`, `D-16`, `D-18`, and `D-19`; line, metric-fragment,
+atomic-baseline, physical-placement, comparator, fixture, and acceptance portions
+of `FRI-06.5`, `FRI-06.7`, `FRI-06.9` through `FRI-06.11.3`, and `FRI-06.14`.
 **Prerequisites:** `P01/I06/S01/C11` complete and remotely verified.
-**Entry state:** C11 supplies settled fixture inputs and the remaining D-18
-production boundary from `FRI-06.3` and `FRI-06.11.2`.
-**Bounded outcome:** Complete D-18 without changing public API or ordinary
-non-inherited grid behavior, then derive the single final lineage required by
-`FRI-06.11`.
-**Observable exit evidence:** The D-18 controls and final browser/artifact
-acceptance in `FRI-06.14` are satisfied with no generator-architecture or
-later-owned behavior change.
+**Entry state:** C11 supplies settled fixture inputs; D-18 production is closed,
+and C12 preserves the sole successful full lineage with only the D-19 endpoint
+comparison boundary unresolved.
+**Bounded outcome:** Complete D-19 without changing public API, production,
+fixtures, helper, parser, generated output, or the closed interval relation, then
+adopt the preserved final lineage without another generation.
+**Observable exit evidence:** The D-18 controls, exact D-19 48/48/48 endpoint
+accounting and private line-membership proof, and final browser/artifact
+acceptance in `FRI-06.14` pass with no second full run, generator-architecture,
+or later-owned behavior change.
 **Handoff:** C13 receives the behavior-correct candidate with generator inputs
 and outputs frozen.
 
