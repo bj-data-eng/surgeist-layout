@@ -107,9 +107,10 @@ the public and algorithmic FRI-06 contract is already present:
   zero quarantine/failure/expected-fail rows, and SHA-256
   `f46d8d8b50c722037127fdca79679649bd5cfd6db16fb24c0d69a7e5a082147a`.
 
-At current source `b6c9ee36fd113003833be83742cc2f3fab3c7cf1`, the sole settled
-full regeneration has run successfully and is preserved as uncommitted lineage
-evidence: helper SHA-256
+At historical regeneration-lineage revision
+`b6c9ee36fd113003833be83742cc2f3fab3c7cf1`, the sole settled full regeneration
+ran successfully and remains preserved as uncommitted lineage evidence at the
+current worktree: helper SHA-256
 `42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2`,
 report SHA-256
 `8d59c87d1fcc185bda0372968ae81dbeff74f241c17335db98629ad49f1f463f`,
@@ -132,7 +133,11 @@ projection are correct. D-18 must close before the independently valid D-19
 comparison state. Neither correction changes generator input or output, so the
 successful lineage is retained and a second full generation is forbidden.
 
-Three bounded D-18 correction attempts then exposed one missing coordinate phase.
+At current D-18 implementation diagnosis revision
+`bf56ed87d537c484c3418bf2d9d2d0404aaaabcd`, three bounded correction attempts
+exposed one missing coordinate phase. The source still clones an already-reduced
+group and mutates selected targets from local-view inequality; that implementation
+is review-rejected evidence, not desired state.
 The required five-pixel nested-row delta is not another ancestor-member
 half-gutter contribution: that adjustment is already present before reduction.
 It is a signed translation from an immutable ancestor target into the placement
@@ -522,6 +527,23 @@ writing-mode/direction pair with `Clear::{None,Left,Right,Both}` is accepted for
 visible line breaks. Clear directions are mapped through the containing flow;
 the control's own stored flow is only a validation witness and never overrides
 the container.
+
+The inherited-current-grid placement carrier is private algorithm state with this
+closed construction contract:
+
+| Concern | Required contract |
+| --- | --- |
+| Owner | `src/grid/subgrid.rs` owns `InheritedCurrentGridBaselinePlacement`, its input, validation, and `InheritedCurrentGridBaselinePlacementError`; `src/grid/child.rs` owns the sole call and consumer |
+| Construction | `try_derive(&AncestorBaselineGroup, InheritedCurrentGridBaselinePlacementInput) -> Result<InheritedCurrentGridBaselinePlacement, InheritedCurrentGridBaselinePlacementError>` receives `GridAxisKind`, physical baseline axis, first/last role, selected ancestor track, immutable target, checked inherited-axis mapping/span/reversal, signed gutter translation, and a private current-grid-direct witness created only while iterating that grid's `PendingGridItem`s |
+| Intrinsic invariants | Group/input axes and physical axes agree; selected track is inside both the immutable group and checked inherited span after reversal; role selects the matching first/last edge; the witness belongs to the current container and selected item; mapping is inherited and maps the requested child axis to the stated ancestor axis; target and translation are finite |
+| Rejection | Axis mismatch returns `AxisMismatch`; physical-axis mismatch returns `PhysicalAxisMismatch`; empty/out-of-range span returns `SpanOutOfRange`; an out-of-range selected track returns `SelectedTrackOutOfRange`; role/edge mismatch or absent selected target returns `RoleTargetMismatch`; a foreign/non-direct witness returns `OwnershipMismatch`; a non-inherited or unusable mapping returns `UnusableInheritedMapping`; and a non-finite target/translation returns `NonFinite`. None falls back to ordinary offset or compares target values to infer ownership |
+| Error propagation | Every constructor error maps to `SubgridChildContextError::BaselineInheritance`, then to `LayoutOperation::ChildLayout`, the existing node or container/subject site, and `LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::SubgridBaselineInheritance)`; no new public error or API surface is introduced |
+| Success and atomicity | Success stores axis, role, selected track, immutable ancestor target, mapping/reversal witness, signed translation, and translated placement target. It mutates neither group nor child view, enters no sizing/publication path, and is consumed once by `grid/child.rs` to replace the selected logical row/block or column/inline offset before final `FlowAxes` projection. Failure occurs before item location/output or batch mutation |
+
+The private current-grid-direct witness makes foreign or flattened-descendant
+construction unavailable to ordinary callers; the explicit rejection remains a
+constructor negative-control obligation. Cloning or repeating successful
+derivation yields the same placement and leaves all inputs byte-for-byte equal.
 
 ### 6.1 Cache And Fragment State
 
@@ -1492,49 +1514,31 @@ applicable browser/artifact evidence.
 
 ### 13.1 Mechanical Containment Contract
 
-The immutable mechanical-review evidence is
+The durable mechanical-review input is
 `plans/P01-layout/P01-I06-mechanical-refactoring-review-findings.md`, SHA-256
 `11437dd9dfe83d41ae6b01e41453d9cc1a893172c6977e5b3d77346aa3948f34`.
 Its six findings are behavior-preserving opportunities, not new correctness
 findings and not authority to change public API, dependencies, features, MSRV,
 fixtures, generator logic, generated artifacts, or repository ownership.
 
-Two bounded containment results are already part of the required FRI-06 state:
+Each row has one durable required disposition: retain the named single-owner
+contract and characterization; consolidate only remaining behaviorally equivalent
+duplication under that contract; or preserve a named source counterexample proving
+that the original equivalence predicate does not hold. Absence of a disposition is
+not closure.
 
-- C03 realizes `MR-006` and only the scalar-generic `OracleTreeOf<S>` slice of
-  `MR-002` under the retained contract at
-  `plans/P01-layout/P01-I06-S01-C03-post-c02-sprawl-containment.md`, SHA-256
-  `0c88ec011067e25d61d0ddfdf90ad47e9e5db0149dbdc214e8326668665711e4`.
-  One private non-box classifier preserves node-input, child, and measurement
-  first-error order; one generic oracle implementation preserves both scalar
-  lanes and every specialized observation/failure behavior.
-- C07 realizes `MR-001`, `MR-004`, and `MR-005` under the retained contract at
-  `plans/P01-layout/P01-I06-S01-C07-post-c05-sprawl-containment.md`, SHA-256
-  `3e9d894791ffc3fa9ce772350a7fd9d667979dc5d86c37affebc2922b8c1322d`.
-  Shaped-text validation and selection remain linear without changing operation
-  order; scroll-padding and geometry-error glue preserve physical edges, sites,
-  run modes, and dependency direction; signed zero, layout rounding, and
-  physical-edge selection have one crate-private policy each.
-
-The final C13 containment result evaluates the same immutable six-item set at the
-completed C12 source. Each row has one exact disposition: its already-realized
-contract remains present and characterized; its remaining equivalent duplication
-is consolidated under the rule below; or a named current-source counterexample
-proves that the original equivalence predicate no longer holds. Absence of a
-disposition is not closure.
-
-| Item | Final required disposition |
+| Item | Required disposition |
 | --- | --- |
-| `MR-001` shaped-text processing | Preserve C07's source-order first-duplicate result, allocation-free intrinsic summary, incremental candidate scan, operation order, and deterministic linear scaling evidence. Remove only a reintroduced equivalent scan or allocation. |
-| `MR-002` test tree harnesses | Preserve the one generic `OracleTreeOf<S>`. Classify every remaining local tree as an ordinary map-backed input tree or a specialized failure/observation/order/cache/topology fake. Consolidate the ordinary equivalent class through typed test support; retain each specialized fake with its distinguishing behavior visible. |
+| `MR-001` shaped-text processing | Preserve source-order first-duplicate result, allocation-free intrinsic summary, incremental candidate scan, operation order, and deterministic linear scaling evidence. Remove only an equivalent repeated scan or allocation. |
+| `MR-002` test tree harnesses | Preserve one generic `OracleTreeOf<S>`. Classify every remaining local tree as an ordinary map-backed input tree or a specialized failure/observation/order/cache/topology fake. Consolidate the ordinary equivalent class through typed test support; retain each specialized fake with its distinguishing behavior visible. |
 | `MR-003` layout math helpers | For option fallback/unwrapping, optional addition, aspect-ratio projection, resolution-to-zero/optional resolution, and containing-flow padding/border resolution, consolidate only call sites with identical percentage basis, scalar operation order, zero clamping, and min/max order. Keep policy-specific operations local and named; each unmerged candidate identifies the concrete differing predicate. |
-| `MR-004` scroll and geometry glue | Preserve C07's one scroll-padding conversion and compute-owned own/child geometry adapters, including physical-edge mapping, site, run mode, error variant, and module dependency direction. Remove only reintroduced exact duplicates. |
-| `MR-005` scalar and geometry primitives | Preserve C07's one signed-zero canonicalizer, exact `(value + 0.5).floor()` layout-coordinate rounding, and physical-edge selector. General scalar rounding, logical-edge selection, validation, and clamp policy remain distinct. |
-| `MR-006` non-box validation | Preserve C03's one private reason classifier, exact first-error order, node/site payload, and role-specific parent handling. Remove only reintroduced exact duplicates. |
+| `MR-004` scroll and geometry glue | Preserve one scroll-padding conversion and compute-owned own/child geometry adapters, including physical-edge mapping, site, run mode, error variant, and module dependency direction. Remove only exact duplicates. |
+| `MR-005` scalar and geometry primitives | Preserve one signed-zero canonicalizer, exact `(value + 0.5).floor()` layout-coordinate rounding, and one physical-edge selector. General scalar rounding, logical-edge selection, validation, and clamp policy remain distinct. |
+| `MR-006` non-box validation | Preserve one private reason classifier, exact first-error order, node/site payload, and role-specific parent handling. Remove only exact duplicates. |
 
 Mechanical consolidation is accepted only when all existing public geometry,
 error, cache, fragment, scalar-lane, and parity observations remain unchanged.
-The final C12 manifest, helper, report, and XML bodies remain byte-identical; C13
+The manifest, helper, report, and XML bodies remain byte-identical, and containment
 does not run or alter the generator. No macro-driven wholesale rewrite, broad
 helper trait, public test API, new lint allowance, or executable `unsafe` is part
 of this contract.
