@@ -541,19 +541,19 @@ The final candidate has these structural invariants:
   generator path exists; and
 - no new lint allowance or suppression hides touched complexity.
 
-After the behavior/artifact candidate is published, an independent holistic
-sprawl review inspects the complete FRI-07 range and directly affected flex,
+The final FRI-07 cycle begins from the immutable behavior/artifact candidate and
+a complete sprawl assessment of the FRI-07 range and directly affected flex,
 sizing, model, test-support, fixture, and generator boundaries. Every actionable
-in-initiative finding is validated against source and either implemented in the
-last FRI-07 cycle or disproven with an exact counterexample. That cycle may
-consolidate only behaviorally equivalent code with characterization evidence.
-Unrelated crate-wide advisory lint cleanup remains outside FRI-07.
+in-initiative finding is validated against source and either implemented in that
+cycle or disproven with an exact counterexample. The cycle may consolidate only
+behaviorally equivalent code with characterization evidence. Unrelated crate-
+wide advisory lint cleanup remains outside FRI-07.
 
-If review discovers a genuine behavior, input-honesty, or artifact defect, the
-owning contract reopens and receives RED-first correction before final holistic
-review. A mechanical-only result preserves public API, geometry, fixtures,
-generated artifacts, report counts and hashes, dependencies, features, and all
-59 finding-owner assignments.
+A confirmed genuine behavior, input-honesty, or artifact defect invalidates the
+mechanical-only classification and reopens the owning behavior contract. A
+mechanical-only result preserves public API, geometry, fixtures, generated
+artifacts, report counts and hashes, dependencies, features, and all 59 finding-
+owner assignments.
 
 ## 14 FRI-07.14 Root Handoff And Documentation
 
@@ -605,7 +605,5 @@ FRI-07 is complete only when:
    with no redundant generator run or architecture expansion;
 9. the final sprawl cycle validates and resolves every applicable FRI-07
    opportunity while preserving the completed contract;
-10. all configured focused and full gates, independent task reviews, holistic
-    reviews, publication, remote readback, and cleanup are complete; and
-11. the candidate handoff records the public/root boundary and exact evidence
+10. the candidate handoff records the public/root boundary and exact evidence
     required for later P01 work.
