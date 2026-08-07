@@ -107,18 +107,24 @@ float-adjusted bands without another axis algorithm.
 
 ### 4.3 `P01/I06/S01/C03` Post-C02 Sprawl Containment
 
-**Specification sources:** C03 boundary in `FRI-06.13.1`; compatible
-`FRI-06.4 D-02` and validation/transaction/test-support portions of
-`FRI-06.5`, `.6`, and `.10`.
+**Specification sources:** `FRI-06.13.1 MR-006` and the generic
+`OracleTreeOf<S>` slice of `MR-002`; compatible `FRI-06.4 D-02` and
+validation/transaction/test-support portions of `FRI-06.5`, `.6`, and `.10`.
 **Prerequisites:** `P01/I06/S01/C02` complete and remotely verified.
 **Entry state:** The legacy C02-to-C03 window maps to canonical C02, inserted
 C03, then former C03 at C04; equivalent non-box validation and scalar-lane
 oracle-tree implementations remain duplicated.
-**Bounded outcome:** Contain the concrete post-C02 duplication and
-multi-responsibility hotspots without changing public behavior, fixture inputs,
+**Bounded outcome:** Consolidate only the repeated non-box reason classification
+and the two behaviorally equivalent scalar-specific ordinary oracle-tree
+implementations. Preserve role-specific parent validation and every specialized
+failure, observation, order, cache, or topology fake; do not begin the broader
+`MR-002` harness inventory or change public behavior, fixtures, artifacts,
 generator architecture, or the next algorithm boundary.
-**Observable exit evidence:** Every MR01 acceptance clause passes with no
-observable behavior, fixture, artifact, or public-surface change.
+**Observable exit evidence:** `MR-006` retains exact first-error order, node/site
+payload, and role-specific handling through one private reason classifier; one
+generic ordinary `OracleTreeOf<S>` preserves both scalar lanes, while every
+specialized fake remains distinct and all observable behavior, fixture,
+artifact, and public-surface evidence is unchanged.
 **Handoff:** The unified line source remains the sole basis for C04.
 
 ### 4.4 `P01/I06/S01/C04` Mixed Atomic And Control Line Completion
@@ -208,18 +214,24 @@ production correction remain explicitly owned by C09.
 
 ### 4.7 `P01/I06/S01/C07` Post-C05 Sprawl Containment
 
-**Specification sources:** C07 boundary in `FRI-06.13.1`; compatible
-`FRI-06.4 D-01`, `D-14`, and internal line/geometry/error/scalar portions of
-`FRI-06.5` through `.10`.
+**Specification sources:** `FRI-06.13.1 MR-001`, `MR-004`, and `MR-005`;
+compatible `FRI-06.4 D-01`, `D-14`, and internal line/geometry/error/scalar
+portions of `FRI-06.5` through `.10`.
 **Prerequisites:** `P01/I06/S01/C06` complete and remotely verified.
 **Entry state:** The legacy C05-to-C06 window maps to canonical C06, inserted
 C07, then former C06 at C08; proven-equivalent line scans and private
 scalar/geometry helpers remain duplicated.
-**Bounded outcome:** Apply the reviewed post-C05 mechanical containment before
-fixture work, preserving the provider, cache, transaction, and public geometry
-contracts without behavior expansion.
-**Observable exit evidence:** Every MR02 acceptance clause passes with no
-observable behavior, fixture, artifact, or public-surface change.
+**Bounded outcome:** Contain only the equivalent shaped-text scan/allocation,
+scroll-padding and compute-owned geometry adapters, signed-zero canonicalization,
+layout-coordinate rounding, and physical-edge selection identified by `MR-001`,
+`MR-004`, and `MR-005`. Preserve provider, cache, transaction, scalar-operation,
+module-dependency, and public geometry contracts without behavior expansion.
+**Observable exit evidence:** Shaped-text processing preserves source-order
+first-duplicate semantics, allocation-free intrinsic summary, incremental scan,
+operation order, and deterministic scaling; exact glue mappings preserve edge,
+site, mode, error, and dependency direction; scalar/geometry primitives preserve
+signed zero and exact rounding/edge policies. Public behavior, fixtures,
+artifacts, and public surface remain unchanged.
 **Handoff:** Fixture adapter preparation starts from the contained C06 result.
 
 ### 4.8 `P01/I06/S01/C08` Finite Fixture Adapter Preparation
