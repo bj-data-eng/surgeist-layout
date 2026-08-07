@@ -1914,6 +1914,13 @@ impl ItemOrder {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum FlexItemCollapse {
+    #[default]
+    Normal,
+    Collapsed,
+}
+
 pub(crate) fn item_order_permutation(
     items: &[(ItemOrder, crate::SourceIndex)],
 ) -> Vec<crate::SourceIndex> {
@@ -1933,6 +1940,7 @@ pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub item_is_table: bool,
     pub item_is_replaced: bool,
     pub item_order: ItemOrder,
+    pub flex_item_collapse: FlexItemCollapse,
     pub box_sizing: BoxSizing,
     pub direction: Direction,
     pub text_align: TextAlign,
@@ -2027,6 +2035,7 @@ impl NodeInputOf<DefaultScalar> {
         item_is_table: false,
         item_is_replaced: false,
         item_order: ItemOrder::ZERO,
+        flex_item_collapse: FlexItemCollapse::Normal,
         box_sizing: BoxSizing::BorderBox,
         direction: Direction::Ltr,
         text_align: TextAlign::Auto,
@@ -2103,6 +2112,7 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
             item_is_table: false,
             item_is_replaced: false,
             item_order: ItemOrder::ZERO,
+            flex_item_collapse: FlexItemCollapse::Normal,
             box_sizing: BoxSizing::BorderBox,
             direction: Direction::Ltr,
             text_align: TextAlign::Auto,
@@ -2161,6 +2171,7 @@ impl<S: LayoutScalar> NodeInputOf<S> {
     pub fn non_box() -> Self {
         Self {
             display: Display::None,
+            flex_item_collapse: FlexItemCollapse::Normal,
             ..Self::default()
         }
     }

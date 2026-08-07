@@ -1,13 +1,305 @@
 use crate::{
     Available, Baselines, CollapsibleMarginOf, ComputeOutput, Direction, Display, Edges,
-    FloatExclusionInterval, FloatExclusionIntervalError, FloatExclusionIntervalErrorOf,
-    FloatExclusionIntervalOf, FloatExclusionQuery, FloatExclusionQueryOf, FlowAxes,
-    LayoutOperation, LayoutScalar, Length, LengthAuto, LengthPercentageOf, LengthResolutionStatus,
-    MaxTrackSizing, MinTrackSizing, PhysicalAxis, PhysicalBlockMarginCollapse,
-    PhysicalBlockMarginCollapseOf, PhysicalSide, Point, PreferredSize, Scalar, Size,
-    SizingCalculation, TrackComponent, TrackComponentList, TrackFlexFactor, TrackRepeatCount,
-    TrackSizing, WritingMode,
+    FlexItemCollapse, FloatExclusionInterval, FloatExclusionIntervalError,
+    FloatExclusionIntervalErrorOf, FloatExclusionIntervalOf, FloatExclusionQuery,
+    FloatExclusionQueryOf, FlowAxes, LayoutOperation, LayoutScalar, Length, LengthAuto,
+    LengthPercentageOf, LengthResolutionStatus, MaxTrackSizing, MinTrackSizing, PhysicalAxis,
+    PhysicalBlockMarginCollapse, PhysicalBlockMarginCollapseOf, PhysicalSide, Point, PreferredSize,
+    Scalar, Size, SizingCalculation, TrackComponent, TrackComponentList, TrackFlexFactor,
+    TrackRepeatCount, TrackSizing, WritingMode,
 };
+
+#[test]
+fn fri07_c02_model_public_type_is_two_state_and_has_exact_required_traits() {
+    fn assert_traits<
+        T: Clone + Copy + core::fmt::Debug + Default + Eq + core::hash::Hash + PartialEq,
+    >() {
+    }
+
+    assert_traits::<FlexItemCollapse>();
+    assert_eq!(FlexItemCollapse::default(), FlexItemCollapse::Normal);
+
+    let states = [FlexItemCollapse::Normal, FlexItemCollapse::Collapsed];
+    let names = states.map(|state| match state {
+        FlexItemCollapse::Normal => "normal",
+        FlexItemCollapse::Collapsed => "collapsed",
+    });
+    assert_eq!(names, ["normal", "collapsed"]);
+}
+
+#[test]
+fn fri07_c02_model_all_node_input_construction_paths_are_normal() {
+    fn collapse_of<S: LayoutScalar>(input: &crate::NodeInputOf<S>) -> FlexItemCollapse {
+        input.flex_item_collapse
+    }
+
+    assert_eq!(
+        collapse_of(&crate::NodeInput::DEFAULT),
+        FlexItemCollapse::Normal
+    );
+    assert_eq!(
+        collapse_of(&crate::NodeInputOf::<f32>::default()),
+        FlexItemCollapse::Normal
+    );
+    assert_eq!(
+        collapse_of(&crate::NodeInputOf::<f64>::default()),
+        FlexItemCollapse::Normal
+    );
+    assert_eq!(
+        collapse_of(&crate::NodeInputOf::<f32>::non_box()),
+        FlexItemCollapse::Normal
+    );
+    assert_eq!(
+        collapse_of(&crate::NodeInputOf::<f64>::non_box()),
+        FlexItemCollapse::Normal
+    );
+}
+
+#[test]
+fn fri07_c02_model_collapsed_is_inert_outside_in_flow_flex_participation() {
+    use crate::test_support::layout_tree::PublicLayoutTreeOf;
+    use crate::{
+        AvailableOf, CompletedLayoutBatchOf, GridPlacement, LayoutRootRequestOf, NodeInputOf,
+        NodeOutputOf, Position, PreferredSizeOf, SubgridTrack, TrackComponentOf, compute_layout,
+    };
+
+    fn sized<S: LayoutScalar>(display: Display, width: f64, height: f64) -> NodeInputOf<S> {
+        NodeInputOf {
+            display,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(width)),
+                PreferredSizeOf::px(S::from_f64(height)),
+            ),
+            ..NodeInputOf::default()
+        }
+    }
+
+    fn with_collapse<S: LayoutScalar>(
+        mut input: NodeInputOf<S>,
+        collapse: FlexItemCollapse,
+    ) -> NodeInputOf<S> {
+        input.flex_item_collapse = collapse;
+        input
+    }
+
+    fn assert_output_fields_equal<S: LayoutScalar>(
+        context: &str,
+        normal: NodeOutputOf<S>,
+        collapsed: NodeOutputOf<S>,
+    ) {
+        assert_eq!(normal.source_index, collapsed.source_index, "{context}");
+        assert_eq!(normal.location, collapsed.location, "{context}");
+        assert_eq!(normal.size, collapsed.size, "{context}");
+        assert_eq!(normal.content_size, collapsed.content_size, "{context}");
+        assert_eq!(
+            normal.scroll_geometry, collapsed.scroll_geometry,
+            "{context}"
+        );
+        assert_eq!(normal.border, collapsed.border, "{context}");
+        assert_eq!(normal.padding, collapsed.padding, "{context}");
+        assert_eq!(normal.margin, collapsed.margin, "{context}");
+    }
+
+    fn assert_batches_equal<S: LayoutScalar>(
+        context: &str,
+        normal: &CompletedLayoutBatchOf<u32, S>,
+        collapsed: &CompletedLayoutBatchOf<u32, S>,
+    ) {
+        assert_eq!(
+            normal.unrounded_entries().len(),
+            collapsed.unrounded_entries().len(),
+            "{context} unrounded entry count"
+        );
+        for (normal_entry, collapsed_entry) in normal
+            .unrounded_entries()
+            .iter()
+            .zip(collapsed.unrounded_entries())
+        {
+            assert_eq!(normal_entry.node(), collapsed_entry.node(), "{context}");
+            assert_output_fields_equal(context, normal_entry.output(), collapsed_entry.output());
+        }
+
+        assert_eq!(
+            normal.final_entries().len(),
+            collapsed.final_entries().len(),
+            "{context} final entry count"
+        );
+        for (normal_entry, collapsed_entry) in
+            normal.final_entries().iter().zip(collapsed.final_entries())
+        {
+            assert_eq!(normal_entry.node(), collapsed_entry.node(), "{context}");
+            assert_output_fields_equal(context, normal_entry.output(), collapsed_entry.output());
+        }
+
+        assert_eq!(
+            normal.unrounded_inline_fragments(),
+            collapsed.unrounded_inline_fragments(),
+            "{context} unrounded inline fragments"
+        );
+        assert_eq!(
+            normal.final_inline_fragments(),
+            collapsed.final_inline_fragments(),
+            "{context} final inline fragments"
+        );
+        assert_eq!(
+            normal.cache_store_entries(),
+            collapsed.cache_store_entries(),
+            "{context} cache stores"
+        );
+        assert_eq!(
+            normal.cache_clear_entries(),
+            collapsed.cache_clear_entries(),
+            "{context} cache clears"
+        );
+        assert_eq!(
+            normal.invalidated_nodes(),
+            collapsed.invalidated_nodes(),
+            "{context} invalidated nodes"
+        );
+    }
+
+    fn assert_case<S, Build>(context: &str, build: Build)
+    where
+        S: LayoutScalar,
+        Build: Fn(FlexItemCollapse) -> PublicLayoutTreeOf<S>,
+    {
+        let available = Size::new(
+            AvailableOf::definite(S::from_f64(180.0)),
+            AvailableOf::definite(S::from_f64(120.0)),
+        );
+        let request = LayoutRootRequestOf::viewport(available).expect("finite viewport");
+        let normal = compute_layout(&build(FlexItemCollapse::Normal), 0, request)
+            .expect("normal inert-context layout succeeds");
+        let collapsed = compute_layout(&build(FlexItemCollapse::Collapsed), 0, request)
+            .expect("collapsed inert-context layout succeeds");
+        assert_batches_equal(context, &normal, &collapsed);
+    }
+
+    fn assert_lane<S: LayoutScalar>() {
+        assert_case::<S, _>("root", |collapse| {
+            PublicLayoutTreeOf::new()
+                .children(0, [])
+                .style(0, with_collapse(sized(Display::Flex, 90.0, 50.0), collapse))
+        });
+
+        for (context, display) in [
+            ("block child", Display::Block),
+            ("grid child", Display::Grid),
+            ("grid-lanes child", Display::GridLanes),
+        ] {
+            assert_case::<S, _>(context, |collapse| {
+                PublicLayoutTreeOf::new()
+                    .children(0, [1])
+                    .children(1, [])
+                    .style(0, sized(display, 120.0, 80.0))
+                    .style(
+                        1,
+                        with_collapse(sized(Display::Block, 30.0, 20.0), collapse),
+                    )
+            });
+        }
+
+        assert_case::<S, _>("subgrid child", |collapse| {
+            let root = NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(120.0)),
+                    PreferredSizeOf::px(S::from_f64(80.0)),
+                ),
+                grid_template_columns: vec![TrackComponentOf::px(S::from_f64(120.0))],
+                grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
+                ..NodeInputOf::default()
+            };
+            let subgrid = NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(
+                    Vec::new(),
+                ))],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack::new(Vec::new()))],
+                grid_column: GridPlacement::try_lines(1, -1).expect("full column span"),
+                grid_row: GridPlacement::try_lines(1, -1).expect("full row span"),
+                ..NodeInputOf::default()
+            };
+            PublicLayoutTreeOf::new()
+                .children(0, [1])
+                .children(1, [2])
+                .children(2, [])
+                .style(0, root)
+                .style(1, subgrid)
+                .style(
+                    2,
+                    with_collapse(sized(Display::Block, 30.0, 20.0), collapse),
+                )
+        });
+
+        assert_case::<S, _>("measured leaf", |collapse| {
+            PublicLayoutTreeOf::new()
+                .children(0, [1])
+                .children(1, [])
+                .style(0, sized(Display::Block, 120.0, 80.0))
+                .style(1, with_collapse(NodeInputOf::<S>::default(), collapse))
+                .measure(1, Size::new(S::from_f64(33.0), S::from_f64(17.0)))
+        });
+
+        assert_case::<S, _>("child of positioned context", |collapse| {
+            PublicLayoutTreeOf::new()
+                .children(0, [1])
+                .children(1, [2])
+                .children(2, [])
+                .style(0, sized(Display::Block, 120.0, 80.0))
+                .style(
+                    1,
+                    NodeInputOf {
+                        position: Position::Absolute,
+                        ..sized(Display::Block, 80.0, 40.0)
+                    },
+                )
+                .style(
+                    2,
+                    with_collapse(sized(Display::Block, 30.0, 20.0), collapse),
+                )
+        });
+
+        assert_case::<S, _>("absolute flex child", |collapse| {
+            PublicLayoutTreeOf::new()
+                .children(0, [1])
+                .children(1, [])
+                .style(0, sized(Display::Flex, 120.0, 80.0))
+                .style(
+                    1,
+                    with_collapse(
+                        NodeInputOf {
+                            position: Position::Absolute,
+                            ..sized(Display::Block, 30.0, 20.0)
+                        },
+                        collapse,
+                    ),
+                )
+        });
+
+        assert_case::<S, _>("display-none flex child", |collapse| {
+            PublicLayoutTreeOf::new()
+                .children(0, [1])
+                .children(1, [2])
+                .children(2, [])
+                .style(0, sized(Display::Flex, 120.0, 80.0))
+                .style(
+                    1,
+                    with_collapse(
+                        NodeInputOf {
+                            display: Display::None,
+                            ..NodeInputOf::default()
+                        },
+                        collapse,
+                    ),
+                )
+                .style(2, sized(Display::Block, 30.0, 20.0))
+        });
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
 
 #[test]
 fn fri06_c01_contract_float_exclusion_public_aliases_and_operations_are_exact() {
