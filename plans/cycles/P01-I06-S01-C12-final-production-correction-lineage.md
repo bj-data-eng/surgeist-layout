@@ -47,8 +47,9 @@ ordered implementation ranges are:
 
 Those ranges already preserve honest layout-ready fixture input, browser-measured
 BR metrics, finite physical baseline distances, and the closed interval relation.
-D-19 appends one comparator/test-support correction range; it does not invalidate
-those results.
+D-19 appends one comparator/test-support correction range under Section 5.2's
+files/area boundary; that boundary does not retroactively narrow the six historical
+ranges or invalidate their separately reviewed contracts and results.
 
 T08's complete historical lineage through the activation-invalidated current
 implementation is:
@@ -122,6 +123,14 @@ rectangle `[60, 70]` and categorical next-line effect `Later`. Production,
 browser observation, model control geometry, neighboring node geometry, and the
 closed relation are all correct; only the comparator equates distinct evidence
 domains.
+
+The repository-wide ignored `parity-all` diagnostic is not an FRI-06 acceptance
+gate. At the current entry it reports 372 failures outside the exact 388-row
+FRI-06 activation set; the preserved full lineage closes the four stale BR-height
+rows from the committed corpus, and the activation set itself is strict-green.
+C12 neither suppresses nor claims those 372 rows. `FRI-06.14` requires focused
+FRI-06 parity plus default/generator, corpus, and Taffy verification, so the
+diagnostic cannot widen this cycle into later-owned layout behavior.
 
 One failed D-19 correction attempt and one diagnostic assignment produced no
 commit and left no source or test residue. The immutable cycle base predates the
@@ -220,10 +229,12 @@ task-clean. Preserve the successful generated lineage unchanged.
 
 ### 5.2 `P01/I06/S01/C12/T07` Classify Endpoint-Unobservable Controls
 
-**Files/area:** `tests/layout/browser_parity/support.rs`, focused activation
-accounting in `tests/layout/browser_parity.rs`, and a private line-builder
-regression in `src/inline_tests.rs`. Do not edit production, helper, parser,
-fixtures, generator logic, or generated artifacts.
+**Files/area:** the newly appended D-19 correction may change only
+`tests/layout/browser_parity/support.rs`, focused activation accounting in
+`tests/layout/browser_parity.rs`, and a private line-builder regression in
+`src/inline_tests.rs`. It must not edit production, helper, parser, fixtures,
+generator logic, or generated artifacts. The six historical T07 ranges remain
+governed by their separately reviewed contracts recorded in Section 2.
 
 **RED:** After T08 is task-clean and all ordinary geometry is strict-green, run
 the focused activation test once. It enumerates exactly 388 rows and fails
@@ -258,7 +269,6 @@ failure/expected-fail counts remain unchanged.
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c12_t07_endpoint_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t07_endpoint_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
-CARGO_NET_OFFLINE=true just parity-all
 CARGO_NET_OFFLINE=true just check
 CARGO_NET_OFFLINE=true just clippy
 CARGO_NET_OFFLINE=true just fmt-check
@@ -266,8 +276,9 @@ git diff --check
 ```
 
 **Dependency:** T08 is task-clean. Append the correction span after T07's six
-reviewed ranges and review the complete seven-range T07 lineage. Preserve the
-successful generated lineage unchanged.
+reviewed ranges and review the complete seven-range T07 lineage against each
+historical range's reviewed contract plus this D-19 correction contract. Preserve
+the successful generated lineage unchanged.
 
 **Intended commit:** `fix(parity): classify endpoint-unobservable controls`.
 
@@ -317,7 +328,6 @@ path, NUL byte, body without its provenance line, and NUL byte over the exact
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_final_lineage_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t09_final_lineage_hashes_match_preserved_run
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
-CARGO_NET_OFFLINE=true just parity-all
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
@@ -342,7 +352,7 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
-CARGO_NET_OFFLINE=true just parity-all
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
 ! rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' .
 git diff --check 8ffb4bc551a24d2283ad54436870ab3f5e66a473..HEAD
 test -z "$(git status --short)"
