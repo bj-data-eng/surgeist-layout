@@ -1,6 +1,6 @@
 # P01-I07-S01-C03 Flex Composition Closure
 
-Status: draft
+Status: reviewed
 
 Cycle ID: `P01/I07/S01/C03`
 
