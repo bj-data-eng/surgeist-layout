@@ -1,10 +1,10 @@
-<!-- generated-by: surgeist-layout-generate schema=2 source="html/block/block_br_vertical_rl_rtl_inline_block_metrics.html" source-sha256="5cf0ec7bbe067797786f18ae7353007fc233c6c3948cbad1bf94923ca84815c2" helper-sha256="def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/block/block_br_vertical_rl_rtl_inline_block_metrics.html" source-sha256="5cf0ec7bbe067797786f18ae7353007fc233c6c3948cbad1bf94923ca84815c2" helper-sha256="42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
 <test name="block_br_vertical_rl_rtl_inline_block_metrics__border_box_ltr" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
     <div source-tag="div" display="block" direction="rtl" writing-mode="vertical-rl" font-size="20px" line-height="30px" width="80px">
       <div source-tag="span" display="inline-block" direction="rtl" writing-mode="vertical-rl" font-size="20px" line-height="30px" width="30px" height="30px"/>
-      <div source-tag="br" display="inline" direction="rtl" writing-mode="vertical-rl" font-size="20px" line-height="30px" inline-baseline="21px" inline-line-height="30px"/>
+      <div source-tag="br" display="inline" direction="rtl" writing-mode="vertical-rl" font-size="20px" line-height="30px" inline-baseline="15px" inline-line-height="30px"/>
       <div source-tag="span" display="inline-block" direction="rtl" writing-mode="vertical-rl" font-size="20px" line-height="30px" width="30px" height="16px"/>
     </div>
   </input>

@@ -13628,6 +13628,100 @@ status = "active"
         serde_json::from_str(&raw).expect("authoritative report JSON")
     }
 
+    const FRI06_C12_T09_HELPER_SHA256: &str =
+        "42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2";
+    const FRI06_C12_T09_REPORT_SHA256: &str =
+        "8d59c87d1fcc185bda0372968ae81dbeff74f241c17335db98629ad49f1f463f";
+    const FRI06_C12_T09_COMPLETE_XML_SHA256: &str =
+        "d2530aa79f214b536e46aee263095a6e7c0a1d7a329bdce7baeb194af3670896";
+    const FRI06_C12_T09_ACTIVATION_BODIES_SHA256: &str =
+        "f3d9b41973e6b0e51e258f027496dc2651c4fba7d24567b05d4f088ee63de335";
+    const FRI06_C12_T09_PRESERVED_BODIES_SHA256: &str =
+        "b2684877302ed7b1b6b1e52b5ae4c4ae4508ff425d6c34ff237b7e37440a3c79";
+    const FRI06_C12_T09_INVENTORY_SHA256: &str =
+        "0c327c2d93b140ea5ed5660e45ad947a0afb583b9aa97b3163ea59b45d371715";
+
+    fn fri06_c12_t09_xml_lineage_digests(repository: &Path, corpus: &Path) -> (String, String) {
+        let mut complete_xml = Sha256::new();
+        let mut inventory = Sha256::new();
+        let xml_paths = collect_relative_files(&corpus.join("xml"))
+            .expect("generated XML inventory")
+            .into_iter()
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("xml"))
+            .map(|relative| {
+                Path::new("xml")
+                    .join(relative)
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(xml_paths.len(), 5_712);
+        for corpus_relative in xml_paths {
+            let repository_relative = format!("tests/layout/browser_parity/{corpus_relative}");
+            complete_xml.update(
+                sha256_file(&repository.join(&repository_relative))
+                    .expect("generated XML hash")
+                    .as_bytes(),
+            );
+            complete_xml.update(b"  ");
+            complete_xml.update(repository_relative.as_bytes());
+            complete_xml.update(b"\n");
+            inventory.update(corpus_relative.as_bytes());
+            inventory.update(b"\n");
+        }
+        (
+            hex_digest(&complete_xml.finalize()),
+            hex_digest(&inventory.finalize()),
+        )
+    }
+
+    #[test]
+    fn fri06_c12_t09_final_lineage_hashes_match_preserved_run() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let corpus = repository.join("tests/layout/browser_parity");
+        assert_eq!(
+            sha256_file(&corpus.join("scripts/gentest/test_helper.js")).expect("browser helper"),
+            FRI06_C12_T09_HELPER_SHA256
+        );
+        assert_eq!(
+            sha256_file(&corpus.join("xml/generation-reports/all.json"))
+                .expect("full generation report"),
+            FRI06_C12_T09_REPORT_SHA256
+        );
+
+        let (complete_xml, inventory) = fri06_c12_t09_xml_lineage_digests(repository, &corpus);
+        assert_eq!(complete_xml, FRI06_C12_T09_COMPLETE_XML_SHA256);
+        assert_eq!(inventory, FRI06_C12_T09_INVENTORY_SHA256);
+
+        let report = fri06_c08r_final_report(&corpus);
+        let generated = report["generated"]
+            .as_array()
+            .expect("generated report bucket")
+            .iter()
+            .map(|entry| {
+                entry["output"]
+                    .as_str()
+                    .expect("generated output path")
+                    .to_string()
+            })
+            .collect::<BTreeSet<_>>();
+        let activation = fri06_c08r_activation_outputs();
+        let preserved = generated
+            .difference(&activation)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        assert_eq!(activation.len(), 388);
+        assert_eq!(preserved.len(), 5_324);
+        assert_eq!(
+            fri06_c08r_xml_body_aggregate(&corpus, &activation),
+            FRI06_C12_T09_ACTIVATION_BODIES_SHA256
+        );
+        assert_eq!(
+            fri06_c08r_xml_body_aggregate(&corpus, &preserved),
+            FRI06_C12_T09_PRESERVED_BODIES_SHA256
+        );
+    }
+
     #[test]
     fn fri06_c08r_lineage_environment_is_unfiltered_and_default_rooted() {
         for variable in [ROOT_ENV, FILTER_ENV, BROWSER_CACHE_ENV, BROWSER_VERSION_ENV] {
@@ -13787,7 +13881,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         for (path, expected) in [
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                "def63d0a2485b9f2c63e1b17ac6e9023c5655ee5b342ac94245b7ab378b78b23",
+                FRI06_C12_T09_HELPER_SHA256,
             ),
             (
                 "tests/layout/browser_parity/html/subgrid/subgrid_baseline_auto_columns_first_item.html",
@@ -13888,10 +13982,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
                 "launch_profile_sha256",
                 "9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb",
             ),
-            (
-                "helper_sha256",
-                "23779c478c392bb7219f39ca73500b3574e497713c27e055049ff27fd38e5178",
-            ),
+            ("helper_sha256", FRI06_C12_T09_HELPER_SHA256),
             (
                 "base_style_sha256",
                 "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
@@ -13935,7 +14026,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         assert_eq!(preserved.len(), 5_324);
         assert_eq!(
             fri06_c08r_xml_body_aggregate(&corpus, &preserved),
-            "852d293828a4c1427f5adac38d0f764131bda298d37109479ec25cac207fa027"
+            FRI06_C12_T09_PRESERVED_BODIES_SHA256
         );
         let files = collect_relative_files(&corpus.join("xml"))
             .expect("generated XML inventory")
