@@ -1,4 +1,49 @@
-use crate::{AspectRatioOf, LayoutScalar, Size};
+use crate::{
+    AspectRatioOf, Edges, LayoutScalar, LengthOf, LengthResolutionOf, LengthResolutionStatus, Size,
+};
+
+pub(crate) fn resolution_or_zero<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<S, LengthResolutionStatus<S>> {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => Ok(resolution
+            .value
+            .expect("resolved length resolution must carry a value")),
+        LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => Ok(S::ZERO),
+    }
+}
+
+pub(crate) fn resolution_optional<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>> {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => Ok(resolution.value),
+        LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => Ok(None),
+    }
+}
+
+pub(crate) fn resolve_containing_padding_border<S: LayoutScalar, E>(
+    containing_flow_axes: crate::geometry::FlowAxes,
+    parent: Size<Option<S>>,
+    padding: Edges<LengthOf<S>>,
+    border: Edges<LengthOf<S>>,
+    resolve_length: impl Fn(LengthOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
+    mut transpose: impl FnMut(Edges<Result<S, LengthResolutionStatus<S>>>) -> Result<Edges<S>, E>,
+) -> Result<(Edges<S>, Edges<S>), E> {
+    let padding = transpose(containing_flow_axes.zip_physical_edges_with_inline_extent(
+        padding,
+        parent,
+        &resolve_length,
+    ))?;
+    let border = transpose(containing_flow_axes.zip_physical_edges_with_inline_extent(
+        border,
+        parent,
+        resolve_length,
+    ))?;
+    Ok((padding, border))
+}
 
 pub(crate) trait OptionalSizeExt {
     type Scalar: LayoutScalar;
@@ -113,4 +158,74 @@ impl<S: LayoutScalar> MaxBeforeMinOptionalSizeClampExt for Size<Option<S>> {
                 .map(|value| value.clamp_max_before_min_optional(min.height, max.height)),
         )
     }
+}
+
+#[cfg(test)]
+type ResolutionOrZeroFn<S> =
+    fn(crate::LengthResolutionOf<S>) -> Result<S, crate::LengthResolutionStatus<S>>;
+
+#[cfg(test)]
+type ResolutionOptionalFn<S> =
+    fn(crate::LengthResolutionOf<S>) -> Result<Option<S>, crate::LengthResolutionStatus<S>>;
+
+#[cfg(test)]
+pub(crate) fn assert_fri06_c13_t06_resolution_policy<S: LayoutScalar>(
+    resolution_or_zero: ResolutionOrZeroFn<S>,
+    resolution_optional: ResolutionOptionalFn<S>,
+) {
+    use crate::{LengthResolutionOf, LengthResolutionStatus};
+
+    let resolved = S::from_f64(7.5);
+    let negative = S::from_f64(-3.25);
+    let invalid = LengthResolutionStatus::InvalidNumeric { value: S::INFINITY };
+
+    assert_eq!(
+        resolution_or_zero(LengthResolutionOf::definite(resolved, true)),
+        Ok(resolved)
+    );
+    assert_eq!(
+        resolution_or_zero(LengthResolutionOf::definite(S::ZERO, false)),
+        Ok(S::ZERO)
+    );
+    assert_eq!(
+        resolution_or_zero(LengthResolutionOf::definite(negative, false)),
+        Ok(negative)
+    );
+    assert_eq!(
+        resolution_or_zero(LengthResolutionOf::unresolved(true)),
+        Ok(S::ZERO)
+    );
+    assert_eq!(
+        resolution_or_zero(LengthResolutionOf::non_numeric()),
+        Ok(S::ZERO)
+    );
+    assert_eq!(
+        resolution_or_zero(LengthResolutionOf::invalid_numeric(S::INFINITY, true)),
+        Err(invalid)
+    );
+
+    assert_eq!(
+        resolution_optional(LengthResolutionOf::definite(resolved, true)),
+        Ok(Some(resolved))
+    );
+    assert_eq!(
+        resolution_optional(LengthResolutionOf::definite(S::ZERO, false)),
+        Ok(Some(S::ZERO))
+    );
+    assert_eq!(
+        resolution_optional(LengthResolutionOf::definite(negative, false)),
+        Ok(Some(negative))
+    );
+    assert_eq!(
+        resolution_optional(LengthResolutionOf::unresolved(true)),
+        Ok(None)
+    );
+    assert_eq!(
+        resolution_optional(LengthResolutionOf::non_numeric()),
+        Ok(None)
+    );
+    assert_eq!(
+        resolution_optional(LengthResolutionOf::invalid_numeric(S::INFINITY, true)),
+        Err(invalid)
+    );
 }

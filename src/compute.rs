@@ -3451,4 +3451,50 @@ mod tests {
         assert_fri06_c01_fragment_rounding_overflow(f32::MAX);
         assert_fri06_c01_fragment_rounding_overflow(f64::MAX);
     }
+
+    fn assert_fri06_c13_t06_leaf_missing_basis_counterexample<S: LayoutScalar>() {
+        let style = NodeInputOf::<S> {
+            padding: Edges::all(super::super::LengthOf::percent(S::from_f64(0.5))),
+            ..NodeInputOf::default()
+        };
+        let context = super::super::ContainingLayoutContext::new(
+            FlowAxes::new(
+                super::super::WritingMode::HorizontalTb,
+                super::super::Direction::Ltr,
+            ),
+            super::super::ParentFormattingContext::NoParent,
+        );
+        let available = Size::splat(AvailableOf::MAX_CONTENT);
+        let measured = Size::new(S::from_f64(12.0), S::from_f64(8.0));
+
+        let content_size_input =
+            ComputeInputOf::leaf_content_size(Size::NONE, Size::NONE, context, available)
+                .expect("indefinite intrinsic leaf input is valid");
+        let content_size = compute_leaf(content_size_input, &style, |_input| Ok::<_, ()>(measured))
+            .expect("ComputeSize explicitly treats missing edge basis as zero");
+        assert_eq!(content_size.size, measured);
+
+        let layout_input = ComputeInputOf::leaf_layout(Size::NONE, Size::NONE, context, available)
+            .expect("indefinite layout leaf input is valid");
+        let error = compute_leaf(layout_input, &style, |_input| -> Result<Size<S>, ()> {
+            panic!("layout missing-basis failure must precede measurement")
+        })
+        .expect_err("layout keeps missing edge basis fallible");
+        assert_eq!(error.site(), LayoutErrorSiteOf::Standalone);
+        assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::MissingContext(super::super::LayoutMissingContext::RequiredBasis,)
+        );
+    }
+
+    #[test]
+    fn fri06_c13_t06_leaf_missing_basis_compute_size_and_layout_differ_f32() {
+        assert_fri06_c13_t06_leaf_missing_basis_counterexample::<f32>();
+    }
+
+    #[test]
+    fn fri06_c13_t06_leaf_missing_basis_compute_size_and_layout_differ_f64() {
+        assert_fri06_c13_t06_leaf_missing_basis_counterexample::<f64>();
+    }
 }

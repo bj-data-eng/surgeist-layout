@@ -2,8 +2,8 @@ use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
     ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
     FlexDirection, FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
-    LengthResolutionOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, ParentFormattingContext,
-    Point, Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
+    LengthResolutionStatus, NodeInputOf, NodeOutputOf, ParentFormattingContext, Point, Position,
+    RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
 use crate::compute::{
     EdgesResultExt, ResolvedFlexBasis, SizeResultExt, SizingAlgorithm, layout_child_geometry_error,
@@ -13,7 +13,8 @@ use crate::compute::{
 use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, PhysicalSide};
 use crate::layout_math::{
     MaxBeforeMinOptionalSizeClampExt, MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt,
-    OptionalSizeExt, UncheckedOptionalSizeSubExt,
+    OptionalSizeExt, UncheckedOptionalSizeSubExt, resolution_optional, resolution_or_zero,
+    resolve_containing_padding_border,
 };
 use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
@@ -325,20 +326,14 @@ impl<S: LayoutScalar> Constants<S> {
     {
         let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
         let axes = FlexAxes::new(flow_axes, style.flex_direction, style.flex_wrap);
-        let padding = input
-            .containing_flow_axes()
-            .zip_physical_edges_with_inline_extent(
-                style.padding,
-                input.parent(),
-                |length, basis| resolve_length_or_zero(length, basis),
-            )
-            .transpose_with_node(tree, node)?;
-        let border = input
-            .containing_flow_axes()
-            .zip_physical_edges_with_inline_extent(style.border, input.parent(), |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
-            .transpose_with_node(tree, node)?;
+        let (padding, border) = resolve_containing_padding_border(
+            input.containing_flow_axes(),
+            input.parent(),
+            style.padding,
+            style.border,
+            resolve_length_or_zero,
+            |edges| edges.transpose_with_node(tree, node),
+        )?;
         let padding_border = (padding + border).sum_axes();
         let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
             padding_border
@@ -4224,28 +4219,6 @@ fn resolve_auto_optional<S: LayoutScalar>(
     resolution_optional(length.resolve_with_status(basis))
 }
 
-fn resolution_or_zero<S: LayoutScalar>(
-    resolution: LengthResolutionOf<S>,
-) -> Result<S, LengthResolutionStatus<S>> {
-    match resolution.status() {
-        LengthResolutionStatus::Resolved => Ok(resolution
-            .value
-            .expect("resolved length resolution must carry a value")),
-        LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
-        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => Ok(S::ZERO),
-    }
-}
-
-fn resolution_optional<S: LayoutScalar>(
-    resolution: LengthResolutionOf<S>,
-) -> Result<Option<S>, LengthResolutionStatus<S>> {
-    match resolution.status() {
-        LengthResolutionStatus::Resolved => Ok(resolution.value),
-        LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
-        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => Ok(None),
-    }
-}
-
 trait SizeOptionExt {
     type Scalar: LayoutScalar;
     fn max_optional(self, min: Self) -> Self;
@@ -4281,6 +4254,168 @@ impl<S: LayoutScalar> SizeConcreteExt for Size<S> {
             min.width.map_or(self.width, |min| self.width.max(min)),
             min.height.map_or(self.height, |min| self.height.max(min)),
         )
+    }
+}
+
+#[cfg(test)]
+mod fri06_c13_t06_characterization_tests {
+    use super::*;
+    use crate::{
+        LayoutErrorKindOf, LayoutErrorSiteOf, LayoutInvalidInputOf, LayoutOperation,
+        LengthPercentageOf, ParentFormattingContext, RequestedAxis, WritingMode,
+    };
+
+    fn input<S: LayoutScalar>(
+        containing_flow_axes: FlowAxes,
+        parent: Size<Option<S>>,
+    ) -> ComputeInputOf<S> {
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::ContentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            parent,
+            crate::ContainingLayoutContext::new(
+                containing_flow_axes,
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(AvailableOf::MAX_CONTENT),
+        )
+    }
+
+    fn percentage_edges<S: LayoutScalar>() -> Edges<LengthOf<S>> {
+        Edges::new(
+            LengthOf::percent(S::from_f64(0.1)),
+            LengthOf::percent(S::from_f64(0.2)),
+            LengthOf::percent(S::from_f64(0.3)),
+            LengthOf::percent(S::from_f64(0.4)),
+        )
+    }
+
+    fn expected_percentage_edges<S: LayoutScalar>(basis: S) -> Edges<S> {
+        Edges::new(
+            S::from_f64(0.1) * basis,
+            S::from_f64(0.2) * basis,
+            S::from_f64(0.3) * basis,
+            S::from_f64(0.4) * basis,
+        )
+    }
+
+    fn characterize_constants<S: LayoutScalar>(largest: S) {
+        crate::layout_math::assert_fri06_c13_t06_resolution_policy::<S>(
+            resolution_or_zero,
+            resolution_optional,
+        );
+
+        let border = Edges::new(
+            LengthOf::px(S::from_f64(1.0)),
+            LengthOf::px(S::from_f64(2.0)),
+            LengthOf::px(S::from_f64(3.0)),
+            LengthOf::px(S::from_f64(4.0)),
+        );
+        let expected_border = Edges::new(
+            S::from_f64(1.0),
+            S::from_f64(2.0),
+            S::from_f64(3.0),
+            S::from_f64(4.0),
+        );
+        let style = NodeInputOf {
+            display: crate::Display::Flex,
+            padding: percentage_edges(),
+            border,
+            ..NodeInputOf::default()
+        };
+        let tree = crate::test_support::layout_tree::OracleTreeOf::new().style(7, style.clone());
+
+        for (flow, parent, expected_padding) in [
+            (
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(200.0))),
+                expected_percentage_edges(S::from_f64(100.0)),
+            ),
+            (
+                FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+                Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(200.0))),
+                expected_percentage_edges(S::from_f64(200.0)),
+            ),
+            (
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                Size::new(None, Some(S::from_f64(200.0))),
+                Edges::ZERO,
+            ),
+            (
+                FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+                Size::new(Some(S::from_f64(100.0)), None),
+                Edges::ZERO,
+            ),
+        ] {
+            let constants = Constants::new::<_, core::convert::Infallible>(
+                &tree,
+                7,
+                &style,
+                input(flow, parent),
+            )
+            .expect("flex constants edge characterization must resolve");
+            assert_eq!(constants.padding, expected_padding);
+            assert_eq!(constants.border, expected_border);
+        }
+
+        let positive_overflow = LengthOf::value(
+            LengthPercentageOf::from_coefficients(largest, S::ONE)
+                .expect("finite positive overflow coefficients"),
+        );
+        let negative_overflow = LengthOf::value(
+            LengthPercentageOf::from_coefficients(-largest, -S::ONE)
+                .expect("finite negative overflow coefficients"),
+        );
+        let failing_style = NodeInputOf {
+            display: crate::Display::Flex,
+            padding: Edges::new(
+                LengthOf::ZERO,
+                LengthOf::ZERO,
+                LengthOf::ZERO,
+                positive_overflow,
+            ),
+            border: Edges::new(
+                negative_overflow,
+                LengthOf::ZERO,
+                LengthOf::ZERO,
+                LengthOf::ZERO,
+            ),
+            ..NodeInputOf::default()
+        };
+        let failing_tree =
+            crate::test_support::layout_tree::OracleTreeOf::new().style(7, failing_style.clone());
+        let error = match Constants::new::<_, core::convert::Infallible>(
+            &failing_tree,
+            7,
+            &failing_style,
+            input(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                Size::splat(Some(largest)),
+            ),
+        ) {
+            Ok(_) => panic!("padding failure must precede the distinct border failure"),
+            Err(error) => error,
+        };
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(7));
+        assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric {
+                value: S::INFINITY,
+            })
+        );
+    }
+
+    #[test]
+    fn fri06_c13_t06_flex_resolution_edges_and_error_order_preserve_f32() {
+        characterize_constants::<f32>(f32::MAX);
+    }
+
+    #[test]
+    fn fri06_c13_t06_flex_resolution_edges_and_error_order_preserve_f64() {
+        characterize_constants::<f64>(f64::MAX);
     }
 }
 
