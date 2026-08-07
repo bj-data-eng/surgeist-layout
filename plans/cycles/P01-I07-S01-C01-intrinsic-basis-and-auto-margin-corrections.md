@@ -63,8 +63,10 @@ positioned layout; new sizing values; public API additions; order, replaced,
 overflow, cache, transaction, or axis-owner replacement; dependencies, features,
 MSRV, manifests, lockfiles, docs, examples, root changes, and unrelated cleanup;
 HTML, fixture, parser, helper, manifest, XML, report, corpus, browser pin, or
-generator changes; generator architecture; and generator execution. No new lint
-allowance or suppression and no Surgeist-owned `unsafe` are permitted.
+generator changes; generator architecture; and generation or artifact-writing
+generator modes. The listed read-only generator verification modes remain in
+scope. No new lint allowance or suppression and no Surgeist-owned `unsafe` are
+permitted.
 
 ## 2 Impacts
 
@@ -242,7 +244,7 @@ publication, readback, and cleanup lifecycle applies. C01 product acceptance is:
 4. composition controls preserve all existing owners and both scalar lanes;
 5. no public API, dependency, feature, MSRV, docs, root, fixture, corpus,
    generated artifact, helper, parser, manifest, browser pin, or generator file
-   changes, and no generator command runs; and
+   changes, and no generation or artifact-writing generator mode runs; and
 6. the remotely available C01 candidate handoff gives C02 the exact planning
    revisions, task ranges, finding evidence, verification, and unchanged-
    artifact proof.
