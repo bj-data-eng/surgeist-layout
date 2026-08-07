@@ -107,11 +107,9 @@ the public and algorithmic FRI-06 contract is already present:
   zero quarantine/failure/expected-fail rows, and SHA-256
   `f46d8d8b50c722037127fdca79679649bd5cfd6db16fb24c0d69a7e5a082147a`.
 
-At current source `22c18806a3cd01afee0d0bdcedee2ae9b194593c`, `D-18` is
-closed: the flattened descendant model reaches browser geometry for nested
-block, auto-row, inline-column, vertical-auto-row, and vertical-nested controls.
-The sole settled full regeneration has also run successfully and is preserved
-as uncommitted lineage evidence: helper SHA-256
+At current source `b6c9ee36fd113003833be83742cc2f3fab3c7cf1`, the sole settled
+full regeneration has run successfully and is preserved as uncommitted lineage
+evidence: helper SHA-256
 `42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2`,
 report SHA-256
 `8d59c87d1fcc185bda0372968ae81dbeff74f241c17335db98629ad49f1f463f`,
@@ -120,10 +118,18 @@ complete XML SHA-256
 and inventory SHA-256
 `0c327c2d93b140ea5ed5660e45ad947a0afb583b9aa97b3163ea59b45d371715`.
 It records 5,712 generated and the exact 16 missing-root unsupported rows with
-no failed, quarantined, or expected-fail row. Activation is 244 passing and 144
-failing solely because the comparator equates Chrome's categorical
+no failed, quarantined, or expected-fail row. Activation first reports 244 passing
+and 144 failing because the comparator equates Chrome's categorical
 `next_line = Later` with the model's closed-overlap `Same` at a shared endpoint.
-`D-19` is the only remaining behavior gap. It changes no generator input or output, so the
+A test-first D-19 correction correctly classified that endpoint but exposed later
+ordinary x mismatches in the same 144 files, so it was fully reverted. Diagnosis
+confirmed three remaining D-18 gaps: column baseline groups are produced but not
+consumed by child placement; vertical auto rows settle as `[186, 203, 211]`
+instead of `[212, 194, 194]`; and vertical fixed nested groups retain the wrong
+five-pixel half-gutter convention for later direct ancestor consumers. Parsed
+inputs, generated expectations, neighboring inline geometry, and final physical
+projection are correct. D-18 must close before the independently valid D-19
+comparison state. Neither correction changes generator input or output, so the
 successful lineage is retained and a second full generation is forbidden.
 
 The cycle base `8ffb4bc551a24d2283ad54436870ab3f5e66a473` remains the
@@ -154,7 +160,7 @@ are absent is also no longer true; FRI-06 consumes those completed contracts.
 | `D-15` | Float interaction is closed over the current model. An in-flow, non-floating, block-level child avoids active floats exactly when it is `Flex`, `Grid`, or `GridLanes`, or when it is non-replaced and its normalized computed overflow pair establishes an independent formatting context. Floats use the float path, atomic inline boxes use the line path while trapping their own internal formatting context, absolute boxes are excluded, and `None` produces no box. Future display roles do not enter this cycle. |
 | `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 initially unsupported variants identified below and includes exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. The layout-ready-inline opt-in supplies level zero unless an exact source-indexed marker supplies another bidi level. A marker may explicitly scope its applicability to one computed `ltr` or `rtl` variant; direction selects that authored record but never derives its level. Pinned Chrome is the default geometry oracle. An exact row may instead be a visible known Chrome measurement failure only under the certainty, evidence-record, synthetic-substitute, and revalidation contract in `FRI-06.11`; disagreement with layout alone never qualifies. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 | `D-17` | Superseded by `D-18`. It correctly separated scalar size, group membership, and parent envelope phases, but its publication-as-an-exact-inverse premise still required reconstructing ancestor transform history from a child-local scalar. Three bounded corrections could satisfy the nested coordinates or the intrinsic and round-trip controls, but not all of them together. |
-| `D-18` | Final subgrid-baseline controls use one axis-parametric flattened-membership model. In a fully inherited axis, the subgrid root is empty for track sizing and baseline grouping; its participating descendants enter the ancestor's group directly with the accumulated margin/border/padding and half-gutter adjustments already retained by subgrid traversal. A child physical baseline converts once to a typed ancestor-track logical distance. Scalar intrinsic contribution, ancestor baseline membership, reduced ancestor first/last group, and non-publishable child envelope view are distinct phases. The immutable ancestor group is reduced once, then sliced and mapped downward for child alignment; a child view is never republished upward and no inherited-axis fixed-point loop or publication inverse exists. Non-inherited axes retain ordinary local grid-container baseline behavior. Refreshed area sizing and the final physical projection remain owned by the containing grid's `FlowAxes`. |
+| `D-18` | Final subgrid-baseline controls use one axis-parametric flattened-membership model. In a fully inherited axis, the subgrid root is empty for track sizing and baseline grouping; its participating descendants enter the ancestor's group directly with the accumulated margin/border/padding and half-gutter adjustments already retained by subgrid traversal. A child physical baseline converts once to a typed ancestor-track logical distance. Scalar intrinsic contribution, ancestor baseline membership, reduced ancestor first/last group, and non-publishable child envelope view are distinct phases. One pre-growth member census supplies one-pass auto-track scalar sizing and baseline shims; final placement recomputes immutable targets from settled tracks without feeding a view back into sizing. The ancestor group is reduced in ancestor-track coordinates once per settled axis: row groups align logical block offsets and column groups align logical inline offsets for both direct members and flattened descendants. Accumulated half-gutter adjustment enters each descendant member once before reduction; only a downward child view translates the immutable target into child-local track coordinates, and that view is never republished upward. No inherited-axis fixed-point loop or publication inverse exists. Non-inherited axes retain ordinary local grid-container baseline behavior. Refreshed area sizing and the final physical projection remain owned by the containing grid's `FlowAxes`. |
 | `D-19` | Browser control observations and model control geometry remain distinct evidence. The browser may use its non-model `<br>` rectangle only to report source/slot/neighboring-line effects; layout publishes the specification-required zero-size aligned control. When that model point lies within tolerance of the exact shared endpoint of both adjacent model neighbor intervals, closed overlap makes both geometric relations `Same` and the browser's categorical `next_line = Later` is not comparable to model geometry. The comparator records only that field as endpoint-unobservable instead of equating the two meanings. Exact neighboring node geometry remains strict, the browser observation remains serialized, and a private line-builder regression proves that the forced break commits between the two model participants. This generic predicate reads no fixture identity or expectation to create layout input, adds no public line-identity surface, and is not a Chrome failure, expected-fail, or synthetic geometry substitute. |
 
 Rejected alternatives:
@@ -879,7 +885,7 @@ construction.
 | Scroll/cache/rounding | Exact dirty-subject path closure bypasses stale hits; failed layout or immutable preparation makes zero mutations and retains dirty subjects; infallible exclusive commit replaces all node/fragment state and clears closure caches before stores; committed nonempty/empty slices republish identically cold/warm and normal/rounded; missing warm fragment state errors; geometry contributes once |
 | Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics; interval comparison is closed within tolerance, so a zero-size break is `Same` with either neighbor sharing its endpoint and a neighbor beyond tolerance is ordered by block progression |
 | Fixture-input honesty | The browser helper validates every reviewed wrapper/container/strut/bidi marker against the actual DOM and reports source-local marker use; serializer tests prove unconditional, matching-direction, inactive-direction, malformed-direction, and unknown-field bidi records plus the closed mapping in `FRI-06.11`; renamed test names and arbitrary expectation-only mutations preserve identical normalized parsed input; missing/corrupt markers fail helper validation, final full-run inventory accounting, or generated-XML parser validation; transparent wrappers produce independent normalized input and expectation trees; static/runtime evidence proves no final input-lowering function reads fixture identity or expectations |
-| Subgrid baseline controls | Public-layout first/last controls prove one-time ancestor-logical conversion, scalar/member/group/view separation, direct descendant participation, start/end edge accumulation, row/column grouping, positive/equal/negative half-gutter and MBP transitions, reversed mappings, and idempotent envelope views in horizontal and vertical flows; no fully inherited-axis publication inverse remains |
+| Subgrid baseline controls | Public-layout first/last controls prove one-time ancestor-logical conversion, scalar/member/group/view separation, direct descendant participation, direct-member consumption of the same settled row/column targets, start/end edge accumulation, one-pass auto-track sizing, positive/equal/negative half-gutter and MBP transitions, reversed mappings, and idempotent envelope views in horizontal and vertical flows; full-fixture controls expose every later direct sibling after nested controls, and no fully inherited-axis publication inverse remains |
 | Chrome oracle exception | Default-zero exact registry; every entry proves the `FRI-06.11` certainty gate, minimized parser-independent reproduction, normative and independent corroborating evidence, exact variant scope, public-front-door synthetic RED/GREEN substitute, visible report/test disposition, and revalidation trigger; negative controls reject layout-only disagreement, ambiguous rounding/coordinates, missing evidence, and overbroad manifest status |
 | Browser corpus | Owned mixed text/atomic/BR, vertical BR, float/BFC, unequal alignment, baseline, percentage atomic, and shape cases parse and compare |
 
@@ -901,9 +907,9 @@ return precomputed final line positions.
 | `src/compute.rs` | Provider/error plumbing, invalidated entry point/path closure, cache bypass/staging, and cache/round fragment publication |
 | `src/inline.rs` | One logical mixed-participant line builder, break/bidi/whitespace, line metrics, per-line alignment, and physical projection |
 | `src/block.rs` | Inline composition, containing strut, float-band/BFC placement, percentage basis, fast-path baseline predicate, scroll contribution |
-| `src/grid/tracks.rs` | Extend the existing axis-parametric subgrid traversal to emit separate `FlattenedScalarContribution` and `AncestorBaselineMember` records; suppress a fully inherited root only from the ordinary scalar pass, reduce direct and flattened members before intrinsic shims, and preserve the immutable ancestor group for final alignment |
-| `src/grid/subgrid.rs` | Own checked ancestor-span, mapped-edge, reversal, and accumulated margin/border/padding and half-gutter traversal facts. It maps an immutable `AncestorBaselineGroup` to a non-publishable `ChildBaselineEnvelopeView`; no fully inherited-axis child-to-parent inverse exists |
-| `src/grid/child.rs` | Consume the immutable ancestor group and child envelope views through one `GridAxisKind` path, apply alignment offsets once, retain ordinary local baseline behavior on non-inherited axes, and keep containing-grid area sizing plus the single final physical projection |
+| `src/grid/tracks.rs` | Extend the existing axis-parametric subgrid traversal to emit separate `FlattenedScalarContribution` and `AncestorBaselineMember` records; suppress a fully inherited root only from the ordinary scalar pass; derive one pre-growth member census for auto-track scalar contributions and shims; and reduce direct plus flattened members into immutable settled row and column targets for final alignment |
+| `src/grid/subgrid.rs` | Own checked ancestor-span, mapped-edge, reversal, and accumulated margin/border/padding and half-gutter traversal facts. Ancestor-facing members retain the one outward half-gutter adjustment; only downward mapping translates an immutable `AncestorBaselineGroup` into a non-publishable child-local `ChildBaselineEnvelopeView`. No fully inherited-axis child-to-parent inverse exists |
+| `src/grid/child.rs` | Consume the immutable settled ancestor target for the item's selected `GridAxisKind`: columns replace the ordinary logical inline offset and rows replace the ordinary logical block offset. Direct members and flattened descendants use the same target contract, child envelope views remain child-local, ordinary non-inherited baseline behavior remains unchanged, and containing-grid `FlowAxes` performs one final projection |
 | `src/cache.rs` | Preserve FRI-01's unit key and support clear-then-store batch application with fragment restoration |
 | Focused Rust tests | Model, line, block, root, cache, scalar, flow, provider, comparator, public surface, and failure evidence |
 | `tests/layout/browser_parity/support.rs` | Exact shaped fixture lowering, fragment/control comparison, and named mismatch diagnostics |
@@ -920,22 +926,27 @@ mapped edge, first/last role, containing-logical distance, and accumulated edge
 adjustments appropriate to their phase. `FlattenedScalarContribution` is the only
 channel allowed to grow a track by a complete item contribution.
 `AncestorBaselineMember` can join a group without carrying scalar size;
-`AncestorBaselineGroup` contains only the reduced alignment targets; and
-`ChildBaselineEnvelopeView` can only be constructed from a group plus a checked
-child mapping. The axis-parametric operation selects rows or columns from
-`GridAxisKind`; it does not branch on writing mode, direction, source name, or
-fixture family. `FlowAxes` performs the physical-to-logical conversion and the
-final projection.
+`AncestorBaselineGroup` contains only settled ancestor-coordinate alignment
+targets; and `ChildBaselineEnvelopeView` can only be constructed from a group plus
+a checked downward child mapping. A direct member never consumes a child view.
+The axis-parametric operation selects rows or columns from `GridAxisKind`; it does
+not branch on writing mode, direction, source name, or fixture family. `FlowAxes`
+performs the physical-to-logical conversion and the final projection.
 
-Focused public-layout tests must expose the complete transition: horizontal
-auto rows move from the current duplicate `459` to browser `411`; inline-column
-first/last groups align in LTR and RTL; nested parent-gap `10`/child-gap `20`
+Focused public-layout tests must expose the complete transition: horizontal auto
+rows move from the duplicate `459` to browser `411`; inline-column direct
+first/last items consume column targets and reach x `470/415` in LTR while the
+RTL counterpart reaches its serialized coordinates, including root direct first
+x `527`; nested parent-gap `10`/child-gap `20`
 produces the descendant/direct-sibling tuple `(62, 110)` from the clean-base
 `(57, 125)`, with equal, negative, reversed, MBP, and repeated-view controls;
-vertical auto rows transform pre-flex `[163,145,145]` to final
-`[212,194,194]`, inherited area `381`, child width `371`, and x `196`; the
-vertical nested projection is x `153`. Existing containing-grid `FlowAxes`
-refresh controls remain unchanged.
+vertical auto rows settle as `[212,194,194]`, inherited area `381`, outer x
+`196`/width `371`, nested first x `308`, and nested last x `222`; vertical fixed
+nested reduction produces direct targets `[(66,15),(43,32),(38,40)]` and all six
+later direct siblings match browser geometry. Existing containing-grid `FlowAxes`
+refresh controls remain unchanged. The three exact checked-in representative XML
+cases must reach every ordinary geometry comparison before D-19 classifies only
+their endpoint field.
 
 Every existing `#[allow(dead_code)]` in an FRI-06-owned inline/control path must
 either become genuinely consumed or be removed with the dead item. No new lint
@@ -1154,21 +1165,27 @@ the stored first/last preference. Positive, zero, and negative gutter difference
 therefore accumulate once while traversing outward. No later phase subtracts or
 re-adds them.
 
-Intrinsic sizing reduces the flattened members before applying per-contribution
-baseline shims. Each leaf's scalar contribution is applied exactly once, the
-fully inherited root is omitted from the ordinary scalar pass exactly once, and
-the reduced ancestor group remains available even when that root scalar is
-omitted. This distinction must produce the 411px auto-row control rather than the
-459px duplicate-size result or the 492px phase-mixed result.
+Intrinsic sizing freezes one pre-growth member census, reduces those members, and
+then applies each member's baseline shim and scalar contribution exactly once
+before normal track distribution. It does not derive later members from already
+grown tracks or feed a final-placement group/view back into sizing. The fully
+inherited root is omitted from the ordinary scalar pass exactly once, while its
+descendants remain in the census. This distinction must produce the 411px
+horizontal auto-row control rather than the 459px duplicate-size result or the
+492px phase-mixed result, and the vertical auto rows `[212,194,194]` rather than
+the current `[186,203,211]`.
 
 Final layout obtains one immutable ancestor group after tracks and item baseline
-facts are known, derives child envelope views from it, and aligns each affected
-item once. Repeating view derivation and placement with unchanged inputs produces
-the identical groups and geometry. Fully inherited axes do not use the former
-`publish_row_baseline_groups` inverse or an inherited-baseline fixed-point loop;
-ordinary non-inherited grid-container baseline publication remains unchanged.
-The containing grid sizes refreshed areas and projects the resulting logical
-offset once; child axes govern only child-internal layout and baseline reading.
+facts are known. A direct item consumes its selected ancestor target directly;
+only an inherited child derives a local envelope view. The same axis-parametric
+offset operation applies a column target to the item's logical inline offset or a
+row target to its logical block offset, then the containing grid projects that
+logical point once. Repeating group/view derivation and placement with unchanged
+inputs produces identical groups and geometry. Fully inherited axes do not use
+the former `publish_row_baseline_groups` inverse or an inherited-baseline
+fixed-point loop; ordinary non-inherited grid-container baseline publication
+remains unchanged. Child axes govern only child-internal layout and baseline
+reading.
 
 Named focused tests prove:
 
@@ -1178,9 +1195,15 @@ Named focused tests prove:
   the direct item contributes 25 and therefore does not win;
 - auto-row scalar/member/group separation produces root height 411 and omitting
   the root scalar does not omit its descendants;
-- LTR/RTL inline-column groups report x 470/x 527 through the same operation;
-- vertical auto rows retain the 18px envelope, area 381, child width 371, and
-  x 196, while vertical nested placement reports x 153;
+- LTR inline-column direct first/last items report x 470/x 415 and the RTL
+  counterpart reports its serialized coordinates, including root direct first
+  x 527, through the same column-target operation;
+- vertical auto rows are `[212,194,194]`, retain the 18px envelope, area 381,
+  outer x 196/width 371 and nested first x 308, and move nested last x from 206
+  to 222 without disturbing those controls;
+- vertical fixed nested groups are exactly
+  `[(66,15),(43,32),(38,40)]`, so all six later direct siblings remove the
+  current uniform five-pixel error;
 - positive, zero, negative, reversed, and margin/border/padding traversal maps
   each member once and repeated envelope-view derivation is identical; and
 - the former inherited-publication round-trip test is removed rather than
@@ -1340,8 +1363,10 @@ planning authority or acceptance lineage.
 ### 11.3 Browser-Control Endpoint Observability
 
 Browser neighboring-line observations are compared to model geometry only when
-the model relation is observable. An endpoint is unobservable exactly when all
-of these predicates hold after ordinary node geometry has compared:
+the model relation is observable. D-18 must first make every ordinary geometry
+field in the complete fixture strict; a control result cannot mask a later node
+failure. An endpoint is unobservable exactly when all of these predicates hold
+after the current node and both neighbor geometries have compared:
 
 1. the model source is a visible forced break with a zero-size output;
 2. both adjacent model neighbors have unrounded output;
@@ -1361,8 +1386,9 @@ fixture, helper, or generated XML. The exact activation partition is:
 | `subgrid_baseline_vertical_auto_rows_*` | 12 x 4 = 48 | `next_line` | `Later` / `Same` |
 | `subgrid_baseline_vertical_nested_*` | 12 x 4 = 48 | `next_line` | `Later` / `Same` |
 
-The activation test proves that exact 48/48/48 set and exactly 144 fields; every
-other browser-control field remains directly compared.
+The activation test proves that exact 48/48/48 set and exactly 144 fields after
+all ordinary geometry is green; every other browser-control field remains
+directly compared.
 The private line-builder regression independently proves that the control ends
 the preceding source slice and the following atomic begins the next line. Any
 different count, family, missing exact node-geometry comparison, or non-endpoint
@@ -1530,8 +1556,9 @@ FRI-06 is complete only when:
     model-fragment geometry, source/line/visual identity, and baseline, while
     Range-ink and browser-control observations cannot masquerade as model block
     geometry or invent a model visual index; the `FRI-06.11.3` endpoint state is
-    typed, accounts for exactly 144 fields, retains strict neighboring geometry,
-    and has independent private forced-break line-membership proof;
+    typed, accounts for exactly 144 fields only after complete ordinary fixture
+    geometry is strict, retains strict neighboring geometry, and has independent
+    private forced-break line-membership proof;
 13. final fixture lowering obeys the closed `FRI-06.11` marker/XML table;
     fixture names and expectations cannot influence parsed layout input;
     renamed-name and expectation-only equality controls pass; Chrome/helper
