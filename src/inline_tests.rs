@@ -530,6 +530,48 @@ fn mixed_forced_line_break<S: LayoutScalar>(
     ))
 }
 
+fn fri06_c12_t07_endpoint_break_private_line_membership() -> (usize, usize, usize) {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let metrics = InlineMetrics::from_ascent_descent(8.0, 2.0).unwrap();
+    let report = layout_mixed_inline_run(mr02_input(
+        Available::MAX_CONTENT,
+        vec![
+            mr02_atomic(0, 20.0, 10.0, 8.0, 0, InlineBreakOpportunity::prohibited()),
+            mixed_forced_line_break(1, flow_axes, metrics, Clear::None),
+            mr02_atomic(2, 20.0, 10.0, 8.0, 0, InlineBreakOpportunity::prohibited()),
+        ],
+    ));
+    let previous_line = report
+        .atomics
+        .iter()
+        .find(|atomic| atomic.item.source_index == 0)
+        .expect("previous atomic must be present")
+        .line_index;
+    let control_line = report
+        .controls
+        .iter()
+        .find(|control| control.source_index == 1)
+        .expect("forced break control must be present")
+        .line_index;
+    let following_line = report
+        .atomics
+        .iter()
+        .find(|atomic| atomic.item.source_index == 2)
+        .expect("following atomic must be present")
+        .line_index;
+    (previous_line, control_line, following_line)
+}
+
+#[test]
+fn fri06_c12_t07_endpoint_break_commits_following_atomic_to_next_line() {
+    let (previous_line, control_line, following_line) =
+        fri06_c12_t07_endpoint_break_private_line_membership();
+
+    assert_eq!(previous_line, 0);
+    assert_eq!(control_line, 0);
+    assert_eq!(following_line, 1);
+}
+
 fn mixed_boundary<S: LayoutScalar>(
     source_index: usize,
     flow_axes: FlowAxes,

@@ -3993,6 +3993,7 @@ fn fri06_c08r_final_activation_union_browser_passes_without_substitutes() {
     let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut outputs = BTreeSet::new();
     let mut failures = Vec::new();
+    let mut endpoint_counts = BTreeMap::new();
     for line in census.lines().filter(|line| !line.starts_with('#')).skip(1) {
         let fields = line.split('\t').collect::<Vec<_>>();
         assert_eq!(fields.len(), 6, "activation row must retain six fields");
@@ -4007,8 +4008,32 @@ fn fri06_c08r_final_activation_union_browser_passes_without_substitutes() {
         assert!(outputs.insert(output.clone()), "duplicate activation row");
         match support::Golden::parse_file(repository.join(&output)) {
             Ok(golden) => {
-                if let Err(error) = support::assert_surgeist_matches(&golden) {
-                    failures.push(format!("{output}: {error}"));
+                match support::assert_surgeist_matches_with_endpoint_accounting(&golden) {
+                    Ok(comparison) => {
+                        for endpoint in comparison.endpoint_unobservable_fields() {
+                            assert_eq!(
+                                endpoint.field(),
+                                support::BrowserControlComparisonField::NextLine
+                            );
+                            assert_eq!(
+                                endpoint.browser_value(),
+                                support::BrowserNeighborLine::Later
+                            );
+                            assert_eq!(endpoint.model_value(), support::BrowserNeighborLine::Same);
+                            let family = [
+                                "subgrid_baseline_inline_column_",
+                                "subgrid_baseline_vertical_auto_rows_",
+                                "subgrid_baseline_vertical_nested_",
+                            ]
+                            .into_iter()
+                            .find(|family| source.contains(family))
+                            .unwrap_or_else(|| {
+                                panic!("unexpected endpoint-unobservable activation row: {output}")
+                            });
+                            *endpoint_counts.entry(family).or_insert(0) += 1;
+                        }
+                    }
+                    Err(error) => failures.push(format!("{output}: {error}")),
                 }
             }
             Err(error) => failures.push(format!("{output}: {error}")),
@@ -4016,10 +4041,82 @@ fn fri06_c08r_final_activation_union_browser_passes_without_substitutes() {
     }
     assert_eq!(outputs.len(), 388);
     assert!(KNOWN_CHROME_FAILURE_SUBSTITUTES.is_empty());
+    assert_eq!(
+        endpoint_counts,
+        BTreeMap::from([
+            ("subgrid_baseline_inline_column_", 48),
+            ("subgrid_baseline_vertical_auto_rows_", 48),
+            ("subgrid_baseline_vertical_nested_", 48),
+        ])
+    );
     assert!(
         failures.is_empty(),
         "activation rows without a reviewed substitute failed:\n{}",
         failures.join("\n")
+    );
+}
+
+#[test]
+fn fri06_c12_t07_endpoint_accounting_is_exact() {
+    let census =
+        include_str!("../../plans/P01-layout/P01-I06-S01-C10-public-comparison-census.tsv");
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut family_counts = BTreeMap::new();
+    let mut endpoint_rows = 0;
+
+    for line in census.lines().filter(|line| !line.starts_with('#')).skip(1) {
+        let fields = line.split('\t').collect::<Vec<_>>();
+        let source = fields[1]
+            .strip_prefix("html/")
+            .and_then(|source| source.strip_suffix(".html"))
+            .expect("normalized activation source");
+        let family = [
+            "subgrid_baseline_inline_column_",
+            "subgrid_baseline_vertical_auto_rows_",
+            "subgrid_baseline_vertical_nested_",
+        ]
+        .into_iter()
+        .find(|family| source.contains(family));
+        let Some(family) = family else {
+            continue;
+        };
+        let output = format!(
+            "tests/layout/browser_parity/xml/{source}__{}.xml",
+            fields[2]
+        );
+        let golden = support::Golden::parse_file(repository.join(output))
+            .expect("endpoint activation row must parse");
+        let comparison = support::assert_surgeist_matches_with_endpoint_accounting(&golden)
+            .expect("endpoint activation row ordinary geometry must remain strict");
+        assert_eq!(
+            comparison.endpoint_unobservable_fields().len(),
+            1,
+            "unexpected endpoint fields: {:?}",
+            comparison.endpoint_unobservable_fields()
+        );
+        let endpoint = &comparison.endpoint_unobservable_fields()[0];
+        assert_eq!(endpoint.paths().len(), 6);
+        assert_eq!(
+            endpoint.field(),
+            support::BrowserControlComparisonField::NextLine
+        );
+        assert_eq!(
+            endpoint.browser_value(),
+            support::BrowserNeighborLine::Later
+        );
+        assert_eq!(endpoint.model_value(), support::BrowserNeighborLine::Same);
+        endpoint_rows += 1;
+        *family_counts.entry(family).or_insert(0) += 1;
+    }
+
+    assert_eq!(endpoint_rows, 144);
+    assert_eq!(
+        family_counts,
+        BTreeMap::from([
+            ("subgrid_baseline_inline_column_", 48),
+            ("subgrid_baseline_vertical_auto_rows_", 48),
+            ("subgrid_baseline_vertical_nested_", 48),
+        ])
     );
 }
 

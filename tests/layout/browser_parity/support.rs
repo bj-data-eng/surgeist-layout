@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use surgeist_layout as layout;
@@ -101,6 +101,12 @@ fn relative_crate_root() -> Option<PathBuf> {
 }
 
 pub fn assert_surgeist_matches(golden: &Golden) -> Result<(), Error> {
+    assert_surgeist_matches_with_endpoint_accounting(golden).map(|_| ())
+}
+
+pub fn assert_surgeist_matches_with_endpoint_accounting(
+    golden: &Golden,
+) -> Result<ComparisonResult, Error> {
     let mut tree = TestTree::from_golden(&golden.root)?;
     let available = layout::Size::new(
         to_layout_available(golden.viewport.width),
@@ -112,7 +118,7 @@ pub fn assert_surgeist_matches(golden: &Golden) -> Result<(), Error> {
         .map_err(|error| Error::new(format!("{}: layout failed: {error:?}", golden.name)))?;
     tree.apply_completed_batch(&batch);
 
-    compare_expectation(
+    compare_expectation_with_endpoint_accounting(
         &tree,
         0,
         &golden.expectations,
@@ -290,6 +296,64 @@ pub enum BrowserNeighborLine {
     Earlier,
     Same,
     Later,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BrowserControlComparisonField {
+    NextLine,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EndpointUnobservableField {
+    paths: Vec<String>,
+    field: BrowserControlComparisonField,
+    browser_value: BrowserNeighborLine,
+    model_value: BrowserNeighborLine,
+}
+
+impl EndpointUnobservableField {
+    pub fn paths(&self) -> &[String] {
+        &self.paths
+    }
+
+    pub const fn field(&self) -> BrowserControlComparisonField {
+        self.field
+    }
+
+    pub const fn browser_value(&self) -> BrowserNeighborLine {
+        self.browser_value
+    }
+
+    pub const fn model_value(&self) -> BrowserNeighborLine {
+        self.model_value
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ComparisonResult {
+    endpoint_unobservable_fields: Vec<EndpointUnobservableField>,
+}
+
+impl ComparisonResult {
+    pub fn endpoint_unobservable_fields(&self) -> &[EndpointUnobservableField] {
+        &self.endpoint_unobservable_fields
+    }
+
+    fn record_endpoint_unobservable(&mut self, field: EndpointUnobservableField) {
+        if let Some(existing) = self
+            .endpoint_unobservable_fields
+            .iter_mut()
+            .find(|existing| {
+                existing.field == field.field
+                    && existing.browser_value == field.browser_value
+                    && existing.model_value == field.model_value
+            })
+        {
+            existing.paths.extend(field.paths);
+        } else {
+            self.endpoint_unobservable_fields.push(field);
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2283,6 +2347,27 @@ fn compare_expectation(
     unrounded_inline_fragments: &[layout::InlineFragmentOutputEntry<usize>],
     final_inline_fragments: &[layout::InlineFragmentOutputEntry<usize>],
 ) -> Result<(), Error> {
+    compare_expectation_with_endpoint_accounting(
+        tree,
+        node,
+        expected,
+        path,
+        use_rounding,
+        unrounded_inline_fragments,
+        final_inline_fragments,
+    )
+    .map(|_| ())
+}
+
+fn compare_expectation_with_endpoint_accounting(
+    tree: &TestTree,
+    node: usize,
+    expected: &Expectation,
+    path: &str,
+    use_rounding: bool,
+    unrounded_inline_fragments: &[layout::InlineFragmentOutputEntry<usize>],
+    final_inline_fragments: &[layout::InlineFragmentOutputEntry<usize>],
+) -> Result<ComparisonResult, Error> {
     let mut comparison_state = ComparisonState {
         fragment_cursors: FragmentCursors {
             unrounded: FragmentCursor {
@@ -2295,6 +2380,8 @@ fn compare_expectation(
             },
         },
         range_line_registries: RangeLineRegistries::default(),
+        strict_geometry_nodes: BTreeSet::new(),
+        pending_browser_controls: Vec::new(),
     };
     compare_expectation_in_source_order(
         tree,
@@ -2327,7 +2414,20 @@ fn compare_expectation(
             entry.node()
         )));
     }
-    Ok(())
+    let mut result = ComparisonResult::default();
+    for pending in std::mem::take(&mut comparison_state.pending_browser_controls) {
+        if let Some(field) = compare_browser_control_expectation(
+            tree,
+            pending.node,
+            &pending.path,
+            pending.expected,
+            pending.context.as_ref(),
+            &comparison_state.strict_geometry_nodes,
+        )? {
+            result.record_endpoint_unobservable(field);
+        }
+    }
+    Ok(result)
 }
 
 struct FragmentCursor<'a> {
@@ -2343,6 +2443,8 @@ struct FragmentCursors<'a> {
 struct ComparisonState<'a> {
     fragment_cursors: FragmentCursors<'a>,
     range_line_registries: RangeLineRegistries,
+    strict_geometry_nodes: BTreeSet<usize>,
+    pending_browser_controls: Vec<PendingBrowserControl>,
 }
 
 #[derive(Default)]
@@ -2400,6 +2502,30 @@ struct BrowserControlContext<'a> {
     siblings: &'a [usize],
 }
 
+#[derive(Clone)]
+struct OwnedBrowserControlContext {
+    parent: usize,
+    source_index: usize,
+    siblings: Vec<usize>,
+}
+
+impl From<BrowserControlContext<'_>> for OwnedBrowserControlContext {
+    fn from(context: BrowserControlContext<'_>) -> Self {
+        Self {
+            parent: context.parent,
+            source_index: context.source_index,
+            siblings: context.siblings.to_vec(),
+        }
+    }
+}
+
+struct PendingBrowserControl {
+    node: usize,
+    path: String,
+    expected: BrowserControlExpectation,
+    context: Option<OwnedBrowserControlContext>,
+}
+
 fn compare_expectation_in_source_order(
     tree: &TestTree,
     node: usize,
@@ -2442,6 +2568,13 @@ fn compare_expectation_in_source_order(
     compare_optional_number(path, "y", actual.location.y, expected.y)?;
     compare_optional_number(path, "width", actual.size.width, expected.width)?;
     compare_optional_number(path, "height", actual.size.height, expected.height)?;
+    if expected.x.is_some()
+        && expected.y.is_some()
+        && expected.width.is_some()
+        && expected.height.is_some()
+    {
+        comparison_state.strict_geometry_nodes.insert(node);
+    }
 
     if let Some(expected_scroll_size) = expected.scroll_size {
         let scroll_geometry = actual.scroll_geometry.ok_or_else(|| {
@@ -2478,13 +2611,14 @@ fn compare_expectation_in_source_order(
         )?;
     }
     if let Some(expected_browser_control) = expected.browser_control {
-        compare_browser_control_expectation(
-            tree,
-            node,
-            path,
-            expected_browser_control,
-            browser_control_context,
-        )?;
+        comparison_state
+            .pending_browser_controls
+            .push(PendingBrowserControl {
+                node,
+                path: path.to_string(),
+                expected: expected_browser_control,
+                context: browser_control_context.map(OwnedBrowserControlContext::from),
+            });
     }
 
     let children = comparison_children(tree, node);
@@ -2834,8 +2968,9 @@ fn compare_browser_control_expectation(
     node: usize,
     path: &str,
     expected: BrowserControlExpectation,
-    context: Option<BrowserControlContext<'_>>,
-) -> Result<(), Error> {
+    context: Option<&OwnedBrowserControlContext>,
+    strict_geometry_nodes: &BTreeSet<usize>,
+) -> Result<Option<EndpointUnobservableField>, Error> {
     let context = context.ok_or_else(|| {
         Error::new(format!(
             "{path}: browser control source mismatch, expected a source child"
@@ -2894,7 +3029,7 @@ fn compare_browser_control_expectation(
                 expected.next_line,
             )?;
         }
-        return Ok(());
+        return Ok(None);
     }
 
     let line_break = match tree.nodes[node].layout_input {
@@ -2952,6 +3087,32 @@ fn compare_browser_control_expectation(
     }
     if expected.next_line != BrowserNeighborLine::Unobserved {
         let actual_next = browser_neighbor_relation(tree, next, control_interval, flow, path)?;
+        let actual_previous = if expected.previous_line == BrowserNeighborLine::Same {
+            browser_neighbor_relation(tree, previous, control_interval, flow, path)?
+        } else {
+            expected.previous_line
+        };
+        if actual_next != expected.next_line
+            && endpoint_is_unobservable(EndpointObservability {
+                tree,
+                node,
+                previous,
+                next,
+                expected,
+                actual_previous,
+                actual_next,
+                control_interval,
+                flow,
+                strict_geometry_nodes,
+            })
+        {
+            return Ok(Some(EndpointUnobservableField {
+                paths: vec![path.to_string()],
+                field: BrowserControlComparisonField::NextLine,
+                browser_value: expected.next_line,
+                model_value: actual_next,
+            }));
+        }
         compare_browser_control_identity(
             path,
             "next neighbor line",
@@ -2959,7 +3120,72 @@ fn compare_browser_control_expectation(
             expected.next_line,
         )?;
     }
-    Ok(())
+    Ok(None)
+}
+
+struct EndpointObservability<'a> {
+    tree: &'a TestTree,
+    node: usize,
+    previous: Option<usize>,
+    next: Option<usize>,
+    expected: BrowserControlExpectation,
+    actual_previous: BrowserNeighborLine,
+    actual_next: BrowserNeighborLine,
+    control_interval: (Scalar, Scalar),
+    flow: layout::FlowAxes,
+    strict_geometry_nodes: &'a BTreeSet<usize>,
+}
+
+fn endpoint_is_unobservable(observation: EndpointObservability<'_>) -> bool {
+    let EndpointObservability {
+        tree,
+        node,
+        previous,
+        next,
+        expected,
+        actual_previous,
+        actual_next,
+        control_interval,
+        flow,
+        strict_geometry_nodes,
+    } = observation;
+    let (Some(previous), Some(next)) = (previous, next) else {
+        return false;
+    };
+    let layout::LayoutInput::LineBreak(line_break) = tree.nodes[node].layout_input else {
+        return false;
+    };
+    if line_break.display() != layout::LineBreakDisplay::Break
+        || tree.nodes[node].unrounded.size != layout::Size::ZERO
+        || !tree.nodes[previous].unrounded_present
+        || !tree.nodes[next].unrounded_present
+        || !strict_geometry_nodes.contains(&previous)
+        || !strict_geometry_nodes.contains(&next)
+        || expected.previous_line != BrowserNeighborLine::Same
+        || expected.next_line != BrowserNeighborLine::Later
+        || actual_previous != BrowserNeighborLine::Same
+        || actual_next != BrowserNeighborLine::Same
+    {
+        return false;
+    }
+
+    let previous_interval = output_block_interval(tree.nodes[previous].unrounded, flow);
+    let next_interval = output_block_interval(tree.nodes[next].unrounded, flow);
+    let shared_endpoint = match flow.block_start() {
+        layout::PhysicalSide::Top | layout::PhysicalSide::Left
+            if previous_interval.1 == next_interval.0 =>
+        {
+            previous_interval.1
+        }
+        layout::PhysicalSide::Right | layout::PhysicalSide::Bottom
+            if previous_interval.0 == next_interval.1 =>
+        {
+            previous_interval.0
+        }
+        _ => return false,
+    };
+    control_interval.0 == control_interval.1
+        && ComparisonTolerance::browser_parity().contains(control_interval.0 - shared_endpoint)
 }
 
 fn browser_neighbor_relation(
@@ -5342,6 +5568,120 @@ mod tests {
         }
     }
 
+    fn fri06_c12_t07_endpoint_control_comparison_fixture() -> (TestTree, Expectation) {
+        fn block_input() -> layout::NodeInput {
+            layout::NodeInput {
+                display: layout::Display::Block,
+                ..layout::NodeInput::default()
+            }
+        }
+
+        fn output(x: Scalar, y: Scalar, width: Scalar, height: Scalar) -> layout::NodeOutput {
+            let mut output = layout::NodeOutput::new();
+            output.location = layout::Point::new(x, y);
+            output.size = layout::Size::new(width, height);
+            output
+        }
+
+        fn node(
+            layout_input: layout::LayoutInput,
+            parent: Option<usize>,
+            children: Vec<usize>,
+            output: layout::NodeOutput,
+        ) -> TestNode {
+            TestNode {
+                node_input: match &layout_input {
+                    layout::LayoutInput::Box(input) => input.as_ref().clone(),
+                    _ => layout::NodeInput::non_box(),
+                },
+                is_br_source: matches!(layout_input, layout::LayoutInput::LineBreak(_)),
+                layout_input,
+                font_family: FontFamily::Ahem,
+                font_size: TextMeasure::LINE_HEIGHT,
+                line_height: TextMeasure::LINE_HEIGHT,
+                text: None,
+                children,
+                synthetic: false,
+                parent,
+                range_root: None,
+                explicit_range_root: false,
+                preserve_fractional_min_content: false,
+                use_tighter_monospace_wrap: false,
+                cache: layout::Cache::new(),
+                unrounded: output,
+                unrounded_present: true,
+                final_layout: output,
+                final_layout_present: true,
+                unrounded_inline_fragments: None,
+                final_inline_fragments: None,
+                shape_bands: None,
+            }
+        }
+
+        fn geometry(x: Scalar, y: Scalar, width: Scalar, height: Scalar) -> Expectation {
+            Expectation {
+                x: Some(x),
+                y: Some(y),
+                width: Some(width),
+                height: Some(height),
+                scroll_size: None,
+                fragments: None,
+                range_inks: None,
+                browser_control: None,
+                children: Vec::new(),
+            }
+        }
+
+        let tree = TestTree {
+            nodes: vec![
+                node(
+                    layout::LayoutInput::box_input(block_input()),
+                    None,
+                    vec![1, 2, 3],
+                    output(0.0, 0.0, 100.0, 45.0),
+                ),
+                node(
+                    layout::LayoutInput::box_input(block_input()),
+                    Some(0),
+                    Vec::new(),
+                    output(0.0, 5.0, 20.0, 20.0),
+                ),
+                node(
+                    layout::LayoutInput::line_break(layout::LineBreakInput::new()),
+                    Some(0),
+                    Vec::new(),
+                    output(20.0, 25.0, 0.0, 0.0),
+                ),
+                node(
+                    layout::LayoutInput::box_input(block_input()),
+                    Some(0),
+                    Vec::new(),
+                    output(0.0, 25.0, 20.0, 20.0),
+                ),
+            ],
+        };
+        let mut control = geometry(0.0, 0.0, 0.0, 0.0);
+        control.x = None;
+        control.y = None;
+        control.width = None;
+        control.height = None;
+        control.browser_control = Some(BrowserControlExpectation {
+            source_index: 1,
+            terminal_visual_slot: Some(1),
+            previous_line: BrowserNeighborLine::Same,
+            next_line: BrowserNeighborLine::Later,
+        });
+        let expected = Expectation {
+            children: vec![
+                geometry(0.0, 5.0, 20.0, 20.0),
+                control,
+                geometry(0.0, 25.0, 20.0, 20.0),
+            ],
+            ..geometry(0.0, 0.0, 100.0, 45.0)
+        };
+        (tree, expected)
+    }
+
     #[test]
     fn fri06_c06_comparator_wrong_control_x_names_x_mismatch() {
         let tree = line_break_tree(layout::LineBreakInput::new());
@@ -5891,6 +6231,154 @@ mod tests {
             block_relation(control, (30.0, 45.0), forward),
             BrowserNeighborLine::Later,
             "a real five-pixel gap remains on the later line"
+        );
+    }
+
+    #[test]
+    fn fri06_c12_t07_endpoint_unobservable_requires_exact_shared_endpoint() {
+        let (tree, expected) = fri06_c12_t07_endpoint_control_comparison_fixture();
+        let result = compare_expectation_with_endpoint_accounting(
+            &tree,
+            0,
+            &expected,
+            "fri06-c12-t07-endpoint",
+            true,
+            &[],
+            &[],
+        )
+        .expect("an exact shared endpoint should be typed as endpoint-unobservable");
+        assert_eq!(result.endpoint_unobservable_fields().len(), 1);
+        let field = &result.endpoint_unobservable_fields()[0];
+        assert_eq!(field.paths(), ["fri06-c12-t07-endpoint/1"]);
+        assert_eq!(field.field(), BrowserControlComparisonField::NextLine);
+        assert_eq!(field.browser_value(), BrowserNeighborLine::Later);
+        assert_eq!(field.model_value(), BrowserNeighborLine::Same);
+
+        let mut non_endpoint = tree.clone();
+        non_endpoint.nodes[3].unrounded.location.y += 0.05;
+        non_endpoint.nodes[3].final_layout.location.y += 0.05;
+        let error = compare_expectation_with_endpoint_accounting(
+            &non_endpoint,
+            0,
+            &expected,
+            "fri06-c12-t07-endpoint",
+            true,
+            &[],
+            &[],
+        )
+        .expect_err("neighbors without one exact shared endpoint must remain strict");
+        assert!(
+            error
+                .to_string()
+                .contains("browser control next neighbor line mismatch")
+        );
+
+        let mut hidden_break = tree.clone();
+        hidden_break.nodes[2].layout_input =
+            layout::LayoutInput::line_break(layout::LineBreakInput::new().hidden());
+        assert!(
+            compare_expectation_with_endpoint_accounting(
+                &hidden_break,
+                0,
+                &expected,
+                "fri06-c12-t07-endpoint",
+                true,
+                &[],
+                &[],
+            )
+            .expect_err("a hidden break must not qualify")
+            .to_string()
+            .contains("browser control next neighbor line mismatch")
+        );
+
+        let mut nonzero_control = tree.clone();
+        nonzero_control.nodes[2].unrounded.size.width = 1.0;
+        nonzero_control.nodes[2].final_layout.size.width = 1.0;
+        assert!(
+            compare_expectation_with_endpoint_accounting(
+                &nonzero_control,
+                0,
+                &expected,
+                "fri06-c12-t07-endpoint",
+                true,
+                &[],
+                &[],
+            )
+            .expect_err("a nonzero control must not qualify")
+            .to_string()
+            .contains("browser control next neighbor line mismatch")
+        );
+
+        let mut missing_neighbor = tree.clone();
+        missing_neighbor.nodes[3].unrounded_present = false;
+        assert!(
+            compare_expectation_with_endpoint_accounting(
+                &missing_neighbor,
+                0,
+                &expected,
+                "fri06-c12-t07-endpoint",
+                true,
+                &[],
+                &[],
+            )
+            .expect_err("missing unrounded neighbor geometry must fail")
+            .to_string()
+            .contains("expected unrounded neighbor output")
+        );
+
+        let mut incomplete_neighbor = expected.clone();
+        incomplete_neighbor.children[2].height = None;
+        assert!(
+            compare_expectation_with_endpoint_accounting(
+                &tree,
+                0,
+                &incomplete_neighbor,
+                "fri06-c12-t07-endpoint",
+                true,
+                &[],
+                &[],
+            )
+            .expect_err("incomplete strict neighbor comparison must not qualify")
+            .to_string()
+            .contains("browser control next neighbor line mismatch")
+        );
+
+        let mut wrong_neighbor = tree.clone();
+        wrong_neighbor.nodes[3].final_layout.location.y += 1.0;
+        assert!(
+            compare_expectation_with_endpoint_accounting(
+                &wrong_neighbor,
+                0,
+                &expected,
+                "fri06-c12-t07-endpoint",
+                true,
+                &[],
+                &[],
+            )
+            .expect_err("wrong ordinary neighbor geometry must fail first")
+            .to_string()
+            .contains("y mismatch")
+        );
+
+        let mut widened_field = expected.clone();
+        widened_field.children[1]
+            .browser_control
+            .as_mut()
+            .expect("control expectation")
+            .previous_line = BrowserNeighborLine::Later;
+        assert!(
+            compare_expectation_with_endpoint_accounting(
+                &tree,
+                0,
+                &widened_field,
+                "fri06-c12-t07-endpoint",
+                true,
+                &[],
+                &[],
+            )
+            .expect_err("only next_line may be typed endpoint-unobservable")
+            .to_string()
+            .contains("browser control previous neighbor line mismatch")
         );
     }
 
