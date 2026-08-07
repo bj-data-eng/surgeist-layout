@@ -90,7 +90,8 @@ of `unsafe`.
 
 ### 3.1 `P01/I07/S01/C02/T01` Add The Layout-Ready Collapse Model
 
-**Files/area:** `src/node_input.rs`, `src/lib.rs`, and their focused tests.
+**Files/area:** `src/node_input.rs`, `src/lib.rs`, `src/lib_tests.rs`, and their
+focused tests.
 
 **Outcome:** add the exact two-state public enum and `NodeInputOf` field at the
 normalized layout-input phase. Update the const default, generic default, and
@@ -101,13 +102,20 @@ behavior.
 **RED evidence:** first add `fri07_c02_model_` compile/runtime tests that import
 the missing crate-root type and field and exercise all three construction paths.
 At the exact task base they must fail because the public model does not exist.
-Record that missing-surface failure before implementation.
+Record that missing-surface failure before implementation. After adding the
+model and before changing `src/flex.rs`, add passing characterization that sets
+`Collapsed` and compares it with `Normal` through the public layout front door
+outside in-flow flex participation; do not fabricate a behavioral RED for this
+inert-state control.
 
 **Acceptance:** the enum derives exactly the specified traits and defaults to
 `Normal`; the field is public and scalar-independent; all default/non-box paths
 are `Normal`; exhaustive matching exposes only two states; ordinary default
-layout retains every observable output field in f32 and f64; no other public
-surface or formatting-context behavior changes.
+layout retains every observable output field in f32 and f64. Collapsed versus
+normal output is field-equal for a root and for children of block, grid,
+grid-lanes, subgrid, leaf, and positioned contexts, plus absolute and
+display-none children of flex containers; no other public surface or formatting-
+context behavior changes.
 
 **Commands:**
 
