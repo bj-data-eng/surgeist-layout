@@ -534,9 +534,9 @@ closed construction contract:
 | Concern | Required contract |
 | --- | --- |
 | Owner | `src/grid/subgrid.rs` owns `InheritedCurrentGridBaselinePlacement`, its input, validation, and `InheritedCurrentGridBaselinePlacementError`; `src/grid/child.rs` owns the sole call and consumer |
-| Construction | `try_derive(&AncestorBaselineGroup, InheritedCurrentGridBaselinePlacementInput) -> Result<InheritedCurrentGridBaselinePlacement, InheritedCurrentGridBaselinePlacementError>` receives `GridAxisKind`, physical baseline axis, first/last role, selected ancestor track, immutable target, checked inherited-axis mapping/span/reversal, signed gutter translation, and a private current-grid-direct witness created only while iterating that grid's `PendingGridItem`s |
-| Intrinsic invariants | Group/input axes and physical axes agree; selected track is inside both the immutable group and checked inherited span after reversal; role selects the matching first/last edge; the witness belongs to the current container and selected item; mapping is inherited and maps the requested child axis to the stated ancestor axis; target and translation are finite |
-| Rejection | Axis mismatch returns `AxisMismatch`; physical-axis mismatch returns `PhysicalAxisMismatch`; empty/out-of-range span returns `SpanOutOfRange`; an out-of-range selected track returns `SelectedTrackOutOfRange`; role/edge mismatch or absent selected target returns `RoleTargetMismatch`; a foreign/non-direct witness returns `OwnershipMismatch`; a non-inherited or unusable mapping returns `UnusableInheritedMapping`; and a non-finite target/translation returns `NonFinite`. None falls back to ordinary offset or compares target values to infer ownership |
+| Construction | `try_derive(&AncestorBaselineGroup, InheritedCurrentGridBaselinePlacementInput) -> Result<InheritedCurrentGridBaselinePlacement, InheritedCurrentGridBaselinePlacementError>` receives `GridAxisKind`, physical baseline axis, first/last role, selected ancestor track, a `CheckedInheritedAxisMapping`, and a private current-grid-direct witness created only while iterating that grid's `PendingGridItem`s. It looks up the matching immutable target record in the group and derives local track, mapped edge, gutter crossing, half-gap translation, and translated target internally. No caller supplies a target, mapped edge, signed translation, or translated target |
+| Intrinsic invariants | Group/input axes and physical axes agree; selected track is inside both the immutable group and checked inherited span after reversal; role selects the matching first/last target record; the witness belongs to the current container and selected item; mapping is inherited and maps the requested child axis to the stated ancestor axis; stored target, mapping gaps, derived translation, and translated target are finite |
+| Rejection | Validation follows the exact precedence below. None falls back to ordinary offset, accepts caller-computed derived values, or compares target values to infer ownership |
 | Error propagation | Every constructor error maps to `SubgridChildContextError::BaselineInheritance`, then to `LayoutOperation::ChildLayout`, the existing node or container/subject site, and `LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::SubgridBaselineInheritance)`; no new public error or API surface is introduced |
 | Success and atomicity | Success stores axis, role, selected track, immutable ancestor target, mapping/reversal witness, signed translation, and translated placement target. It mutates neither group nor child view, enters no sizing/publication path, and is consumed once by `grid/child.rs` to replace the selected logical row/block or column/inline offset before final `FlowAxes` projection. Failure occurs before item location/output or batch mutation |
 
@@ -544,6 +544,24 @@ The private current-grid-direct witness makes foreign or flattened-descendant
 construction unavailable to ordinary callers; the explicit rejection remains a
 constructor negative-control obligation. Cloning or repeating successful
 derivation yields the same placement and leaves all inputs byte-for-byte equal.
+
+Constructor validation is total and ordered. A compound-invalid input returns
+the first applicable error in this exact precedence; structural, target,
+ownership, and mapping checks therefore precede scalar finiteness:
+
+1. group/input `GridAxisKind` mismatch returns `AxisMismatch`;
+2. physical baseline-axis mismatch returns `PhysicalAxisMismatch`;
+3. an empty mapping span or one outside the group returns `SpanOutOfRange`;
+4. a selected ancestor track outside that checked span returns
+   `SelectedTrackOutOfRange`;
+5. an absent selected target or a target record whose stored role, track, or
+   owner edge does not match selection returns `RoleTargetMismatch`;
+6. a witness for another container/item, or one not direct to the current grid,
+   returns `OwnershipMismatch`;
+7. a non-inherited mapping or one that does not map the requested child axis to
+   the stated ancestor axis returns `UnusableInheritedMapping`; and
+8. any non-finite stored target, gap, half-gap, derived translation, or translated
+   target returns `NonFinite`.
 
 ### 6.1 Cache And Fragment State
 
@@ -940,8 +958,8 @@ return precomputed final line positions.
 | `src/compute.rs` | Provider/error plumbing, invalidated entry point/path closure, cache bypass/staging, and cache/round fragment publication |
 | `src/inline.rs` | One logical mixed-participant line builder, break/bidi/whitespace, line metrics, per-line alignment, and physical projection |
 | `src/block.rs` | Inline composition, containing strut, float-band/BFC placement, percentage basis, fast-path baseline predicate, scroll contribution |
-| `src/grid/tracks.rs` | Extend the existing axis-parametric subgrid traversal to emit separate `FlattenedScalarContribution` and `AncestorBaselineMember` records; suppress a fully inherited root only from the ordinary scalar pass; derive one pre-growth member census for auto-track scalar contributions and shims; and reduce direct plus flattened members into immutable settled row and column targets. Reduced groups expose no mutator or target-value ownership inference |
-| `src/grid/subgrid.rs` | Own checked ancestor-span, mapped-edge, reversal, and accumulated margin/border/padding and half-gutter traversal facts. Ancestor-facing members retain the one outward half-gutter adjustment. A checked inherited-axis mapping derives `InheritedCurrentGridBaselinePlacement` for current-grid direct items flattened relative to the group owner; a separate downward mapping derives child-internal `ChildBaselineEnvelopeView`. Neither may mutate or re-enter the ancestor group, and no fully inherited-axis child-to-parent inverse exists |
+| `src/grid/tracks.rs` | Extend the existing axis-parametric subgrid traversal to emit separate `FlattenedScalarContribution` and `AncestorBaselineMember` records; suppress a fully inherited root only from the ordinary scalar pass; derive one pre-growth member census for auto-track scalar contributions and shims; and reduce direct plus flattened members into immutable settled row and column target records. A strictly larger candidate replaces the complete target record; an equal candidate retains the earliest source-order record. Reduced groups expose no mutator or target-value ownership inference |
+| `src/grid/subgrid.rs` | Own checked ancestor-span, mapped-edge, reversal, owner/current-grid identity, gap, margin/border/padding, and half-gutter traversal facts. Ancestor-facing members retain the one outward half-gutter adjustment. A `CheckedInheritedAxisMapping` and current-grid-direct witness derive `InheritedCurrentGridBaselinePlacement` internally from an immutable target record for current-grid direct items flattened relative to the group owner; a separate downward mapping derives child-internal `ChildBaselineEnvelopeView`. Neither may mutate or re-enter the ancestor group, and no fully inherited-axis child-to-parent inverse exists |
 | `src/grid/child.rs` | Select owner-direct target consumption or distinct inherited-current-grid placement for the item's `GridAxisKind`: columns replace the ordinary logical inline offset and rows replace the ordinary logical block offset before containing-grid `FlowAxes` performs one final projection. Child envelope views remain child-internal, ordinary non-inherited baseline behavior remains unchanged, and no post-placement correction or cloned-group mutation is permitted |
 | `src/cache.rs` | Preserve FRI-01's unit key and support clear-then-store batch application with fragment restoration |
 | Focused Rust tests | Model, line, block, root, cache, scalar, flow, provider, comparator, public surface, and failure evidence |
@@ -959,16 +977,17 @@ mapped edge, first/last role, containing-logical distance, and accumulated edge
 adjustments appropriate to their phase. `FlattenedScalarContribution` is the only
 channel allowed to grow a track by a complete item contribution.
 `AncestorBaselineMember` can join a group without carrying scalar size;
-`AncestorBaselineGroup` contains only settled owner-coordinate alignment targets;
-`InheritedCurrentGridBaselinePlacement` contains one immutable target plus the
-checked signed translation required when the consuming item's current grid
-inherits that axis; and `ChildBaselineEnvelopeView` can only be constructed from a
-group plus a checked downward child-internal mapping. A member direct to the group
-owner consumes the group. An item direct to an inherited current grid consumes the
-placement value, never the child view. The axis-parametric operation selects rows
-or columns from `GridAxisKind`; it does not branch on writing mode, direction,
-source name, fixture family, or target-value equality. `FlowAxes` performs the
-physical-to-logical conversion and the final projection.
+`AncestorBaselineGroup` contains only settled owner-coordinate alignment target
+records. `InheritedCurrentGridBaselinePlacement` contains the selected immutable
+target and every internally derived placement-coordinate fact required when the
+consuming item's current grid inherits that axis; `ChildBaselineEnvelopeView` can
+only be constructed from a group plus a checked downward child-internal mapping.
+A member direct to the group owner consumes the group. An item direct to an
+inherited current grid consumes the placement value, never the child view. The
+axis-parametric operation selects rows or columns from `GridAxisKind`; it does not
+branch on writing mode, direction, source name, fixture family, target-value
+equality, or winning member identity. `FlowAxes` performs the final physical
+projection.
 
 Focused public-layout tests must expose the complete transition: horizontal auto
 rows move from the duplicate `459` to browser `411`; inline-column direct
@@ -1186,12 +1205,73 @@ child group.
 
 The private algorithm phases are:
 
+```rust
+struct AncestorBaselineTarget<S> {
+    role: AlignSelf,
+    selected_ancestor_track: usize,
+    selected_owner_edge: LineEdge,
+    finite_owner_logical_target: S,
+}
+
+struct TrackAncestorBaselineTargets<S> {
+    first: Option<AncestorBaselineTarget<S>>,
+    last: Option<AncestorBaselineTarget<S>>,
+}
+
+struct AncestorBaselineGroup<S> {
+    axis: GridAxisKind,
+    physical_axis: AbsoluteAxis,
+    targets: Vec<TrackAncestorBaselineTargets<S>>,
+}
+
+struct CheckedInheritedAxisMapping<Node, S> {
+    owner: Node,
+    current_grid: Node,
+    child_axis: GridAxisKind,
+    ancestor_axis: GridAxisKind,
+    physical_axis: AbsoluteAxis,
+    parent_span: Line<GridTrackRepetition>,
+    reversed: bool,
+    parent_gap: S,
+    current_gap: S,
+    half_gap: S,
+    start_mbp: S,
+    end_mbp: S,
+}
+
+struct InheritedCurrentGridBaselinePlacement<Node, S> {
+    axis: GridAxisKind,
+    physical_axis: AbsoluteAxis,
+    role: AlignSelf,
+    selected_ancestor_track: usize,
+    selected_local_track: usize,
+    mapped_edge: LineEdge,
+    immutable_owner_target: S,
+    gutter_crossing: bool,
+    signed_translation: S,
+    translated_target: S,
+    mapping_witness: CheckedInheritedAxisMapping<Node, S>,
+    current_grid_direct_witness: CurrentGridDirectWitness<Node>,
+}
+```
+
+The concrete private role, edge, physical-axis, and span types may use existing
+equivalent internal names. The fields and phase distinctions above are required;
+production does not retain winning member/path identity beyond the complete
+target record.
+
+Transitions are one-way: the member census reduces to the immutable owner group;
+that group supplies either an owner-direct target or a checked current-grid
+placement; and only the group plus a downward child mapping can produce a
+`ChildBaselineEnvelopeView`. No placement or child view returns to the census,
+group reduction, or intrinsic sizing.
+
 | Phase | Required value and permitted transition |
 | --- | --- |
 | `FlattenedScalarContribution` | One descendant's intrinsic size in one ancestor axis, including its accumulated edge and half-gutter margins. A fully inherited subgrid root is recorded only as the scalar node suppressed from the ordinary direct-item pass; suppressing it does not suppress any descendant. |
 | `AncestorBaselineMember` | One participating direct item or flattened descendant, carrying source node, `GridAxisKind`, physical baseline axis, ancestor track span, selected startmost/endmost track, first/last role, containing-logical distance, and the accumulated start/end edge and half-gutter adjustments used to obtain that distance. Construction performs the only physical-to-containing-logical conversion. |
-| `AncestorBaselineGroup` | The immutable per-track first/last reduction of `AncestorBaselineMember` values in one ancestor grid. It supplies intrinsic baseline shims and final shared alignment targets. A fully inherited subgrid root is never an additional member. |
-| `InheritedCurrentGridBaselinePlacement` | One non-publishable placement value for an item direct to a current grid whose corresponding axis is inherited and therefore flattened relative to the `AncestorBaselineGroup` owner. It carries the axis, role, selected track, immutable ancestor target, checked inherited-axis mapping, reversal, and signed placement translation. Derivation mutates neither the group nor a child view, compares no target values to infer ownership, and can be repeated identically. |
+| `AncestorBaselineGroup` | The immutable per-track first/last reduction of `AncestorBaselineMember` values in one ancestor grid. Each selected slot retains role, ancestor track, owner edge, and finite owner-logical target atomically. A strictly larger candidate replaces that complete record; an equal candidate retains the earliest source-order record. The group supplies intrinsic baseline shims and final shared alignment targets. A fully inherited subgrid root is never an additional member. |
+| `InheritedCurrentGridBaselinePlacement` | One non-publishable placement value for an item direct to a current grid whose corresponding axis is inherited and therefore flattened relative to the `AncestorBaselineGroup` owner. The checked constructor looks up the immutable target record and derives local track, mapped edge, gutter crossing, translation, and translated target. Derivation mutates neither the group nor a child view, compares no target values to infer ownership, and can be repeated identically. |
 | `ChildBaselineEnvelopeView` | A non-publishable slice of an `AncestorBaselineGroup`, mapped to one child's local track order and logical direction. It can align child-local items but cannot enter ancestor reduction or scalar sizing. |
 
 One `GridAxisKind`-parameterized traversal produces the scalar and member records
@@ -1203,6 +1283,61 @@ the stored first/last preference. Positive, zero, and negative gutter difference
 therefore accumulate once while traversing outward. No later phase modifies that
 ancestor-facing member adjustment. An inherited-current-grid placement
 translation is a separate coordinate conversion, not a second accumulation.
+
+For one inherited current-grid boundary, let the checked parent span be
+`[parent_start, parent_end)`, and define:
+
+```text
+half_gap = (current_grid_gap - parent_gap) / 2
+track_count = parent_end - parent_start
+selected_local_track = if !reversed {
+    selected_ancestor_track - parent_start
+} else {
+    parent_end - 1 - selected_ancestor_track
+}
+```
+
+A first-baseline role initially maps to the start edge and a last-baseline role
+to the end edge; reversal swaps those mapped edges. A start edge has sign `+1`
+and an end edge sign `-1`. The selected edge crosses a current-grid gutter only
+when `First` has `selected_local_track > 0`, or `Last` has
+`selected_local_track + 1 < track_count`. The signed translation is zero for an
+owner-direct item, an edge that crosses no gutter, or an exact zero half-gap;
+otherwise it is `edge_sign(mapped_edge) * half_gap`. The translated target is
+the immutable owner target plus that translation. Start/end margin, border, and
+padding remain in the immutable owner target and are never added to this
+translation.
+
+Rows and columns use this identical logical formula; `GridAxisKind` chooses the
+axis. If the selected target changes by `d`, the first-baseline logical offset
+changes by `+d` and the last-baseline logical offset by `-d`. Reversal changes
+the current logical offset sign while first/last application cancels it, so the
+final physical displacement is
+`owner_axis_progression_sign * half_gap`. Neither the winning member identity nor
+target-value equality participates in applicability.
+
+The canonical placement matrix uses immutable owner target `17`, member distance
+`10`, available span `100`, margin-box extent `20`, and zero start margin. Its
+base offsets are first `7` and last `73`:
+
+| Gaps and mapping | First target/offset | Last target/offset |
+| --- | --- | --- |
+| parent `10`, current `20`, non-reversed, crossing | `22 / 12` | `12 / 78` |
+| parent `10`, current `20`, reversed, crossing | `12 / 2` | `22 / 68` |
+| equal gaps, either direction | `17 / 7` | `17 / 73` |
+| parent `20`, current `10`, non-reversed, crossing | `12 / 2` | `22 / 68` |
+| parent `20`, current `10`, reversed, crossing | `22 / 12` | `12 / 78` |
+| first at local track `0`, no preceding gutter | `17 / 7` | not applicable |
+| last at terminal local track, no following gutter | not applicable | `17 / 73` |
+| owner-direct item | `17 / 7` | `17 / 73` |
+
+With start/end MBP `3/4`, the base offsets are first `10` and last `69`; the
+positive non-reversed crossing case becomes first `15` and last `74`, while its
+translation remains `+5/-5`. The vertical-auto-row fixture is the physical
+control: parent/current gaps `0/10` give half-gap `+5`; the first item at local
+track `3` crosses a prior gutter, so target `28 -> 33`, offset `3 -> 8`, and
+vertical-rl x `126 -> 121`; the terminal last item crosses no following gutter,
+so target `10`, offset `99`, and x `30` remain unchanged.
 
 Intrinsic sizing freezes one pre-growth member census, reduces those members, and
 then applies each member's baseline shim and scalar contribution exactly once
@@ -1256,6 +1391,37 @@ Named focused tests prove:
   comparison or post-reduction group mutation; and
 - the former inherited-publication round-trip test is removed rather than
   updated: it exercises the superseded `D-17` inverse, not a product contract.
+
+The placement contract has these exact success and immutability tests:
+
+- `inherited_current_grid_baseline_placement_maps_row_and_column_half_gaps`;
+- `inherited_current_grid_baseline_placement_maps_first_and_last_edges_through_reversal`;
+- `inherited_current_grid_baseline_placement_is_zero_at_role_terminal_edges`;
+- `inherited_current_grid_baseline_placement_is_zero_for_equal_gaps_and_owner_direct_items`;
+- `inherited_current_grid_baseline_placement_keeps_mbp_in_base_mapping`;
+- `inherited_current_grid_baseline_placement_repeat_is_identical_and_mutates_no_input`;
+  and
+- `vertical_auto_rows_current_grid_first_moves_x126_to_x121_while_last_stays_x30`.
+
+Each ordered validation branch has one named negative control:
+
+- `inherited_current_grid_baseline_placement_rejects_axis_mismatch_first`;
+- `inherited_current_grid_baseline_placement_rejects_physical_axis_mismatch`;
+- `inherited_current_grid_baseline_placement_rejects_span_out_of_range`;
+- `inherited_current_grid_baseline_placement_rejects_selected_track_out_of_range`;
+- `inherited_current_grid_baseline_placement_rejects_role_target_mismatch`;
+- `inherited_current_grid_baseline_placement_rejects_ownership_mismatch`;
+- `inherited_current_grid_baseline_placement_rejects_unusable_inherited_mapping`;
+  and
+- `inherited_current_grid_baseline_placement_rejects_non_finite_last`.
+
+`subgrid_baseline_placement_error_propagates_with_node_site` and
+`subgrid_baseline_placement_error_propagates_with_container_subject_site` prove
+the two existing layout sites. The compound-invalid controls prove the declared
+precedence rather than merely reaching each variant. Finally,
+`late_subgrid_baseline_placement_error_after_prior_item_preparation_mutates_no_item_output_or_batch`
+proves that a later placement failure after earlier item preparation remains
+atomic.
 
 The helper emits atomic participation only when the computed/lowered child role
 is atomic, never from authored inline display after blockification. Typed inline
@@ -1620,8 +1786,8 @@ FRI-06 is complete only when:
     diff/provenance, and the tracked/non-ignored Rust unsafe scan are clean;
 19. all FRI-06-owned dead-code allowances are removed and no new lint suppression
     or executable `unsafe` exists; and
-20. the retained C03/C07 containment contracts and all six final dispositions in
-    `FRI-06.13.1` hold without public behavior or artifact change; and
+20. all six final dispositions in `FRI-06.13.1` hold without public behavior or
+    artifact change; and
 21. no dependency, feature, MSRV, generator architecture, root/sibling,
     FRI-09/10/11/12 behavior, FRI-13 aggregate gate, or unrelated change becomes
     part of FRI-06.
