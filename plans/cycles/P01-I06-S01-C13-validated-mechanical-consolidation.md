@@ -1,6 +1,6 @@
 # P01-I06-S01-C13 Validated Mechanical Consolidation
 
-Status: draft
+Status: reviewed
 
 Cycle ID: `P01/I06/S01/C13`
 
