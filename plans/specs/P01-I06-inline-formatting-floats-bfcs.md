@@ -146,6 +146,7 @@ are absent is also no longer true; FRI-06 consumes those completed contracts.
 | `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 initially unsupported variants identified below and includes exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. The layout-ready-inline opt-in supplies level zero unless an exact source-indexed marker supplies another bidi level. A marker may explicitly scope its applicability to one computed `ltr` or `rtl` variant; direction selects that authored record but never derives its level. Pinned Chrome is the default geometry oracle. An exact row may instead be a visible known Chrome measurement failure only under the certainty, evidence-record, synthetic-substitute, and revalidation contract in `FRI-06.11`; disagreement with layout alone never qualifies. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 | `D-17` | Superseded by `D-18`. It correctly separated scalar size, group membership, and parent envelope phases, but its publication-as-an-exact-inverse premise still required reconstructing ancestor transform history from a child-local scalar. Three bounded corrections could satisfy the nested coordinates or the intrinsic and round-trip controls, but not all of them together. |
 | `D-18` | Final subgrid-baseline controls use one axis-parametric flattened-membership model. In a fully inherited axis, the subgrid root is empty for track sizing and baseline grouping; its participating descendants enter the ancestor's group directly with the accumulated margin/border/padding and half-gutter adjustments already retained by subgrid traversal. A child physical baseline converts once to a typed ancestor-track logical distance. Scalar intrinsic contribution, ancestor baseline membership, reduced ancestor first/last group, and non-publishable child envelope view are distinct phases. The immutable ancestor group is reduced once, then sliced and mapped downward for child alignment; a child view is never republished upward and no inherited-axis fixed-point loop or publication inverse exists. Non-inherited axes retain ordinary local grid-container baseline behavior. Refreshed area sizing and the final physical projection remain owned by the containing grid's `FlowAxes`. |
+| `D-19` | Browser control observations and model control geometry remain distinct evidence. The browser may use its non-model `<br>` rectangle only to report source/slot/neighboring-line effects; layout publishes the specification-required zero-size aligned control. When that model point lies within tolerance of the exact shared endpoint of both adjacent model neighbor intervals, closed overlap makes both geometric relations `Same` and the browser's categorical relation is not comparable to model geometry. The comparator records that one field as endpoint-unobservable instead of equating the two meanings. Exact neighboring node geometry remains strict, the browser observation remains serialized, and a private line-builder regression proves that the forced break commits between the two model participants. This generic predicate reads no fixture identity or expectation to create layout input, adds no public line-identity surface, and is not a Chrome failure, expected-fail, or synthetic geometry substitute. |
 
 Rejected alternatives:
 
@@ -168,6 +169,9 @@ Rejected alternatives:
   inherited axis would model the subgrid root as a group member and require an
   inverse that cannot recover accumulated ancestor-edge provenance. CSS Grid 2
   instead makes the descendants participate directly with those adjustments.
+- Moving a model control to Chrome's `<br>` rectangle, treating touching closed
+  intervals as ordered, or reconstructing private line layout in the fixture
+  parser would corrupt one of the two evidence domains rather than compare them.
 
 ## 5 FRI-06.5 Public Model
 
@@ -1324,6 +1328,31 @@ reclassify, or dynamically widen a row. Aggregate failures outside this union
 remain FRI-13-owned. The pinned records are immutable evidence, not independent
 planning authority or acceptance lineage.
 
+### 11.3 Browser-Control Endpoint Observability
+
+Browser neighboring-line observations are compared to model geometry only when
+the model relation is observable. An endpoint is unobservable exactly when all
+of these predicates hold after ordinary node geometry has compared:
+
+1. the model source is a visible forced break with a zero-size output;
+2. both adjacent model neighbors have unrounded output;
+3. the control point is within the existing `0.1` tolerance of the shared
+   physical block endpoint of both neighbor intervals; and
+4. closed overlap therefore classifies both model relations as `Same` while the
+   serialized browser observation distinguishes the following line.
+
+The comparator preserves the browser value, reports the field through a typed
+endpoint-unobservable result, and skips only that non-equivalent categorical
+equality. It does not change the closed relation, model output, input parser,
+fixture, helper, or generated XML. The activation test accounts for exactly 144
+such fields across the inline-column, vertical-auto-row, and vertical-nested
+subgrid families; every other browser-control field remains directly compared.
+The private line-builder regression independently proves that the control ends
+the preceding source slice and the following atomic begins the next line. Any
+different count, family, missing exact node-geometry comparison, or non-endpoint
+reason is a failure. This capability state is neither an expected-fail nor an
+entry in the known-Chrome-failure registry.
+
 ## 12 FRI-06.12 Root And Sibling Handoff
 
 At inspected root revision `19590f6d9fa01c0df197c5ef07fb626c5cf18ced`,
@@ -1484,7 +1513,9 @@ FRI-06 is complete only when:
 12. comparator negative controls detect wrong/missing explicit model-control and
     model-fragment geometry, source/line/visual identity, and baseline, while
     Range-ink and browser-control observations cannot masquerade as model block
-    geometry or invent a model visual index;
+    geometry or invent a model visual index; the `FRI-06.11.3` endpoint state is
+    typed, accounts for exactly 144 fields, retains strict neighboring geometry,
+    and has independent private forced-break line-membership proof;
 13. final fixture lowering obeys the closed `FRI-06.11` marker/XML table;
     fixture names and expectations cannot influence parsed layout input;
     renamed-name and expectation-only equality controls pass; Chrome/helper
