@@ -10,8 +10,8 @@ Cycle base: `8ffb4bc551a24d2283ad54436870ab3f5e66a473`
 
 Reviewed specification:
 `plans/specs/P01-I06-inline-formatting-floats-bfcs.md`, normalized semantic-content
-SHA-256 `c94b388c1bb31b94a1b09bb287440e7ca22338da60d6bf161d7d3b7d7ec0fe38`,
-commit `967f3ca9d71ddec1451e69bc6cccf60d9399d511`: `FRI-06.3`,
+SHA-256 `7409fa58bd333731976b765cef36491a6f8f51a4170c6b62e9622f4ac4b01105`,
+commit `d80db2c86f4b9111a1b10eecd7d0a2d2939f0b09`: `FRI-06.3`,
 `FRI-06.4 D-16`, `D-18`, and `D-19`, the control, comparator, fixture, and
 subgrid portions of `FRI-06.7`, module/test contracts in `FRI-06.9` and `.10`,
 browser/artifact contracts in `FRI-06.11` through `.11.3`, and acceptance in
@@ -19,17 +19,18 @@ browser/artifact contracts in `FRI-06.11` through `.11.3`, and acceptance in
 
 Reviewed implementation sequence:
 `plans/sequences/P01-I06-S01-inline-formatting-floats-bfcs.md`, normalized
-SHA-256 `de8476bc841610e6842cf370ab5af6820322b73bb88365e0a5137b2319a95ae6`,
-commit `52de2e8ddeab8b2fc3e0885828017e67b6c7d116`, entry
+SHA-256 `719c219d618c337671763e0f6a8392b73fc2d1db413ff1efd99fd67c5a4971e6`,
+commit `c7326b9bc87d1ce3edf15fe48ff78bbf0755814c`, entry
 `P01/I06/S01/C12`.
 
 ## 1 Outcome
 
-Preserve the task-clean T01-T06 results, D-18-clean T08 production, and the sole
-successful full browser lineage. Reopen T07 only to implement D-19's typed
-endpoint-unobservable comparator state and independent private line-membership
-proof. Then adopt the already-generated artifacts and exact evidence constants
-without another full or scoped generation.
+Preserve the task-clean T01-T06 results and the sole successful full browser
+lineage. Reopen T08 first to complete D-18's settled axis-parametric baseline
+placement. Then reopen T07 for D-19's typed endpoint-unobservable comparator
+state and independent private line-membership proof. Finally adopt the
+already-generated artifacts and exact evidence constants without another full
+or scoped generation.
 
 ## 2 Boundary And Current Evidence
 
@@ -49,8 +50,8 @@ BR metrics, finite physical baseline distances, and the closed interval relation
 D-19 appends one comparator/test-support correction range; it does not invalidate
 those results.
 
-T08 remains task-clean at
-`8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`. Its six reviewed ordered ranges are:
+T08 was task-clean at `8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`
+before the full-fixture diagnosis. Its six reviewed ordered ranges are:
 
 - `89adbbc29ba3b2350c1fb64876a8a69520af8e07..9ff1b91dabd7d53b32ee0942a7e6962515a80b79`;
 - `9ff1b91dabd7d53b32ee0942a7e6962515a80b79..5f7f72c45090d9c230f7a2957bffadd5904625b4`;
@@ -60,8 +61,11 @@ T08 remains task-clean at
   and
 - `e367a493f4d6b574a1d1a53b31314528a5e5a213..8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`.
 
-D-18 production and exact public geometry are closed. No production file is
-reopened.
+D-18 is reopened by full-fixture diagnosis. Its prior focused controls remain
+valid, but they did not cover direct members consuming settled column groups,
+auto-row growth driven by flattened members, or a nested descendant's one-time
+half-gutter adjustment. T08 appends one correction range after these six reviewed
+ranges; it does not discard or rewrite them.
 
 After the final T07 helper correction, one full unfiltered generation completed
 successfully and remains in the canonical worktree as exactly 5,712 changed XML
@@ -80,11 +84,38 @@ report remains. Its evidence is:
 | Inventory | `0c327c2d93b140ea5ed5660e45ad947a0afb583b9aa97b3163ea59b45d371715` |
 
 The lineage closes the four unequal-line block-height rows. Activation is now
-244 passing and 144 failing, partitioned exactly as 48
+244 passing and 144 first-reported failures, partitioned exactly as 48
 `subgrid_baseline_inline_column_*`, 48
 `subgrid_baseline_vertical_auto_rows_*`, and 48
 `subgrid_baseline_vertical_nested_*` variants. Every failure is only serialized
-browser `next_line = Later` versus model closed-overlap `Same`.
+browser `next_line = Later` versus model closed-overlap `Same`. Temporarily
+classifying that endpoint exposed ordinary x-coordinate mismatches in the same
+files, so D-19 cannot close before D-18.
+
+The D-18 diagnosis used temporary instrumentation only and left no residue. It
+proved parsed layout inputs and final `FlowAxes` projection honest, then located
+three production divergences:
+
+- inline-column groups are produced as `[(112, 65), (80, 73), (75, 90)]`, but
+  only row groups feed placement; column groups do not replace the logical inline
+  offset. Direct block controls first diverge at x `470` versus `415`, and
+  `415` versus `470`; six direct flex siblings are also wrong;
+- vertical auto-row placement requires settled rows `[212, 194, 194]`, outer x
+  `196` with width `371`, nested first x `308`, and nested last x `222`, while
+  current track placement produces rows `[186, 203, 211]` and nested last x
+  `206`; and
+- vertical nested fixed tracks are correct, but the direct-member targets must be
+  `[(66, 15), (43, 32), (38, 40)]`; all six later direct siblings have the same
+  five-pixel half-gutter error.
+
+The owners are `src/grid/tracks.rs`, `src/grid/subgrid.rs`, and
+`src/grid/child.rs`. The correction uses one pre-growth member census for
+one-pass auto scalar sizing and shims, then recomputes immutable row/block and
+column/inline targets from settled tracks without feedback. Direct and flattened
+members consume the same target, the descendant half-gutter enters once before
+ancestor reduction, and only a downward child view translates into child-local
+coordinates. No fixed-point loop, publication inverse, parser change, fixture
+change, or regeneration is permitted.
 
 The representative vertical-rl model geometry is previous atomic `[55, 75]`,
 zero-size control `[55, 55]`, and next atomic `[35, 55]`. Closed overlap correctly
@@ -94,10 +125,11 @@ browser observation, model control geometry, neighboring node geometry, and the
 closed relation are all correct; only the comparator equates distinct evidence
 domains.
 
-The immutable cycle base predates the realized C12 tests. Reopened task commands
-resolve against the current entry state: the activation test and final-lineage
-freeze tests are preserved T07/T09 code already present at the plan commit. Only
-the three D-19 tests named below are new.
+One failed D-19 correction attempt and one diagnostic assignment produced no
+commit and left no source or test residue. The immutable cycle base predates the
+realized C12 tests. Reopened task commands resolve against the current entry
+state: the activation test and final-lineage freeze tests are preserved T07/T09
+code already present at the plan commit.
 
 ## 3 Known Chrome Measurement Failures
 
@@ -107,9 +139,11 @@ geometry remains directly compared.
 
 ## 4 Impacts
 
-- **Public API and compatibility:** unchanged; D-19 is private test support.
-- **Production:** unchanged; no `src/` behavior changes except a private unit
-  regression in `src/inline_tests.rs`.
+- **Public API and compatibility:** unchanged; D-18 changes private layout
+  production and D-19 changes private test support.
+- **Production/tests:** T08 may change `src/grid/tracks.rs`,
+  `src/grid/subgrid.rs`, `src/grid/child.rs`, `src/grid_tests.rs`, and focused
+  strict-fixture proof in `tests/layout/browser_parity.rs` only.
 - **Comparator/tests:** T07 may change
   `tests/layout/browser_parity/support.rs`,
   `tests/layout/browser_parity.rs`, and `src/inline_tests.rs` only.
@@ -123,17 +157,74 @@ geometry remains directly compared.
 
 ## 5 Tasks
 
-### 5.1 `P01/I06/S01/C12/T07` Classify Endpoint-Unobservable Controls
+### 5.1 `P01/I06/S01/C12/T08` Close Settled Axis-Parametric Baseline Placement
+
+**Files/area:** `src/grid/tracks.rs`, `src/grid/subgrid.rs`,
+`src/grid/child.rs`, `src/grid_tests.rs`, and focused ordinary-geometry proof in
+`tests/layout/browser_parity.rs`. Do not edit comparator support, helper, parser,
+fixtures, generator logic, generated artifacts, manifests, or public API.
+
+**RED:** Add
+`fri06_c12_t08_inline_column_direct_members_consume_column_group`,
+`fri06_c12_t08_vertical_auto_rows_preserve_full_fixture_targets`,
+`fri06_c12_t08_vertical_nested_direct_members_use_ancestor_half_gap`, and
+`fri06_c12_t08_representative_xml_has_strict_ordinary_geometry` test-first. The
+first three preserve the diagnosed wrong and required values in Section 2. The
+fourth parses each of the three preserved representative XML files through the
+real `Golden`, clones only its expectation tree, recursively clears
+`browser_control` observations, proves the layout-ready `root` input is
+unchanged, and invokes the real strict layout assertion. It fails only ordinary
+geometry before correction; no comparator exception, generated edit, or
+generation command supplies RED.
+
+**Outcome:** Derive one pre-growth ancestor-member census for scalar auto-track
+sizing and baseline shims. After tracks settle, reduce direct and flattened
+members once into immutable row/block and column/inline targets. Apply each
+descendant's accumulated edge and half-gutter once before ancestor reduction;
+translate only a downward, non-publishable child view. `child.rs` consumes the
+selected axis target before the containing grid performs the final physical
+projection. Preserve ordinary non-inherited grid behavior.
+
+**Acceptance:** Inline-column direct block controls are x `470` and `415`, the
+six direct flex siblings match their preserved XML coordinates, and RTL
+serialized geometry includes root first x `527`. Vertical auto rows are exactly
+`[212, 194, 194]`, outer x/width is `196`/`371`, nested first x is `308`, nested
+last x is `222`, and every later sibling matches. Vertical nested targets are
+exactly `[(66, 15), (43, 32), (38, 40)]`, with all six later direct siblings
+matching. All ordinary fields in the three representative XML files pass strict
+layout comparison before D-19; only their existing endpoint observations remain
+for T07. Existing positive, equal, and negative gutter, reversed-axis,
+idempotence, and non-inherited controls stay green. The generated corpus is
+byte-identical.
+
+**Commands:**
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c12_t08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib
+CARGO_NET_OFFLINE=true just check
+CARGO_NET_OFFLINE=true just clippy
+CARGO_NET_OFFLINE=true just fmt-check
+git diff --check
+```
+
+**Dependency:** Append the correction span after T08's six reviewed ranges and
+review the complete seven-range T08 lineage. T07 remains blocked until T08 is
+task-clean. Preserve the successful generated lineage unchanged.
+
+**Intended commit:** `fix(layout): close settled subgrid baseline placement`.
+
+### 5.2 `P01/I06/S01/C12/T07` Classify Endpoint-Unobservable Controls
 
 **Files/area:** `tests/layout/browser_parity/support.rs`, focused activation
 accounting in `tests/layout/browser_parity.rs`, and a private line-builder
 regression in `src/inline_tests.rs`. Do not edit production, helper, parser,
 fixtures, generator logic, or generated artifacts.
 
-**RED:** Against the preserved successful lineage, run the focused activation
-test once. It enumerates exactly 388 rows and fails exactly 144 `next_line`
-comparisons: the 48/48/48 families recorded above all report browser `Later`
-versus model `Same`, while 244 rows pass. Then add
+**RED:** After T08 is task-clean and all ordinary geometry is strict-green, run
+the focused activation test once. It enumerates exactly 388 rows and fails
+exactly 144 `next_line` comparisons: the 48/48/48 families recorded above all
+report browser `Later` versus model `Same`, while 244 rows pass. Then add
 `fri06_c12_t07_endpoint_unobservable_requires_exact_shared_endpoint`,
 `fri06_c12_t07_endpoint_accounting_is_exact`, and
 `fri06_c12_t07_endpoint_break_commits_following_atomic_to_next_line` test-first;
@@ -170,13 +261,13 @@ CARGO_NET_OFFLINE=true just fmt-check
 git diff --check
 ```
 
-**Dependency:** Append the correction span after T07's six reviewed ranges and
-review the complete seven-range T07 lineage. Preserve T08 and the successful
-generated lineage unchanged.
+**Dependency:** T08 is task-clean. Append the correction span after T07's six
+reviewed ranges and review the complete seven-range T07 lineage. Preserve the
+successful generated lineage unchanged.
 
 **Intended commit:** `fix(parity): classify endpoint-unobservable controls`.
 
-### 5.2 `P01/I06/S01/C12/T09` Adopt Final FRI-06 Lineage
+### 5.3 `P01/I06/S01/C12/T09` Adopt Final FRI-06 Lineage
 
 **Files/area:** test-only evidence constants and digest assertions in
 `tests/bin/surgeist-layout-generate/generator.rs` and
@@ -197,8 +288,8 @@ permission to generate or alter artifact bodies.
 
 **Outcome:** Update only the exact evidence constants, then commit those constants
 with the preserved XML/report as the final lineage. Do not run a full or scoped
-generation: D-19 changes no generator input or output, so the already-successful
-full run is the sole acceptance lineage.
+generation: D-18 production and D-19 comparator changes alter no generator input
+or output, so the already-successful full run is the sole acceptance lineage.
 
 **Acceptance:** Focused lineage tests prove `filter: null`, 5,712 generated, the
 exact 16 missing-root unsupported rows, zero other buckets, one full report, the
@@ -230,7 +321,7 @@ CARGO_NET_OFFLINE=true just taffy-check
 git diff --check
 ```
 
-**Dependency:** T07 is task-clean and T08 remains preserved-clean. T09's complete
+**Dependency:** T08 and T07 are task-clean. T09's complete
 ordered lineage begins with diagnostic range
 `a1d165e30f6abbc3ad1759504fcd9c90dc52a709..0a355604d0862a8f07811d323acfdece912921cd`
 and appends the final adoption span.
@@ -239,7 +330,7 @@ and appends the final adoption span.
 
 ## 6 Cycle Completion
 
-After T07 and T09 are independently task-clean, change only `Status` to
+After T08, T07, and T09 are independently task-clean, change only `Status` to
 `complete` in a separate commit. At that exact head run:
 
 ```sh
