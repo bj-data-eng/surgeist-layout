@@ -1,4 +1,7 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+};
 
 use crate::flex::FlexAxes;
 use crate::geometry::PhysicalProgression;
@@ -1349,6 +1352,464 @@ fn assert_fri07_c01_intrinsic_measurement_errors<S: LayoutScalar>() {
 fn fri07_c01_intrinsic_provider_failure_and_non_finite_output_remain_exact_in_both_scalar_lanes() {
     assert_fri07_c01_intrinsic_measurement_errors::<f32>();
     assert_fri07_c01_intrinsic_measurement_errors::<f64>();
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri07C01CompositionMeasureMode {
+    Values,
+    Failure,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri07C01CompositionMeasureError {
+    ProviderFailure,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Fri07C01CompositionRetained<S: LayoutScalar> {
+    unrounded: HashMap<u32, NodeOutputOf<S>>,
+    final_outputs: HashMap<u32, NodeOutputOf<S>>,
+    caches: HashMap<u32, CacheOf<S>>,
+}
+
+#[derive(Clone, Debug)]
+struct Fri07C01CompositionTree<S: LayoutScalar> {
+    tree: PublicLayoutTreeOf<S>,
+    measure_mode: Cell<Fri07C01CompositionMeasureMode>,
+    measurement_requests: RefCell<Vec<(u32, LeafMeasureInputOf<S>)>>,
+    cache_queries: RefCell<Vec<(u32, bool)>>,
+    retained: Fri07C01CompositionRetained<S>,
+}
+
+impl<S: LayoutScalar> Fri07C01CompositionTree<S> {
+    fn new() -> Self {
+        let px = |value| PreferredSizeOf::px(S::from_f64(value));
+        let auto_px = |value| LengthAutoOf::px(S::from_f64(value));
+        let intrinsic_margin = Edges {
+            top: LengthAutoOf::AUTO,
+            right: LengthAutoOf::ZERO,
+            bottom: LengthAutoOf::AUTO,
+            left: LengthAutoOf::ZERO,
+        };
+        let intrinsic_item = |basis, order, replaced| NodeInputOf {
+            item_is_replaced: replaced,
+            item_order: ItemOrder::new(order),
+            size: Size::new(PreferredSizeOf::AUTO, px(50.4)),
+            min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+            flex_basis: basis,
+            flex_grow: FlexGrowOf::try_new(S::ZERO).expect("zero is a valid flex grow"),
+            flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink"),
+            margin: intrinsic_margin,
+            ..NodeInputOf::default()
+        };
+        let tree = PublicLayoutTreeOf::new()
+            .children(1, [2, 3, 4])
+            .children(2, [])
+            .children(3, [])
+            .children(4, [])
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::new(px(130.0), px(40.0)),
+                    overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                    scrollbar_width: ScrollbarWidthOf::try_new(S::from_f64(5.0))
+                        .expect("composition scrollbar width is finite"),
+                    align_items: Some(AlignItems::FlexStart),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(2, intrinsic_item(FlexBasisOf::MIN_CONTENT, 2, false))
+            .style(
+                3,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    item_order: ItemOrder::new(-100),
+                    inset: Edges::new(auto_px(0.0), auto_px(20.0), auto_px(0.0), auto_px(10.0)),
+                    size: Size::new(px(20.0), px(10.0)),
+                    margin: Edges::all(LengthAutoOf::AUTO),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(4, intrinsic_item(FlexBasisOf::MAX_CONTENT, -2, true));
+
+        Self {
+            tree,
+            measure_mode: Cell::new(Fri07C01CompositionMeasureMode::Values),
+            measurement_requests: RefCell::new(Vec::new()),
+            cache_queries: RefCell::new(Vec::new()),
+            retained: Fri07C01CompositionRetained::default(),
+        }
+    }
+
+    fn request() -> LayoutRootRequestOf<S> {
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(200.0))))
+            .expect("composition viewport is finite")
+    }
+
+    fn apply_cache_entry(
+        retained: &mut Fri07C01CompositionRetained<S>,
+        entry: &LayoutCacheStoreEntryOf<u32, S>,
+    ) {
+        retained
+            .caches
+            .entry(entry.node())
+            .or_default()
+            .store_with_context(entry.input(), entry.context(), entry.output());
+    }
+}
+
+impl<S: LayoutScalar> Traverse for Fri07C01CompositionTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = <PublicLayoutTreeOf<S> as Traverse>::Children<'a>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        Traverse::children(&self.tree, node)
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.tree.child_count(node)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.tree.child(node, index)
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri07C01CompositionTree<S> {
+    type MeasureError = Fri07C01CompositionMeasureError;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        self.tree.node_input(node)
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.tree.layout_input(node)
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        matches!(node, 2 | 4)
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        input: LeafMeasureInputOf<S>,
+    ) -> Option<Result<Size<S>, Self::MeasureError>> {
+        self.measurement_requests.borrow_mut().push((node, input));
+        if self.measure_mode.get() == Fri07C01CompositionMeasureMode::Failure && node == 4 {
+            return Some(Err(Fri07C01CompositionMeasureError::ProviderFailure));
+        }
+
+        let width = match input.available_content_size().width {
+            MeasurementAvailableOf::MinContent => S::from_f64(40.4),
+            MeasurementAvailableOf::MaxContent => S::from_f64(100.4),
+            MeasurementAvailableOf::Definite(width) => width.get(),
+        };
+        Some(Ok(Size::new(width, S::from_f64(50.4))))
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<S>,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<S>> {
+        let output = self
+            .retained
+            .caches
+            .get(&node)
+            .and_then(|cache| cache.get_with_context(input, context));
+        self.cache_queries
+            .borrow_mut()
+            .push((node, output.is_some()));
+        output
+    }
+
+    fn unrounded_layout(&self, node: Self::Node) -> Option<NodeOutputOf<S>> {
+        self.retained.unrounded.get(&node).copied()
+    }
+}
+
+impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri07C01CompositionTree<S> {
+    type Error = core::convert::Infallible;
+    type Prepared = Fri07C01CompositionRetained<S>;
+
+    fn prepare_layout_batch(
+        &self,
+        batch: &CompletedLayoutBatchOf<u32, S>,
+    ) -> Result<Self::Prepared, Self::Error> {
+        let mut prepared = self.retained.clone();
+        for node in batch.invalidated_nodes() {
+            prepared.unrounded.remove(node);
+            prepared.final_outputs.remove(node);
+            prepared.caches.remove(node);
+        }
+        for entry in batch.unrounded_entries() {
+            prepared.unrounded.insert(entry.node(), entry.output());
+        }
+        for entry in batch.final_entries() {
+            prepared.final_outputs.insert(entry.node(), entry.output());
+        }
+        for entry in batch.cache_clear_entries() {
+            prepared.caches.remove(&entry.node());
+        }
+        for entry in batch.cache_store_entries() {
+            Self::apply_cache_entry(&mut prepared, entry);
+        }
+        Ok(prepared)
+    }
+
+    fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
+        self.retained = prepared;
+    }
+}
+
+fn fri07_c01_composition_output<S: LayoutScalar>(
+    entries: &[LayoutOutputEntryOf<u32, S>],
+    node: u32,
+) -> NodeOutputOf<S> {
+    entries
+        .iter()
+        .find(|entry| entry.node() == node)
+        .unwrap_or_else(|| panic!("composition layout must publish node {node}"))
+        .output()
+}
+
+fn fri07_c01_composition_assert_near<S: LayoutScalar>(actual: S, expected: f64, context: &str) {
+    let difference = (actual.to_f64() - expected).abs();
+    assert!(
+        difference <= 0.000_02,
+        "{context}: expected {expected}, got {}",
+        actual.to_f64()
+    );
+}
+
+fn fri07_c01_composition_geometry<S: LayoutScalar>() -> Vec<f64> {
+    let tree = Fri07C01CompositionTree::<S>::new();
+    let batch = compute_layout(&tree, 1, Fri07C01CompositionTree::<S>::request())
+        .expect("composed intrinsic and margin layout succeeds");
+    let root = fri07_c01_composition_output(batch.unrounded_entries(), 1);
+    let min = fri07_c01_composition_output(batch.unrounded_entries(), 2);
+    let absolute = fri07_c01_composition_output(batch.unrounded_entries(), 3);
+    let max = fri07_c01_composition_output(batch.unrounded_entries(), 4);
+    let rounded_min = fri07_c01_composition_output(batch.final_entries(), 2);
+    let rounded_max = fri07_c01_composition_output(batch.final_entries(), 4);
+
+    assert_eq!(min.source_index, SourceIndex::new(0));
+    assert_eq!(absolute.source_index, SourceIndex::new(1));
+    assert_eq!(max.source_index, SourceIndex::new(2));
+    fri07_c01_composition_assert_near(max.location.x, 0.0, "order-modified max x");
+    fri07_c01_composition_assert_near(max.size.width, 100.4, "replaced max-content width");
+    fri07_c01_composition_assert_near(min.location.x, 100.4, "order-modified min x");
+    fri07_c01_composition_assert_near(min.size.width, 40.4, "non-replaced min-content width");
+    for (name, output) in [("min", min), ("max", max)] {
+        fri07_c01_composition_assert_near(output.location.y, 0.0, &format!("{name} y"));
+        fri07_c01_composition_assert_near(output.size.height, 50.4, &format!("{name} height"));
+        fri07_c01_composition_assert_near(output.margin.top, 0.0, &format!("{name} top"));
+        fri07_c01_composition_assert_near(output.margin.bottom, -15.4, &format!("{name} bottom"));
+    }
+    fri07_c01_composition_assert_near(absolute.margin.left, 37.5, "absolute left margin");
+    fri07_c01_composition_assert_near(absolute.margin.right, 37.5, "absolute right margin");
+    fri07_c01_composition_assert_near(absolute.margin.top, 12.5, "absolute top margin");
+    fri07_c01_composition_assert_near(absolute.margin.bottom, 12.5, "absolute bottom margin");
+    fri07_c01_composition_assert_near(absolute.location.x, 47.5, "absolute x");
+    fri07_c01_composition_assert_near(absolute.location.y, 12.5, "absolute y");
+
+    let scroll = root
+        .scroll_geometry
+        .expect("composed auto overflow publishes scroll geometry");
+    assert_eq!(scroll.used_overflow_x(), Overflow::Auto);
+    assert_eq!(scroll.used_overflow_y(), Overflow::Auto);
+    assert_eq!(scroll.scrollbar_size(), Size::splat(S::from_f64(5.0)));
+    assert_eq!(
+        scroll.scrollport().size(),
+        Size::new(S::from_f64(125.0), S::from_f64(35.0))
+    );
+    fri07_c01_composition_assert_near(
+        scroll.physical_range().x().maximum(),
+        15.8,
+        "settled horizontal scroll range",
+    );
+    fri07_c01_composition_assert_near(
+        scroll.physical_range().y().maximum(),
+        15.4,
+        "settled vertical scroll range",
+    );
+    assert_eq!(rounded_max.location.x, S::ZERO);
+    assert_eq!(
+        rounded_max.size,
+        Size::new(S::from_f64(100.0), S::from_f64(50.0))
+    );
+    assert_eq!(rounded_min.location.x, S::from_f64(100.0));
+    assert_eq!(
+        rounded_min.size,
+        Size::new(S::from_f64(41.0), S::from_f64(50.0))
+    );
+
+    vec![
+        min.location.x.to_f64(),
+        min.size.width.to_f64(),
+        min.margin.bottom.to_f64(),
+        max.location.x.to_f64(),
+        max.size.width.to_f64(),
+        max.margin.bottom.to_f64(),
+        absolute.location.x.to_f64(),
+        absolute.location.y.to_f64(),
+        scroll.physical_range().x().maximum().to_f64(),
+        scroll.physical_range().y().maximum().to_f64(),
+    ]
+}
+
+#[test]
+fn fri07_c01_composition_order_replaced_overflow_absolute_rounding_and_scalars_agree() {
+    let f32_geometry = fri07_c01_composition_geometry::<f32>();
+    let f64_geometry = fri07_c01_composition_geometry::<f64>();
+
+    assert_eq!(f32_geometry.len(), f64_geometry.len());
+    for (index, (f32_value, f64_value)) in f32_geometry.into_iter().zip(f64_geometry).enumerate() {
+        assert!(
+            (f32_value - f64_value).abs() <= 0.000_02,
+            "composition scalar lane mismatch at field {index}: {f32_value} versus {f64_value}"
+        );
+    }
+}
+
+fn assert_fri07_c01_composition_replaced_intrinsic_sizing<S: LayoutScalar>() {
+    let px = |value| PreferredSizeOf::px(S::from_f64(value));
+    let auto_px = |value| LengthAutoOf::px(S::from_f64(value));
+    for (replaced, expected_width) in [(true, 50.0), (false, 60.0)] {
+        let tree = Fri07C01IntrinsicTree::new(Fri07C01IntrinsicMeasureMode::Values)
+            .children(1, [2, 3])
+            .children(2, [])
+            .children(3, [])
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::new(px(50.0), px(20.0)),
+                    align_items: Some(AlignItems::Stretch),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                2,
+                NodeInputOf {
+                    item_is_replaced: replaced,
+                    aspect_ratio: AspectRatioOf::new(S::from_f64(3.0)),
+                    flex_basis: FlexBasisOf::MAX_CONTENT,
+                    flex_grow: FlexGrowOf::try_new(S::ZERO).expect("zero is a valid flex grow"),
+                    flex_shrink: FlexShrinkOf::try_new(S::ONE).expect("one is a valid flex shrink"),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                3,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    inset: Edges {
+                        top: auto_px(0.0),
+                        left: auto_px(0.0),
+                        ..Edges::all(LengthAutoOf::AUTO)
+                    },
+                    size: Size::new(px(10.0), px(5.0)),
+                    margin: Edges::all(LengthAutoOf::AUTO),
+                    ..NodeInputOf::default()
+                },
+            )
+            .measured(2);
+        let batch = compute_layout(&tree, 1, Fri07C01CompositionTree::<S>::request())
+            .expect("replaced intrinsic composition layout succeeds");
+        let intrinsic = fri07_c01_composition_output(batch.unrounded_entries(), 2);
+        let absolute = fri07_c01_composition_output(batch.unrounded_entries(), 3);
+
+        fri07_c01_composition_assert_near(
+            intrinsic.size.width,
+            expected_width,
+            if replaced {
+                "replaced intrinsic automatic minimum"
+            } else {
+                "non-replaced intrinsic automatic minimum"
+            },
+        );
+        fri07_c01_composition_assert_near(intrinsic.size.height, 20.0, "intrinsic cross stretch");
+        assert_eq!(intrinsic.source_index, SourceIndex::new(0));
+        assert_eq!(absolute.source_index, SourceIndex::new(1));
+        assert_eq!(absolute.margin, Edges::ZERO);
+        assert_eq!(absolute.location, Point::ZERO);
+        assert!(
+            tree.leaf_requests(2).iter().any(|input| {
+                input.available_content_size().width == MeasurementAvailableOf::MAX_CONTENT
+            }),
+            "max-content basis must reach the provider for replaced={replaced}"
+        );
+    }
+}
+
+#[test]
+fn fri07_c01_composition_intrinsic_replaced_and_non_replaced_sizing_remain_distinct() {
+    assert_fri07_c01_composition_replaced_intrinsic_sizing::<f32>();
+    assert_fri07_c01_composition_replaced_intrinsic_sizing::<f64>();
+}
+
+fn assert_fri07_c01_composition_cache_and_atomicity<S: LayoutScalar>() {
+    let mut tree = Fri07C01CompositionTree::<S>::new();
+    let request = Fri07C01CompositionTree::<S>::request();
+    let cold = compute_layout(&tree, 1, request).expect("cold composition layout succeeds");
+    let cold_unrounded = cold.unrounded_entries().to_vec();
+    let cold_final = cold.final_entries().to_vec();
+    let cold_measurements = tree.measurement_requests.borrow().len();
+    assert!(
+        cold_measurements > 0,
+        "cold layout must invoke intrinsic measurement"
+    );
+    cold.apply_to(&mut tree)
+        .expect("infallible composition batch commit succeeds");
+
+    tree.cache_queries.borrow_mut().clear();
+    let warm = compute_layout(&tree, 1, request).expect("warm composition layout succeeds");
+    assert_eq!(warm.unrounded_entries(), cold_unrounded);
+    assert_eq!(warm.final_entries(), cold_final);
+    assert!(
+        tree.cache_queries.borrow().iter().any(|(_, hit)| *hit),
+        "warm composition layout must reuse a committed cache entry"
+    );
+    assert!(
+        tree.measurement_requests.borrow()[cold_measurements..]
+            .iter()
+            .all(|(node, input)| match node {
+                2 => input.available_content_size().width == MeasurementAvailableOf::MIN_CONTENT,
+                4 => matches!(
+                    input.available_content_size().width,
+                    MeasurementAvailableOf::MinContent | MeasurementAvailableOf::MaxContent
+                ),
+                _ => false,
+            }),
+        "warm recomputation must preserve intrinsic measurement constraints"
+    );
+
+    tree.measure_mode
+        .set(Fri07C01CompositionMeasureMode::Failure);
+    let retained_before_failure = tree.retained.clone();
+    let error = compute_layout_invalidated(&tree, 1, request, &[4])
+        .expect_err("invalidated intrinsic provider failure returns no batch");
+    assert_eq!(error.site(), LayoutErrorSiteOf::Node(4));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKindOf::Measurement(Fri07C01CompositionMeasureError::ProviderFailure)
+    ));
+    assert_eq!(tree.retained, retained_before_failure);
+}
+
+#[test]
+fn fri07_c01_composition_cache_cold_warm_and_failed_measurement_are_atomic() {
+    assert_fri07_c01_composition_cache_and_atomicity::<f32>();
+    assert_fri07_c01_composition_cache_and_atomicity::<f64>();
 }
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
