@@ -137,7 +137,7 @@ corroborating evidence, not files imported into this repository by FRI-07.
 | `D-04` | A collapsed item's first-round strut is the used line cross size after ordinary line cross-size calculation and `align-content: stretch`, matching Flexbox section 9.4. It is not the item's own outer cross size, baseline extent, or final container cross size. |
 | `D-05` | The second round is finite and runs at most once. It starts from immutable collected item measurements and immutable per-item struts; second-round geometry never feeds a third round. Scrollbar-settling remains the existing outer fixed-point owner and may rerun the complete finite flex computation with a different available box. |
 | `D-06` | A collapsed item publishes a source-indexed zero `NodeOutputOf` and its descendants take the existing hidden-computation path. It contributes no margin, gap, baseline, intrinsic main size, scrollable overflow, scroll target, container content size, or absolute-child containing geometry. Its strut is private line state, not a public output box. |
-| `D-07` | Cross-axis auto margins follow Flexbox section 9.6 exactly. Positive difference is shared among auto margins. Under overflow, the normal logical start side of the cross dimension, block-start for a row container or inline-start for a column container, is distinct from wrap-reversible flex cross-start: its auto margin resolves to zero and the opposite margin receives the signed remainder. `FlexAxes` remains the sole mapping owner but exposes this non-wrap-reversible cross-axis pair explicitly. |
+| `D-07` | Cross-axis auto margins follow Flexbox section 9.6 exactly. Positive difference is shared among auto margins. Under overflow, the normal logical start side of the cross dimension, block-start for a row container or inline-start for a column container, is distinct from wrap-reversible flex cross-start: if its margin is auto it resolves to zero, then the opposite margin, including a non-auto opposite margin, is replaced by the signed value that makes the outer cross size equal the line. `FlexAxes` remains the sole mapping owner but exposes this non-wrap-reversible cross-axis pair explicitly. |
 | `D-08` | Ordinary main-axis auto margins retain Flexbox section 9.5 behavior: distribute only positive remaining space; otherwise every main-axis auto margin resolves to zero. FRI-07 does not apply the cross-axis overflow rule to the main axis. |
 | `D-09` | Absolutely positioned flex-child auto margins are resolved per physical axis using the inset-modified containing block. If either inset in that axis is auto, every auto margin in that axis is zero. Otherwise remaining space is inset-modified size minus used size minus non-auto margins and is divided among auto margins. |
 | `D-10` | For an absolutely positioned child with two auto margins and negative inline-axis remaining space, containing-block inline-start is zero and inline-end receives the full signed remainder. In the block axis, negative remaining space is divided normally. Containing `FlowAxes`, not the child's writing mode or a physical-left shortcut, selects inline start/end. |
@@ -208,14 +208,17 @@ remains behaviorally unchanged except the three named defect corrections.
 
 Let `line_cross` be the used cross size of the item's flex line. Let
 `outer_without_auto` be the item's target cross size plus both non-auto cross
-margins. Let `remaining = line_cross - outer_without_auto`.
+margins. Let `remaining = line_cross - outer_without_auto`. For the overflow
+branch, let `overflow_end = line_cross - target_cross - used_logical_start`,
+where an auto logical-start margin first resolves to zero and a non-auto logical-
+start margin retains its used value.
 
 | Logical cross-dimension auto edges | `remaining > 0` | `remaining <= 0` |
 | --- | --- | --- |
 | neither | Preserve both margins; alignment applies normally | Preserve both margins; alignment applies normally |
-| start only | start receives `remaining`; preserve end | start is zero; preserve end |
-| end only | end receives `remaining`; preserve start | end receives `remaining`; preserve start |
-| start and end | each receives `remaining / 2` | start is zero; end receives `remaining` |
+| start only | start receives `remaining`; preserve end | start is zero; replace end with `overflow_end` |
+| end only | end receives `remaining`; preserve start | preserve start; end receives `overflow_end` |
+| start and end | each receives `remaining / 2` | start is zero; end receives `overflow_end` |
 
 Start/end in this table are the normal logical sides of the cross dimension:
 block-start/end for row and row-reverse containers, and inline-start/end for
@@ -226,12 +229,19 @@ used margins resolve. A negative logical-end margin is observable in
 `NodeOutputOf::margin`. The engine must not compare browser computed-style
 margin strings to infer the used layout margin.
 
+Example: a `60px` target cross size in a `40px` line with auto logical-start
+and a fixed `5px` logical-end margin resolves to start `0px` and end `-20px`.
+The algorithm replaces the fixed end margin; preserving `5px` or assigning the
+precomputed `remaining` of `-25px` is incorrect.
+
 Focused tests cover positive, zero, and negative remaining space; each auto-edge
 combination; row, column, main-axis reverse, and wrap-reverse; all ten writing-
 mode and direction mappings; both scalar lanes; and output margin plus physical
 geometry. Paired wrap/wrap-reverse cases prove that the same logical-start
 margin remains zero under overflow while line progression and physical
-placement reverse independently.
+placement reverse independently. A start-only-auto case with a fixed opposite
+margin proves the overflow branch replaces that opposite used margin with
+`overflow_end`.
 
 ### 6.2 Absolutely Positioned Flex Children
 
