@@ -96,6 +96,8 @@ pub(crate) enum ResolvedPreferredSize<S: LayoutScalar> {
 pub(crate) enum ResolvedFlexBasis<S: LayoutScalar> {
     Auto,
     Content,
+    MinContent,
+    MaxContent,
     Definite(S),
 }
 
@@ -1132,6 +1134,12 @@ pub(crate) fn resolve_flex_basis<S: LayoutScalar>(
         SizingDispatch::Supported(DispatchedSizingRequest::Auto) => Ok(ResolvedFlexBasis::Auto),
         SizingDispatch::Supported(DispatchedSizingRequest::Content) => {
             Ok(ResolvedFlexBasis::Content)
+        }
+        SizingDispatch::Supported(DispatchedSizingRequest::MinContent) => {
+            Ok(ResolvedFlexBasis::MinContent)
+        }
+        SizingDispatch::Supported(DispatchedSizingRequest::MaxContent) => {
+            Ok(ResolvedFlexBasis::MaxContent)
         }
         SizingDispatch::Supported(request) => {
             resolve_dispatched_numeric(request, percentage_basis, true)

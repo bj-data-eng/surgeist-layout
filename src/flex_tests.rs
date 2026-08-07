@@ -10,6 +10,401 @@ use crate::*;
 type FlexTree<S = Scalar> = OracleTreeOf<S>;
 type RecursiveTree = OracleTree;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri07C01IntrinsicMeasureError {
+    ProviderFailure,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri07C01IntrinsicMeasureMode {
+    Values,
+    ProviderFailure,
+    NonFinite,
+}
+
+#[derive(Clone, Debug)]
+struct Fri07C01IntrinsicTree<S: LayoutScalar> {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInputOf<S>>,
+    measured_nodes: Vec<u32>,
+    mode: Fri07C01IntrinsicMeasureMode,
+}
+
+impl<S: LayoutScalar> Fri07C01IntrinsicTree<S> {
+    fn new(mode: Fri07C01IntrinsicMeasureMode) -> Self {
+        Self {
+            children: HashMap::new(),
+            styles: HashMap::new(),
+            measured_nodes: Vec::new(),
+            mode,
+        }
+    }
+
+    fn children(mut self, node: u32, children: impl IntoIterator<Item = u32>) -> Self {
+        self.children.insert(node, children.into_iter().collect());
+        self
+    }
+
+    fn style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
+        self.styles.insert(node, style);
+        self
+    }
+
+    fn measured(mut self, node: u32) -> Self {
+        self.measured_nodes.push(node);
+        self
+    }
+}
+
+impl<S: LayoutScalar> Traverse for Fri07C01IntrinsicTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri07C01IntrinsicTree<S> {
+    type MeasureError = Fri07C01IntrinsicMeasureError;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<Self::Scalar> {
+        self.styles
+            .get(&node)
+            .unwrap_or_else(|| panic!("intrinsic test node {node} must have style"))
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        LayoutInputOf::box_input(self.node_input(node).clone())
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        self.measured_nodes.contains(&node)
+    }
+
+    fn measure_leaf(
+        &self,
+        _node: Self::Node,
+        input: LeafMeasureInputOf<Self::Scalar>,
+    ) -> Option<Result<Size<Self::Scalar>, Self::MeasureError>> {
+        match self.mode {
+            Fri07C01IntrinsicMeasureMode::ProviderFailure => {
+                Some(Err(Fri07C01IntrinsicMeasureError::ProviderFailure))
+            }
+            Fri07C01IntrinsicMeasureMode::NonFinite => {
+                Some(Ok(Size::new(Self::Scalar::INFINITY, Self::Scalar::ONE)))
+            }
+            Fri07C01IntrinsicMeasureMode::Values => {
+                let available = input.available_content_size();
+                let intrinsic = |available| match available {
+                    MeasurementAvailableOf::MinContent => Some(Self::Scalar::from_f64(20.0)),
+                    MeasurementAvailableOf::MaxContent => Some(Self::Scalar::from_f64(100.0)),
+                    MeasurementAvailableOf::Definite(_) => None,
+                };
+                Some(Ok(Size::new(
+                    intrinsic(available.width).unwrap_or(Self::Scalar::from_f64(10.0)),
+                    intrinsic(available.height).unwrap_or(Self::Scalar::from_f64(10.0)),
+                )))
+            }
+        }
+    }
+}
+
+fn fri07_c01_intrinsic_output<S: LayoutScalar>(
+    batch: &CompletedLayoutBatchOf<u32, S>,
+    node: u32,
+) -> NodeOutputOf<S> {
+    batch
+        .final_entries()
+        .iter()
+        .find(|entry| entry.node() == node)
+        .expect("intrinsic public layout publishes the requested node")
+        .output()
+}
+
+fn fri07_c01_intrinsic_leaf_tree<S: LayoutScalar>(
+    direction: FlexDirection,
+    child_writing_mode: WritingMode,
+    mode: Fri07C01IntrinsicMeasureMode,
+) -> Fri07C01IntrinsicTree<S> {
+    let container_size = match direction {
+        FlexDirection::Row | FlexDirection::RowReverse => Size::new(
+            PreferredSizeOf::px(S::from_f64(200.0)),
+            PreferredSizeOf::px(S::from_f64(40.0)),
+        ),
+        FlexDirection::Column | FlexDirection::ColumnReverse => Size::new(
+            PreferredSizeOf::px(S::from_f64(40.0)),
+            PreferredSizeOf::px(S::from_f64(200.0)),
+        ),
+    };
+    let preferred = match direction {
+        FlexDirection::Row | FlexDirection::RowReverse => Size::new(
+            PreferredSizeOf::px(S::from_f64(77.0)),
+            PreferredSizeOf::AUTO,
+        ),
+        FlexDirection::Column | FlexDirection::ColumnReverse => Size::new(
+            PreferredSizeOf::AUTO,
+            PreferredSizeOf::px(S::from_f64(77.0)),
+        ),
+    };
+
+    Fri07C01IntrinsicTree::new(mode)
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                flex_direction: direction,
+                size: container_size,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                writing_mode: child_writing_mode,
+                size: preferred.clone(),
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                flex_basis: FlexBasisOf::MIN_CONTENT,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                writing_mode: child_writing_mode,
+                size: preferred,
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                flex_basis: FlexBasisOf::MAX_CONTENT,
+                ..NodeInputOf::default()
+            },
+        )
+        .measured(2)
+        .measured(3)
+}
+
+fn fri07_c01_intrinsic_child_container_tree<S: LayoutScalar>(
+    direction: FlexDirection,
+    child_writing_mode: WritingMode,
+) -> Fri07C01IntrinsicTree<S> {
+    let container_size = match direction {
+        FlexDirection::Row | FlexDirection::RowReverse => Size::new(
+            PreferredSizeOf::px(S::from_f64(200.0)),
+            PreferredSizeOf::px(S::from_f64(40.0)),
+        ),
+        FlexDirection::Column | FlexDirection::ColumnReverse => Size::new(
+            PreferredSizeOf::px(S::from_f64(40.0)),
+            PreferredSizeOf::px(S::from_f64(200.0)),
+        ),
+    };
+    let preferred = match direction {
+        FlexDirection::Row | FlexDirection::RowReverse => Size::new(
+            PreferredSizeOf::px(S::from_f64(77.0)),
+            PreferredSizeOf::AUTO,
+        ),
+        FlexDirection::Column | FlexDirection::ColumnReverse => Size::new(
+            PreferredSizeOf::AUTO,
+            PreferredSizeOf::px(S::from_f64(77.0)),
+        ),
+    };
+
+    Fri07C01IntrinsicTree::new(Fri07C01IntrinsicMeasureMode::Values)
+        .children(1, [2, 3])
+        .children(2, [4])
+        .children(3, [5])
+        .children(4, [])
+        .children(5, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                flex_direction: direction,
+                size: container_size,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: child_writing_mode,
+                size: preferred.clone(),
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                flex_basis: FlexBasisOf::MIN_CONTENT,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: child_writing_mode,
+                size: preferred,
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                flex_basis: FlexBasisOf::MAX_CONTENT,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                writing_mode: child_writing_mode,
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            5,
+            NodeInputOf {
+                writing_mode: child_writing_mode,
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                ..NodeInputOf::default()
+            },
+        )
+        .measured(4)
+        .measured(5)
+}
+
+fn fri07_c01_intrinsic_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
+    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(300.0))))
+        .expect("intrinsic test viewport is finite")
+}
+
+fn assert_fri07_c01_intrinsic_leaf_geometry<S: LayoutScalar>() {
+    for (direction, child_writing_mode, axis) in [
+        (
+            FlexDirection::Row,
+            WritingMode::HorizontalTb,
+            PhysicalAxis::Horizontal,
+        ),
+        (
+            FlexDirection::Column,
+            WritingMode::HorizontalTb,
+            PhysicalAxis::Vertical,
+        ),
+        (
+            FlexDirection::Column,
+            WritingMode::VerticalRl,
+            PhysicalAxis::Vertical,
+        ),
+    ] {
+        let tree = fri07_c01_intrinsic_leaf_tree::<S>(
+            direction,
+            child_writing_mode,
+            Fri07C01IntrinsicMeasureMode::Values,
+        );
+        let batch = compute_layout(&tree, 1, fri07_c01_intrinsic_request())
+            .expect("direct intrinsic flex bases are supported");
+        let min = fri07_c01_intrinsic_output(&batch, 2).size;
+        let max = fri07_c01_intrinsic_output(&batch, 3).size;
+        let main = |size: Size<S>| match axis {
+            PhysicalAxis::Horizontal => size.width,
+            PhysicalAxis::Vertical => size.height,
+        };
+        assert_eq!(main(min), S::from_f64(20.0));
+        assert_eq!(main(max), S::from_f64(100.0));
+    }
+}
+
+#[test]
+fn fri07_c01_intrinsic_public_layout_preserves_distinct_leaf_geometry_in_both_scalar_lanes() {
+    assert_fri07_c01_intrinsic_leaf_geometry::<f32>();
+    assert_fri07_c01_intrinsic_leaf_geometry::<f64>();
+}
+
+fn assert_fri07_c01_intrinsic_child_container_geometry<S: LayoutScalar>() {
+    for (direction, child_writing_mode, axis) in [
+        (
+            FlexDirection::Row,
+            WritingMode::HorizontalTb,
+            PhysicalAxis::Horizontal,
+        ),
+        (
+            FlexDirection::Column,
+            WritingMode::VerticalRl,
+            PhysicalAxis::Vertical,
+        ),
+    ] {
+        let tree = fri07_c01_intrinsic_child_container_tree::<S>(direction, child_writing_mode);
+        let batch = compute_layout(&tree, 1, fri07_c01_intrinsic_request())
+            .expect("intrinsic child-container flex bases are supported");
+        let min = fri07_c01_intrinsic_output(&batch, 2).size;
+        let max = fri07_c01_intrinsic_output(&batch, 3).size;
+        let main = |size: Size<S>| match axis {
+            PhysicalAxis::Horizontal => size.width,
+            PhysicalAxis::Vertical => size.height,
+        };
+        assert_eq!(main(min), S::from_f64(20.0));
+        assert_eq!(main(max), S::from_f64(100.0));
+    }
+}
+
+#[test]
+fn fri07_c01_intrinsic_public_layout_preserves_child_container_geometry_in_both_scalar_lanes() {
+    assert_fri07_c01_intrinsic_child_container_geometry::<f32>();
+    assert_fri07_c01_intrinsic_child_container_geometry::<f64>();
+}
+
+fn assert_fri07_c01_intrinsic_measurement_errors<S: LayoutScalar>() {
+    let provider_tree = fri07_c01_intrinsic_leaf_tree::<S>(
+        FlexDirection::Row,
+        WritingMode::HorizontalTb,
+        Fri07C01IntrinsicMeasureMode::ProviderFailure,
+    );
+    let provider_error = compute_layout(&provider_tree, 1, fri07_c01_intrinsic_request())
+        .expect_err("intrinsic provider failure must remain typed");
+    assert_eq!(provider_error.site(), LayoutErrorSiteOf::Node(2));
+    assert_eq!(provider_error.operation(), LayoutOperation::LeafMeasurement);
+    assert!(matches!(
+        provider_error.kind(),
+        LayoutErrorKindOf::Measurement(Fri07C01IntrinsicMeasureError::ProviderFailure)
+    ));
+
+    let non_finite_tree = fri07_c01_intrinsic_leaf_tree::<S>(
+        FlexDirection::Row,
+        WritingMode::HorizontalTb,
+        Fri07C01IntrinsicMeasureMode::NonFinite,
+    );
+    let non_finite_error = compute_layout(&non_finite_tree, 1, fri07_c01_intrinsic_request())
+        .expect_err("intrinsic non-finite provider output must remain typed");
+    assert_eq!(non_finite_error.site(), LayoutErrorSiteOf::Node(2));
+    assert_eq!(
+        non_finite_error.operation(),
+        LayoutOperation::LeafMeasurement
+    );
+    let LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::MeasurementOutput(invalid)) =
+        non_finite_error.kind()
+    else {
+        panic!("expected invalid measurement output, got {non_finite_error:?}");
+    };
+    assert_eq!(invalid.axis(), PhysicalAxis::Horizontal);
+}
+
+#[test]
+fn fri07_c01_intrinsic_provider_failure_and_non_finite_output_remain_exact_in_both_scalar_lanes() {
+    assert_fri07_c01_intrinsic_measurement_errors::<f32>();
+    assert_fri07_c01_intrinsic_measurement_errors::<f64>();
+}
+
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
@@ -606,8 +1001,6 @@ fn fri04_c04_flex_dispatch_direct_and_keyword_bases_return_exact_payloads() {
         );
     }
     for (value, behavior) in [
-        (FlexBasis::MIN_CONTENT, SizingBehavior::MinContent),
-        (FlexBasis::MAX_CONTENT, SizingBehavior::MaxContent),
         (FlexBasis::STRETCH, SizingBehavior::Stretch),
         (FlexBasis::FIT_CONTENT, SizingBehavior::FitContent),
         (FlexBasis::CONTAIN, SizingBehavior::Contain),

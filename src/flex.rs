@@ -975,6 +975,7 @@ struct CollectedFlexItem<Node, S: LayoutScalar> {
     flex_basis: S,
     flex_basis_is_definite: bool,
     flex_basis_uses_content: bool,
+    intrinsic_flex_basis: Option<AvailableOf<S>>,
     hypothetical_main_size: S,
     max_content_main_size: S,
     hypothetical_size: Size<S>,
@@ -1200,11 +1201,22 @@ where
     let flex_basis_uses_content = match flex_basis_resolution {
         ResolvedFlexBasis::Auto => constants.axes.main_size(authored_size).is_none(),
         ResolvedFlexBasis::Content => true,
-        ResolvedFlexBasis::Definite(_) => false,
+        ResolvedFlexBasis::MinContent
+        | ResolvedFlexBasis::MaxContent
+        | ResolvedFlexBasis::Definite(_) => false,
+    };
+    let intrinsic_flex_basis = match flex_basis_resolution {
+        ResolvedFlexBasis::MinContent => Some(AvailableOf::MIN_CONTENT),
+        ResolvedFlexBasis::MaxContent => Some(AvailableOf::MAX_CONTENT),
+        ResolvedFlexBasis::Auto | ResolvedFlexBasis::Content | ResolvedFlexBasis::Definite(_) => {
+            None
+        }
     };
     let resolved_flex_basis = match flex_basis_resolution {
         ResolvedFlexBasis::Auto => constants.axes.main_size(authored_size),
-        ResolvedFlexBasis::Content => None,
+        ResolvedFlexBasis::Content
+        | ResolvedFlexBasis::MinContent
+        | ResolvedFlexBasis::MaxContent => None,
         ResolvedFlexBasis::Definite(flex_basis) => Some({
             let padding_border = constants.axes.main_size(padding_border.sum_axes());
             if style.box_sizing == BoxSizing::ContentBox {
@@ -1214,7 +1226,7 @@ where
             }
         }),
     };
-    let size = if flex_basis_uses_content {
+    let size = if flex_basis_uses_content || intrinsic_flex_basis.is_some() {
         constants.axes.with_main_size(authored_size, None)
     } else {
         match resolved_flex_basis {
@@ -1267,8 +1279,8 @@ where
             constants.axes.cross_size(max_size),
         ),
     );
-    let use_content_sizing_for_base =
-        flex_basis_uses_content && style.display == super::Display::Block;
+    let use_content_sizing_for_base = intrinsic_flex_basis.is_some()
+        || flex_basis_uses_content && style.display == super::Display::Block;
     let mut child_known = size;
     if !constants.wraps
         && use_content_sizing_for_base
@@ -1303,7 +1315,11 @@ where
             .axes
             .with_main_size(child_known_for_base, Some(flex_basis));
     }
-    let child_available = if use_content_sizing_for_base {
+    let child_available = if let Some(intrinsic_flex_basis) = intrinsic_flex_basis {
+        constants
+            .axes
+            .with_main_size(available, intrinsic_flex_basis)
+    } else if use_content_sizing_for_base {
         constants.axes.with_main_size(
             available,
             if constants.available_main == AvailableOf::MIN_CONTENT {
@@ -1342,6 +1358,8 @@ where
     )?;
     let flex_basis = if let Some(flex_basis) = resolved_flex_basis {
         flex_basis
+    } else if intrinsic_flex_basis.is_some() {
+        constants.axes.main_size(output.size)
     } else if let Some(ratio) = style.aspect_ratio {
         if let Some(cross) = constants.axes.cross_size(child_known_for_base) {
             constants.axes.main_size_from_cross_aspect(cross, ratio)
@@ -1387,7 +1405,7 @@ where
         flex_basis
     } else if style.flex_basis.is_auto() && authored_main_size.is_some() {
         authored_main_size.unwrap_or(Tree::Scalar::ZERO)
-    } else if flex_basis_uses_content {
+    } else if flex_basis_uses_content || intrinsic_flex_basis.is_some() {
         constants.axes.main_size(output.content_size)
     } else {
         constants
@@ -1438,6 +1456,7 @@ where
         flex_basis,
         flex_basis_is_definite: resolved_flex_basis.is_some(),
         flex_basis_uses_content,
+        intrinsic_flex_basis,
         hypothetical_main_size,
         max_content_main_size,
         hypothetical_size: target_size,
@@ -3389,7 +3408,7 @@ where
     Tree: Compute<M>,
 {
     let style_min = constants.axes.main_size(item.min_size);
-    let style_preferred = (!item.flex_basis_uses_content)
+    let style_preferred = (!item.flex_basis_uses_content && item.intrinsic_flex_basis.is_none())
         .then(|| constants.axes.main_size(item.size))
         .flatten();
     let style_max = constants.axes.main_size(item.max_size);
@@ -3634,7 +3653,10 @@ where
         .map_err(|error| sizing_resolution_error(item.node, error))?
         {
             ResolvedFlexBasis::Definite(value) => Some(value),
-            ResolvedFlexBasis::Auto | ResolvedFlexBasis::Content => None,
+            ResolvedFlexBasis::Auto
+            | ResolvedFlexBasis::Content
+            | ResolvedFlexBasis::MinContent
+            | ResolvedFlexBasis::MaxContent => None,
         };
         suppress_padding_floor_flex_basis_content_overflow(
             tree,

@@ -645,18 +645,8 @@ pub(crate) fn dispatch_flex_basis<'a, S: LayoutScalar>(
         }
         FlexBasisView::Auto => SizingDispatch::supported(DispatchedSizingRequest::Auto),
         FlexBasisView::Content => SizingDispatch::supported(DispatchedSizingRequest::Content),
-        FlexBasisView::MinContent => SizingDispatch::unsupported(
-            SizingProperty::FlexBasis,
-            SizingBehavior::MinContent,
-            algorithm,
-            axis,
-        ),
-        FlexBasisView::MaxContent => SizingDispatch::unsupported(
-            SizingProperty::FlexBasis,
-            SizingBehavior::MaxContent,
-            algorithm,
-            axis,
-        ),
+        FlexBasisView::MinContent => SizingDispatch::supported(DispatchedSizingRequest::MinContent),
+        FlexBasisView::MaxContent => SizingDispatch::supported(DispatchedSizingRequest::MaxContent),
         FlexBasisView::Stretch => SizingDispatch::unsupported(
             SizingProperty::FlexBasis,
             SizingBehavior::Stretch,
@@ -1957,6 +1947,100 @@ mod tests {
         ));
     }
 
+    fn assert_fri07_c01_intrinsic_flex_basis_dispatch_lane<S: LayoutScalar>() {
+        for (basis, expected) in [
+            (
+                FlexBasisOf::<S>::MIN_CONTENT,
+                DispatchedSizingRequest::MinContent,
+            ),
+            (
+                FlexBasisOf::<S>::MAX_CONTENT,
+                DispatchedSizingRequest::MaxContent,
+            ),
+        ] {
+            assert_eq!(
+                dispatch_flex_basis(
+                    &basis,
+                    SizingAlgorithm::Flex,
+                    PhysicalAxis::Horizontal,
+                    PercentageBasisOf::MISSING,
+                ),
+                SizingDispatch::Supported(expected),
+            );
+        }
+
+        let sizing = || {
+            SizingCalculationOf::value(
+                LengthPercentageOf::px(S::from_f64(10.0)).expect("finite sizing value"),
+            )
+        };
+        for (basis, behavior) in [
+            (FlexBasisOf::<S>::STRETCH, SizingBehavior::Stretch),
+            (FlexBasisOf::<S>::FIT_CONTENT, SizingBehavior::FitContent),
+            (FlexBasisOf::<S>::CONTAIN, SizingBehavior::Contain),
+            (
+                FlexBasisOf::fit_content_function(sizing()),
+                SizingBehavior::FitContentFunction,
+            ),
+        ] {
+            assert_fri04_c04_unsupported(
+                dispatch_flex_basis(
+                    &basis,
+                    SizingAlgorithm::Flex,
+                    PhysicalAxis::Vertical,
+                    PercentageBasisOf::MISSING,
+                ),
+                SizingProperty::FlexBasis,
+                behavior,
+                SizingAlgorithm::Flex,
+                PhysicalAxis::Vertical,
+            );
+        }
+
+        for (basis, expected) in [
+            (FlexBasisCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+            (FlexBasisCalcBasis::Content, CalcSizeBehaviorBasis::Content),
+            (
+                FlexBasisCalcBasis::MinContent,
+                CalcSizeBehaviorBasis::MinContent,
+            ),
+            (
+                FlexBasisCalcBasis::MaxContent,
+                CalcSizeBehaviorBasis::MaxContent,
+            ),
+            (FlexBasisCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+            (
+                FlexBasisCalcBasis::FitContent,
+                CalcSizeBehaviorBasis::FitContent,
+            ),
+            (FlexBasisCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+        ] {
+            let value = FlexBasisOf::calc_size(
+                basis,
+                CalcSizeCalculationOf::value(LengthPercentageOf::<S>::ZERO),
+            )
+            .expect("zero is valid for every keyword basis");
+            assert_fri04_c04_unsupported(
+                dispatch_flex_basis(
+                    &value,
+                    SizingAlgorithm::Flex,
+                    PhysicalAxis::Horizontal,
+                    PercentageBasisOf::MISSING,
+                ),
+                SizingProperty::FlexBasis,
+                SizingBehavior::CalcSize(expected),
+                SizingAlgorithm::Flex,
+                PhysicalAxis::Horizontal,
+            );
+        }
+    }
+
+    #[test]
+    fn fri07_c01_intrinsic_flex_basis_dispatch_supports_only_direct_cells_in_both_scalar_lanes() {
+        assert_fri07_c01_intrinsic_flex_basis_dispatch_lane::<f32>();
+        assert_fri07_c01_intrinsic_flex_basis_dispatch_lane::<f64>();
+    }
+
     fn assert_fri04_c04_unsupported<S: LayoutScalar>(
         dispatch: SizingDispatch<'_, S>,
         property: SizingProperty,
@@ -2459,8 +2543,6 @@ mod tests {
             assert!(matches!(dispatch, SizingDispatch::Supported(_)));
         }
         for (value, behavior) in [
-            (FlexBasisOf::MIN_CONTENT, SizingBehavior::MinContent),
-            (FlexBasisOf::MAX_CONTENT, SizingBehavior::MaxContent),
             (
                 FlexBasisOf::fit_content_function(calculation.clone()),
                 SizingBehavior::FitContentFunction,
