@@ -9764,7 +9764,6 @@ fn nested_inherited_grid_axis_preserves_owner_targets_without_envelope_rewrite_t
             1,
             Vec::<AncestorBaselineMember<u32>>::new(),
         ),
-        true,
     );
     let parent_style = NodeInput {
         display: Display::Grid,
@@ -9856,7 +9855,6 @@ fn nested_inherited_grid_axis_preserves_owner_targets_without_envelope_rewrite_t
                 1,
                 Vec::<AncestorBaselineMember<u32>>::new(),
             ),
-            true,
         ),
         &context,
     );

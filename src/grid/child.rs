@@ -110,19 +110,11 @@ pub(super) struct FinalAncestorBaselineGroups<Node, S: LayoutScalar = Scalar> {
     row_downward_minor_translation: Vec<S>,
     column_downward_major_translation: Vec<S>,
     column_downward_minor_translation: Vec<S>,
-    row_had_downward_major_translation: bool,
-    row_had_downward_minor_translation: bool,
-    column_had_downward_major_translation: bool,
-    column_had_downward_minor_translation: bool,
 }
 
 impl<Node: Copy + PartialEq, S: LayoutScalar> FinalAncestorBaselineGroups<Node, S> {
     fn with_parent_context(mut self, parent_context: &GridParentContext<S, Node>) -> Self {
         if let Some(rows) = &parent_context.rows {
-            self.row_had_downward_major_translation =
-                self.has_downward_translation(GridAxisKind::Row, AncestorBaselineRole::First);
-            self.row_had_downward_minor_translation =
-                self.has_downward_translation(GridAxisKind::Row, AncestorBaselineRole::Last);
             self.placement_rows = rows.owner_baseline_targets.as_ref().map(|targets| {
                 InheritedGridOwnerBaselineTargets {
                     group: targets.group.clone(),
@@ -137,10 +129,6 @@ impl<Node: Copy + PartialEq, S: LayoutScalar> FinalAncestorBaselineGroups<Node, 
             self.row_downward_minor_translation.fill(S::ZERO);
         }
         if let Some(columns) = &parent_context.columns {
-            self.column_had_downward_major_translation =
-                self.has_downward_translation(GridAxisKind::Column, AncestorBaselineRole::First);
-            self.column_had_downward_minor_translation =
-                self.has_downward_translation(GridAxisKind::Column, AncestorBaselineRole::Last);
             self.placement_columns = columns.owner_baseline_targets.as_ref().map(|targets| {
                 InheritedGridOwnerBaselineTargets {
                     group: targets.group.clone(),
@@ -206,38 +194,12 @@ impl<Node: Copy + PartialEq, S: LayoutScalar> FinalAncestorBaselineGroups<Node, 
             GridAxisKind::Row => self.row_child_envelope.as_ref(),
         }
     }
-
-    fn has_downward_translation(&self, axis: GridAxisKind, role: AncestorBaselineRole) -> bool {
-        let (translations, retained) = match (axis, role) {
-            (GridAxisKind::Column, AncestorBaselineRole::First) => (
-                &self.column_downward_major_translation,
-                self.column_had_downward_major_translation,
-            ),
-            (GridAxisKind::Column, AncestorBaselineRole::Last) => (
-                &self.column_downward_minor_translation,
-                self.column_had_downward_minor_translation,
-            ),
-            (GridAxisKind::Row, AncestorBaselineRole::First) => (
-                &self.row_downward_major_translation,
-                self.row_had_downward_major_translation,
-            ),
-            (GridAxisKind::Row, AncestorBaselineRole::Last) => (
-                &self.row_downward_minor_translation,
-                self.row_had_downward_minor_translation,
-            ),
-        };
-        retained
-            || translations
-                .iter()
-                .any(|translation| *translation != S::ZERO)
-    }
 }
 
 #[cfg(test)]
 pub(super) fn final_ancestor_baseline_groups_for_transport_test<S: LayoutScalar>(
     rows: AncestorBaselineGroup<u32, S>,
     columns: AncestorBaselineGroup<u32, S>,
-    row_had_downward_major_translation: bool,
 ) -> FinalAncestorBaselineGroups<u32, S> {
     let row_track_count = rows.track_count();
     let column_track_count = columns.track_count();
@@ -272,10 +234,6 @@ pub(super) fn final_ancestor_baseline_groups_for_transport_test<S: LayoutScalar>
         row_downward_minor_translation: vec![S::ZERO; row_track_count],
         column_downward_major_translation: vec![S::ZERO; column_track_count],
         column_downward_minor_translation: vec![S::ZERO; column_track_count],
-        row_had_downward_major_translation,
-        row_had_downward_minor_translation: false,
-        column_had_downward_major_translation: false,
-        column_had_downward_minor_translation: false,
     }
 }
 
@@ -2019,10 +1977,6 @@ where
         row_downward_minor_translation: rows.downward_minor_translation,
         column_downward_major_translation: columns.downward_major_translation,
         column_downward_minor_translation: columns.downward_minor_translation,
-        row_had_downward_major_translation: false,
-        row_had_downward_minor_translation: false,
-        column_had_downward_major_translation: false,
-        column_had_downward_minor_translation: false,
     })
 }
 
