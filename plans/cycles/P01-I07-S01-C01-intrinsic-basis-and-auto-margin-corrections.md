@@ -10,15 +10,15 @@ Cycle base: `d386c7d796e5fe0c0856c15ac800516df1348f3b`
 
 Reviewed specification:
 `plans/specs/P01-I07-flex-algorithm-completeness.md`, normalized semantic-content
-SHA-256 `6f5d480970116600bdf0cccfb7b684893e3c47f1b9cb0ba84113ef55bd21a3a5`,
-commit `8afd4fef2a70cb93c08b3f1c5009f6ec104db3fc`: `FRI-07.4 D-07` through
+SHA-256 `9e2a899476d27e09133a05531cb4bb4dfab1479d949d66167548c26ee1972b57`,
+commit `451954e6aab6529ce7464c299be7e2aff6ea3753`: `FRI-07.4 D-07` through
 `D-13`, `FRI-07.6`, `FRI-07.7`, and the margin, intrinsic-basis, verification,
 module, and finding-closure portions of `FRI-07.9`, `.11`, `.12`, and `.15`.
 
 Reviewed implementation sequence:
 `plans/sequences/P01-I07-S01-flex-algorithm-completeness.md`, normalized
-SHA-256 `e887915ef9d3081c64627fa75719382b459834597ef9f9ce2846c34fb75fd8c2`,
-commit `dd6dfb58db7560a36adcb1948e39071f9e116e87`, entry
+SHA-256 `50f29d416df158ed8ceb799d4592fc2d53e36e6512a676bf498b05722a15b964`,
+commit `0f0c19e50d8f6c27e300a5bc652e21ee5145b7cc`, entry
 `P01/I07/S01/C01`.
 
 Bounded outcome: close `FLEX-002`, `FLEX-003`, and `FLEX-004` through typed
@@ -76,8 +76,9 @@ Dependencies, features, manifests, lockfiles, and MSRV: unchanged.
 
 Generated artifacts: unchanged. This cycle performs no scoped or full
 generation because it changes no HTML, fixture parser, fixture input, helper,
-manifest, or generator code. `just parity-all`, `just corpus-check`, and
-`just taffy-check` are read-only verification.
+manifest, or generator code. `just corpus-check` and `just taffy-check` are
+read-only verification. Repository-wide `just parity-all` is an FRI-13-owned
+diagnostic, not C01 acceptance.
 
 Docs/examples: unchanged except this canonical cycle plan. Root follow-up:
 none beyond the published leaf candidate handed to C02. Owned Rust remains free
@@ -256,7 +257,6 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri07_c01_composit
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri07_c01_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just parity-all
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 git diff --exit-code d386c7d796e5fe0c0856c15ac800516df1348f3b..HEAD -- Cargo.toml Cargo.lock README.md tests/layout/browser_parity tests/layout/browser_parity.rs tests/bin
@@ -266,7 +266,16 @@ git status --short
 ```
 
 The protected-path diff and unsafe scan must print no output; `git status` must
-be clean. The parity, corpus, Taffy, and generator-feature commands verify the
-checked-in artifacts and configurations without regeneration. `FLEX-005`
-remains assigned only to C02. Genuine blockers are limited to those defined by
-the installed workflow; none is currently known.
+be clean. Corpus, Taffy, and generator-feature commands verify checked-in
+artifacts and configurations without regeneration. The aggregate parity
+diagnostic was run at cycle base `d386c7d796e5fe0c0856c15ac800516df1348f3b`
+and pre-reconciliation complete-status head
+`ac2d51acfc79ef54d0e637e3de0de9822c63a476`; both reported exactly 372
+later-owned failures with suite split block 78, flex 172, grid 62, grid-lanes
+12, leaf 32, and subgrid 16. Their 80 emitted fixture diagnostics had identical
+sorted SHA-256
+`b2369ef4b14c41168d44d28aaaf91b466e2aca6051f11f25d6369fd7e14166dd`.
+This proves no C01 aggregate diagnostic drift and does not convert the FRI-13
+gate into C01 acceptance. `FLEX-005` remains assigned only to C02. Genuine
+blockers are limited to those defined by the installed workflow; none is
+currently known.
