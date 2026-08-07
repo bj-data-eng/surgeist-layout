@@ -1,6 +1,6 @@
 # P01-I07-S01-C01 Intrinsic Basis And Auto-Margin Corrections
 
-Status: complete
+Status: in_progress
 
 Cycle ID: `P01/I07/S01/C01`
 
