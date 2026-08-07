@@ -72,6 +72,15 @@ intrinsic or mapping controls; all diagnostic residue was removed. D-18 therefor
 reopened at architecture/specification, and T08 now appends a ninth correction
 range without discarding or rewriting history.
 
+The first post-replan worker proved all 14 placement-matrix cases and 30/31 T08
+controls, but nested integration exposed the missing transport boundary and the
+candidate was fully removed. `GridParentContext`/`InheritedGridAxis` in
+`src/grid/mod.rs` carries only child-envelope major/minor scalars; owner-direct
+layout retains immutable targets, but nested current-grid placement cannot receive
+them separately. Reconstructing targets from the envelope is the prohibited
+publication inverse. The ninth correction therefore adds a private typed
+owner-target channel beside, never derived from, the existing envelope channel.
+
 After the final T07 helper correction, one full unfiltered generation completed
 successfully and remains in the canonical worktree as exactly 5,712 changed XML
 files plus `xml/generation-reports/all.json`. Its report has `filter: null`, 5,712
@@ -150,7 +159,7 @@ geometry remains directly compared.
 
 - **Public API and compatibility:** unchanged; D-18 changes private layout
   production and D-19 changes private test support.
-- **Production/tests:** T08 may change `src/grid/tracks.rs`,
+- **Production/tests:** T08 may change `src/grid/mod.rs`, `src/grid/tracks.rs`,
   `src/grid/subgrid.rs`, `src/grid/child.rs`, and `src/grid_tests.rs` only;
   existing strict fixture proof in `tests/layout/browser_parity.rs` is read-only
   acceptance.
@@ -169,10 +178,11 @@ geometry remains directly compared.
 
 ### 5.1 `P01/I06/S01/C12/T08` Close Settled Axis-Parametric Baseline Placement
 
-**Files/area:** `src/grid/tracks.rs`, `src/grid/subgrid.rs`,
-`src/grid/child.rs`, and `src/grid_tests.rs`. Existing browser-parity tests and
-artifacts are read-only. Do not edit comparator support, helper, parser, fixtures,
-generator logic/output, manifests, or public API.
+**Files/area:** private context plumbing in `src/grid/mod.rs` plus
+`src/grid/tracks.rs`, `src/grid/subgrid.rs`, `src/grid/child.rs`, and
+`src/grid_tests.rs`. Existing browser-parity tests and artifacts are read-only.
+Do not edit comparator support, helper, parser, fixtures, generator logic/output,
+manifests, or public API.
 
 **RED:** Add the exact specification tests first:
 
@@ -198,6 +208,9 @@ generator logic/output, manifests, or public API.
 
 Missing target records/checked placement or the legacy cloned-group mutator must
 produce RED; no artifact edit, comparator exception, or generation supplies it.
+`nested_inherited_grid_axis_preserves_owner_targets_separately_from_child_envelope`
+reproduces the transport defect: owner-direct and nested placement cannot both
+retain their reviewed geometry while only envelope scalars cross parent context.
 
 **Outcome:** Preserve the pre-growth census and settled reduction, but replace
 scalar-only group slots with complete immutable target records whose strictly
@@ -205,7 +218,9 @@ larger candidate replaces the whole record and whose equal candidate retains the
 earliest record. Derive checked inherited-axis mapping and current-grid placement
 internally by the Section 2/specification formula; owner-direct consumers use the
 group target, current-grid direct consumers use placement, and only child-internal
-layout uses the envelope view. Remove the cloned-group mutator and all target-value
+layout uses the envelope view. Carry immutable owner-target records through a
+separate private `GridParentContext`/`InheritedGridAxis` channel; never reconstruct
+them from envelope scalars. Remove the cloned-group mutator and all target-value
 ownership/applicability inference. Preserve non-inherited behavior and one final
 `FlowAxes` projection.
 
@@ -224,6 +239,7 @@ byte-identical and only existing D-19 endpoint observations remain.
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c12_t08_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib inherited_current_grid_baseline_placement_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib subgrid_baseline_placement_error_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib nested_inherited_grid_axis_preserves_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t08_representative_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib
 CARGO_NET_OFFLINE=true just check
