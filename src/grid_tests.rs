@@ -7346,10 +7346,10 @@ fn vertical_intrinsic_subgrid_final_sizing_keeps_definite_physical_height() {
             area_facts: None,
             major_baselines: vec![None],
             minor_baselines: vec![None],
+            owner_baseline_targets: None,
             parent_start: 0,
             parent_end: 1,
             reversed: false,
-            gap_difference: 0.0,
         }),
     };
 
@@ -8664,6 +8664,688 @@ fn fri06_c12_t08_row_and_column_groups_choose_the_lastmost_member() {
         assert_eq!(group.target_for(nested), Some(40.0));
         assert_eq!(group.intrinsic_shim(direct).after, 15.0);
     }
+}
+
+fn inherited_placement_member(
+    source: u32,
+    axis: GridAxisKind,
+    role: AncestorBaselineRole,
+    selected_track: usize,
+    target: f32,
+) -> AncestorBaselineMember<u32> {
+    let child_flow_axes = match axis {
+        GridAxisKind::Column => FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr),
+        GridAxisKind::Row => FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+    };
+    let physical_baseline = match (axis, role) {
+        (GridAxisKind::Column, AncestorBaselineRole::First) => Point::new(Some(target), None),
+        (GridAxisKind::Column, AncestorBaselineRole::Last) => {
+            Point::new(Some(100.0 - target), None)
+        }
+        (GridAxisKind::Row, AncestorBaselineRole::First) => Point::new(None, Some(target)),
+        (GridAxisKind::Row, AncestorBaselineRole::Last) => Point::new(None, Some(100.0 - target)),
+    };
+    ancestor_baseline_member(AncestorBaselineMemberInput {
+        source,
+        axis,
+        ancestor_span: GridTrackSpan::new(selected_track + 1, selected_track + 2),
+        alignment: match role {
+            AncestorBaselineRole::First => AlignItems::Baseline,
+            AncestorBaselineRole::Last => AlignItems::LastBaseline,
+        },
+        block_auto_margins: false,
+        synthesized_baseline_cycle: false,
+        output: ComputeOutput::from_sizes_and_baselines(
+            Size::new(100.0, 100.0),
+            Size::new(100.0, 100.0),
+            Baselines {
+                first: if role == AncestorBaselineRole::First {
+                    physical_baseline
+                } else {
+                    Point::NONE
+                },
+                last: if role == AncestorBaselineRole::Last {
+                    physical_baseline
+                } else {
+                    Point::NONE
+                },
+            },
+        ),
+        margin: Edges::all(0.0),
+        child_flow_axes,
+        containing_flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        start_adjustment: 0.0,
+        end_adjustment: 0.0,
+    })
+    .expect("placement fixture member participates")
+}
+
+fn inherited_placement_group(
+    axis: GridAxisKind,
+    role: AncestorBaselineRole,
+    selected_track: usize,
+    target: f32,
+) -> AncestorBaselineGroup {
+    AncestorBaselineGroup::reduce(
+        axis,
+        match axis {
+            GridAxisKind::Column => PhysicalAxis::Horizontal,
+            GridAxisKind::Row => PhysicalAxis::Vertical,
+        },
+        4,
+        [inherited_placement_member(
+            91,
+            axis,
+            role,
+            selected_track,
+            target,
+        )],
+    )
+}
+
+fn inherited_placement_mapping(
+    axis: GridAxisKind,
+    reversed: bool,
+    parent_span: GridTrackSpan,
+    parent_gap: f32,
+    current_gap: f32,
+) -> CheckedInheritedAxisMapping<f32> {
+    CheckedInheritedAxisMapping::new(CheckedInheritedAxisMappingInput {
+        child_axis: axis,
+        ancestor_axis: axis,
+        physical_axis: match axis {
+            GridAxisKind::Column => PhysicalAxis::Horizontal,
+            GridAxisKind::Row => PhysicalAxis::Vertical,
+        },
+        parent_span,
+        reversed,
+        parent_gap,
+        current_gap,
+        start_mbp: 0.0,
+        end_mbp: 0.0,
+        inherited: true,
+    })
+}
+
+fn inherited_placement_witness(
+    axis: GridAxisKind,
+    role: AncestorBaselineRole,
+    selected_local_track: usize,
+) -> CurrentGridDirectWitness<u32> {
+    CurrentGridDirectWitness::new(
+        7,
+        11,
+        axis,
+        GridTrackSpan::new(selected_local_track, selected_local_track + 1),
+        role,
+        false,
+    )
+}
+
+fn derive_inherited_placement(
+    group: &AncestorBaselineGroup,
+    axis: GridAxisKind,
+    role: AncestorBaselineRole,
+    selected_local_track: usize,
+    reversed: bool,
+    parent_gap: f32,
+    current_gap: f32,
+) -> Result<
+    InheritedCurrentGridBaselinePlacement<u32, f32>,
+    InheritedCurrentGridBaselinePlacementError,
+> {
+    InheritedCurrentGridBaselinePlacement::try_derive(
+        group,
+        InheritedCurrentGridBaselinePlacementInput {
+            axis,
+            physical_axis: match axis {
+                GridAxisKind::Column => PhysicalAxis::Horizontal,
+                GridAxisKind::Row => PhysicalAxis::Vertical,
+            },
+            mapping: inherited_placement_mapping(
+                axis,
+                reversed,
+                GridTrackSpan::new(0, 4),
+                parent_gap,
+                current_gap,
+            ),
+            direct_witness: inherited_placement_witness(axis, role, selected_local_track),
+            current_grid: 7,
+            item: 11,
+        },
+    )
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_maps_row_and_column_half_gaps() {
+    for axis in [GridAxisKind::Row, GridAxisKind::Column] {
+        let first_group = inherited_placement_group(axis, AncestorBaselineRole::First, 1, 17.0);
+        let first = derive_inherited_placement(
+            &first_group,
+            axis,
+            AncestorBaselineRole::First,
+            1,
+            false,
+            10.0,
+            20.0,
+        )
+        .unwrap();
+        assert_eq!(
+            (
+                first.selected_local_track(),
+                first.mapped_edge(),
+                first.signed_translation(),
+                first.translated_target(),
+            ),
+            (1, BaselineMappedEdge::Start, 5.0, 22.0),
+        );
+
+        let last_group = inherited_placement_group(axis, AncestorBaselineRole::Last, 2, 17.0);
+        let last = derive_inherited_placement(
+            &last_group,
+            axis,
+            AncestorBaselineRole::Last,
+            2,
+            false,
+            10.0,
+            20.0,
+        )
+        .unwrap();
+        assert_eq!(
+            (
+                last.mapped_edge(),
+                last.signed_translation(),
+                last.translated_target()
+            ),
+            (BaselineMappedEdge::End, -5.0, 12.0),
+        );
+    }
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_maps_first_and_last_edges_through_reversal() {
+    let first_group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 2, 17.0);
+    let first = derive_inherited_placement(
+        &first_group,
+        GridAxisKind::Row,
+        AncestorBaselineRole::First,
+        1,
+        true,
+        10.0,
+        20.0,
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            first.mapped_edge(),
+            first.signed_translation(),
+            first.translated_target()
+        ),
+        (BaselineMappedEdge::End, -5.0, 12.0),
+    );
+
+    let last_group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::Last, 1, 17.0);
+    let last = derive_inherited_placement(
+        &last_group,
+        GridAxisKind::Row,
+        AncestorBaselineRole::Last,
+        2,
+        true,
+        10.0,
+        20.0,
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            last.mapped_edge(),
+            last.signed_translation(),
+            last.translated_target()
+        ),
+        (BaselineMappedEdge::Start, 5.0, 22.0),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_is_zero_at_role_terminal_edges() {
+    let first_group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 0, 17.0);
+    let first = derive_inherited_placement(
+        &first_group,
+        GridAxisKind::Row,
+        AncestorBaselineRole::First,
+        0,
+        false,
+        10.0,
+        20.0,
+    )
+    .unwrap();
+    assert_eq!(
+        (first.gutter_crossing(), first.signed_translation()),
+        (false, 0.0)
+    );
+
+    let last_group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::Last, 3, 17.0);
+    let last = derive_inherited_placement(
+        &last_group,
+        GridAxisKind::Row,
+        AncestorBaselineRole::Last,
+        3,
+        false,
+        10.0,
+        20.0,
+    )
+    .unwrap();
+    assert_eq!(
+        (last.gutter_crossing(), last.signed_translation()),
+        (false, 0.0)
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_is_zero_for_equal_gaps_and_owner_direct_items() {
+    let group = inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let equal = derive_inherited_placement(
+        &group,
+        GridAxisKind::Row,
+        AncestorBaselineRole::First,
+        1,
+        false,
+        10.0,
+        10.0,
+    )
+    .unwrap();
+    assert_eq!(
+        (equal.signed_translation(), equal.translated_target()),
+        (0.0, 17.0)
+    );
+
+    let owner_direct = InheritedCurrentGridBaselinePlacement::try_derive(
+        &group,
+        InheritedCurrentGridBaselinePlacementInput {
+            axis: GridAxisKind::Row,
+            physical_axis: PhysicalAxis::Vertical,
+            mapping: inherited_placement_mapping(
+                GridAxisKind::Row,
+                false,
+                GridTrackSpan::new(0, 4),
+                10.0,
+                20.0,
+            ),
+            direct_witness: CurrentGridDirectWitness::new(
+                7,
+                11,
+                GridAxisKind::Row,
+                GridTrackSpan::new(1, 2),
+                AncestorBaselineRole::First,
+                true,
+            ),
+            current_grid: 7,
+            item: 11,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            owner_direct.signed_translation(),
+            owner_direct.translated_target()
+        ),
+        (0.0, 17.0),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_keeps_mbp_in_base_mapping() {
+    let group = inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let mut mapping = inherited_placement_mapping(
+        GridAxisKind::Row,
+        false,
+        GridTrackSpan::new(0, 4),
+        10.0,
+        20.0,
+    );
+    mapping.set_mbp_for_test(3.0, 4.0);
+    let placement = InheritedCurrentGridBaselinePlacement::try_derive(
+        &group,
+        InheritedCurrentGridBaselinePlacementInput {
+            axis: GridAxisKind::Row,
+            physical_axis: PhysicalAxis::Vertical,
+            mapping,
+            direct_witness: inherited_placement_witness(
+                GridAxisKind::Row,
+                AncestorBaselineRole::First,
+                1,
+            ),
+            current_grid: 7,
+            item: 11,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            placement.immutable_owner_target(),
+            placement.signed_translation(),
+            placement.translated_target(),
+        ),
+        (17.0, 5.0, 22.0),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_repeat_is_identical_and_mutates_no_input() {
+    let group =
+        inherited_placement_group(GridAxisKind::Column, AncestorBaselineRole::First, 1, 17.0);
+    let mapping = inherited_placement_mapping(
+        GridAxisKind::Column,
+        false,
+        GridTrackSpan::new(0, 4),
+        10.0,
+        20.0,
+    );
+    let witness = inherited_placement_witness(GridAxisKind::Column, AncestorBaselineRole::First, 1);
+    let group_before = group.clone();
+    let mapping_before = mapping.clone();
+    let witness_before = witness;
+    let input = || InheritedCurrentGridBaselinePlacementInput {
+        axis: GridAxisKind::Column,
+        physical_axis: PhysicalAxis::Horizontal,
+        mapping: mapping.clone(),
+        direct_witness: witness,
+        current_grid: 7,
+        item: 11,
+    };
+    let first = InheritedCurrentGridBaselinePlacement::try_derive(&group, input()).unwrap();
+    let second = InheritedCurrentGridBaselinePlacement::try_derive(&group, input()).unwrap();
+    assert_eq!(first, second);
+    assert_eq!(group, group_before);
+    assert_eq!(mapping, mapping_before);
+    assert_eq!(witness, witness_before);
+}
+
+#[test]
+fn vertical_auto_rows_current_grid_first_moves_x126_to_x121_while_last_stays_x30() {
+    let first_group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 3, 28.0);
+    let first = derive_inherited_placement(
+        &first_group,
+        GridAxisKind::Row,
+        AncestorBaselineRole::First,
+        3,
+        false,
+        0.0,
+        10.0,
+    )
+    .unwrap();
+    let last_group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::Last, 3, 10.0);
+    let last = derive_inherited_placement(
+        &last_group,
+        GridAxisKind::Row,
+        AncestorBaselineRole::Last,
+        3,
+        false,
+        0.0,
+        10.0,
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            first.translated_target(),
+            126.0 - first.signed_translation(),
+            last.translated_target(),
+            30.0 - last.signed_translation(),
+        ),
+        (33.0, 121.0, 10.0, 30.0),
+    );
+}
+
+fn inherited_placement_input(
+    axis: GridAxisKind,
+    role: AncestorBaselineRole,
+) -> InheritedCurrentGridBaselinePlacementInput<u32, f32> {
+    InheritedCurrentGridBaselinePlacementInput {
+        axis,
+        physical_axis: match axis {
+            GridAxisKind::Column => PhysicalAxis::Horizontal,
+            GridAxisKind::Row => PhysicalAxis::Vertical,
+        },
+        mapping: inherited_placement_mapping(axis, false, GridTrackSpan::new(0, 4), 10.0, 20.0),
+        direct_witness: inherited_placement_witness(axis, role, 1),
+        current_grid: 7,
+        item: 11,
+    }
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_rejects_axis_mismatch_first() {
+    let group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, f32::NAN);
+    let input = inherited_placement_input(GridAxisKind::Column, AncestorBaselineRole::First);
+    assert_eq!(
+        InheritedCurrentGridBaselinePlacement::try_derive(&group, input),
+        Err(InheritedCurrentGridBaselinePlacementError::AxisMismatch),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_rejects_physical_axis_mismatch() {
+    let group = inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let mut input = inherited_placement_input(GridAxisKind::Row, AncestorBaselineRole::First);
+    input.physical_axis = PhysicalAxis::Horizontal;
+    assert_eq!(
+        InheritedCurrentGridBaselinePlacement::try_derive(&group, input),
+        Err(InheritedCurrentGridBaselinePlacementError::PhysicalAxisMismatch),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_rejects_span_out_of_range() {
+    let group = inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let mut input = inherited_placement_input(GridAxisKind::Row, AncestorBaselineRole::First);
+    input
+        .mapping
+        .set_parent_span_for_test(GridTrackSpan::new(0, 5));
+    assert_eq!(
+        InheritedCurrentGridBaselinePlacement::try_derive(&group, input),
+        Err(InheritedCurrentGridBaselinePlacementError::SpanOutOfRange),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_rejects_selected_track_out_of_range() {
+    let group = inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let mut input = inherited_placement_input(GridAxisKind::Row, AncestorBaselineRole::First);
+    input
+        .direct_witness
+        .set_local_span_for_test(GridTrackSpan::new(4, 5));
+    assert_eq!(
+        InheritedCurrentGridBaselinePlacement::try_derive(&group, input),
+        Err(InheritedCurrentGridBaselinePlacementError::SelectedTrackOutOfRange),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_rejects_role_target_mismatch() {
+    let group = inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let input = inherited_placement_input(GridAxisKind::Row, AncestorBaselineRole::Last);
+    assert_eq!(
+        InheritedCurrentGridBaselinePlacement::try_derive(&group, input),
+        Err(InheritedCurrentGridBaselinePlacementError::RoleTargetMismatch),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_rejects_ownership_mismatch() {
+    let group = inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let mut input = inherited_placement_input(GridAxisKind::Row, AncestorBaselineRole::First);
+    input.item = 12;
+    input.mapping.set_inherited_for_test(false);
+    assert_eq!(
+        InheritedCurrentGridBaselinePlacement::try_derive(&group, input),
+        Err(InheritedCurrentGridBaselinePlacementError::OwnershipMismatch),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_rejects_unusable_inherited_mapping() {
+    let group = inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let mut input = inherited_placement_input(GridAxisKind::Row, AncestorBaselineRole::First);
+    input.mapping.set_inherited_for_test(false);
+    assert_eq!(
+        InheritedCurrentGridBaselinePlacement::try_derive(&group, input),
+        Err(InheritedCurrentGridBaselinePlacementError::UnusableInheritedMapping),
+    );
+}
+
+#[test]
+fn inherited_current_grid_baseline_placement_rejects_non_finite_last() {
+    let group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::Last, 1, f32::NAN);
+    let input = inherited_placement_input(GridAxisKind::Row, AncestorBaselineRole::Last);
+    assert_eq!(
+        InheritedCurrentGridBaselinePlacement::try_derive(&group, input),
+        Err(InheritedCurrentGridBaselinePlacementError::NonFinite),
+    );
+}
+
+#[test]
+fn subgrid_baseline_placement_error_propagates_with_node_site() {
+    let error = subgrid_child_context_error::<_, f32, ()>(
+        11_u32,
+        SubgridChildContextError::BaselineInheritance(SubgridBaselineInheritanceError::Placement(
+            InheritedCurrentGridBaselinePlacementError::RoleTargetMismatch,
+        )),
+    );
+    assert_eq!(error.site(), LayoutErrorSiteOf::Node(11));
+    assert_eq!(error.operation(), LayoutOperation::ChildLayout);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::SubgridBaselineInheritance),
+    );
+}
+
+#[test]
+fn subgrid_baseline_placement_error_propagates_with_container_subject_site() {
+    let error = subgrid_child_context_container_error::<_, f32, ()>(
+        7_u32,
+        11_u32,
+        SubgridChildContextError::BaselineInheritance(SubgridBaselineInheritanceError::Placement(
+            InheritedCurrentGridBaselinePlacementError::RoleTargetMismatch,
+        )),
+    );
+    assert_eq!(
+        error.site(),
+        LayoutErrorSiteOf::ContainerSubject {
+            container: 7,
+            subject: 11,
+        },
+    );
+    assert_eq!(error.operation(), LayoutOperation::ChildLayout);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::SubgridBaselineInheritance),
+    );
+}
+
+#[test]
+fn late_subgrid_baseline_placement_error_after_prior_item_preparation_mutates_no_item_output_or_batch()
+ {
+    let first_group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let missing_last_group =
+        inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let prepared = prepare_inherited_current_grid_baseline_placements([
+        (
+            &first_group,
+            inherited_placement_input(GridAxisKind::Row, AncestorBaselineRole::First),
+        ),
+        (
+            &missing_last_group,
+            inherited_placement_input(GridAxisKind::Row, AncestorBaselineRole::Last),
+        ),
+    ]);
+    assert_eq!(
+        prepared,
+        Err(InheritedCurrentGridBaselinePlacementError::RoleTargetMismatch),
+    );
+}
+
+#[test]
+fn nested_inherited_grid_axis_preserves_owner_targets_separately_from_child_envelope() {
+    let group = inherited_placement_group(GridAxisKind::Row, AncestorBaselineRole::First, 1, 17.0);
+    let owner_targets = InheritedGridOwnerBaselineTargets {
+        group: group.clone(),
+        mapping: inherited_placement_mapping(
+            GridAxisKind::Row,
+            false,
+            GridTrackSpan::new(0, 4),
+            10.0,
+            20.0,
+        ),
+        major_placement_required: true,
+        minor_placement_required: false,
+    };
+    let inherited_axis = InheritedGridAxis {
+        offset: 0.0,
+        gap: 20.0,
+        tracks: vec![25.0; 4],
+        named_lines: NamedGridLines::new(GridAxisKind::Row, 4),
+        area_facts: None,
+        major_baselines: vec![
+            None,
+            Some(tagged_baseline(PhysicalAxis::Vertical, 9.0)),
+            None,
+            None,
+        ],
+        minor_baselines: vec![None; 4],
+        owner_baseline_targets: Some(owner_targets),
+        parent_start: 0,
+        parent_end: 4,
+        reversed: false,
+    };
+    let context = GridParentContext {
+        columns: None,
+        rows: Some(inherited_axis),
+    };
+    let row = context.rows.as_ref().unwrap();
+    assert_eq!(row.major_baselines[1].unwrap().coordinate(), 9.0);
+    let transported = row.owner_baseline_targets.as_ref().unwrap();
+    assert_eq!(
+        transported
+            .group
+            .target_record(AncestorBaselineRole::First, 1)
+            .unwrap()
+            .finite_owner_logical_target(),
+        17.0,
+    );
+    let placement = InheritedCurrentGridBaselinePlacement::try_derive(
+        &transported.group,
+        InheritedCurrentGridBaselinePlacementInput {
+            axis: GridAxisKind::Row,
+            physical_axis: PhysicalAxis::Vertical,
+            mapping: transported.mapping.clone(),
+            direct_witness: inherited_placement_witness(
+                GridAxisKind::Row,
+                AncestorBaselineRole::First,
+                1,
+            ),
+            current_grid: 7,
+            item: 11,
+        },
+    )
+    .unwrap();
+    assert_eq!(placement.translated_target(), 22.0);
+    assert_eq!(row.major_baselines[1].unwrap().coordinate(), 9.0);
+    assert_eq!(
+        transported
+            .group
+            .target_record(AncestorBaselineRole::First, 1)
+            .unwrap()
+            .finite_owner_logical_target(),
+        17.0,
+    );
 }
 
 #[test]
@@ -22404,10 +23086,10 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         area_facts: None,
         major_baselines: vec![Some(tagged_baseline(PhysicalAxis::Horizontal, 2.0))],
         minor_baselines: vec![None],
+        owner_baseline_targets: None,
         parent_start: 0,
         parent_end: 2,
         reversed: false,
-        gap_difference: 0.25,
     };
     let parent_context = GridParentContext::<f64> {
         columns: Some(inherited_axis),
@@ -24144,10 +24826,10 @@ fn test_inherited_axis(
         area_facts,
         major_baselines: vec![None; track_count],
         minor_baselines: vec![None; track_count],
+        owner_baseline_targets: None,
         parent_start,
         parent_end,
         reversed,
-        gap_difference: 0.0,
     }
 }
 
@@ -24889,10 +25571,10 @@ where
                 PhysicalAxis::Vertical,
                 S::from_f64(61.0),
             ))],
+            owner_baseline_targets: None,
             parent_start: 0,
             parent_end: 1,
             reversed: false,
-            gap_difference: S::ZERO,
         }),
     };
 
@@ -24993,10 +25675,10 @@ where
                 S::from_f64(45.0),
             ))],
             minor_baselines: vec![None],
+            owner_baseline_targets: None,
             parent_start: 0,
             parent_end: 1,
             reversed: false,
-            gap_difference: S::ZERO,
         }),
     };
 

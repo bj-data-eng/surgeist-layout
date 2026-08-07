@@ -94,42 +94,45 @@ pub(super) struct GridBaselineGroups<S: LayoutScalar = Scalar> {
 struct FinalAncestorBaselineGroups<S: LayoutScalar = Scalar> {
     rows: AncestorBaselineGroup<S>,
     columns: AncestorBaselineGroup<S>,
-    placement_rows: Option<AncestorBaselineGroup<S>>,
-    placement_columns: Option<AncestorBaselineGroup<S>>,
+    placement_rows: Option<InheritedGridOwnerBaselineTargets<S>>,
+    placement_columns: Option<InheritedGridOwnerBaselineTargets<S>>,
+    row_child_envelope: Option<ChildBaselineEnvelopeView<S>>,
+    column_child_envelope: Option<ChildBaselineEnvelopeView<S>>,
     row_downward_major_translation: Vec<S>,
     row_downward_minor_translation: Vec<S>,
     column_downward_major_translation: Vec<S>,
     column_downward_minor_translation: Vec<S>,
+    row_had_downward_major_translation: bool,
+    row_had_downward_minor_translation: bool,
+    column_had_downward_major_translation: bool,
+    column_had_downward_minor_translation: bool,
 }
 
 impl<S: LayoutScalar> FinalAncestorBaselineGroups<S> {
     fn with_parent_context(mut self, parent_context: &GridParentContext<S>) -> Self {
         if let Some(rows) = &parent_context.rows {
-            let mut placement = self.rows.clone();
-            let local_view = AncestorBaselineGroup::from_local_view(
-                GridAxisKind::Row,
-                self.rows.physical_axis(),
-                &rows.major_baselines,
-                &rows.minor_baselines,
-            );
-            if !rows.reversed {
-                placement.translate_changed_downward_targets(&local_view, rows.gap_difference);
-            }
-            self.rows = local_view;
-            self.placement_rows = Some(placement);
+            self.row_had_downward_major_translation =
+                self.has_downward_translation(GridAxisKind::Row, AncestorBaselineRole::First);
+            self.row_had_downward_minor_translation =
+                self.has_downward_translation(GridAxisKind::Row, AncestorBaselineRole::Last);
+            self.placement_rows = rows.owner_baseline_targets.clone();
+            self.row_child_envelope = Some(ChildBaselineEnvelopeView {
+                major: rows.major_baselines.clone(),
+                minor: rows.minor_baselines.clone(),
+            });
             self.row_downward_major_translation.fill(S::ZERO);
             self.row_downward_minor_translation.fill(S::ZERO);
         }
         if let Some(columns) = &parent_context.columns {
-            let placement = self.columns.clone();
-            let local_view = AncestorBaselineGroup::from_local_view(
-                GridAxisKind::Column,
-                self.columns.physical_axis(),
-                &columns.major_baselines,
-                &columns.minor_baselines,
-            );
-            self.columns = local_view;
-            self.placement_columns = Some(placement);
+            self.column_had_downward_major_translation =
+                self.has_downward_translation(GridAxisKind::Column, AncestorBaselineRole::First);
+            self.column_had_downward_minor_translation =
+                self.has_downward_translation(GridAxisKind::Column, AncestorBaselineRole::Last);
+            self.placement_columns = columns.owner_baseline_targets.clone();
+            self.column_child_envelope = Some(ChildBaselineEnvelopeView {
+                major: columns.major_baselines.clone(),
+                minor: columns.minor_baselines.clone(),
+            });
             self.column_downward_major_translation.fill(S::ZERO);
             self.column_downward_minor_translation.fill(S::ZERO);
         }
@@ -137,9 +140,28 @@ impl<S: LayoutScalar> FinalAncestorBaselineGroups<S> {
     }
 
     fn placement_groups(&self) -> GridBaselineGroups<S> {
+        let envelope_groups = |view: &ChildBaselineEnvelopeView<S>| {
+            view.major
+                .iter()
+                .copied()
+                .zip(view.minor.iter().copied())
+                .map(|(first, last)| TrackBaselineGroup { first, last })
+                .collect()
+        };
         GridBaselineGroups {
-            rows: self.rows.track_groups().to_vec(),
-            columns: self.columns.track_groups().to_vec(),
+            rows: if self.placement_rows.is_none() {
+                self.row_child_envelope
+                    .as_ref()
+                    .map(&envelope_groups)
+                    .unwrap_or_else(|| self.rows.track_groups())
+            } else {
+                self.rows.track_groups()
+            },
+            columns: self
+                .placement_columns
+                .as_ref()
+                .map(|targets| targets.group.track_groups())
+                .unwrap_or_else(|| self.columns.track_groups()),
         }
     }
 
@@ -152,9 +174,59 @@ impl<S: LayoutScalar> FinalAncestorBaselineGroups<S> {
 
     fn placement_for_axis(&self, axis: GridAxisKind) -> &AncestorBaselineGroup<S> {
         match axis {
-            GridAxisKind::Column => self.placement_columns.as_ref().unwrap_or(&self.columns),
-            GridAxisKind::Row => self.placement_rows.as_ref().unwrap_or(&self.rows),
+            GridAxisKind::Column => self
+                .placement_columns
+                .as_ref()
+                .map(|targets| &targets.group)
+                .unwrap_or(&self.columns),
+            GridAxisKind::Row => self
+                .placement_rows
+                .as_ref()
+                .map(|targets| &targets.group)
+                .unwrap_or(&self.rows),
         }
+    }
+
+    fn inherited_targets_for_axis(
+        &self,
+        axis: GridAxisKind,
+    ) -> Option<&InheritedGridOwnerBaselineTargets<S>> {
+        match axis {
+            GridAxisKind::Column => self.placement_columns.as_ref(),
+            GridAxisKind::Row => self.placement_rows.as_ref(),
+        }
+    }
+
+    fn child_envelope_for_axis(&self, axis: GridAxisKind) -> Option<&ChildBaselineEnvelopeView<S>> {
+        match axis {
+            GridAxisKind::Column => self.column_child_envelope.as_ref(),
+            GridAxisKind::Row => self.row_child_envelope.as_ref(),
+        }
+    }
+
+    fn has_downward_translation(&self, axis: GridAxisKind, role: AncestorBaselineRole) -> bool {
+        let (translations, retained) = match (axis, role) {
+            (GridAxisKind::Column, AncestorBaselineRole::First) => (
+                &self.column_downward_major_translation,
+                self.column_had_downward_major_translation,
+            ),
+            (GridAxisKind::Column, AncestorBaselineRole::Last) => (
+                &self.column_downward_minor_translation,
+                self.column_had_downward_minor_translation,
+            ),
+            (GridAxisKind::Row, AncestorBaselineRole::First) => (
+                &self.row_downward_major_translation,
+                self.row_had_downward_major_translation,
+            ),
+            (GridAxisKind::Row, AncestorBaselineRole::Last) => (
+                &self.row_downward_minor_translation,
+                self.row_had_downward_minor_translation,
+            ),
+        };
+        retained
+            || translations
+                .iter()
+                .any(|translation| *translation != S::ZERO)
     }
 }
 
@@ -294,11 +366,16 @@ struct BaselineAlignedAxisInput<'a, Node, S: LayoutScalar = Scalar> {
     subgrid_item: Option<SubgridItemReport<Node>>,
     container_flow_axes: FlowAxes,
     intrinsic_baseline_census: bool,
+    inherited_owner_targets: Option<&'a InheritedGridOwnerBaselineTargets<S>>,
+    owner_group: Option<&'a AncestorBaselineGroup<S>>,
+    child_envelope: Option<&'a ChildBaselineEnvelopeView<S>>,
+    has_inherited_descendant: bool,
+    current_grid: Node,
 }
 
-fn baseline_aligned_axis_offset<Node: Copy, S: LayoutScalar>(
+fn baseline_aligned_axis_offset<Node: Copy + PartialEq, S: LayoutScalar>(
     input: BaselineAlignedAxisInput<'_, Node, S>,
-) -> Option<S> {
+) -> Result<Option<S>, InheritedCurrentGridBaselinePlacementError> {
     let BaselineAlignedAxisInput {
         item,
         child_style,
@@ -311,6 +388,11 @@ fn baseline_aligned_axis_offset<Node: Copy, S: LayoutScalar>(
         subgrid_item,
         container_flow_axes,
         intrinsic_baseline_census,
+        inherited_owner_targets,
+        owner_group,
+        child_envelope,
+        has_inherited_descendant,
+        current_grid,
     } = input;
     if subgrid_item.is_some_and(|subgrid_item| {
         [subgrid_item.column, subgrid_item.row]
@@ -322,7 +404,7 @@ fn baseline_aligned_axis_offset<Node: Copy, S: LayoutScalar>(
                         .is_ok_and(|mapping| mapping.parent_axis == axis)
             })
     }) {
-        return None;
+        return Ok(None);
     }
     let alignment = match axis {
         GridAxisKind::Column => child_style.justify_self.or(container_style.justify_items),
@@ -361,7 +443,9 @@ fn baseline_aligned_axis_offset<Node: Copy, S: LayoutScalar>(
         start_adjustment: S::ZERO,
         end_adjustment: S::ZERO,
     };
-    let member = ancestor_baseline_member(member_input(alignment))?;
+    let Some(member) = ancestor_baseline_member(member_input(alignment)) else {
+        return Ok(None);
+    };
     let logical_margin = container_flow_axes.logical_edges(item.margin);
     let logical_size = container_flow_axes.logical_size(item.output.size);
     let (start_margin, end_margin, item_size) = match axis {
@@ -396,23 +480,86 @@ fn baseline_aligned_axis_offset<Node: Copy, S: LayoutScalar>(
         let opposite_alignment = match alignment {
             AlignItems::Baseline => AlignItems::LastBaseline,
             AlignItems::LastBaseline => AlignItems::Baseline,
-            _ => return None,
+            _ => return Ok(None),
         };
-        let opposite_member = ancestor_baseline_member(member_input(opposite_alignment))?;
-        return group.synthesized_opposite_placement_offset(
+        let Some(opposite_member) = ancestor_baseline_member(member_input(opposite_alignment))
+        else {
+            return Ok(None);
+        };
+        return Ok(group.synthesized_opposite_placement_offset(
             member,
             opposite_member,
             spanned_track_size(tracks, start, end, gap),
             start_margin,
             end_margin,
-        );
+        ));
     }
-    let offset = group.placement_offset(
-        member,
-        spanned_track_size(tracks, start, end, gap),
-        item_size + start_margin + end_margin,
-        start_margin,
-    )?;
+    let available_span_size = spanned_track_size(tracks, start, end, gap);
+    let margin_box_size = item_size + start_margin + end_margin;
+    let placement_required = inherited_owner_targets.is_some_and(|targets| match member.role() {
+        AncestorBaselineRole::First => targets.major_placement_required,
+        AncestorBaselineRole::Last => targets.minor_placement_required,
+    });
+    let owner_direct =
+        inherited_owner_targets.is_some() && has_inherited_descendant && !placement_required;
+    let child_internal = child_envelope.is_some()
+        && (inherited_owner_targets.is_none() || (!placement_required && !owner_direct));
+    let offset = if owner_direct {
+        let Some(target) = owner_group.and_then(|group| group.target_for(member)) else {
+            return Ok(None);
+        };
+        group.placement_offset_for_target(
+            member,
+            target,
+            available_span_size,
+            margin_box_size,
+            start_margin,
+        )
+    } else if child_internal {
+        let Some(target) = child_envelope.and_then(|view| view.target_for(member)) else {
+            return Ok(None);
+        };
+        group.placement_offset_for_target(
+            member,
+            target,
+            available_span_size,
+            margin_box_size,
+            start_margin,
+        )
+    } else if let Some(owner_targets) = inherited_owner_targets.filter(|_| placement_required) {
+        let placement = InheritedCurrentGridBaselinePlacement::try_derive(
+            group,
+            InheritedCurrentGridBaselinePlacementInput {
+                axis,
+                physical_axis: grid_axis_physical_axis(container_flow_axes, axis),
+                mapping: owner_targets.mapping.clone(),
+                direct_witness: CurrentGridDirectWitness::new(
+                    current_grid,
+                    item.node,
+                    axis,
+                    GridTrackSpan::new(start, end),
+                    member.role(),
+                    false,
+                ),
+                current_grid,
+                item: item.node,
+            },
+        )?;
+        group.placement_offset_for_target(
+            member,
+            placement.translated_target(),
+            available_span_size,
+            margin_box_size,
+            start_margin,
+        )
+    } else {
+        let Some(offset) =
+            group.placement_offset(member, available_span_size, margin_box_size, start_margin)
+        else {
+            return Ok(None);
+        };
+        offset
+    };
     let intrinsic_correction = if intrinsic_baseline_census
         && axis == GridAxisKind::Row
         && row_tracks
@@ -428,7 +575,7 @@ fn baseline_aligned_axis_offset<Node: Copy, S: LayoutScalar>(
     } else {
         S::ZERO
     };
-    Some(offset + intrinsic_correction)
+    Ok(Some(offset + intrinsic_correction))
 }
 
 pub(super) fn layout_grid_children<Tree, M>(
@@ -862,16 +1009,28 @@ where
                     .is_ok_and(|mapping| mapping.parent_axis == GridAxisKind::Row)
         })
     });
-    for item in &mut pending_items {
+    let has_inherited_column_descendant = subgrid_report.items.iter().any(|report| {
+        [report.column, report.row].into_iter().any(|axis| {
+            axis.can_inherit()
+                && axis
+                    .mapping
+                    .is_ok_and(|mapping| mapping.parent_axis == GridAxisKind::Column)
+        })
+    });
+    let mut prepared_item_placements = Vec::with_capacity(pending_items.len());
+    for item in &pending_items {
         let area_origin =
             grid_area_logical_origin(&logical_column_offsets, &logical_row_offsets, item.area);
         let child_style = tree.node_input(item.node);
         let subgrid_item = subgrid_report.items.get(item.source_index).copied();
+        let inherited_columns =
+            ancestor_baseline_groups.inherited_targets_for_axis(GridAxisKind::Column);
+        let column_group = ancestor_baseline_groups.for_axis(GridAxisKind::Column);
         let inline_axis_offset = baseline_aligned_axis_offset(BaselineAlignedAxisInput {
             item,
             child_style,
             container_style: style,
-            group: ancestor_baseline_groups.for_axis(GridAxisKind::Column),
+            group: column_group,
             axis: GridAxisKind::Column,
             tracks: columns,
             gap: gap.inline,
@@ -879,13 +1038,24 @@ where
             subgrid_item,
             container_flow_axes: constants.flow_axes,
             intrinsic_baseline_census: has_inherited_row_descendant,
+            inherited_owner_targets: inherited_columns,
+            owner_group: inherited_columns.map(|targets| &targets.group),
+            child_envelope: ancestor_baseline_groups.child_envelope_for_axis(GridAxisKind::Column),
+            has_inherited_descendant: has_inherited_column_descendant,
+            current_grid: node,
         })
+        .map_err(|error| {
+            subgrid_child_context_container_error(
+                node,
+                item.node,
+                SubgridChildContextError::BaselineInheritance(
+                    SubgridBaselineInheritanceError::Placement(error),
+                ),
+            )
+        })?
         .unwrap_or(item.horizontal_axis.offset);
-        let row_baseline_group = if has_inherited_row_descendant {
-            ancestor_baseline_groups.placement_for_axis(GridAxisKind::Row)
-        } else {
-            ancestor_baseline_groups.for_axis(GridAxisKind::Row)
-        };
+        let inherited_rows = ancestor_baseline_groups.inherited_targets_for_axis(GridAxisKind::Row);
+        let row_baseline_group = ancestor_baseline_groups.for_axis(GridAxisKind::Row);
         let block_axis_offset = baseline_aligned_axis_offset(BaselineAlignedAxisInput {
             item,
             child_style,
@@ -898,9 +1068,22 @@ where
             subgrid_item,
             container_flow_axes: constants.flow_axes,
             intrinsic_baseline_census: has_inherited_row_descendant,
+            inherited_owner_targets: inherited_rows,
+            owner_group: inherited_rows.map(|targets| &targets.group),
+            child_envelope: ancestor_baseline_groups.child_envelope_for_axis(GridAxisKind::Row),
+            has_inherited_descendant: has_inherited_row_descendant,
+            current_grid: node,
         })
+        .map_err(|error| {
+            subgrid_child_context_container_error(
+                node,
+                item.node,
+                SubgridChildContextError::BaselineInheritance(
+                    SubgridBaselineInheritanceError::Placement(error),
+                ),
+            )
+        })?
         .unwrap_or(item.vertical_axis.offset);
-        item.block_offset = block_axis_offset;
         let logical_location = LogicalPointOf::new(
             area_origin.inline + inline_axis_offset + item.logical_relative_offset.inline,
             area_origin.block + block_axis_offset + item.logical_relative_offset.block,
@@ -910,7 +1093,6 @@ where
             constants.flow_axes.logical_size(item.output.size),
             containing_size,
         );
-        item.location = location;
         let scroll_geometry = item
             .output
             .scroll_geometry
@@ -922,7 +1104,7 @@ where
             constants.flow_axes,
             item.child_flow_axes,
         );
-        child_contributions.push(GridChildContribution {
+        let contribution = GridChildContribution {
             source_index: crate::SourceIndex::new(item.source_index),
             location,
             margin: item.margin,
@@ -932,8 +1114,17 @@ where
                 .retain_physical_axes(horizontal, vertical),
             overflow: item.overflow,
             in_flow: true,
-        });
+        };
 
+        prepared_item_placements.push((block_axis_offset, location, contribution));
+    }
+
+    for (item, (block_axis_offset, location, contribution)) in
+        pending_items.iter_mut().zip(prepared_item_placements)
+    {
+        item.block_offset = block_axis_offset;
+        item.location = location;
+        child_contributions.push(contribution);
         tree.set_unrounded(
             item.node,
             NodeOutputOf {
@@ -941,7 +1132,7 @@ where
                 location,
                 size: item.output.size,
                 content_size: item.output.content_size,
-                scroll_geometry: Some(scroll_geometry),
+                scroll_geometry: Some(contribution.geometry),
                 border: item.border,
                 padding: item.padding,
                 margin: item.margin,
@@ -1666,10 +1857,16 @@ where
         columns: columns.group,
         placement_rows: None,
         placement_columns: None,
+        row_child_envelope: None,
+        column_child_envelope: None,
         row_downward_major_translation: rows.downward_major_translation,
         row_downward_minor_translation: rows.downward_minor_translation,
         column_downward_major_translation: columns.downward_major_translation,
         column_downward_minor_translation: columns.downward_minor_translation,
+        row_had_downward_major_translation: false,
+        row_had_downward_minor_translation: false,
+        column_had_downward_major_translation: false,
+        column_had_downward_minor_translation: false,
     })
 }
 
@@ -2114,7 +2311,13 @@ struct SubgridChildAxisContextInput<'a, S: LayoutScalar = Scalar> {
 pub(super) enum SubgridChildContextError<S: LayoutScalar> {
     ValueResolution(LengthResolutionStatus<S>),
     TrackInheritance(SubgridTrackInheritanceError),
-    BaselineInheritance(SubgridTrackInheritanceError),
+    BaselineInheritance(SubgridBaselineInheritanceError),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum SubgridBaselineInheritanceError {
+    Envelope(SubgridTrackInheritanceError),
+    Placement(InheritedCurrentGridBaselinePlacementError),
 }
 
 fn subgrid_child_axis_context<S: LayoutScalar>(
@@ -2163,48 +2366,102 @@ fn subgrid_child_axis_context<S: LayoutScalar>(
         parent_gap: parent_axis.gap,
         subgrid_gap: inherited.resolved_subgrid_gap,
     };
+    let mut owner_baseline_targets = None;
     let (major_baselines, minor_baselines) = if let Some(ancestor_groups) =
         input.ancestor_baseline_groups
     {
-        let group = if mapping.reversed {
-            ancestor_groups.placement_for_axis(mapping.parent_axis)
-        } else {
-            ancestor_groups.for_axis(mapping.parent_axis)
-        };
+        let group = ancestor_groups.for_axis(mapping.parent_axis);
         if group.axis() != mapping.parent_axis {
             return Err(SubgridChildContextError::BaselineInheritance(
-                SubgridTrackInheritanceError::SpanOutOfRange,
+                SubgridBaselineInheritanceError::Envelope(
+                    SubgridTrackInheritanceError::SpanOutOfRange,
+                ),
             ));
         }
-        let view = ChildBaselineEnvelopeView::derive(
-            group,
-            ChildBaselineEnvelopeInput {
-                axis: mapping.parent_axis,
-                physical_axis,
-                ancestor_progression_decreasing: child_flow_axes
-                    .logical_axis_progression(match input.axis {
-                        GridAxisKind::Column => LogicalAxis::Inline,
-                        GridAxisKind::Row => LogicalAxis::Block,
-                    })
-                    .is_decreasing()
-                    ^ mapping.reversed,
-                parent_span: GridTrackSpan::new(start_line, end_line),
-                reversed: mapping.reversed,
-                start_mbp,
-                end_mbp,
-                parent_gap: parent_axis.gap,
-                subgrid_gap: inherited.resolved_subgrid_gap,
-            },
-            match mapping.parent_axis {
-                GridAxisKind::Column => &ancestor_groups.column_downward_major_translation,
-                GridAxisKind::Row => &ancestor_groups.row_downward_major_translation,
-            },
-            match mapping.parent_axis {
-                GridAxisKind::Column => &ancestor_groups.column_downward_minor_translation,
-                GridAxisKind::Row => &ancestor_groups.row_downward_minor_translation,
-            },
-        )
-        .map_err(SubgridChildContextError::BaselineInheritance)?;
+        let direct_mapping = CheckedInheritedAxisMapping::new(CheckedInheritedAxisMappingInput {
+            child_axis: input.axis,
+            ancestor_axis: mapping.parent_axis,
+            physical_axis,
+            parent_span: GridTrackSpan::new(start_line - 1, end_line - 1),
+            reversed: mapping.reversed,
+            parent_gap: parent_axis.gap,
+            current_gap: inherited.resolved_subgrid_gap,
+            start_mbp,
+            end_mbp,
+            inherited: true,
+        });
+        let owner_group = ancestor_groups.placement_for_axis(mapping.parent_axis);
+        let view = if mapping.parent_axis == GridAxisKind::Row
+            && let Some(parent_view) = ancestor_groups.child_envelope_for_axis(mapping.parent_axis)
+        {
+            let inherited_view =
+                inherit_subgrid_baselines(baseline_input(&parent_view.major, &parent_view.minor))
+                    .map_err(|error| {
+                    SubgridChildContextError::BaselineInheritance(
+                        SubgridBaselineInheritanceError::Envelope(error),
+                    )
+                })?;
+            ChildBaselineEnvelopeView {
+                major: inherited_view.final_major,
+                minor: inherited_view.final_minor,
+            }
+        } else {
+            ChildBaselineEnvelopeView::derive(
+                group,
+                ChildBaselineEnvelopeInput {
+                    axis: mapping.parent_axis,
+                    physical_axis,
+                    ancestor_progression_decreasing: child_flow_axes
+                        .logical_axis_progression(match input.axis {
+                            GridAxisKind::Column => LogicalAxis::Inline,
+                            GridAxisKind::Row => LogicalAxis::Block,
+                        })
+                        .is_decreasing()
+                        ^ mapping.reversed,
+                    parent_span: GridTrackSpan::new(start_line, end_line),
+                    reversed: mapping.reversed,
+                    start_mbp,
+                    end_mbp,
+                    parent_gap: parent_axis.gap,
+                    subgrid_gap: inherited.resolved_subgrid_gap,
+                },
+                match mapping.parent_axis {
+                    GridAxisKind::Column => &ancestor_groups.column_downward_major_translation,
+                    GridAxisKind::Row => &ancestor_groups.row_downward_major_translation,
+                },
+                match mapping.parent_axis {
+                    GridAxisKind::Column => &ancestor_groups.column_downward_minor_translation,
+                    GridAxisKind::Row => &ancestor_groups.row_downward_minor_translation,
+                },
+            )
+            .map_err(|error| {
+                SubgridChildContextError::BaselineInheritance(
+                    SubgridBaselineInheritanceError::Envelope(error),
+                )
+            })?
+        };
+        if owner_group.has_any_target() {
+            let mapped_group = owner_group
+                .mapped_child_owner_targets(
+                    GridTrackSpan::new(start_line, end_line),
+                    mapping.reversed,
+                    &view.major,
+                    &view.minor,
+                )
+                .ok_or(SubgridChildContextError::BaselineInheritance(
+                    SubgridBaselineInheritanceError::Envelope(
+                        SubgridTrackInheritanceError::SpanOutOfRange,
+                    ),
+                ))?;
+            owner_baseline_targets = Some(InheritedGridOwnerBaselineTargets {
+                group: mapped_group,
+                mapping: direct_mapping,
+                major_placement_required: ancestor_groups
+                    .has_downward_translation(mapping.parent_axis, AncestorBaselineRole::First),
+                minor_placement_required: ancestor_groups
+                    .has_downward_translation(mapping.parent_axis, AncestorBaselineRole::Last),
+            });
+        }
         (view.major, view.minor)
     } else {
         let parent_major =
@@ -2212,8 +2469,13 @@ fn subgrid_child_axis_context<S: LayoutScalar>(
         let parent_minor =
             parent_baseline_groups(parent_axis.baseline_groups, parent_axis.tracks.len(), false);
         let inherited_baselines =
-            inherit_subgrid_baselines(baseline_input(&parent_major, &parent_minor))
-                .map_err(SubgridChildContextError::BaselineInheritance)?;
+            inherit_subgrid_baselines(baseline_input(&parent_major, &parent_minor)).map_err(
+                |error| {
+                    SubgridChildContextError::BaselineInheritance(
+                        SubgridBaselineInheritanceError::Envelope(error),
+                    )
+                },
+            )?;
         (
             inherited_baselines.final_major,
             inherited_baselines.final_minor,
@@ -2233,10 +2495,10 @@ fn subgrid_child_axis_context<S: LayoutScalar>(
             .cloned(),
         major_baselines,
         minor_baselines,
+        owner_baseline_targets,
         parent_start: start_line - 1,
         parent_end: end_line - 1,
         reversed: mapping.reversed,
-        gap_difference: inherited.gap_difference,
     }))
 }
 

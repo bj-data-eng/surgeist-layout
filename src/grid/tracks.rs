@@ -67,9 +67,70 @@ pub(super) struct IntrinsicGridLowerBounds<'a, S: LayoutScalar = Scalar> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum AncestorBaselineRole {
+pub(super) enum AncestorBaselineRole {
     First,
     Last,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum BaselineOwnerEdge {
+    Start,
+    End,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct AncestorBaselineTarget<S: LayoutScalar = Scalar> {
+    role: AncestorBaselineRole,
+    selected_ancestor_track: usize,
+    selected_owner_edge: BaselineOwnerEdge,
+    finite_owner_logical_target: S,
+}
+
+impl<S: LayoutScalar> AncestorBaselineTarget<S> {
+    fn from_member<Node>(member: AncestorBaselineMember<Node, S>, target: S) -> Self {
+        Self {
+            role: member.role,
+            selected_ancestor_track: member.selected_track,
+            selected_owner_edge: match member.role {
+                AncestorBaselineRole::First => BaselineOwnerEdge::Start,
+                AncestorBaselineRole::Last => BaselineOwnerEdge::End,
+            },
+            finite_owner_logical_target: target,
+        }
+    }
+
+    pub(super) const fn role(self) -> AncestorBaselineRole {
+        self.role
+    }
+
+    pub(super) const fn selected_ancestor_track(self) -> usize {
+        self.selected_ancestor_track
+    }
+
+    pub(super) const fn selected_owner_edge(self) -> BaselineOwnerEdge {
+        self.selected_owner_edge
+    }
+
+    pub(super) const fn finite_owner_logical_target(self) -> S {
+        self.finite_owner_logical_target
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct TrackAncestorBaselineTargets<S: LayoutScalar = Scalar> {
+    pub(super) first: Option<AncestorBaselineTarget<S>>,
+    pub(super) last: Option<AncestorBaselineTarget<S>>,
+}
+
+fn reduce_complete_target<S: LayoutScalar>(
+    slot: &mut Option<AncestorBaselineTarget<S>>,
+    candidate: AncestorBaselineTarget<S>,
+) {
+    if slot.is_none_or(|current| {
+        candidate.finite_owner_logical_target > current.finite_owner_logical_target
+    }) {
+        *slot = Some(candidate);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -113,49 +174,36 @@ pub(super) struct AncestorBaselineMember<Node, S: LayoutScalar = Scalar> {
     opposite_ancestor_adjustment: S,
 }
 
+impl<Node, S: LayoutScalar> AncestorBaselineMember<Node, S> {
+    pub(super) fn role(self) -> AncestorBaselineRole {
+        self.role
+    }
+
+    pub(super) fn selected_track(self) -> usize {
+        self.selected_track
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct AncestorBaselineGroup<S: LayoutScalar = Scalar> {
     axis: GridAxisKind,
     physical_axis: crate::geometry::PhysicalAxis,
-    tracks: Vec<TrackBaselineGroup<S>>,
-    reversed_tracks: Vec<TrackBaselineGroup<S>>,
+    targets: Vec<TrackAncestorBaselineTargets<S>>,
+    reversed_targets: Vec<TrackAncestorBaselineTargets<S>>,
     reversed_major_translation: Vec<S>,
     reversed_minor_translation: Vec<S>,
     downward_view: bool,
 }
 
 impl<S: LayoutScalar> AncestorBaselineGroup<S> {
-    pub(super) fn from_local_view(
-        axis: GridAxisKind,
-        physical_axis: crate::geometry::PhysicalAxis,
-        major: &[Option<PhysicalBaseline<S>>],
-        minor: &[Option<PhysicalBaseline<S>>],
-    ) -> Self {
-        let tracks: Vec<TrackBaselineGroup<S>> = major
-            .iter()
-            .copied()
-            .zip(minor.iter().copied())
-            .map(|(first, last)| TrackBaselineGroup { first, last })
-            .collect();
-        Self {
-            axis,
-            physical_axis,
-            reversed_tracks: tracks.clone(),
-            tracks,
-            reversed_major_translation: vec![S::ZERO; major.len()],
-            reversed_minor_translation: vec![S::ZERO; minor.len()],
-            downward_view: true,
-        }
-    }
-
     pub(super) fn reduce<Node: Copy>(
         axis: GridAxisKind,
         physical_axis: crate::geometry::PhysicalAxis,
         track_count: usize,
         members: impl IntoIterator<Item = AncestorBaselineMember<Node, S>>,
     ) -> Self {
-        let mut tracks = vec![TrackBaselineGroup::default(); track_count];
-        let mut reversed_tracks = vec![TrackBaselineGroup::default(); track_count];
+        let mut targets = vec![TrackAncestorBaselineTargets::default(); track_count];
+        let mut reversed_targets = vec![TrackAncestorBaselineTargets::default(); track_count];
         let mut reversed_major_translation = vec![S::ZERO; track_count];
         let mut reversed_minor_translation = vec![S::ZERO; track_count];
         for member in members {
@@ -169,39 +217,36 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
             if expected_track != Some(member.selected_track) {
                 continue;
             }
-            let Some(track) = tracks.get_mut(member.selected_track) else {
+            let Some(track) = targets.get_mut(member.selected_track) else {
                 continue;
             };
-            let baseline = PhysicalBaseline::new(physical_axis, member.containing_logical_distance);
+            let target =
+                AncestorBaselineTarget::from_member(member, member.containing_logical_distance);
             match member.role {
-                AncestorBaselineRole::First => {
-                    merge_expected_baseline(&mut track.first, baseline, physical_axis);
-                }
-                AncestorBaselineRole::Last => {
-                    merge_expected_baseline(&mut track.last, baseline, physical_axis);
-                }
+                AncestorBaselineRole::First => reduce_complete_target(&mut track.first, target),
+                AncestorBaselineRole::Last => reduce_complete_target(&mut track.last, target),
             }
-            let Some(reversed_track) = reversed_tracks.get_mut(member.selected_track) else {
+            let Some(reversed_track) = reversed_targets.get_mut(member.selected_track) else {
                 continue;
             };
-            let reversed_baseline =
-                PhysicalBaseline::new(physical_axis, member.opposite_containing_logical_distance);
+            let reversed_target = AncestorBaselineTarget::from_member(
+                member,
+                member.opposite_containing_logical_distance,
+            );
             let replace_reversed = match member.role {
                 AncestorBaselineRole::First => reversed_track.first,
                 AncestorBaselineRole::Last => reversed_track.last,
             }
-            .is_none_or(|current| reversed_baseline.coordinate() > current.coordinate());
+            .is_none_or(|current| {
+                reversed_target.finite_owner_logical_target > current.finite_owner_logical_target
+            });
             match member.role {
-                AncestorBaselineRole::First => merge_expected_baseline(
-                    &mut reversed_track.first,
-                    reversed_baseline,
-                    physical_axis,
-                ),
-                AncestorBaselineRole::Last => merge_expected_baseline(
-                    &mut reversed_track.last,
-                    reversed_baseline,
-                    physical_axis,
-                ),
+                AncestorBaselineRole::First => {
+                    reduce_complete_target(&mut reversed_track.first, reversed_target)
+                }
+                AncestorBaselineRole::Last => {
+                    reduce_complete_target(&mut reversed_track.last, reversed_target)
+                }
             };
             if replace_reversed {
                 match member.role {
@@ -219,8 +264,8 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         Self {
             axis,
             physical_axis,
-            tracks,
-            reversed_tracks,
+            targets,
+            reversed_targets,
             reversed_major_translation,
             reversed_minor_translation,
             downward_view: false,
@@ -276,12 +321,8 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         if member.axis != self.axis || member.physical_axis != self.physical_axis {
             return None;
         }
-        let track = self.tracks.get(member.selected_track)?;
-        match member.role {
-            AncestorBaselineRole::First => track.first,
-            AncestorBaselineRole::Last => track.last,
-        }
-        .and_then(|baseline| baseline.coordinate_on(self.physical_axis))
+        self.target_record(member.role, member.selected_track)
+            .map(AncestorBaselineTarget::finite_owner_logical_target)
     }
 
     pub(super) fn placement_offset<Node: Copy>(
@@ -292,16 +333,33 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         start_margin: S,
     ) -> Option<S> {
         let shared = self.target_for(member)?;
+        Some(self.placement_offset_for_target(
+            member,
+            shared,
+            available_span_size,
+            margin_box_size,
+            start_margin,
+        ))
+    }
+
+    pub(super) fn placement_offset_for_target<Node: Copy>(
+        &self,
+        member: AncestorBaselineMember<Node, S>,
+        shared: S,
+        available_span_size: S,
+        margin_box_size: S,
+        start_margin: S,
+    ) -> S {
         match member.role {
             AncestorBaselineRole::First => {
-                Some(shared - member.containing_logical_distance + start_margin)
+                shared - member.containing_logical_distance + start_margin
             }
-            AncestorBaselineRole::Last => Some(
+            AncestorBaselineRole::Last => {
                 available_span_size
                     - (shared - member.containing_logical_distance)
                     - margin_box_size
-                    + start_margin,
-            ),
+                    + start_margin
+            }
         }
     }
 
@@ -313,12 +371,15 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         start_margin: S,
         end_margin: S,
     ) -> Option<S> {
-        let track = self.tracks.get(member.selected_track)?;
-        let opposite_target = match member.role {
-            AncestorBaselineRole::First => track.last,
-            AncestorBaselineRole::Last => track.first,
-        }
-        .and_then(|baseline| baseline.coordinate_on(self.physical_axis))?;
+        let opposite_target = self
+            .target_record(
+                match member.role {
+                    AncestorBaselineRole::First => AncestorBaselineRole::Last,
+                    AncestorBaselineRole::Last => AncestorBaselineRole::First,
+                },
+                member.selected_track,
+            )?
+            .finite_owner_logical_target();
         match member.role {
             AncestorBaselineRole::First => Some(
                 available_span_size - opposite_target + opposite_member.containing_logical_distance,
@@ -338,16 +399,108 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         self.physical_axis
     }
 
-    pub(super) fn track_groups(&self) -> &[TrackBaselineGroup<S>] {
-        &self.tracks
+    pub(super) fn track_count(&self) -> usize {
+        self.targets.len()
     }
 
-    pub(super) fn track_groups_for_child_view(&self, reversed: bool) -> &[TrackBaselineGroup<S>] {
-        if reversed {
-            &self.reversed_tracks
-        } else {
-            &self.tracks
+    pub(super) fn has_any_target(&self) -> bool {
+        self.targets
+            .iter()
+            .any(|targets| targets.first.is_some() || targets.last.is_some())
+    }
+
+    pub(super) fn target_record(
+        &self,
+        role: AncestorBaselineRole,
+        selected_track: usize,
+    ) -> Option<AncestorBaselineTarget<S>> {
+        let track = self.targets.get(selected_track)?;
+        match role {
+            AncestorBaselineRole::First => track.first,
+            AncestorBaselineRole::Last => track.last,
         }
+    }
+
+    pub(super) fn track_groups(&self) -> Vec<TrackBaselineGroup<S>> {
+        self.targets
+            .iter()
+            .map(|targets| TrackBaselineGroup {
+                first: targets.first.map(|target| {
+                    PhysicalBaseline::new(self.physical_axis, target.finite_owner_logical_target)
+                }),
+                last: targets.last.map(|target| {
+                    PhysicalBaseline::new(self.physical_axis, target.finite_owner_logical_target)
+                }),
+            })
+            .collect()
+    }
+
+    pub(super) fn target_records_for_child_view(
+        &self,
+        reversed: bool,
+    ) -> impl Iterator<Item = TrackAncestorBaselineTargets<S>> + '_ {
+        if reversed {
+            self.reversed_targets.iter().copied()
+        } else {
+            self.targets.iter().copied()
+        }
+    }
+
+    pub(super) fn mapped_child_owner_targets(
+        &self,
+        parent_span: GridTrackSpan,
+        reversed: bool,
+        major: &[Option<PhysicalBaseline<S>>],
+        minor: &[Option<PhysicalBaseline<S>>],
+    ) -> Option<Self> {
+        let track_count = parent_span.checked_len()?;
+        if major.len() != track_count || minor.len() != track_count {
+            return None;
+        }
+        let source = if reversed {
+            &self.reversed_targets
+        } else {
+            &self.targets
+        };
+        let targets = major
+            .iter()
+            .copied()
+            .zip(minor.iter().copied())
+            .enumerate()
+            .map(|(local_track, (major, minor))| {
+                let source_track = if reversed {
+                    parent_span.end.checked_sub(local_track + 2)?
+                } else {
+                    parent_span.start.checked_sub(1)? + local_track
+                };
+                let source = source.get(source_track)?;
+                let map_target = |mut target: AncestorBaselineTarget<S>,
+                                  baseline: PhysicalBaseline<S>| {
+                    target.selected_ancestor_track = local_track;
+                    target.finite_owner_logical_target = baseline.coordinate();
+                    target
+                };
+                Some(TrackAncestorBaselineTargets {
+                    first: source
+                        .first
+                        .zip(major)
+                        .map(|(target, baseline)| map_target(target, baseline)),
+                    last: source
+                        .last
+                        .zip(minor)
+                        .map(|(target, baseline)| map_target(target, baseline)),
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(Self {
+            axis: self.axis,
+            physical_axis: self.physical_axis,
+            reversed_targets: targets.clone(),
+            targets,
+            reversed_major_translation: vec![S::ZERO; track_count],
+            reversed_minor_translation: vec![S::ZERO; track_count],
+            downward_view: true,
+        })
     }
 
     pub(super) fn reversed_child_view_translations(&self) -> (&[S], &[S]) {
@@ -355,26 +508,6 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
             &self.reversed_major_translation,
             &self.reversed_minor_translation,
         )
-    }
-
-    pub(super) fn translate_changed_downward_targets(
-        &mut self,
-        inherited_view: &Self,
-        translation: S,
-    ) {
-        for (track, inherited) in self.tracks.iter_mut().zip(&inherited_view.tracks) {
-            if track.first != inherited.first
-                && let Some(first) = &mut track.first
-            {
-                *first =
-                    PhysicalBaseline::new(self.physical_axis, first.coordinate() + translation);
-            }
-            if track.last != inherited.last
-                && let Some(last) = &mut track.last
-            {
-                *last = PhysicalBaseline::new(self.physical_axis, last.coordinate() - translation);
-            }
-        }
     }
 
     pub(super) const fn is_downward_view(&self) -> bool {

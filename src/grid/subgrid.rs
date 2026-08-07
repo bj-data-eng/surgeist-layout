@@ -663,6 +663,319 @@ pub(super) struct ChildBaselineEnvelopeView<S: LayoutScalar = Scalar> {
     pub(super) minor: Vec<Option<PhysicalBaseline<S>>>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum BaselineMappedEdge {
+    Start,
+    End,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct CheckedInheritedAxisMapping<S: LayoutScalar = Scalar> {
+    child_axis: GridAxisKind,
+    ancestor_axis: GridAxisKind,
+    physical_axis: PhysicalAxis,
+    parent_span: GridTrackSpan,
+    reversed: bool,
+    parent_gap: S,
+    current_gap: S,
+    start_mbp: S,
+    end_mbp: S,
+    inherited: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct CheckedInheritedAxisMappingInput<S: LayoutScalar = Scalar> {
+    pub(super) child_axis: GridAxisKind,
+    pub(super) ancestor_axis: GridAxisKind,
+    pub(super) physical_axis: PhysicalAxis,
+    pub(super) parent_span: GridTrackSpan,
+    pub(super) reversed: bool,
+    pub(super) parent_gap: S,
+    pub(super) current_gap: S,
+    pub(super) start_mbp: S,
+    pub(super) end_mbp: S,
+    pub(super) inherited: bool,
+}
+
+impl<S: LayoutScalar> CheckedInheritedAxisMapping<S> {
+    pub(super) fn new(input: CheckedInheritedAxisMappingInput<S>) -> Self {
+        Self {
+            child_axis: input.child_axis,
+            ancestor_axis: input.ancestor_axis,
+            physical_axis: input.physical_axis,
+            parent_span: input.parent_span,
+            reversed: input.reversed,
+            parent_gap: input.parent_gap,
+            current_gap: input.current_gap,
+            start_mbp: input.start_mbp,
+            end_mbp: input.end_mbp,
+            inherited: input.inherited,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_mbp_for_test(&mut self, start_mbp: S, end_mbp: S) {
+        self.start_mbp = start_mbp;
+        self.end_mbp = end_mbp;
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_parent_span_for_test(&mut self, parent_span: GridTrackSpan) {
+        self.parent_span = parent_span;
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_inherited_for_test(&mut self, inherited: bool) {
+        self.inherited = inherited;
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct CurrentGridDirectWitness<Node> {
+    current_grid: Node,
+    item: Node,
+    axis: GridAxisKind,
+    local_span: GridTrackSpan,
+    role: AncestorBaselineRole,
+    owner_direct: bool,
+}
+
+impl<Node: Copy> CurrentGridDirectWitness<Node> {
+    pub(super) const fn new(
+        current_grid: Node,
+        item: Node,
+        axis: GridAxisKind,
+        local_span: GridTrackSpan,
+        role: AncestorBaselineRole,
+        owner_direct: bool,
+    ) -> Self {
+        Self {
+            current_grid,
+            item,
+            axis,
+            local_span,
+            role,
+            owner_direct,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_local_span_for_test(&mut self, local_span: GridTrackSpan) {
+        self.local_span = local_span;
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct InheritedCurrentGridBaselinePlacement<Node, S: LayoutScalar = Scalar> {
+    axis: GridAxisKind,
+    physical_axis: PhysicalAxis,
+    role: AncestorBaselineRole,
+    selected_ancestor_track: usize,
+    selected_local_track: usize,
+    mapped_edge: BaselineMappedEdge,
+    immutable_owner_target: S,
+    gutter_crossing: bool,
+    signed_translation: S,
+    translated_target: S,
+    mapping_witness: CheckedInheritedAxisMapping<S>,
+    current_grid_direct_witness: CurrentGridDirectWitness<Node>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct InheritedCurrentGridBaselinePlacementInput<Node, S: LayoutScalar = Scalar> {
+    pub(super) axis: GridAxisKind,
+    pub(super) physical_axis: PhysicalAxis,
+    pub(super) mapping: CheckedInheritedAxisMapping<S>,
+    pub(super) direct_witness: CurrentGridDirectWitness<Node>,
+    pub(super) current_grid: Node,
+    pub(super) item: Node,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum InheritedCurrentGridBaselinePlacementError {
+    AxisMismatch,
+    PhysicalAxisMismatch,
+    SpanOutOfRange,
+    SelectedTrackOutOfRange,
+    RoleTargetMismatch,
+    OwnershipMismatch,
+    UnusableInheritedMapping,
+    NonFinite,
+}
+
+impl<Node: Copy + PartialEq, S: LayoutScalar> InheritedCurrentGridBaselinePlacement<Node, S> {
+    pub(super) fn try_derive(
+        group: &AncestorBaselineGroup<S>,
+        input: InheritedCurrentGridBaselinePlacementInput<Node, S>,
+    ) -> Result<Self, InheritedCurrentGridBaselinePlacementError> {
+        if group.axis() != input.axis {
+            return Err(InheritedCurrentGridBaselinePlacementError::AxisMismatch);
+        }
+        if group.physical_axis() != input.physical_axis {
+            return Err(InheritedCurrentGridBaselinePlacementError::PhysicalAxisMismatch);
+        }
+
+        let mapping = &input.mapping;
+        let track_count = mapping
+            .parent_span
+            .checked_len()
+            .filter(|_| mapping.parent_span.end <= group.track_count())
+            .ok_or(InheritedCurrentGridBaselinePlacementError::SpanOutOfRange)?;
+        let selected_local_track = match input.direct_witness.role {
+            AncestorBaselineRole::First => input.direct_witness.local_span.start,
+            AncestorBaselineRole::Last => input
+                .direct_witness
+                .local_span
+                .end
+                .checked_sub(1)
+                .ok_or(InheritedCurrentGridBaselinePlacementError::SelectedTrackOutOfRange)?,
+        };
+        if input.direct_witness.local_span.checked_len().is_none()
+            || input.direct_witness.local_span.end > track_count
+            || selected_local_track >= track_count
+        {
+            return Err(InheritedCurrentGridBaselinePlacementError::SelectedTrackOutOfRange);
+        }
+        let selected_ancestor_track = if mapping.reversed {
+            mapping.parent_span.end - 1 - selected_local_track
+        } else {
+            mapping.parent_span.start + selected_local_track
+        };
+        if selected_ancestor_track < mapping.parent_span.start
+            || selected_ancestor_track >= mapping.parent_span.end
+        {
+            return Err(InheritedCurrentGridBaselinePlacementError::SelectedTrackOutOfRange);
+        }
+
+        let role = input.direct_witness.role;
+        let target = group
+            .target_record(role, selected_ancestor_track)
+            .filter(|target| {
+                target.role() == role
+                    && target.selected_ancestor_track() == selected_ancestor_track
+                    && target.selected_owner_edge()
+                        == match role {
+                            AncestorBaselineRole::First => BaselineOwnerEdge::Start,
+                            AncestorBaselineRole::Last => BaselineOwnerEdge::End,
+                        }
+            });
+        let target =
+            target.ok_or(InheritedCurrentGridBaselinePlacementError::RoleTargetMismatch)?;
+
+        if input.direct_witness.current_grid != input.current_grid
+            || input.direct_witness.item != input.item
+        {
+            return Err(InheritedCurrentGridBaselinePlacementError::OwnershipMismatch);
+        }
+        if !mapping.inherited
+            || mapping.child_axis != input.axis
+            || mapping.ancestor_axis != group.axis()
+            || mapping.physical_axis != input.physical_axis
+            || input.direct_witness.axis != input.axis
+        {
+            return Err(InheritedCurrentGridBaselinePlacementError::UnusableInheritedMapping);
+        }
+
+        let mapped_edge = match (role, mapping.reversed) {
+            (AncestorBaselineRole::First, false) | (AncestorBaselineRole::Last, true) => {
+                BaselineMappedEdge::Start
+            }
+            (AncestorBaselineRole::Last, false) | (AncestorBaselineRole::First, true) => {
+                BaselineMappedEdge::End
+            }
+        };
+        let gutter_crossing = match role {
+            AncestorBaselineRole::First => selected_local_track > 0,
+            AncestorBaselineRole::Last => selected_local_track + 1 < track_count,
+        };
+        let half_gap = (mapping.current_gap - mapping.parent_gap) / S::from_f64(2.0);
+        let signed_translation =
+            if input.direct_witness.owner_direct || !gutter_crossing || half_gap == S::ZERO {
+                S::ZERO
+            } else {
+                match mapped_edge {
+                    BaselineMappedEdge::Start => half_gap,
+                    BaselineMappedEdge::End => -half_gap,
+                }
+            };
+        let immutable_owner_target = target.finite_owner_logical_target();
+        let translated_target = immutable_owner_target + signed_translation;
+        if !immutable_owner_target.is_finite()
+            || !mapping.parent_gap.is_finite()
+            || !mapping.current_gap.is_finite()
+            || !half_gap.is_finite()
+            || !signed_translation.is_finite()
+            || !translated_target.is_finite()
+        {
+            return Err(InheritedCurrentGridBaselinePlacementError::NonFinite);
+        }
+
+        Ok(Self {
+            axis: input.axis,
+            physical_axis: input.physical_axis,
+            role,
+            selected_ancestor_track,
+            selected_local_track,
+            mapped_edge,
+            immutable_owner_target,
+            gutter_crossing,
+            signed_translation,
+            translated_target,
+            mapping_witness: input.mapping,
+            current_grid_direct_witness: input.direct_witness,
+        })
+    }
+
+    #[cfg(test)]
+    pub(super) const fn selected_local_track(&self) -> usize {
+        self.selected_local_track
+    }
+
+    #[cfg(test)]
+    pub(super) const fn mapped_edge(&self) -> BaselineMappedEdge {
+        self.mapped_edge
+    }
+
+    #[cfg(test)]
+    pub(super) const fn immutable_owner_target(&self) -> S {
+        self.immutable_owner_target
+    }
+
+    #[cfg(test)]
+    pub(super) const fn gutter_crossing(&self) -> bool {
+        self.gutter_crossing
+    }
+
+    #[cfg(test)]
+    pub(super) const fn signed_translation(&self) -> S {
+        self.signed_translation
+    }
+
+    pub(super) const fn translated_target(&self) -> S {
+        self.translated_target
+    }
+}
+
+#[cfg(test)]
+pub(super) fn prepare_inherited_current_grid_baseline_placements<
+    Node: Copy + PartialEq,
+    S: LayoutScalar,
+    const N: usize,
+>(
+    inputs: [(
+        &AncestorBaselineGroup<S>,
+        InheritedCurrentGridBaselinePlacementInput<Node, S>,
+    ); N],
+) -> Result<
+    Vec<InheritedCurrentGridBaselinePlacement<Node, S>>,
+    InheritedCurrentGridBaselinePlacementError,
+> {
+    inputs
+        .into_iter()
+        .map(|(group, input)| InheritedCurrentGridBaselinePlacement::try_derive(group, input))
+        .collect()
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct ChildBaselineEnvelopeInput<S: LayoutScalar = Scalar> {
     pub(super) axis: GridAxisKind,
@@ -677,6 +990,19 @@ pub(super) struct ChildBaselineEnvelopeInput<S: LayoutScalar = Scalar> {
 }
 
 impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
+    pub(super) fn target_for<Node: Copy>(
+        &self,
+        member: AncestorBaselineMember<Node, S>,
+    ) -> Option<S> {
+        match member.role() {
+            AncestorBaselineRole::First => self.major.get(member.selected_track()),
+            AncestorBaselineRole::Last => self.minor.get(member.selected_track()),
+        }
+        .copied()
+        .flatten()
+        .map(PhysicalBaseline::coordinate)
+    }
+
     pub(super) fn derive(
         group: &AncestorBaselineGroup<S>,
         input: ChildBaselineEnvelopeInput<S>,
@@ -687,9 +1013,12 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
             return Err(SubgridTrackInheritanceError::SpanOutOfRange);
         }
         let mut parent_major = group
-            .track_groups_for_child_view(input.reversed)
-            .iter()
-            .map(|track| track.first)
+            .target_records_for_child_view(input.reversed)
+            .map(|track| {
+                track.first.map(|target| {
+                    PhysicalBaseline::new(input.physical_axis, target.finite_owner_logical_target())
+                })
+            })
             .collect::<Vec<_>>();
         for (baseline, translation) in parent_major
             .iter_mut()
@@ -698,9 +1027,12 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
             subtract_baseline(baseline, translation, input.physical_axis);
         }
         let mut parent_minor = group
-            .track_groups_for_child_view(input.reversed)
-            .iter()
-            .map(|track| track.last)
+            .target_records_for_child_view(input.reversed)
+            .map(|track| {
+                track.last.map(|target| {
+                    PhysicalBaseline::new(input.physical_axis, target.finite_owner_logical_target())
+                })
+            })
             .collect::<Vec<_>>();
         for (baseline, translation) in parent_minor
             .iter_mut()
@@ -1489,10 +1821,10 @@ pub(super) fn intrinsic_subgrid_axis_parent_context<S: LayoutScalar>(
             .cloned(),
         major_baselines: vec![None; track_count],
         minor_baselines: vec![None; track_count],
+        owner_baseline_targets: None,
         parent_start,
         parent_end,
         reversed: mapping.reversed,
-        gap_difference: S::ZERO,
     })
 }
 

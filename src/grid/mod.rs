@@ -914,10 +914,18 @@ struct InheritedGridAxis<S: LayoutScalar = Scalar> {
     area_facts: Option<GridAreaNameFacts>,
     major_baselines: Vec<Option<PhysicalBaseline<S>>>,
     minor_baselines: Vec<Option<PhysicalBaseline<S>>>,
+    owner_baseline_targets: Option<InheritedGridOwnerBaselineTargets<S>>,
     parent_start: usize,
     parent_end: usize,
     reversed: bool,
-    gap_difference: S,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct InheritedGridOwnerBaselineTargets<S: LayoutScalar = Scalar> {
+    group: AncestorBaselineGroup<S>,
+    mapping: CheckedInheritedAxisMapping<S>,
+    major_placement_required: bool,
+    minor_placement_required: bool,
 }
 
 #[derive(Clone)]
