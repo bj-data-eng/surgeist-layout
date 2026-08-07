@@ -3469,6 +3469,17 @@ fn fri07_c02_composition_matrix_tree<S: LayoutScalar>(
     }
 }
 
+fn fri07_c02_composition_without_collapsed_scroll_source<S: LayoutScalar>(
+    case: Fri07C02CompositionCase,
+) -> Fri07C02CompositionMatrixTree<S> {
+    let mut control = fri07_c02_composition_matrix_tree(case);
+    let mut target = control.tree.node_input(2).clone();
+    target.overflow = computed_overflow(Overflow::Clip, Overflow::Clip);
+    target.scrollbar_width = ScrollbarWidthOf::ZERO;
+    control.tree = core::mem::take(&mut control.tree).style(2, target);
+    control
+}
+
 fn assert_fri07_c02_composition_finite_output<S: LayoutScalar>(
     output: NodeOutputOf<S>,
     context: &str,
@@ -3577,23 +3588,6 @@ fn fri07_c02_composition_case_geometry<S: LayoutScalar>(
         }),
         "bounded case {case_index}: selected intrinsic basis reaches the provider"
     );
-    if case.collapse == FlexItemCollapse::Collapsed
-        && case.overflow.x() != Overflow::Auto
-        && case.overflow.y() != Overflow::Auto
-    {
-        let mut normal_item_main_targets = Vec::new();
-        for (_, input) in tree.requests.borrow().iter().filter(|(node, _)| *node == 3) {
-            if let Some(target) = tree.axes.main_size(input.known_content_size())
-                && !normal_item_main_targets.contains(&target)
-            {
-                normal_item_main_targets.push(target);
-            }
-        }
-        assert!(
-            !normal_item_main_targets.is_empty() && normal_item_main_targets.len() <= 2,
-            "bounded case {case_index}: one first-round and one second-round target are the finite maximum; observed {normal_item_main_targets:?}"
-        );
-    }
 
     let root = fri07_c02_collapse_round_output(&batch, 1);
     let root_scroll = root
@@ -3612,6 +3606,31 @@ fn fri07_c02_composition_case_geometry<S: LayoutScalar>(
         assert!(
             scrollbar_size.width > S::ZERO,
             "bounded case {case_index}: vertical overflow settles a scrollbar"
+        );
+    }
+    if case.collapse == FlexItemCollapse::Collapsed {
+        let control = fri07_c02_composition_without_collapsed_scroll_source::<S>(case);
+        let control_batch = compute_layout(&control, 1, fri07_c02_collapse_round_request())
+            .unwrap_or_else(|error| {
+                panic!("collapsed scroll control case {case_index} failed: {error:?}")
+            });
+        let control_scroll = fri07_c02_collapse_round_output(&control_batch, 1)
+            .scroll_geometry
+            .expect("collapsed scroll control root publishes scroll geometry");
+        assert_eq!(
+            root_scroll.scrollable_overflow(),
+            control_scroll.scrollable_overflow(),
+            "bounded case {case_index}: collapsed item overflow cannot enlarge root scroll geometry"
+        );
+        assert_eq!(
+            root_scroll.physical_range(),
+            control_scroll.physical_range(),
+            "bounded case {case_index}: collapsed item overflow cannot change root scroll ranges"
+        );
+        assert_eq!(
+            root_scroll.scrollbar_size(),
+            control_scroll.scrollbar_size(),
+            "bounded case {case_index}: collapsed item overflow cannot change settled scrollbar state"
         );
     }
     let rounded_target = fri07_c01_composition_output(batch.final_entries(), 2);
@@ -3668,6 +3687,351 @@ fn fri07_c02_composition_bounded_matrix_is_finite_source_stable_and_scalar_equiv
         observed_auto_settlement,
         "the bounded overflow pairs exercise automatic scrollbar settlement"
     );
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Fri07C02CompositionMeasurement<S: LayoutScalar> {
+    node: u32,
+    known_main: Option<S>,
+    known_cross: Option<S>,
+    available_main: MeasurementAvailableOf<S>,
+    available_cross: MeasurementAvailableOf<S>,
+}
+
+fn fri07_c02_composition_measurement_trace<S: LayoutScalar>(
+    case: Fri07C02CompositionCase,
+) -> Vec<Fri07C02CompositionMeasurement<S>> {
+    let tree = fri07_c02_composition_matrix_tree::<S>(case);
+    compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("composed measurement trace layout succeeds");
+    tree.requests
+        .borrow()
+        .iter()
+        .map(|(node, input)| Fri07C02CompositionMeasurement {
+            node: *node,
+            known_main: tree.axes.main_size(input.known_content_size()),
+            known_cross: tree.axes.cross_size(input.known_content_size()),
+            available_main: tree.axes.main_size(input.available_content_size()),
+            available_cross: tree.axes.cross_size(input.available_content_size()),
+        })
+        .collect()
+}
+
+fn fri07_c02_composition_definite<S: LayoutScalar>(value: f64) -> MeasurementAvailableOf<S> {
+    MeasurementAvailableOf::definite(S::from_f64(value))
+        .expect("composed measurement target is finite and non-negative")
+}
+
+fn assert_fri07_c02_composition_exact_round_sequences<S: LayoutScalar>() {
+    let measurement =
+        |node: u32,
+         known_main: Option<f64>,
+         available_main: MeasurementAvailableOf<S>,
+         available_cross: MeasurementAvailableOf<S>| Fri07C02CompositionMeasurement {
+            node,
+            known_main: known_main.map(S::from_f64),
+            known_cross: None,
+            available_main,
+            available_cross,
+        };
+    let definite = fri07_c02_composition_definite::<S>;
+    let no_auto = Fri07C02CompositionCase {
+        flow: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        direction: FlexDirection::Row,
+        wrap: FlexWrap::Wrap,
+        collapse: FlexItemCollapse::Collapsed,
+        order: ItemOrder::new(-3),
+        max_content_basis: false,
+        auto_margin_pattern: 0,
+        replaced: false,
+        overflow: computed_overflow(Overflow::Visible, Overflow::Clip),
+    };
+    assert_eq!(
+        fri07_c02_composition_measurement_trace(no_auto),
+        [
+            measurement(
+                2,
+                None,
+                MeasurementAvailableOf::MIN_CONTENT,
+                definite(39.75),
+            ),
+            measurement(3, None, definite(35.125), definite(63.75)),
+            measurement(3, Some(73.0), definite(73.0), definite(63.75)),
+            measurement(3, Some(101.5), definite(101.5), definite(63.75)),
+            measurement(3, None, definite(101.5), definite(18.75)),
+        ],
+        "the composed non-auto case performs one intrinsic measurement, then the exact first-round, second-round, and final normal-item sequence"
+    );
+
+    let auto = Fri07C02CompositionCase {
+        flow: FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+        direction: FlexDirection::RowReverse,
+        wrap: FlexWrap::Wrap,
+        collapse: FlexItemCollapse::Collapsed,
+        order: ItemOrder::new(4),
+        max_content_basis: true,
+        auto_margin_pattern: 2,
+        replaced: false,
+        overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
+    };
+    assert_eq!(
+        fri07_c02_composition_measurement_trace(auto),
+        [
+            measurement(2, None, MeasurementAvailableOf::MAX_CONTENT, definite(37.5),),
+            measurement(3, None, definite(35.125), definite(60.5)),
+            measurement(3, Some(38.5), definite(38.5), definite(60.5)),
+            measurement(3, Some(101.5), definite(101.5), definite(60.5)),
+            measurement(3, None, definite(101.5), definite(18.75)),
+            measurement(2, None, MeasurementAvailableOf::MAX_CONTENT, definite(37.5),),
+            measurement(3, None, definite(35.125), definite(60.5)),
+            measurement(3, Some(35.25), definite(35.25), definite(60.5)),
+            measurement(3, Some(98.25), definite(98.25), definite(60.5)),
+            measurement(3, None, definite(98.25), definite(18.75)),
+        ],
+        "the composed auto-overflow case performs exactly one bounded five-measurement sequence before and after the 3.25px settled scrollbar changes the main target"
+    );
+}
+
+#[test]
+fn fri07_c02_composition_round_sequence_is_exact_and_bounded_with_auto_overflow() {
+    assert_fri07_c02_composition_exact_round_sequences::<f32>();
+    assert_fri07_c02_composition_exact_round_sequences::<f64>();
+}
+
+fn fri07_c02_composition_dimension_outputs<S: LayoutScalar>(
+    flow: FlowAxes,
+    direction: FlexDirection,
+    wrap: FlexWrap,
+    container_main: f64,
+    target_main: f64,
+    orders: (i32, i32),
+    auto_margin_pattern: usize,
+) -> (NodeOutputOf<S>, NodeOutputOf<S>) {
+    let axes = FlexAxes::new(flow, direction, wrap);
+    let preferred = |value| PreferredSizeOf::px(S::from_f64(value));
+    let length = |value| LengthOf::px(S::from_f64(value));
+    let mut target_margin = Edges::all(LengthAutoOf::ZERO);
+    if matches!(auto_margin_pattern, 1 | 3) {
+        axes.set_main_start_edge(&mut target_margin, LengthAutoOf::AUTO);
+    }
+    if matches!(auto_margin_pattern, 2 | 3) {
+        axes.set_main_end_edge(&mut target_margin, LengthAutoOf::AUTO);
+    }
+    let item = |main, cross, order, margin| NodeInputOf {
+        item_order: ItemOrder::new(order),
+        size: axes.size_from_main_cross(preferred(main), preferred(cross)),
+        margin,
+        flex_grow: FlexGrowOf::ZERO,
+        flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink"),
+        ..NodeInputOf::default()
+    };
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: flow.writing_mode(),
+                direction: flow.direction(),
+                flex_direction: direction,
+                flex_wrap: wrap,
+                size: axes.size_from_main_cross(preferred(container_main), preferred(40.0)),
+                gap: axes.size_from_main_cross(length(5.0), length(4.0)),
+                align_content: Some(AlignContent::FlexStart),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(2, item(target_main, 10.0, orders.0, target_margin))
+        .style(
+            3,
+            item(30.0, 20.0, orders.1, Edges::all(LengthAutoOf::ZERO)),
+        );
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("composition dimension control layout succeeds");
+    (
+        fri07_c02_collapse_round_output(&batch, 2),
+        fri07_c02_collapse_round_output(&batch, 3),
+    )
+}
+
+fn assert_fri07_c02_composition_rotated_dimensions_are_observable<S: LayoutScalar>() {
+    let horizontal_ltr = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let (target_first, peer_second) = fri07_c02_composition_dimension_outputs::<S>(
+        horizontal_ltr,
+        FlexDirection::Row,
+        FlexWrap::NoWrap,
+        100.0,
+        20.0,
+        (-1, 1),
+        0,
+    );
+    let (target_second, peer_first) = fri07_c02_composition_dimension_outputs::<S>(
+        horizontal_ltr,
+        FlexDirection::Row,
+        FlexWrap::NoWrap,
+        100.0,
+        20.0,
+        (1, -1),
+        0,
+    );
+    assert_eq!(target_first.location, Point::ZERO);
+    assert_eq!(peer_second.location.x, S::from_f64(25.0));
+    assert_eq!(peer_first.location, Point::ZERO);
+    assert_eq!(target_second.location.x, S::from_f64(35.0));
+    assert_eq!(target_first.source_index, target_second.source_index);
+
+    for (flow, direction, expected_target) in [
+        (horizontal_ltr, FlexDirection::Row, Point::new(0.0, 0.0)),
+        (
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+            FlexDirection::Row,
+            Point::new(80.0, 0.0),
+        ),
+        (
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+            FlexDirection::RowReverse,
+            Point::new(0.0, 0.0),
+        ),
+        (
+            FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+            FlexDirection::Row,
+            Point::new(30.0, 0.0),
+        ),
+        (
+            FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+            FlexDirection::Row,
+            Point::new(30.0, 80.0),
+        ),
+    ] {
+        let (target, _) = fri07_c02_composition_dimension_outputs::<S>(
+            flow,
+            direction,
+            FlexWrap::NoWrap,
+            100.0,
+            20.0,
+            (-1, 1),
+            0,
+        );
+        assert_eq!(
+            target.location,
+            expected_target.map(S::from_f64),
+            "flow={flow:?} direction={direction:?}"
+        );
+    }
+
+    let (_, no_wrap_peer) = fri07_c02_composition_dimension_outputs::<S>(
+        horizontal_ltr,
+        FlexDirection::Row,
+        FlexWrap::NoWrap,
+        70.0,
+        60.0,
+        (-1, 1),
+        0,
+    );
+    let (_, wrap_peer) = fri07_c02_composition_dimension_outputs::<S>(
+        horizontal_ltr,
+        FlexDirection::Row,
+        FlexWrap::Wrap,
+        70.0,
+        60.0,
+        (-1, 1),
+        0,
+    );
+    let (wrap_reverse_target, wrap_reverse_peer) = fri07_c02_composition_dimension_outputs::<S>(
+        horizontal_ltr,
+        FlexDirection::Row,
+        FlexWrap::WrapReverse,
+        70.0,
+        60.0,
+        (-1, 1),
+        0,
+    );
+    assert_eq!(
+        no_wrap_peer.location,
+        Point::new(S::from_f64(65.0), S::ZERO)
+    );
+    assert_eq!(wrap_peer.location, Point::new(S::ZERO, S::from_f64(14.0)));
+    assert_eq!(wrap_reverse_target.location.y, S::from_f64(30.0));
+    assert_eq!(wrap_reverse_peer.location.y, S::from_f64(6.0));
+
+    for (pattern, expected_start, expected_end, expected_x, expected_peer_x) in [
+        (0, 0.0, 0.0, 0.0, 25.0),
+        (1, 45.0, 0.0, 45.0, 70.0),
+        (2, 0.0, 45.0, 0.0, 70.0),
+        (3, 22.5, 22.5, 22.5, 70.0),
+    ] {
+        let (target, peer) = fri07_c02_composition_dimension_outputs::<S>(
+            horizontal_ltr,
+            FlexDirection::Row,
+            FlexWrap::NoWrap,
+            100.0,
+            20.0,
+            (-1, 1),
+            pattern,
+        );
+        assert_eq!(target.margin.left, S::from_f64(expected_start));
+        assert_eq!(target.margin.right, S::from_f64(expected_end));
+        assert_eq!(target.location.x, S::from_f64(expected_x));
+        assert_eq!(peer.location.x, S::from_f64(expected_peer_x));
+    }
+}
+
+fn assert_fri07_c02_composition_replacedness_is_observable<S: LayoutScalar>() {
+    let preferred = |value| PreferredSizeOf::px(S::from_f64(value));
+    let mut widths = Vec::new();
+    for replaced in [true, false] {
+        let tree = PublicLayoutTreeOf::new()
+            .children(1, [2, 3])
+            .children(2, [])
+            .children(3, [])
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::new(preferred(60.0), preferred(20.0)),
+                    align_items: Some(AlignItems::Stretch),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                2,
+                NodeInputOf {
+                    item_is_replaced: replaced,
+                    aspect_ratio: AspectRatioOf::new(S::from_f64(2.0)),
+                    flex_basis: FlexBasisOf::px(S::from_f64(90.0)),
+                    flex_grow: FlexGrowOf::ZERO,
+                    flex_shrink: FlexShrinkOf::try_new(S::ONE).expect("one is a valid flex shrink"),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                3,
+                fri07_c02_collapse_round_item(0.0, 15.0, FlexItemCollapse::Collapsed),
+            )
+            .measure(2, Size::new(S::from_f64(90.0), S::from_f64(10.0)));
+        let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+            .expect("replacedness composition control succeeds");
+        let target = fri07_c02_collapse_round_output(&batch, 2);
+        assert_eq!(target.size.height, S::from_f64(20.0));
+        assert_eq!(target.source_index, SourceIndex::new(0));
+        assert_eq!(
+            fri07_c02_collapse_round_output(&batch, 3),
+            NodeOutputOf::with_source_index(SourceIndex::new(1))
+        );
+        widths.push(target.size.width);
+    }
+    assert_eq!(widths, [S::from_f64(60.0), S::from_f64(90.0)]);
+}
+
+#[test]
+fn fri07_c02_composition_rotated_dimensions_have_independent_layout_effects() {
+    assert_fri07_c02_composition_rotated_dimensions_are_observable::<f32>();
+    assert_fri07_c02_composition_rotated_dimensions_are_observable::<f64>();
+    assert_fri07_c02_composition_replacedness_is_observable::<f32>();
+    assert_fri07_c02_composition_replacedness_is_observable::<f64>();
 }
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
