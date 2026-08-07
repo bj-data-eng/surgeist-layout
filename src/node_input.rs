@@ -1914,6 +1914,11 @@ impl ItemOrder {
     }
 }
 
+/// A normalized, layout-ready flex-layout participation fact.
+///
+/// This is not authored or computed CSS `visibility`. [`Self::Normal`] is the
+/// default. Only in-flow children of flex containers consume
+/// [`Self::Collapsed`]; other contexts preserve their existing behavior.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum FlexItemCollapse {
     #[default]
@@ -1940,6 +1945,12 @@ pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub item_is_table: bool,
     pub item_is_replaced: bool,
     pub item_order: ItemOrder,
+    /// Normalized, layout-ready flex-layout participation for this node.
+    ///
+    /// This is not authored or computed CSS `visibility`.
+    /// [`FlexItemCollapse::Normal`] is the default. Only in-flow children of
+    /// flex containers consume [`FlexItemCollapse::Collapsed`]; other contexts
+    /// preserve their existing behavior.
     pub flex_item_collapse: FlexItemCollapse,
     pub box_sizing: BoxSizing,
     pub direction: Direction,
