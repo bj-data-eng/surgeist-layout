@@ -81,6 +81,73 @@ fn fri07_c01_absolute_auto_margin_auto_inset_zeroes_used_margins_in_both_scalar_
     assert_fri07_c01_absolute_auto_margin_auto_inset_zeroes_axis::<f64>();
 }
 
+fn assert_fri07_c01_absolute_auto_margin_start_auto_inset_matrix<S: LayoutScalar>() {
+    let px = |value| LengthAutoOf::px(S::from_f64(value));
+    let preferred_px = |value| PreferredSizeOf::px(S::from_f64(value));
+    let container = || NodeInputOf {
+        size: Size::new(preferred_px(100.0), preferred_px(40.0)),
+        ..NodeInputOf::default()
+    };
+
+    for (name, inset, margin, expected_margin, expected_location) in [
+        (
+            "horizontal start auto",
+            Edges {
+                top: px(0.0),
+                right: px(11.0),
+                bottom: px(0.0),
+                left: LengthAutoOf::AUTO,
+            },
+            Edges {
+                top: px(0.0),
+                right: px(7.0),
+                bottom: px(0.0),
+                left: LengthAutoOf::AUTO,
+            },
+            Edges::new(S::ZERO, S::from_f64(7.0), S::ZERO, S::ZERO),
+            Point::new(S::from_f64(62.0), S::ZERO),
+        ),
+        (
+            "vertical start auto",
+            Edges {
+                top: LengthAutoOf::AUTO,
+                right: px(0.0),
+                bottom: px(5.0),
+                left: px(0.0),
+            },
+            Edges {
+                top: LengthAutoOf::AUTO,
+                right: px(0.0),
+                bottom: px(9.0),
+                left: px(0.0),
+            },
+            Edges::new(S::ZERO, S::ZERO, S::from_f64(9.0), S::ZERO),
+            Point::new(S::ZERO, S::from_f64(16.0)),
+        ),
+    ] {
+        let output = fri07_c01_absolute_auto_margin_layout(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            container(),
+            NodeInputOf {
+                position: Position::Absolute,
+                inset,
+                size: Size::new(preferred_px(20.0), preferred_px(10.0)),
+                margin,
+                ..NodeInputOf::default()
+            },
+        );
+
+        assert_eq!(output.margin, expected_margin, "{name} used margins");
+        assert_eq!(output.location, expected_location, "{name} placement");
+    }
+}
+
+#[test]
+fn fri07_c01_absolute_auto_margin_start_auto_insets_zero_only_auto_margins() {
+    assert_fri07_c01_absolute_auto_margin_start_auto_inset_matrix::<f32>();
+    assert_fri07_c01_absolute_auto_margin_start_auto_inset_matrix::<f64>();
+}
+
 fn assert_fri07_c01_absolute_auto_margin_definite_inset_matrix<S: LayoutScalar>() {
     let px = |value| LengthAutoOf::px(S::from_f64(value));
     let preferred_px = |value| PreferredSizeOf::px(S::from_f64(value));
