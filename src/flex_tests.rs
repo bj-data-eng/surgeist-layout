@@ -1812,6 +1812,766 @@ fn fri07_c01_composition_cache_cold_warm_and_failed_measurement_are_atomic() {
     assert_fri07_c01_composition_cache_and_atomicity::<f64>();
 }
 
+fn fri07_c02_collapse_round_output<S: LayoutScalar>(
+    batch: &CompletedLayoutBatchOf<u32, S>,
+    node: u32,
+) -> NodeOutputOf<S> {
+    batch
+        .unrounded_entries()
+        .iter()
+        .find(|entry| entry.node() == node)
+        .unwrap_or_else(|| panic!("collapsed-flex public layout must publish node {node}"))
+        .output()
+}
+
+fn fri07_c02_collapse_round_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
+    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(300.0))))
+        .expect("collapsed-flex test viewport is finite")
+}
+
+fn fri07_c02_collapse_round_item<S: LayoutScalar>(
+    main: f64,
+    cross: f64,
+    collapse: FlexItemCollapse,
+) -> NodeInputOf<S> {
+    NodeInputOf {
+        size: Size::new(
+            PreferredSizeOf::px(S::from_f64(main)),
+            PreferredSizeOf::px(S::from_f64(cross)),
+        ),
+        flex_item_collapse: collapse,
+        flex_grow: FlexGrowOf::ZERO,
+        flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink"),
+        ..NodeInputOf::default()
+    }
+}
+
+fn assert_fri07_c02_collapse_round_single_line_and_gap<S: LayoutScalar>() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::AUTO,
+                ),
+                gap: Size::new(LengthOf::px(S::from_f64(9.0)), LengthOf::ZERO),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            fri07_c02_collapse_round_item(40.0, 30.0, FlexItemCollapse::Collapsed),
+        )
+        .style(
+            3,
+            fri07_c02_collapse_round_item(20.0, 10.0, FlexItemCollapse::Normal),
+        );
+
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("single-line collapsed flex layout succeeds");
+    let container = fri07_c02_collapse_round_output(&batch, 1);
+    let collapsed = fri07_c02_collapse_round_output(&batch, 2);
+    let normal = fri07_c02_collapse_round_output(&batch, 3);
+
+    assert_eq!(
+        container.size,
+        Size::new(S::from_f64(100.0), S::from_f64(30.0))
+    );
+    assert_eq!(
+        collapsed,
+        NodeOutputOf::with_source_index(SourceIndex::new(0))
+    );
+    assert_eq!(
+        normal.location,
+        Point::ZERO,
+        "no committed gap precedes the normal item"
+    );
+    assert_eq!(normal.size, Size::new(S::from_f64(20.0), S::from_f64(10.0)));
+
+    let zero_main_tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::AUTO,
+                ),
+                gap: Size::new(LengthOf::px(S::from_f64(9.0)), LengthOf::ZERO),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            fri07_c02_collapse_round_item(0.0, 25.0, FlexItemCollapse::Collapsed),
+        )
+        .style(
+            3,
+            NodeInputOf {
+                margin: Edges {
+                    left: LengthAutoOf::AUTO,
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                ..fri07_c02_collapse_round_item(20.0, 10.0, FlexItemCollapse::Normal)
+            },
+        );
+    let zero_main_batch = compute_layout(&zero_main_tree, 1, fri07_c02_collapse_round_request())
+        .expect("zero-main collapsed flex layout succeeds");
+    let auto_margin_normal = fri07_c02_collapse_round_output(&zero_main_batch, 3);
+    assert_eq!(
+        fri07_c02_collapse_round_output(&zero_main_batch, 1)
+            .size
+            .height,
+        S::from_f64(25.0)
+    );
+    assert_eq!(auto_margin_normal.location.x, S::from_f64(80.0));
+    assert_eq!(auto_margin_normal.margin.left, S::from_f64(80.0));
+}
+
+#[test]
+fn fri07_c02_collapse_round_single_line_keeps_strut_and_suppresses_committed_gap() {
+    assert_fri07_c02_collapse_round_single_line_and_gap::<f32>();
+    assert_fri07_c02_collapse_round_single_line_and_gap::<f64>();
+}
+
+fn assert_fri07_c02_collapse_round_rewraps_by_zero_main_size_and_identity<S: LayoutScalar>() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 4])
+        .children(2, [])
+        .children(3, [])
+        .children(4, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::AUTO,
+                ),
+                flex_wrap: FlexWrap::Wrap,
+                gap: Size::new(
+                    LengthOf::px(S::from_f64(10.0)),
+                    LengthOf::px(S::from_f64(4.0)),
+                ),
+                align_content: Some(AlignContent::FlexStart),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            fri07_c02_collapse_round_item(60.0, 10.0, FlexItemCollapse::Normal),
+        )
+        .style(
+            3,
+            fri07_c02_collapse_round_item(50.0, 30.0, FlexItemCollapse::Collapsed),
+        )
+        .style(
+            4,
+            fri07_c02_collapse_round_item(30.0, 10.0, FlexItemCollapse::Normal),
+        );
+
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("wrapped collapsed flex layout succeeds");
+    let container = fri07_c02_collapse_round_output(&batch, 1);
+    let first = fri07_c02_collapse_round_output(&batch, 2);
+    let second = fri07_c02_collapse_round_output(&batch, 4);
+
+    assert_eq!(container.size.height, S::from_f64(44.0));
+    assert_eq!(first.location, Point::ZERO);
+    assert_eq!(second.location, Point::new(S::ZERO, S::from_f64(34.0)));
+    assert_eq!(
+        second.source_index,
+        SourceIndex::new(2),
+        "rewrapping retains raw source association"
+    );
+}
+
+#[test]
+fn fri07_c02_collapse_round_zero_main_rewrap_keeps_collection_gaps_and_identity_strut() {
+    assert_fri07_c02_collapse_round_rewraps_by_zero_main_size_and_identity::<f32>();
+    assert_fri07_c02_collapse_round_rewraps_by_zero_main_size_and_identity::<f64>();
+}
+
+fn fri07_c02_collapse_round_margin_case<S: LayoutScalar>(
+    collapse_main_margins: (LengthAutoOf<S>, LengthAutoOf<S>),
+) -> NodeOutputOf<S> {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 4])
+        .children(2, [])
+        .children(3, [])
+        .children(4, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::AUTO,
+                ),
+                flex_wrap: FlexWrap::Wrap,
+                gap: Size::new(LengthOf::px(S::from_f64(5.0)), LengthOf::ZERO),
+                align_content: Some(AlignContent::FlexStart),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            fri07_c02_collapse_round_item(60.0, 10.0, FlexItemCollapse::Normal),
+        )
+        .style(
+            3,
+            NodeInputOf {
+                margin: Edges {
+                    left: collapse_main_margins.0,
+                    right: collapse_main_margins.1,
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                ..fri07_c02_collapse_round_item(70.0, 30.0, FlexItemCollapse::Collapsed)
+            },
+        )
+        .style(
+            4,
+            fri07_c02_collapse_round_item(20.0, 10.0, FlexItemCollapse::Normal),
+        );
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("collapsed main-margin layout succeeds");
+    fri07_c02_collapse_round_output(&batch, 4)
+}
+
+fn assert_fri07_c02_collapse_round_fixed_and_auto_main_margins<S: LayoutScalar>() {
+    let fixed = fri07_c02_collapse_round_margin_case((
+        LengthAutoOf::px(S::from_f64(15.0)),
+        LengthAutoOf::px(S::from_f64(15.0)),
+    ));
+    let automatic =
+        fri07_c02_collapse_round_margin_case::<S>((LengthAutoOf::AUTO, LengthAutoOf::AUTO));
+
+    assert_eq!(fixed.location.y, S::from_f64(30.0));
+    assert_eq!(automatic.location.y, S::ZERO);
+    assert_eq!(automatic.location.x, S::from_f64(65.0));
+}
+
+#[test]
+fn fri07_c02_collapse_round_retains_fixed_and_zeroes_auto_main_margins_for_collection() {
+    assert_fri07_c02_collapse_round_fixed_and_auto_main_margins::<f32>();
+    assert_fri07_c02_collapse_round_fixed_and_auto_main_margins::<f64>();
+}
+
+fn assert_fri07_c02_collapse_round_largest_strut_and_all_collapsed<S: LayoutScalar>() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::AUTO,
+                ),
+                flex_wrap: FlexWrap::Wrap,
+                align_content: Some(AlignContent::FlexStart),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            fri07_c02_collapse_round_item(70.0, 20.0, FlexItemCollapse::Collapsed),
+        )
+        .style(
+            3,
+            fri07_c02_collapse_round_item(70.0, 30.0, FlexItemCollapse::Collapsed),
+        );
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("all-collapsed flex layout succeeds");
+
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 1).size,
+        Size::new(S::from_f64(100.0), S::from_f64(30.0)),
+        "two identity struts rewrapped onto one all-collapsed line use their maximum"
+    );
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 2),
+        NodeOutputOf::with_source_index(SourceIndex::new(0))
+    );
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 3),
+        NodeOutputOf::with_source_index(SourceIndex::new(1))
+    );
+}
+
+#[test]
+fn fri07_c02_collapse_round_multiple_all_collapsed_struts_take_largest_not_sum() {
+    assert_fri07_c02_collapse_round_largest_strut_and_all_collapsed::<f32>();
+    assert_fri07_c02_collapse_round_largest_strut_and_all_collapsed::<f64>();
+}
+
+fn assert_fri07_c02_collapse_round_align_content_stretch_is_captured<S: LayoutScalar>() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 4])
+        .children(2, [])
+        .children(3, [])
+        .children(4, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::px(S::from_f64(130.0)),
+                ),
+                flex_wrap: FlexWrap::Wrap,
+                align_content: Some(AlignContent::Stretch),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            fri07_c02_collapse_round_item(80.0, 30.0, FlexItemCollapse::Normal),
+        )
+        .style(
+            3,
+            fri07_c02_collapse_round_item(70.0, 40.0, FlexItemCollapse::Collapsed),
+        )
+        .style(
+            4,
+            fri07_c02_collapse_round_item(80.0, 30.0, FlexItemCollapse::Normal),
+        );
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("align-content stretch collapse layout succeeds");
+
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 4).location.y,
+        S::from_f64(75.0),
+        "the collapsed identity carries its first-round 50px stretched line into the rewrapped first line"
+    );
+}
+
+#[test]
+fn fri07_c02_collapse_round_captures_align_content_stretch_before_rewrap() {
+    assert_fri07_c02_collapse_round_align_content_stretch_is_captured::<f32>();
+    assert_fri07_c02_collapse_round_align_content_stretch_is_captured::<f64>();
+}
+
+fn assert_fri07_c02_collapse_round_flow_matrix<S: LayoutScalar>() {
+    let flow_axes = [
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl),
+    ];
+    for flow in flow_axes {
+        for direction in [
+            FlexDirection::Row,
+            FlexDirection::RowReverse,
+            FlexDirection::Column,
+            FlexDirection::ColumnReverse,
+        ] {
+            for wrap in [FlexWrap::Wrap, FlexWrap::WrapReverse] {
+                let axes = FlexAxes::new(flow, direction, wrap);
+                let container_size =
+                    axes.size_from_main_cross(S::from_f64(100.0), S::from_f64(30.0));
+                let collapsed_size = axes.size_from_main_cross(
+                    PreferredSizeOf::px(S::from_f64(40.0)),
+                    PreferredSizeOf::px(S::from_f64(30.0)),
+                );
+                let normal_size = axes.size_from_main_cross(
+                    PreferredSizeOf::px(S::from_f64(20.0)),
+                    PreferredSizeOf::px(S::from_f64(10.0)),
+                );
+                let tree = PublicLayoutTreeOf::new()
+                    .children(1, [2, 3])
+                    .children(2, [])
+                    .children(3, [])
+                    .style(
+                        1,
+                        NodeInputOf {
+                            display: Display::Flex,
+                            writing_mode: flow.writing_mode(),
+                            direction: flow.direction(),
+                            flex_direction: direction,
+                            flex_wrap: wrap,
+                            size: container_size.map(PreferredSizeOf::px),
+                            align_content: Some(AlignContent::FlexStart),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        2,
+                        NodeInputOf {
+                            size: collapsed_size,
+                            flex_item_collapse: FlexItemCollapse::Collapsed,
+                            flex_grow: FlexGrowOf::ZERO,
+                            flex_shrink: FlexShrinkOf::try_new(S::ZERO)
+                                .expect("zero is a valid flex shrink"),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        3,
+                        NodeInputOf {
+                            size: normal_size,
+                            flex_grow: FlexGrowOf::ZERO,
+                            flex_shrink: FlexShrinkOf::try_new(S::ZERO)
+                                .expect("zero is a valid flex shrink"),
+                            ..NodeInputOf::default()
+                        },
+                    );
+                let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+                    .expect("flow-mapped collapse layout succeeds");
+                let normal = fri07_c02_collapse_round_output(&batch, 3);
+
+                assert_eq!(
+                    fri07_c02_collapse_round_output(&batch, 1).size,
+                    container_size
+                );
+                assert_eq!(
+                    normal.size,
+                    axes.size_from_main_cross(S::from_f64(20.0), S::from_f64(10.0))
+                );
+                assert_eq!(
+                    axes.main_point(normal.location),
+                    axes.main_position_from_start(
+                        container_size,
+                        S::ZERO,
+                        S::ZERO,
+                        S::from_f64(20.0),
+                        S::ZERO,
+                    ),
+                );
+                assert_eq!(
+                    axes.cross_point(normal.location),
+                    axes.cross_position_from_start(
+                        container_size,
+                        S::ZERO,
+                        S::ZERO,
+                        S::from_f64(10.0),
+                        S::ZERO,
+                    ),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fri07_c02_collapse_round_all_flows_directions_reversals_use_existing_flex_axes() {
+    assert_fri07_c02_collapse_round_flow_matrix::<f32>();
+    assert_fri07_c02_collapse_round_flow_matrix::<f64>();
+}
+
+fn assert_fri07_c02_collapse_round_intrinsic_replaced_controls<S: LayoutScalar>() {
+    for item_is_replaced in [false, true] {
+        let tree = PublicLayoutTreeOf::new()
+            .children(1, [2, 3])
+            .children(2, [])
+            .children(3, [])
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::new(
+                        PreferredSizeOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::AUTO,
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                2,
+                NodeInputOf {
+                    item_is_replaced,
+                    flex_item_collapse: FlexItemCollapse::Collapsed,
+                    flex_basis: FlexBasisOf::MIN_CONTENT,
+                    min_size: Size::new(
+                        MinSizeOf::px(S::from_f64(70.0)),
+                        MinSizeOf::px(S::from_f64(24.0)),
+                    ),
+                    max_size: Size::new(
+                        MaxSizeOf::px(S::from_f64(80.0)),
+                        MaxSizeOf::px(S::from_f64(24.0)),
+                    ),
+                    flex_grow: FlexGrowOf::ZERO,
+                    flex_shrink: FlexShrinkOf::try_new(S::ZERO)
+                        .expect("zero is a valid flex shrink"),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                3,
+                fri07_c02_collapse_round_item(20.0, 10.0, FlexItemCollapse::Normal),
+            )
+            .measure(2, Size::new(S::from_f64(75.0), S::from_f64(24.0)));
+        let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+            .expect("intrinsic replaced collapse layout succeeds");
+
+        assert_eq!(
+            fri07_c02_collapse_round_output(&batch, 1).size.height,
+            S::from_f64(24.0)
+        );
+        assert_eq!(
+            fri07_c02_collapse_round_output(&batch, 3).location,
+            Point::ZERO
+        );
+    }
+}
+
+#[test]
+fn fri07_c02_collapse_round_intrinsic_min_max_and_replacedness_preserve_strut_only() {
+    assert_fri07_c02_collapse_round_intrinsic_replaced_controls::<f32>();
+    assert_fri07_c02_collapse_round_intrinsic_replaced_controls::<f64>();
+}
+
+#[derive(Clone, Debug)]
+struct Fri07C02CollapseRoundBaselineTree<S: LayoutScalar> {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInputOf<S>>,
+}
+
+impl<S: LayoutScalar> Traverse for Fri07C02CollapseRoundBaselineTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map_or(0, Vec::len)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri07C02CollapseRoundBaselineTree<S> {
+    type MeasureError = core::convert::Infallible;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        LayoutInputOf::box_input(self.styles[&node].clone())
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<S>,
+        _context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<S>> {
+        let _ = input;
+        (node == 2).then(|| {
+            ComputeOutputOf::from_sizes_and_first_baselines(
+                Size::new(S::from_f64(20.0), S::from_f64(10.0)),
+                Size::ZERO,
+                Point::new(None, Some(S::from_f64(30.0))),
+            )
+        })
+    }
+}
+
+fn assert_fri07_c02_collapse_round_baseline_line_size_is_strut<S: LayoutScalar>() {
+    let tree = Fri07C02CollapseRoundBaselineTree {
+        children: HashMap::from([(1, vec![2, 3]), (2, vec![]), (3, vec![])]),
+        styles: HashMap::from([
+            (
+                1,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::new(
+                        PreferredSizeOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::AUTO,
+                    ),
+                    align_items: Some(AlignItems::Baseline),
+                    ..NodeInputOf::default()
+                },
+            ),
+            (
+                2,
+                fri07_c02_collapse_round_item(20.0, 10.0, FlexItemCollapse::Collapsed),
+            ),
+            (
+                3,
+                fri07_c02_collapse_round_item(20.0, 20.0, FlexItemCollapse::Normal),
+            ),
+        ]),
+    };
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("baseline collapse layout succeeds");
+
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 1).size.height,
+        S::from_f64(30.0),
+        "the strut is the baseline-expanded line size, not the collapsed item's 10px size"
+    );
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 3).location.y,
+        S::ZERO
+    );
+}
+
+#[test]
+fn fri07_c02_collapse_round_baseline_expansion_is_captured_as_used_line_size() {
+    assert_fri07_c02_collapse_round_baseline_line_size_is_strut::<f32>();
+    assert_fri07_c02_collapse_round_baseline_line_size_is_strut::<f64>();
+}
+
+#[derive(Clone, Debug)]
+struct Fri07C02CollapseRoundLedgerTree<S: LayoutScalar> {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInputOf<S>>,
+    requests: RefCell<Vec<(u32, LeafMeasureInputOf<S>)>>,
+}
+
+impl<S: LayoutScalar> Traverse for Fri07C02CollapseRoundLedgerTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map_or(0, Vec::len)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri07C02CollapseRoundLedgerTree<S> {
+    type MeasureError = core::convert::Infallible;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        LayoutInputOf::box_input(self.styles[&node].clone())
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        node == 3
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        input: LeafMeasureInputOf<S>,
+    ) -> Option<Result<Size<S>, Self::MeasureError>> {
+        (node == 3).then(|| {
+            self.requests.borrow_mut().push((node, input));
+            Ok(Size::new(S::from_f64(20.0), S::from_f64(17.0)))
+        })
+    }
+}
+
+fn assert_fri07_c02_collapse_round_ledger_is_finite<S: LayoutScalar>() {
+    let tree = Fri07C02CollapseRoundLedgerTree {
+        children: HashMap::from([(1, vec![2, 3]), (2, vec![]), (3, vec![])]),
+        styles: HashMap::from([
+            (
+                1,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::new(
+                        PreferredSizeOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::AUTO,
+                    ),
+                    ..NodeInputOf::default()
+                },
+            ),
+            (
+                2,
+                fri07_c02_collapse_round_item(40.0, 30.0, FlexItemCollapse::Collapsed),
+            ),
+            (
+                3,
+                NodeInputOf {
+                    flex_basis: FlexBasisOf::px(S::from_f64(20.0)),
+                    flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow"),
+                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    ..NodeInputOf::default()
+                },
+            ),
+        ]),
+        requests: RefCell::new(Vec::new()),
+    };
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("measurement-ledger collapse layout succeeds");
+    let requests = tree.requests.borrow();
+
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 1).size.height,
+        S::from_f64(30.0)
+    );
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 3).size.width,
+        S::from_f64(100.0),
+        "the normal item alone receives the existing second-round flex growth"
+    );
+    let unresolved_cross_requests = requests
+        .iter()
+        .filter_map(|(_, input)| {
+            let known = input.known_content_size();
+            known.height.is_none().then_some(known.width).flatten()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        unresolved_cross_requests,
+        [
+            S::from_f64(60.0),
+            S::from_f64(60.0),
+            S::from_f64(100.0),
+            S::from_f64(100.0),
+        ],
+        "the ordinary cross-size resolver's two measurements occur at the 60px first-round target and 100px second-round target only, with no third group"
+    );
+}
+
+#[test]
+fn fri07_c02_collapse_round_measurement_ledger_proves_two_rounds_and_no_third() {
+    assert_fri07_c02_collapse_round_ledger_is_finite::<f32>();
+    assert_fri07_c02_collapse_round_ledger_is_finite::<f64>();
+}
+
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }

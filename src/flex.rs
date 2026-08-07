@@ -1,9 +1,9 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
     ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
-    FlexDirection, FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
-    LengthResolutionStatus, NodeInputOf, NodeOutputOf, ParentFormattingContext, Point, Position,
-    RequestedAxis, RunMode, Size, SizingMode, Traverse,
+    FlexDirection, FlexItemCollapse, FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf,
+    LengthOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, ParentFormattingContext, Point,
+    Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
 use crate::compute::{
     EdgesResultExt, ResolvedFlexBasis, SizeResultExt, SizingAlgorithm, layout_child_geometry_error,
@@ -175,7 +175,7 @@ where
         .into_iter()
         .map(|item| (crate::SourceIndex::new(item.source_index), item))
         .collect::<std::collections::BTreeMap<_, _>>();
-    let mut collected_items = permutation
+    let collected_items = permutation
         .into_iter()
         .map(|source_index| {
             items_by_source
@@ -183,25 +183,55 @@ where
                 .expect("the flex order permutation contains every collected source index")
         })
         .collect::<Vec<_>>();
-    let mut lines = collect_flex_lines(&collected_items, &constants);
-
-    let mut layout_constants = resolved_layout_constants(
-        tree,
-        node,
-        input,
-        &style,
-        &constants,
-        &mut collected_items,
-        &lines,
-    )?;
-    let mut resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
-    let cross_layout_constants = resolved_cross_layout_constants(&layout_constants, &lines);
-    if cross_layout_constants.node_inner_size != layout_constants.node_inner_size {
-        layout_constants = cross_layout_constants;
-        resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
+    let has_collapsed_item = collected_items.iter().any(CollectedFlexItem::is_collapsed);
+    let (layout_constants, resolved_items, lines) = if has_collapsed_item {
+        let first_lines = collect_flex_lines(
+            &collected_items,
+            &constants,
+            FlexLineCollectionRound::Normal,
+        );
+        let (_, _, first_lines) = resolve_flex_round(
+            tree,
+            node,
+            input,
+            &style,
+            &constants,
+            collected_items.clone(),
+            first_lines,
+        )?;
+        let struts = CollapsedFlexStruts::capture(&collected_items, &first_lines);
+        let second_collection_lines = collect_flex_lines(
+            &collected_items,
+            &constants,
+            FlexLineCollectionRound::Collapsed,
+        );
+        let (second_items, second_lines) =
+            struts.prepare_second_round(&collected_items, &second_collection_lines);
+        resolve_flex_round(
+            tree,
+            node,
+            input,
+            &style,
+            &constants,
+            second_items,
+            second_lines,
+        )?
     } else {
-        layout_constants = cross_layout_constants;
-    }
+        let lines = collect_flex_lines(
+            &collected_items,
+            &constants,
+            FlexLineCollectionRound::Normal,
+        );
+        resolve_flex_round(
+            tree,
+            node,
+            input,
+            &style,
+            &constants,
+            collected_items.clone(),
+            lines,
+        )?
+    };
     let container_sizes = container_sizes(input, &layout_constants, &resolved_items, &lines);
     let final_scroll_box = if input.run_mode().is_perform_layout() {
         Some(flex_container_scroll_box::<_, S, M>(
@@ -215,7 +245,13 @@ where
         None
     };
     let (absolute_contributions, final_items) = if input.run_mode().is_perform_layout() {
-        let final_items = final_layout(tree, node, &resolved_items, &layout_constants)?;
+        let final_items = final_layout(
+            tree,
+            node,
+            &collected_items,
+            &resolved_items,
+            &layout_constants,
+        )?;
         let absolute_contributions = layout_absolute_children(
             tree,
             node,
@@ -277,6 +313,44 @@ where
             retain_flex_scroll_geometry(output, scroll_geometry)
         }),
     )
+}
+
+type ResolvedFlexRound<Tree> = (
+    Constants<<Tree as Traverse>::Scalar>,
+    Vec<ResolvedFlexItem<<Tree as Traverse>::Node, <Tree as Traverse>::Scalar>>,
+    Vec<FlexLine<<Tree as Traverse>::Scalar>>,
+);
+
+fn resolve_flex_round<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<Tree::Scalar>,
+    style: &NodeInputOf<Tree::Scalar>,
+    constants: &Constants<Tree::Scalar>,
+    mut collected_items: Vec<CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>>,
+    mut lines: Vec<FlexLine<Tree::Scalar>>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, ResolvedFlexRound<Tree>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    let mut layout_constants = resolved_layout_constants(
+        tree,
+        node,
+        input,
+        style,
+        constants,
+        &mut collected_items,
+        &lines,
+    )?;
+    let mut resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
+    let cross_layout_constants = resolved_cross_layout_constants(&layout_constants, &lines);
+    if cross_layout_constants.node_inner_size != layout_constants.node_inner_size {
+        layout_constants = cross_layout_constants;
+        resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
+    } else {
+        layout_constants = cross_layout_constants;
+    }
+    Ok((layout_constants, resolved_items, lines))
 }
 
 fn retain_flex_scroll_geometry<S: LayoutScalar>(
@@ -990,6 +1064,7 @@ impl<S: LayoutScalar> FlexItemBaseline<S> {
 struct CollectedFlexItem<Node, S: LayoutScalar> {
     node: Node,
     source_index: usize,
+    collapse: FlexItemCollapse,
     size: Size<Option<S>>,
     initial_output: ComputeOutputOf<S>,
     flex_basis: S,
@@ -1078,9 +1153,78 @@ type FlexChildContributionsResult<Tree, M> = LayoutResultOf<
 struct FlexLine<S: LayoutScalar> {
     start: usize,
     end: usize,
+    strut_floor: S,
+    contains_collapsed_slot: bool,
     main_size: S,
     cross_size: S,
     offset_cross: S,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FlexLineCollectionRound {
+    Normal,
+    Collapsed,
+}
+
+#[derive(Clone, Debug)]
+struct CollapsedFlexStruts<Node, S: LayoutScalar> {
+    by_node: Vec<(Node, S)>,
+}
+
+impl<Node: Copy + Eq, S: LayoutScalar> CollapsedFlexStruts<Node, S> {
+    fn capture(items: &[CollectedFlexItem<Node, S>], lines: &[FlexLine<S>]) -> Self {
+        let mut by_node = Vec::new();
+        for line in lines {
+            for item in &items[line.start..line.end] {
+                if item.is_collapsed() {
+                    by_node.push((item.node, line.cross_size));
+                }
+            }
+        }
+        Self { by_node }
+    }
+
+    fn prepare_second_round(
+        &self,
+        items: &[CollectedFlexItem<Node, S>],
+        collected_lines: &[FlexLine<S>],
+    ) -> (Vec<CollectedFlexItem<Node, S>>, Vec<FlexLine<S>>) {
+        let mut normal_items = Vec::with_capacity(items.len().saturating_sub(self.by_node.len()));
+        let mut lines = Vec::with_capacity(collected_lines.len());
+        for collected_line in collected_lines {
+            let start = normal_items.len();
+            let mut strut_floor = S::ZERO;
+            for item in &items[collected_line.start..collected_line.end] {
+                if item.is_collapsed() {
+                    strut_floor = strut_floor.max(self.for_node(item.node));
+                } else {
+                    normal_items.push(*item);
+                }
+            }
+            lines.push(FlexLine::with_collapsed_strut(
+                start,
+                normal_items.len(),
+                strut_floor,
+            ));
+        }
+        if lines.is_empty() {
+            lines.push(FlexLine::new(0, 0));
+        }
+        (normal_items, lines)
+    }
+
+    fn for_node(&self, node: Node) -> S {
+        self.by_node
+            .iter()
+            .find_map(|(candidate, strut)| (*candidate == node).then_some(*strut))
+            .expect("every collapsed flex identity receives one first-round strut")
+    }
+}
+
+impl<Node, S: LayoutScalar> CollectedFlexItem<Node, S> {
+    fn is_collapsed(&self) -> bool {
+        self.collapse == FlexItemCollapse::Collapsed
+    }
 }
 
 impl<Node, S: LayoutScalar> From<CollectedFlexItem<Node, S>> for ResolvedFlexItem<Node, S> {
@@ -1473,6 +1617,7 @@ where
     Ok(CollectedFlexItem {
         node,
         source_index,
+        collapse: style.flex_item_collapse,
         size: authored_size,
         initial_output: output,
         flex_basis,
@@ -1657,6 +1802,7 @@ fn clamp_available<S: LayoutScalar>(
 fn collect_flex_lines<Node, S: LayoutScalar>(
     items: &[CollectedFlexItem<Node, S>],
     constants: &Constants<S>,
+    round: FlexLineCollectionRound,
 ) -> Vec<FlexLine<S>>
 where
     Node: Copy,
@@ -1690,9 +1836,14 @@ where
             } else {
                 constants.axes.main_size(constants.gap)
             };
-            let next_size = gap
-                + constants.axes.main_size(items[end].hypothetical_size)
-                + constants.axes.main_edge_sum(items[end].margin);
+            let item = &items[end];
+            let box_main_size =
+                if round == FlexLineCollectionRound::Collapsed && item.is_collapsed() {
+                    S::ZERO
+                } else {
+                    constants.axes.main_size(item.hypothetical_size)
+                };
+            let next_size = gap + box_main_size + constants.axes.main_edge_sum(item.margin);
             if end > start && line_main_size + next_size > container_main_size {
                 break;
             }
@@ -1753,6 +1904,20 @@ where
         resolve_flexible_lengths(&mut resolved_items[line.start..line.end], constants);
 
         let item_count = line.end - line.start;
+        if item_count == 0 && line.contains_collapsed_slot {
+            line.main_size = Tree::Scalar::ZERO;
+            line.cross_size = if single_line {
+                constants
+                    .axes
+                    .cross_size(constants.node_inner_size)
+                    .unwrap_or(line.strut_floor)
+            } else {
+                line.strut_floor
+            };
+            line.offset_cross = cross_cursor;
+            cross_cursor = cross_cursor + line.cross_size + cross_gap;
+            continue;
+        }
         resolve_main_axis_auto_margins(&mut resolved_items[line.start..line.end], constants);
         let free_space = line_free_space(&resolved_items[line.start..line.end], constants);
         let justify_content = alignment_fallback(free_space, item_count, constants.justify_content);
@@ -1797,6 +1962,7 @@ where
             cross_size,
             line_cross_size(&resolved_items[line.start..line.end], constants),
         );
+        cross_size = Tree::Scalar::max(cross_size, line.strut_floor);
 
         line.main_size = main_cursor;
         line.cross_size = if single_line {
@@ -2449,9 +2615,19 @@ impl<S: LayoutScalar> FlexLine<S> {
         Self {
             start,
             end,
+            strut_floor: S::ZERO,
+            contains_collapsed_slot: false,
             main_size: S::ZERO,
             cross_size: S::ZERO,
             offset_cross: S::ZERO,
+        }
+    }
+
+    fn with_collapsed_strut(start: usize, end: usize, strut_floor: S) -> Self {
+        Self {
+            strut_floor,
+            contains_collapsed_slot: true,
+            ..Self::new(start, end)
         }
     }
 }
@@ -3644,6 +3820,7 @@ fn max_option<S: LayoutScalar>(a: Option<S>, b: Option<S>) -> Option<S> {
 fn final_layout<Tree, M>(
     tree: &mut Tree,
     container_node: <Tree as Traverse>::Node,
+    collected_items: &[CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>],
     items: &[ResolvedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>],
     constants: &Constants<Tree::Scalar>,
 ) -> LayoutResultOf<
@@ -3655,6 +3832,13 @@ fn final_layout<Tree, M>(
 where
     Tree: Compute<M>,
 {
+    for item in collected_items.iter().filter(|item| item.is_collapsed()) {
+        tree.set_unrounded(
+            item.node,
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(item.source_index)),
+        );
+    }
+
     let mut final_items = Vec::with_capacity(items.len());
     for item in items {
         let style = tree.node_input(item.node).clone();
@@ -4630,6 +4814,8 @@ mod final_baseline_selection_tests {
         let lines = [FlexLine {
             start: 0,
             end: items.len(),
+            strut_floor: S::ZERO,
+            contains_collapsed_slot: false,
             main_size: S::ZERO,
             cross_size: S::ZERO,
             offset_cross: S::ZERO,
