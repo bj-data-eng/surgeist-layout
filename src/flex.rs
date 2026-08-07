@@ -10,7 +10,9 @@ use crate::compute::{
     layout_own_geometry_error, resolve_flex_basis, resolve_maximum_optional,
     resolve_minimum_optional, resolve_preferred_optional, sizing_resolution_error,
 };
-use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, PhysicalSide};
+use crate::geometry::{
+    FlowAxes, LogicalAxis, LogicalEdgesOf, PhysicalAxis, PhysicalProgression, PhysicalSide,
+};
 use crate::layout_math::{
     MaxBeforeMinOptionalSizeClampExt, MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt,
     OptionalSizeExt, UncheckedOptionalSizeSubExt, resolution_optional, resolution_or_zero,
@@ -3842,11 +3844,9 @@ where
     let constants = &settled_constants;
     let children = tree.children(node).collect::<Vec<_>>();
     let mut contributions = Vec::new();
-    let inset_relative_size = final_scroll_box.scrollport().size().map(Some);
-    let available = final_scroll_box
-        .scrollport()
-        .size()
-        .map(AvailableOf::definite);
+    let absolute_containing_size = final_scroll_box.scrollport().size();
+    let inset_relative_size = absolute_containing_size.map(Some);
+    let available = absolute_containing_size.map(AvailableOf::definite);
 
     for (source_index, child) in children.into_iter().enumerate() {
         let style = tree.node_input(child).clone();
@@ -3961,7 +3961,13 @@ where
             .unwrap_or(output.size)
             .clamp_max_before_min_optional(min_size, max_size)
             .max_optional(padding_border.sum_axes().map(Some));
-        let margin = resolve_absolute_margins(margin, final_size, constants);
+        let margin = resolve_absolute_margins(
+            margin,
+            inset,
+            final_size,
+            absolute_containing_size,
+            constants.flow_axes,
+        );
         let location = absolute_location(
             final_size,
             margin,
@@ -4037,38 +4043,70 @@ where
 
 fn resolve_absolute_margins<S: LayoutScalar>(
     margin: Edges<Option<S>>,
+    inset: Edges<Option<S>>,
     size: Size<S>,
-    constants: &Constants<S>,
+    containing_size: Size<S>,
+    flow_axes: FlowAxes,
 ) -> Edges<S> {
-    let non_auto_margin = margin.map(|value| value.unwrap_or(S::ZERO));
-    let free_space = Size::new(
-        constants.node_inner_size.width.unwrap_or(S::ZERO)
-            - size.width
-            - non_auto_margin.horizontal_sum(),
-        constants.node_inner_size.height.unwrap_or(S::ZERO)
-            - size.height
-            - non_auto_margin.vertical_sum(),
+    let logical_margin = flow_axes.logical_edges(margin);
+    let logical_inset = flow_axes.logical_edges(inset);
+    let logical_size = flow_axes.logical_size(size);
+    let logical_containing_size = flow_axes.logical_size(containing_size);
+    let (inline_start, inline_end) = resolve_absolute_axis_margins(
+        logical_margin.inline_start,
+        logical_margin.inline_end,
+        logical_inset.inline_start,
+        logical_inset.inline_end,
+        logical_size.inline,
+        logical_containing_size.inline,
+        true,
     );
-    let auto_width = match (
-        usize::from(margin.left.is_none()) + usize::from(margin.right.is_none()),
-        free_space.width,
-    ) {
-        (0, _) => S::ZERO,
-        (count, free_space) => free_space.max(S::ZERO) / S::from_usize(count),
-    };
-    let auto_height = match (
-        usize::from(margin.top.is_none()) + usize::from(margin.bottom.is_none()),
-        free_space.height,
-    ) {
-        (0, _) => S::ZERO,
-        (count, free_space) => free_space.max(S::ZERO) / S::from_usize(count),
-    };
+    let (block_start, block_end) = resolve_absolute_axis_margins(
+        logical_margin.block_start,
+        logical_margin.block_end,
+        logical_inset.block_start,
+        logical_inset.block_end,
+        logical_size.block,
+        logical_containing_size.block,
+        false,
+    );
 
-    Edges {
-        top: margin.top.unwrap_or(auto_height),
-        right: margin.right.unwrap_or(auto_width),
-        bottom: margin.bottom.unwrap_or(auto_height),
-        left: margin.left.unwrap_or(auto_width),
+    flow_axes.physical_edges(LogicalEdgesOf::new(
+        inline_start,
+        inline_end,
+        block_start,
+        block_end,
+    ))
+}
+
+fn resolve_absolute_axis_margins<S: LayoutScalar>(
+    start_margin: Option<S>,
+    end_margin: Option<S>,
+    start_inset: Option<S>,
+    end_inset: Option<S>,
+    target_size: S,
+    containing_size: S,
+    anchor_negative_two_auto_at_start: bool,
+) -> (S, S) {
+    let fixed_start = start_margin.unwrap_or(S::ZERO);
+    let fixed_end = end_margin.unwrap_or(S::ZERO);
+    let (Some(start_inset), Some(end_inset)) = (start_inset, end_inset) else {
+        return (fixed_start, fixed_end);
+    };
+    let remaining =
+        containing_size - start_inset - end_inset - target_size - fixed_start - fixed_end;
+
+    match (start_margin.is_none(), end_margin.is_none()) {
+        (false, false) => (fixed_start, fixed_end),
+        (true, false) => (remaining, fixed_end),
+        (false, true) => (fixed_start, remaining),
+        (true, true) if anchor_negative_two_auto_at_start && remaining < S::ZERO => {
+            (S::ZERO, remaining)
+        }
+        (true, true) => {
+            let half = remaining / S::from_usize(2);
+            (half, half)
+        }
     }
 }
 

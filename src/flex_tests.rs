@@ -10,6 +10,386 @@ use crate::*;
 type FlexTree<S = Scalar> = OracleTreeOf<S>;
 type RecursiveTree = OracleTree;
 
+fn fri07_c01_absolute_auto_margin_layout<S: LayoutScalar>(
+    flow_axes: FlowAxes,
+    mut container: NodeInputOf<S>,
+    child: NodeInputOf<S>,
+) -> NodeOutputOf<S> {
+    container.display = Display::Flex;
+    container.writing_mode = flow_axes.writing_mode();
+    container.direction = flow_axes.direction();
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(1, container)
+        .style(2, child);
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(300.0))))
+            .expect("absolute auto-margin viewport is finite"),
+    )
+    .expect("absolute auto-margin layout succeeds");
+
+    batch
+        .final_entries()
+        .iter()
+        .find(|entry| entry.node() == 2)
+        .expect("absolute flex child is published")
+        .output()
+}
+
+fn assert_fri07_c01_absolute_auto_margin_auto_inset_zeroes_axis<S: LayoutScalar>() {
+    let px = |value| LengthAutoOf::px(S::from_f64(value));
+    let output = fri07_c01_absolute_auto_margin_layout(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        NodeInputOf {
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(100.0)),
+                PreferredSizeOf::px(S::from_f64(40.0)),
+            ),
+            ..NodeInputOf::default()
+        },
+        NodeInputOf {
+            position: Position::Absolute,
+            inset: Edges {
+                left: px(0.0),
+                top: px(0.0),
+                ..Edges::all(LengthAutoOf::AUTO)
+            },
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(20.0)),
+                PreferredSizeOf::px(S::from_f64(10.0)),
+            ),
+            margin: Edges {
+                top: LengthAutoOf::AUTO,
+                right: LengthAutoOf::AUTO,
+                bottom: LengthAutoOf::AUTO,
+                left: LengthAutoOf::AUTO,
+            },
+            ..NodeInputOf::default()
+        },
+    );
+
+    assert_eq!(output.margin, Edges::ZERO);
+    assert_eq!(output.location, Point::ZERO);
+}
+
+#[test]
+fn fri07_c01_absolute_auto_margin_auto_inset_zeroes_used_margins_in_both_scalar_lanes() {
+    assert_fri07_c01_absolute_auto_margin_auto_inset_zeroes_axis::<f32>();
+    assert_fri07_c01_absolute_auto_margin_auto_inset_zeroes_axis::<f64>();
+}
+
+fn assert_fri07_c01_absolute_auto_margin_definite_inset_matrix<S: LayoutScalar>() {
+    let px = |value| LengthAutoOf::px(S::from_f64(value));
+    let preferred_px = |value| PreferredSizeOf::px(S::from_f64(value));
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let container = || NodeInputOf {
+        size: Size::new(preferred_px(100.0), preferred_px(40.0)),
+        ..NodeInputOf::default()
+    };
+    let inset = Edges {
+        top: px(0.0),
+        right: px(20.0),
+        bottom: px(0.0),
+        left: px(10.0),
+    };
+
+    for (name, width, left, right, expected_left, expected_right, expected_x) in [
+        ("no auto", 20.0, px(3.0), px(5.0), 3.0, 5.0, 13.0),
+        (
+            "one auto positive",
+            20.0,
+            LengthAutoOf::AUTO,
+            px(5.0),
+            45.0,
+            5.0,
+            55.0,
+        ),
+        (
+            "one auto negative",
+            80.0,
+            LengthAutoOf::AUTO,
+            px(5.0),
+            -15.0,
+            5.0,
+            -5.0,
+        ),
+        (
+            "two auto positive",
+            20.0,
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+            25.0,
+            25.0,
+            35.0,
+        ),
+        (
+            "two auto zero",
+            70.0,
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+            0.0,
+            0.0,
+            10.0,
+        ),
+        (
+            "two auto negative inline",
+            100.0,
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+            0.0,
+            -30.0,
+            10.0,
+        ),
+    ] {
+        let output = fri07_c01_absolute_auto_margin_layout(
+            flow_axes,
+            container(),
+            NodeInputOf {
+                position: Position::Absolute,
+                inset,
+                size: Size::new(preferred_px(width), preferred_px(10.0)),
+                margin: Edges {
+                    top: px(0.0),
+                    right,
+                    bottom: px(0.0),
+                    left,
+                },
+                ..NodeInputOf::default()
+            },
+        );
+
+        assert_eq!(
+            output.margin.left,
+            S::from_f64(expected_left),
+            "{name} left"
+        );
+        assert_eq!(
+            output.margin.right,
+            S::from_f64(expected_right),
+            "{name} right"
+        );
+        assert_eq!(output.location.x, S::from_f64(expected_x), "{name} x");
+    }
+}
+
+#[test]
+fn fri07_c01_absolute_auto_margin_definite_insets_use_signed_inset_modified_space() {
+    assert_fri07_c01_absolute_auto_margin_definite_inset_matrix::<f32>();
+    assert_fri07_c01_absolute_auto_margin_definite_inset_matrix::<f64>();
+}
+
+fn assert_fri07_c01_absolute_auto_margin_flow_mapping<S: LayoutScalar>() {
+    let px = |value| LengthAutoOf::px(S::from_f64(value));
+    for flow_axes in fri05_c04_flex_all_flow_axes() {
+        let container_size = flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+            S::from_f64(100.0),
+            S::from_f64(60.0),
+        ));
+        let child_size = flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+            S::from_f64(120.0),
+            S::from_f64(20.0),
+        ));
+        let inset = flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+            px(0.0),
+            px(0.0),
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+        ));
+        let margin = flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+            px(0.0),
+            px(0.0),
+        ));
+        let output = fri07_c01_absolute_auto_margin_layout(
+            flow_axes,
+            NodeInputOf {
+                size: container_size.map(PreferredSizeOf::px),
+                ..NodeInputOf::default()
+            },
+            NodeInputOf {
+                position: Position::Absolute,
+                inset,
+                size: child_size.map(PreferredSizeOf::px),
+                margin,
+                ..NodeInputOf::default()
+            },
+        );
+        let logical_margin = flow_axes.logical_edges(output.margin);
+
+        assert_eq!(
+            logical_margin.inline_start,
+            S::ZERO,
+            "{flow_axes:?} inline start"
+        );
+        assert_eq!(
+            logical_margin.inline_end,
+            S::from_f64(-20.0),
+            "{flow_axes:?} inline end"
+        );
+        match flow_axes.inline_start() {
+            PhysicalSide::Left => assert_eq!(output.location.x, S::ZERO, "{flow_axes:?} x"),
+            PhysicalSide::Right => {
+                assert_eq!(output.location.x, S::from_f64(-20.0), "{flow_axes:?} x")
+            }
+            PhysicalSide::Top => assert_eq!(output.location.y, S::ZERO, "{flow_axes:?} y"),
+            PhysicalSide::Bottom => {
+                assert_eq!(output.location.y, S::from_f64(-20.0), "{flow_axes:?} y")
+            }
+        }
+    }
+}
+
+#[test]
+fn fri07_c01_absolute_auto_margin_negative_inline_space_uses_containing_flow_start() {
+    assert_fri07_c01_absolute_auto_margin_flow_mapping::<f32>();
+    assert_fri07_c01_absolute_auto_margin_flow_mapping::<f64>();
+}
+
+fn assert_fri07_c01_absolute_auto_margin_negative_block_space_divides<S: LayoutScalar>() {
+    let px = |value| LengthAutoOf::px(S::from_f64(value));
+    for flow_axes in fri05_c04_flex_all_flow_axes() {
+        let container_size = flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+            S::from_f64(60.0),
+            S::from_f64(100.0),
+        ));
+        let child_size = flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+            S::from_f64(20.0),
+            S::from_f64(120.0),
+        ));
+        let inset = flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+            px(0.0),
+            px(0.0),
+        ));
+        let margin = flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+            px(0.0),
+            px(0.0),
+            LengthAutoOf::AUTO,
+            LengthAutoOf::AUTO,
+        ));
+        let output = fri07_c01_absolute_auto_margin_layout(
+            flow_axes,
+            NodeInputOf {
+                size: container_size.map(PreferredSizeOf::px),
+                ..NodeInputOf::default()
+            },
+            NodeInputOf {
+                position: Position::Absolute,
+                inset,
+                size: child_size.map(PreferredSizeOf::px),
+                margin,
+                ..NodeInputOf::default()
+            },
+        );
+        let logical_margin = flow_axes.logical_edges(output.margin);
+
+        assert_eq!(
+            logical_margin.block_start,
+            S::from_f64(-10.0),
+            "{flow_axes:?} block start"
+        );
+        assert_eq!(
+            logical_margin.block_end,
+            S::from_f64(-10.0),
+            "{flow_axes:?} block end"
+        );
+        match flow_axes.block_axis() {
+            PhysicalAxis::Horizontal => {
+                assert_eq!(output.location.x, S::from_f64(-10.0), "{flow_axes:?} x")
+            }
+            PhysicalAxis::Vertical => {
+                assert_eq!(output.location.y, S::from_f64(-10.0), "{flow_axes:?} y")
+            }
+        }
+    }
+}
+
+#[test]
+fn fri07_c01_absolute_auto_margin_negative_block_space_divides_normally() {
+    assert_fri07_c01_absolute_auto_margin_negative_block_space_divides::<f32>();
+    assert_fri07_c01_absolute_auto_margin_negative_block_space_divides::<f64>();
+}
+
+fn assert_fri07_c01_absolute_auto_margin_padding_border_box_sizing<S: LayoutScalar>() {
+    let length = |value| LengthOf::px(S::from_f64(value));
+    let auto_length = |value| LengthAutoOf::px(S::from_f64(value));
+    let preferred = |value| PreferredSizeOf::px(S::from_f64(value));
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let container = || NodeInputOf {
+        box_sizing: BoxSizing::BorderBox,
+        size: Size::new(preferred(120.0), preferred(80.0)),
+        padding: Edges::new(length(10.0), length(10.0), length(10.0), length(10.0)),
+        border: Edges::new(length(5.0), length(5.0), length(5.0), length(5.0)),
+        ..NodeInputOf::default()
+    };
+    let child_edges = Edges::new(length(1.0), length(4.0), length(1.0), length(2.0));
+    let child_padding = Edges::new(length(1.0), length(7.0), length(1.0), length(3.0));
+    let inset = Edges {
+        top: auto_length(0.0),
+        right: auto_length(20.0),
+        bottom: auto_length(0.0),
+        left: auto_length(10.0),
+    };
+    let auto_inline_margin = Edges {
+        top: LengthAutoOf::ZERO,
+        right: LengthAutoOf::AUTO,
+        bottom: LengthAutoOf::ZERO,
+        left: LengthAutoOf::AUTO,
+    };
+
+    for (box_sizing, expected_size, expected_margin, expected_x) in [
+        (BoxSizing::ContentBox, 36.0, 22.0, 37.0),
+        (BoxSizing::BorderBox, 20.0, 30.0, 45.0),
+    ] {
+        let output = fri07_c01_absolute_auto_margin_layout(
+            flow_axes,
+            container(),
+            NodeInputOf {
+                position: Position::Absolute,
+                box_sizing,
+                inset,
+                size: Size::new(preferred(20.0), preferred(10.0)),
+                padding: child_padding,
+                border: child_edges,
+                margin: auto_inline_margin,
+                ..NodeInputOf::default()
+            },
+        );
+
+        assert_eq!(
+            output.size.width,
+            S::from_f64(expected_size),
+            "{box_sizing:?} width"
+        );
+        assert_eq!(
+            output.margin.left,
+            S::from_f64(expected_margin),
+            "{box_sizing:?} left"
+        );
+        assert_eq!(
+            output.margin.right,
+            S::from_f64(expected_margin),
+            "{box_sizing:?} right"
+        );
+        assert_eq!(
+            output.location.x,
+            S::from_f64(expected_x),
+            "{box_sizing:?} x"
+        );
+    }
+}
+
+#[test]
+fn fri07_c01_absolute_auto_margin_uses_containing_padding_box_and_used_border_box() {
+    assert_fri07_c01_absolute_auto_margin_padding_border_box_sizing::<f32>();
+    assert_fri07_c01_absolute_auto_margin_padding_border_box_sizing::<f64>();
+}
+
 fn fri07_c01_cross_auto_margin_output<S: LayoutScalar>(
     block_start: LengthAutoOf<S>,
     block_end: LengthAutoOf<S>,
@@ -5007,7 +5387,7 @@ fn flex_absolute_child_can_resolve_from_trailing_insets() {
 }
 
 #[test]
-fn flex_absolute_child_expands_auto_margins() {
+fn fri07_c01_absolute_auto_margin_original_auto_end_inset_zeroes_inline_margins() {
     let mut tree = FlexTree::default();
     tree.insert_children(1, vec![2]);
     tree.insert_children(2, vec![]);
@@ -5061,15 +5441,15 @@ fn flex_absolute_child_expands_auto_margins() {
 
     assert_eq!(
         tree.layout(2).expect("child layout is staged").margin.left,
-        40.0
+        0.0
     );
     assert_eq!(
         tree.layout(2).expect("child layout is staged").margin.right,
-        40.0
+        0.0
     );
     assert_eq!(
         tree.layout(2).expect("child layout is staged").location,
-        Point::new(40.0, 0.0)
+        Point::new(0.0, 0.0)
     );
 }
 
