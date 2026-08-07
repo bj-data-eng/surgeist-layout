@@ -876,6 +876,14 @@ impl<Node: Copy + PartialEq, S: LayoutScalar> InheritedCurrentGridBaselinePlacem
             return Err(InheritedCurrentGridBaselinePlacementError::UnusableInheritedMapping);
         }
 
+        let immutable_owner_target = target.finite_owner_logical_target();
+        if !immutable_owner_target.is_finite()
+            || !mapping.parent_gap.is_finite()
+            || !mapping.current_gap.is_finite()
+        {
+            return Err(InheritedCurrentGridBaselinePlacementError::NonFinite);
+        }
+
         let mapped_edge = match (role, mapping.reversed) {
             (AncestorBaselineRole::First, false) | (AncestorBaselineRole::Last, true) => {
                 BaselineMappedEdge::Start
@@ -889,6 +897,9 @@ impl<Node: Copy + PartialEq, S: LayoutScalar> InheritedCurrentGridBaselinePlacem
             AncestorBaselineRole::Last => selected_local_track + 1 < track_count,
         };
         let half_gap = (mapping.current_gap - mapping.parent_gap) / S::from_f64(2.0);
+        if !half_gap.is_finite() {
+            return Err(InheritedCurrentGridBaselinePlacementError::NonFinite);
+        }
         let signed_translation =
             if input.direct_witness.owner_direct || !gutter_crossing || half_gap == S::ZERO {
                 S::ZERO
@@ -898,15 +909,11 @@ impl<Node: Copy + PartialEq, S: LayoutScalar> InheritedCurrentGridBaselinePlacem
                     BaselineMappedEdge::End => -half_gap,
                 }
             };
-        let immutable_owner_target = target.finite_owner_logical_target();
+        if !signed_translation.is_finite() {
+            return Err(InheritedCurrentGridBaselinePlacementError::NonFinite);
+        }
         let translated_target = immutable_owner_target + signed_translation;
-        if !immutable_owner_target.is_finite()
-            || !mapping.parent_gap.is_finite()
-            || !mapping.current_gap.is_finite()
-            || !half_gap.is_finite()
-            || !signed_translation.is_finite()
-            || !translated_target.is_finite()
-        {
+        if !translated_target.is_finite() {
             return Err(InheritedCurrentGridBaselinePlacementError::NonFinite);
         }
 

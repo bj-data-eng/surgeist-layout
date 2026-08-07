@@ -450,45 +450,28 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         &self,
         parent_span: GridTrackSpan,
         reversed: bool,
-        major: &[Option<PhysicalBaseline<S>>],
-        minor: &[Option<PhysicalBaseline<S>>],
     ) -> Option<Self> {
         let track_count = parent_span.checked_len()?;
-        if major.len() != track_count || minor.len() != track_count {
-            return None;
-        }
         let source = if reversed {
             &self.reversed_targets
         } else {
             &self.targets
         };
-        let targets = major
-            .iter()
-            .copied()
-            .zip(minor.iter().copied())
-            .enumerate()
-            .map(|(local_track, (major, minor))| {
+        let targets = (0..track_count)
+            .map(|local_track| {
                 let source_track = if reversed {
                     parent_span.end.checked_sub(local_track + 2)?
                 } else {
                     parent_span.start.checked_sub(1)? + local_track
                 };
                 let source = source.get(source_track)?;
-                let map_target = |mut target: AncestorBaselineTarget<S>,
-                                  baseline: PhysicalBaseline<S>| {
+                let map_target = |mut target: AncestorBaselineTarget<S>| {
                     target.selected_ancestor_track = local_track;
-                    target.finite_owner_logical_target = baseline.coordinate();
                     target
                 };
                 Some(TrackAncestorBaselineTargets {
-                    first: source
-                        .first
-                        .zip(major)
-                        .map(|(target, baseline)| map_target(target, baseline)),
-                    last: source
-                        .last
-                        .zip(minor)
-                        .map(|(target, baseline)| map_target(target, baseline)),
+                    first: source.first.map(map_target),
+                    last: source.last.map(map_target),
                 })
             })
             .collect::<Option<Vec<_>>>()?;
