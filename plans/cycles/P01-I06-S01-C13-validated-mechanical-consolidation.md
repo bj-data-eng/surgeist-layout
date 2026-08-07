@@ -206,18 +206,26 @@ cargo fmt --check
 
 ### 3.4 `P01/I06/S01/C13/T04` Close The Remaining Tree Inventory
 
-**Files/area:** `src/root_tests.rs` and other tracked `src/*_tests.rs` files that
-define local `Traverse`, `Compute`, or `LayoutTree` implementations; T01 support
+**Files/area:** `src/root_tests.rs`; other tracked `src/*_tests.rs` files that
+define local `Traverse`, `Compute`, or `LayoutTree` implementations; and only the
+`#[cfg(test)]` modules in `src/compute.rs` and `src/grid/subgrid.rs`; T01 support
 only where an ordinary case needs it.
 
 **Outcome:** apply the same complete classification outside block, flex, and grid.
 Migrate ordinary trees and retain specialized validation, cache, invalidation,
-transaction, observation, failure, topology, and publication fakes. This task does
-not pull a specialized behavior into shared support merely to reduce a type count.
+transaction, observation, failure, topology, and publication fakes. In
+`compute::tests`, migrate ordinary `EmptyTree`; retain `BoundedDagTree` for its
+adjacency-budget/order observation and `FragmentTree` for committed-fragment
+readback state and call counting. Retain `grid::subgrid::tests::TraversalTree`
+because its unreachable child-compute hook proves track-initialization failure is
+propagated first. Production bodies in those two modules do not change. This task
+does not pull specialized behavior into shared support merely to reduce a count.
 
 **Pre-change characterization:**
 `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout root_tests::` and
-`CARGO_NET_OFFLINE=true just verify` pass at the task base.
+`CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout compute::tests::`,
+`CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout grid::subgrid::tests::`,
+and `CARGO_NET_OFFLINE=true just verify` pass at the task base.
 
 **Acceptance:** the tracked test source contains only the two ordinary typed
 harnesses plus locally specialized fakes; every retained fake exposes its
@@ -227,6 +235,8 @@ distinguishing predicate; default verification preserves exact pass/ignore total
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout root_tests::
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout compute::tests::
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout grid::subgrid::tests::
 CARGO_NET_OFFLINE=true just verify
 ```
 
