@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/P01-I07-flex-algorithm-completeness.md`, normalized semantic-content
 SHA-256
-`d361b417675a572970f7ef030a336238f4176a02a87a74f8130c7c5aee53eb29`,
-committed as `05ccb19b78adc8617690a96ffd9291d70153fcd7`.
+`6f5d480970116600bdf0cccfb7b684893e3c47f1b9cb0ba84113ef55bd21a3a5`,
+committed as `8afd4fef2a70cb93c08b3f1c5009f6ec104db3fc`.
 
 The specification owns behavior, public API, compatibility, ownership,
 artifacts, errors, and acceptance. This sequence owns only durable dependency
@@ -34,7 +34,7 @@ Scoped generation may diagnose settled-input defects while the owning cycle is
 in progress, but it is not acceptance evidence. All behavior and inputs settle
 before the one full unfiltered existing-pinned regeneration in C05. C06 begins
 only from that published artifact candidate and cannot rerun generation unless
-its independent review proves a genuine behavior, input-honesty, or artifact
+the sprawl assessment confirms a genuine behavior, input-honesty, or artifact
 defect that reopens the owning contract.
 
 ## 3 Ordered Cycles
@@ -83,7 +83,8 @@ containing block.
 
 **Bounded outcome:** Implement the complete ordinary cross-axis signed-margin
 matrix through the one `FlexAxes` mapping owner, keeping normal logical
-cross-dimension start/end distinct from wrap-reversible line progression.
+cross-dimension start/end distinct from wrap-reversible line progression and
+replacing the opposite used margin when an auto logical-start margin overflows.
 Implement the separate positioned-layout equation using resolved insets,
 inset-modified containing size, containing flow, and signed inline/block rules.
 Preserve ordinary main-axis behavior and replace the erroneous legacy absolute
@@ -194,9 +195,8 @@ verification, finding-closure, handoff, and acceptance portions of
 `FRI-07.11`, `FRI-07.12`, `FRI-07.14` through `FRI-07.16`.
 
 **Prerequisites:** `P01/I07/S01/C05` complete, published, and remotely verified
-with frozen behavior and artifact evidence; an independent holistic sprawl
-review of the complete FRI-07 implementation range has returned exact findings
-for validation.
+with frozen behavior and artifact evidence; a complete sprawl assessment of the
+FRI-07 implementation range has returned exact findings for validation.
 
 **Entry state:** FLEX-002 through FLEX-005 and their bounded browser lineage are
 closed in the immutable C05 candidate; every actionable FRI-07 sprawl finding
@@ -206,16 +206,16 @@ still requires source validation and final disposition.
 implement every confirmed in-initiative mechanical consolidation with
 characterization evidence, or disprove it with an exact counterexample. Preserve
 the public API, behavior, fixture membership, generated lineage, dependencies,
-features, and finding ownership unless review proves a genuine defect, which
-reopens the exact owning behavior contract before final review. Do not absorb
-crate-wide advisory lint cleanup or later-initiative work.
+features, and finding ownership unless the assessment confirms a genuine defect,
+which reopens the exact owning behavior contract. Do not absorb crate-wide
+advisory lint cleanup or later-initiative work.
 
 **Observable exit evidence:** Every sprawl finding has one validated disposition;
 the structural invariants in `FRI-07.13` hold; all four initial findings retain
-their public-front-door closure; and configured checks plus independent task and
-holistic review are clean. The final candidate is published to authority remote
-`main`, and fresh readback proves local `main`, its tracking ref, and observed
-remote `main` agree without an unneeded regeneration.
+their public-front-door closure; and behavior, browser lineage, dependencies,
+features, and fixture membership remain unchanged unless an owning contract was
+explicitly reopened. The final candidate is available from authority remote
+`main` with complete sprawl dispositions and without an unneeded regeneration.
 
 **Handoff:** Return the final remotely verified FRI-07 leaf candidate, complete
 four-finding closure, validated sprawl dispositions, browser/artifact evidence,
