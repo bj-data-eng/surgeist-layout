@@ -132,6 +132,17 @@ projection are correct. D-18 must close before the independently valid D-19
 comparison state. Neither correction changes generator input or output, so the
 successful lineage is retained and a second full generation is forbidden.
 
+Three bounded D-18 correction attempts then exposed one missing coordinate phase.
+The required five-pixel nested-row delta is not another ancestor-member
+half-gutter contribution: that adjustment is already present before reduction.
+It is a signed translation from an immutable ancestor target into the placement
+coordinates of a current grid whose corresponding axis is inherited. An item can
+therefore be direct to the current grid while flattened relative to the actual
+ancestor-group owner. Such an item needs a distinct non-publishable placement
+value; it must neither mutate a reduced `AncestorBaselineGroup` nor consume the
+child-internal envelope view. Diagnosis removed all instrumentation and left the
+preserved lineage byte-identical.
+
 The cycle base `8ffb4bc551a24d2283ad54436870ab3f5e66a473` remains the
 immutable pre-activation artifact baseline: its report has 5,324 generated and
 356 unsupported rows at SHA-256
@@ -160,7 +171,7 @@ are absent is also no longer true; FRI-06 consumes those completed contracts.
 | `D-15` | Float interaction is closed over the current model. An in-flow, non-floating, block-level child avoids active floats exactly when it is `Flex`, `Grid`, or `GridLanes`, or when it is non-replaced and its normalized computed overflow pair establishes an independent formatting context. Floats use the float path, atomic inline boxes use the line path while trapping their own internal formatting context, absolute boxes are excluded, and `None` produces no box. Future display roles do not enter this cycle. |
 | `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 initially unsupported variants identified below and includes exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. The layout-ready-inline opt-in supplies level zero unless an exact source-indexed marker supplies another bidi level. A marker may explicitly scope its applicability to one computed `ltr` or `rtl` variant; direction selects that authored record but never derives its level. Pinned Chrome is the default geometry oracle. An exact row may instead be a visible known Chrome measurement failure only under the certainty, evidence-record, synthetic-substitute, and revalidation contract in `FRI-06.11`; disagreement with layout alone never qualifies. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 | `D-17` | Superseded by `D-18`. It correctly separated scalar size, group membership, and parent envelope phases, but its publication-as-an-exact-inverse premise still required reconstructing ancestor transform history from a child-local scalar. Three bounded corrections could satisfy the nested coordinates or the intrinsic and round-trip controls, but not all of them together. |
-| `D-18` | Final subgrid-baseline controls use one axis-parametric flattened-membership model. In a fully inherited axis, the subgrid root is empty for track sizing and baseline grouping; its participating descendants enter the ancestor's group directly with the accumulated margin/border/padding and half-gutter adjustments already retained by subgrid traversal. A child physical baseline converts once to a typed ancestor-track logical distance. Scalar intrinsic contribution, ancestor baseline membership, reduced ancestor first/last group, and non-publishable child envelope view are distinct phases. One pre-growth member census supplies one-pass auto-track scalar sizing and baseline shims; final placement recomputes immutable targets from settled tracks without feeding a view back into sizing. The ancestor group is reduced in ancestor-track coordinates once per settled axis: row groups align logical block offsets and column groups align logical inline offsets for both direct members and flattened descendants. Accumulated half-gutter adjustment enters each descendant member once before reduction; only a downward child view translates the immutable target into child-local track coordinates, and that view is never republished upward. No inherited-axis fixed-point loop or publication inverse exists. Non-inherited axes retain ordinary local grid-container baseline behavior. Refreshed area sizing and the final physical projection remain owned by the containing grid's `FlowAxes`. |
+| `D-18` | Final subgrid-baseline controls use one axis-parametric flattened-membership model. In a fully inherited axis, the subgrid root is empty for track sizing and baseline grouping; its participating descendants enter the ancestor's group directly with the accumulated margin/border/padding and half-gutter adjustments already retained by subgrid traversal. A child physical baseline converts once to a typed ancestor-track logical distance. Scalar intrinsic contribution, ancestor baseline membership, immutable reduced ancestor group, inherited-current-grid placement, and non-publishable child envelope view are distinct phases. One pre-growth member census supplies one-pass auto-track scalar sizing and baseline shims; final reduction recomputes immutable targets from settled tracks without feeding any view or placement value back into sizing. The ancestor group is reduced in its owner's coordinates once per settled axis. A member direct to that owner consumes its row/block or column/inline target directly. An item direct to a current grid whose corresponding axis is inherited is flattened relative to the group owner and consumes a separate checked `InheritedCurrentGridBaselinePlacement`; this derives a signed placement-coordinate translation from the immutable target, axis mapping, role, reversal, and gutter facts without mutating the group or comparing target values to infer ownership. `ChildBaselineEnvelopeView` remains solely the downward child-internal track-coordinate view and is never republished upward. Ancestor-member edge/half-gutter accumulation before reduction and current-grid placement translation are separate operations even when both originate in one gutter difference. No inherited-axis fixed-point loop, post-reduction group mutation, cloned-group mutation, or publication inverse exists. Non-inherited axes retain ordinary local grid-container baseline behavior. Refreshed area sizing and the final physical projection remain owned by the containing grid's `FlowAxes`. |
 | `D-19` | Browser control observations and model control geometry remain distinct evidence. The browser may use its non-model `<br>` rectangle only to report source/slot/neighboring-line effects; layout publishes the specification-required zero-size aligned control. When that model point lies within tolerance of the exact shared endpoint of both adjacent model neighbor intervals, closed overlap makes both geometric relations `Same` and the browser's categorical `next_line = Later` is not comparable to model geometry. The comparator records only that field as endpoint-unobservable instead of equating the two meanings. Exact neighboring node geometry remains strict, the browser observation remains serialized, and a private line-builder regression proves that the forced break commits between the two model participants. This generic predicate reads no fixture identity or expectation to create layout input, adds no public line-identity surface, and is not a Chrome failure, expected-fail, or synthetic geometry substitute. |
 
 Rejected alternatives:
@@ -885,7 +896,7 @@ construction.
 | Scroll/cache/rounding | Exact dirty-subject path closure bypasses stale hits; failed layout or immutable preparation makes zero mutations and retains dirty subjects; infallible exclusive commit replaces all node/fragment state and clears closure caches before stores; committed nonempty/empty slices republish identically cold/warm and normal/rounded; missing warm fragment state errors; geometry contributes once |
 | Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics; interval comparison is closed within tolerance, so a zero-size break is `Same` with either neighbor sharing its endpoint and a neighbor beyond tolerance is ordered by block progression |
 | Fixture-input honesty | The browser helper validates every reviewed wrapper/container/strut/bidi marker against the actual DOM and reports source-local marker use; serializer tests prove unconditional, matching-direction, inactive-direction, malformed-direction, and unknown-field bidi records plus the closed mapping in `FRI-06.11`; renamed test names and arbitrary expectation-only mutations preserve identical normalized parsed input; missing/corrupt markers fail helper validation, final full-run inventory accounting, or generated-XML parser validation; transparent wrappers produce independent normalized input and expectation trees; static/runtime evidence proves no final input-lowering function reads fixture identity or expectations |
-| Subgrid baseline controls | Public-layout first/last controls prove one-time ancestor-logical conversion, scalar/member/group/view separation, direct descendant participation, direct-member consumption of the same settled row/column targets, start/end edge accumulation, one-pass auto-track sizing, positive/equal/negative half-gutter and MBP transitions, reversed mappings, and idempotent envelope views in horizontal and vertical flows; full-fixture controls expose every later direct sibling after nested controls, and no fully inherited-axis publication inverse remains |
+| Subgrid baseline controls | Public-layout first/last controls prove one-time ancestor-logical conversion, scalar/member/group/current-grid-placement/child-view separation, direct descendant participation, owner-direct target consumption, inherited-current-grid placement from the same immutable target, start/end edge accumulation, one-pass auto-track sizing, positive/equal/negative half-gutter and MBP transitions, reversed mappings, and idempotent placement and envelope derivation in horizontal and vertical flows; full-fixture controls expose every later direct sibling after nested controls, and no fully inherited-axis publication inverse remains |
 | Chrome oracle exception | Default-zero exact registry; every entry proves the `FRI-06.11` certainty gate, minimized parser-independent reproduction, normative and independent corroborating evidence, exact variant scope, public-front-door synthetic RED/GREEN substitute, visible report/test disposition, and revalidation trigger; negative controls reject layout-only disagreement, ambiguous rounding/coordinates, missing evidence, and overbroad manifest status |
 | Browser corpus | Owned mixed text/atomic/BR, vertical BR, float/BFC, unequal alignment, baseline, percentage atomic, and shape cases parse and compare |
 
@@ -907,9 +918,9 @@ return precomputed final line positions.
 | `src/compute.rs` | Provider/error plumbing, invalidated entry point/path closure, cache bypass/staging, and cache/round fragment publication |
 | `src/inline.rs` | One logical mixed-participant line builder, break/bidi/whitespace, line metrics, per-line alignment, and physical projection |
 | `src/block.rs` | Inline composition, containing strut, float-band/BFC placement, percentage basis, fast-path baseline predicate, scroll contribution |
-| `src/grid/tracks.rs` | Extend the existing axis-parametric subgrid traversal to emit separate `FlattenedScalarContribution` and `AncestorBaselineMember` records; suppress a fully inherited root only from the ordinary scalar pass; derive one pre-growth member census for auto-track scalar contributions and shims; and reduce direct plus flattened members into immutable settled row and column targets for final alignment |
-| `src/grid/subgrid.rs` | Own checked ancestor-span, mapped-edge, reversal, and accumulated margin/border/padding and half-gutter traversal facts. Ancestor-facing members retain the one outward half-gutter adjustment; only downward mapping translates an immutable `AncestorBaselineGroup` into a non-publishable child-local `ChildBaselineEnvelopeView`. No fully inherited-axis child-to-parent inverse exists |
-| `src/grid/child.rs` | Consume the immutable settled ancestor target for the item's selected `GridAxisKind`: columns replace the ordinary logical inline offset and rows replace the ordinary logical block offset. Direct members and flattened descendants use the same target contract, child envelope views remain child-local, ordinary non-inherited baseline behavior remains unchanged, and containing-grid `FlowAxes` performs one final projection |
+| `src/grid/tracks.rs` | Extend the existing axis-parametric subgrid traversal to emit separate `FlattenedScalarContribution` and `AncestorBaselineMember` records; suppress a fully inherited root only from the ordinary scalar pass; derive one pre-growth member census for auto-track scalar contributions and shims; and reduce direct plus flattened members into immutable settled row and column targets. Reduced groups expose no mutator or target-value ownership inference |
+| `src/grid/subgrid.rs` | Own checked ancestor-span, mapped-edge, reversal, and accumulated margin/border/padding and half-gutter traversal facts. Ancestor-facing members retain the one outward half-gutter adjustment. A checked inherited-axis mapping derives `InheritedCurrentGridBaselinePlacement` for current-grid direct items flattened relative to the group owner; a separate downward mapping derives child-internal `ChildBaselineEnvelopeView`. Neither may mutate or re-enter the ancestor group, and no fully inherited-axis child-to-parent inverse exists |
+| `src/grid/child.rs` | Select owner-direct target consumption or distinct inherited-current-grid placement for the item's `GridAxisKind`: columns replace the ordinary logical inline offset and rows replace the ordinary logical block offset before containing-grid `FlowAxes` performs one final projection. Child envelope views remain child-internal, ordinary non-inherited baseline behavior remains unchanged, and no post-placement correction or cloned-group mutation is permitted |
 | `src/cache.rs` | Preserve FRI-01's unit key and support clear-then-store batch application with fragment restoration |
 | Focused Rust tests | Model, line, block, root, cache, scalar, flow, provider, comparator, public surface, and failure evidence |
 | `tests/layout/browser_parity/support.rs` | Exact shaped fixture lowering, fragment/control comparison, and named mismatch diagnostics |
@@ -926,12 +937,16 @@ mapped edge, first/last role, containing-logical distance, and accumulated edge
 adjustments appropriate to their phase. `FlattenedScalarContribution` is the only
 channel allowed to grow a track by a complete item contribution.
 `AncestorBaselineMember` can join a group without carrying scalar size;
-`AncestorBaselineGroup` contains only settled ancestor-coordinate alignment
-targets; and `ChildBaselineEnvelopeView` can only be constructed from a group plus
-a checked downward child mapping. A direct member never consumes a child view.
-The axis-parametric operation selects rows or columns from `GridAxisKind`; it does
-not branch on writing mode, direction, source name, or fixture family. `FlowAxes`
-performs the physical-to-logical conversion and the final projection.
+`AncestorBaselineGroup` contains only settled owner-coordinate alignment targets;
+`InheritedCurrentGridBaselinePlacement` contains one immutable target plus the
+checked signed translation required when the consuming item's current grid
+inherits that axis; and `ChildBaselineEnvelopeView` can only be constructed from a
+group plus a checked downward child-internal mapping. A member direct to the group
+owner consumes the group. An item direct to an inherited current grid consumes the
+placement value, never the child view. The axis-parametric operation selects rows
+or columns from `GridAxisKind`; it does not branch on writing mode, direction,
+source name, fixture family, or target-value equality. `FlowAxes` performs the
+physical-to-logical conversion and the final projection.
 
 Focused public-layout tests must expose the complete transition: horizontal auto
 rows move from the duplicate `459` to browser `411`; inline-column direct
@@ -1154,6 +1169,7 @@ The private algorithm phases are:
 | `FlattenedScalarContribution` | One descendant's intrinsic size in one ancestor axis, including its accumulated edge and half-gutter margins. A fully inherited subgrid root is recorded only as the scalar node suppressed from the ordinary direct-item pass; suppressing it does not suppress any descendant. |
 | `AncestorBaselineMember` | One participating direct item or flattened descendant, carrying source node, `GridAxisKind`, physical baseline axis, ancestor track span, selected startmost/endmost track, first/last role, containing-logical distance, and the accumulated start/end edge and half-gutter adjustments used to obtain that distance. Construction performs the only physical-to-containing-logical conversion. |
 | `AncestorBaselineGroup` | The immutable per-track first/last reduction of `AncestorBaselineMember` values in one ancestor grid. It supplies intrinsic baseline shims and final shared alignment targets. A fully inherited subgrid root is never an additional member. |
+| `InheritedCurrentGridBaselinePlacement` | One non-publishable placement value for an item direct to a current grid whose corresponding axis is inherited and therefore flattened relative to the `AncestorBaselineGroup` owner. It carries the axis, role, selected track, immutable ancestor target, checked inherited-axis mapping, reversal, and signed placement translation. Derivation mutates neither the group nor a child view, compares no target values to infer ownership, and can be repeated identically. |
 | `ChildBaselineEnvelopeView` | A non-publishable slice of an `AncestorBaselineGroup`, mapped to one child's local track order and logical direction. It can align child-local items but cannot enter ancestor reduction or scalar sizing. |
 
 One `GridAxisKind`-parameterized traversal produces the scalar and member records
@@ -1162,8 +1178,9 @@ ancestor track and add the accumulated adjustment on that mapped start edge;
 last-baseline members select the endmost compatible track and add the accumulated
 adjustment on that mapped end edge. Reversal changes track and edge mapping, not
 the stored first/last preference. Positive, zero, and negative gutter differences
-therefore accumulate once while traversing outward. No later phase subtracts or
-re-adds them.
+therefore accumulate once while traversing outward. No later phase modifies that
+ancestor-facing member adjustment. An inherited-current-grid placement
+translation is a separate coordinate conversion, not a second accumulation.
 
 Intrinsic sizing freezes one pre-growth member census, reduces those members, and
 then applies each member's baseline shim and scalar contribution exactly once
@@ -1176,16 +1193,19 @@ horizontal auto-row control rather than the 459px duplicate-size result or the
 the current `[186,203,211]`.
 
 Final layout obtains one immutable ancestor group after tracks and item baseline
-facts are known. A direct item consumes its selected ancestor target directly;
-only an inherited child derives a local envelope view. The same axis-parametric
-offset operation applies a column target to the item's logical inline offset or a
-row target to its logical block offset, then the containing grid projects that
-logical point once. Repeating group/view derivation and placement with unchanged
-inputs produces identical groups and geometry. Fully inherited axes do not use
-the former `publish_row_baseline_groups` inverse or an inherited-baseline
-fixed-point loop; ordinary non-inherited grid-container baseline publication
-remains unchanged. Child axes govern only child-internal layout and baseline
-reading.
+facts are known. A member direct to that group's owner consumes its selected target
+directly. An item direct to a current grid whose corresponding axis is inherited
+derives `InheritedCurrentGridBaselinePlacement` from that immutable target and the
+checked inherited-axis transform. Only child-internal inherited layout derives
+`ChildBaselineEnvelopeView`. The same axis-parametric offset operation applies the
+selected owner target or placement value to the item's logical inline column or
+logical block row offset, then the containing grid projects that logical point
+once. Repeating placement/view derivation with unchanged inputs produces identical
+values and mutates neither source. Fully inherited axes do not mutate a reduced
+group, infer translation by comparing target values, use the former
+`publish_row_baseline_groups` inverse, or enter an inherited-baseline fixed-point
+loop; ordinary non-inherited grid-container baseline publication remains
+unchanged. Child axes govern only child-internal layout and baseline reading.
 
 Named focused tests prove:
 
@@ -1205,7 +1225,13 @@ Named focused tests prove:
   `[(66,15),(43,32),(38,40)]`, so all six later direct siblings remove the
   current uniform five-pixel error;
 - positive, zero, negative, reversed, and margin/border/padding traversal maps
-  each member once and repeated envelope-view derivation is identical; and
+  each member once and repeated envelope-view derivation is identical;
+- a phase regression preserves settled ancestor target `17` and child-envelope
+  target `9`, derives distinct inherited-current-grid placement target `22` from
+  signed translation `+5`, and proves repeated derivation mutates neither input;
+- row and column placement matrices cover first/last, reversed/non-reversed,
+  positive/zero/negative gutter differences, and MBP without target-value
+  comparison or post-reduction group mutation; and
 - the former inherited-publication round-trip test is removed rather than
   updated: it exercises the superseded `D-17` inverse, not a product contract.
 
