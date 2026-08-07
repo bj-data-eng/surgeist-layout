@@ -155,8 +155,8 @@ scenario data, measurement matching, panic text when asserted, child order, and
 phase boundaries.
 
 **Pre-change characterization:**
-`CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout block::tests::` and
-`CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout flex::tests::` pass
+`CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout block_tests::` and
+`CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout flex_tests::` pass
 at the task base.
 
 **Acceptance:** no ordinary local `Traverse`/`Compute`/`LayoutTree` implementation
@@ -167,8 +167,8 @@ behavior assertion is weakened.
 **Commands:**
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout block::tests::
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout flex::tests::
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout block_tests::
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout flex_tests::
 cargo fmt --check
 ```
 
