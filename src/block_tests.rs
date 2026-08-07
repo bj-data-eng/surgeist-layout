@@ -4,7 +4,12 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 
 use crate::block::{FloatExclusions, FloatLedgerSide, resolve_logical_in_flow_margin};
+use crate::test_support::layout_tree::OracleTree;
 use crate::*;
+
+type BlockTree = OracleTree;
+type CalcBlockTree = OracleTree;
+type ScrollBlockTree = OracleTree;
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
@@ -4595,59 +4600,6 @@ fn ordinary_block_orthogonal_subtracts_physical_child_inline_margins_for_f64() {
     }
 }
 
-#[derive(Default)]
-struct ScrollBlockTree {
-    children: HashMap<u32, Vec<u32>>,
-    styles: HashMap<u32, NodeInput>,
-    layouts: HashMap<u32, NodeOutput>,
-    outputs: HashMap<u32, ComputeOutput>,
-}
-
-impl Traverse for ScrollBlockTree {
-    type Node = u32;
-
-    type Scalar = Scalar;
-    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-    fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        self.children
-            .get(&node)
-            .map_or([].as_slice(), Vec::as_slice)
-            .iter()
-            .copied()
-    }
-
-    fn child_count(&self, node: Self::Node) -> usize {
-        self.children.get(&node).map_or(0, Vec::len)
-    }
-
-    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-        self.children[&node][index]
-    }
-}
-
-impl Compute for ScrollBlockTree {
-    fn node_input(&self, node: Self::Node) -> &NodeInput {
-        &self.styles[&node]
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-        LayoutInputOf::box_input(self.node_input(node).clone())
-    }
-
-    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-        self.layouts.insert(node, layout);
-    }
-
-    fn compute_child(
-        &mut self,
-        node: Self::Node,
-        _input: ComputeInput,
-    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
-        Ok(self.outputs[&node])
-    }
-}
-
 fn perform_scroll_block(tree: &mut ScrollBlockTree) -> ComputeOutput {
     crate::compute_block(
         tree,
@@ -4728,8 +4680,8 @@ fn child_scroll_geometry_with_edges(
 #[test]
 fn block_layout_emits_scroll_geometry_for_scroll_overflow() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             overflow: computed_overflow(Overflow::Scroll, Overflow::Hidden),
@@ -4748,9 +4700,9 @@ fn block_layout_emits_scroll_geometry_for_scroll_overflow() {
 #[test]
 fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -4759,7 +4711,7 @@ fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -4767,7 +4719,7 @@ fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(50.0, 20.0), Size::new(130.0, 70.0)),
     );
@@ -4785,9 +4737,9 @@ fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
 #[test]
 fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -4796,7 +4748,7 @@ fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -4805,7 +4757,7 @@ fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(50.0, 20.0), Size::new(160.0, 90.0)),
     );
@@ -4823,9 +4775,9 @@ fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
 #[test]
 fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -4834,7 +4786,7 @@ fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -4848,7 +4800,7 @@ fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(50.0, 20.0), Size::new(50.0, 20.0)),
     );
@@ -4871,8 +4823,8 @@ fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
 fn block_scroll_geometry_distinguishes_visible_hidden_clip_and_scroll() {
     fn run(overflow: ComputedOverflow) -> ScrollGeometry {
         let mut tree = ScrollBlockTree::default();
-        tree.children.insert(1, vec![]);
-        tree.styles.insert(
+        tree.insert_children(1, vec![]);
+        tree.insert_style(
             1,
             NodeInput {
                 display: Display::Block,
@@ -4910,8 +4862,8 @@ fn block_scroll_geometry_distinguishes_visible_hidden_clip_and_scroll() {
 #[test]
 fn block_scroll_geometry_uses_node_local_padding_border_and_gutter_coordinates() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -4939,9 +4891,9 @@ fn block_scroll_geometry_uses_node_local_padding_border_and_gutter_coordinates()
 #[test]
 fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -4950,7 +4902,7 @@ fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -4965,7 +4917,7 @@ fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(45.0, 25.0)),
     );
@@ -4983,9 +4935,9 @@ fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
 #[test]
 fn block_scroll_geometry_includes_final_content_box_after_size_resolution() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -4994,14 +4946,14 @@ fn block_scroll_geometry_includes_final_content_box_after_size_resolution() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
@@ -5037,9 +4989,9 @@ fn block_scroll_geometry_includes_final_content_box_after_size_resolution() {
 #[test]
 fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5048,7 +5000,7 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::InlineBlock,
@@ -5063,7 +5015,7 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
         Size::new(20.0, 10.0),
         ScrollRect::try_new(Point::new(-12.0, -3.0), Size::new(70.0, 26.0)).unwrap(),
     ));
-    tree.outputs.insert(2, inline_output);
+    tree.insert_measure(2, inline_output);
 
     let output = perform_scroll_block(&mut tree);
 
@@ -5079,9 +5031,9 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
 #[test]
 fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5090,7 +5042,7 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::InlineBlock,
@@ -5106,7 +5058,7 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
         Size::new(30.0, 10.0),
         ScrollRect::try_new(Point::new(-20.0, -7.0), Size::new(180.0, 92.0)).unwrap(),
     ));
-    tree.outputs.insert(2, inline_output);
+    tree.insert_measure(2, inline_output);
 
     let output = perform_scroll_block(&mut tree);
 
@@ -5122,11 +5074,11 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
 fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
     let metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2, 3, 4, 5]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(5, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3, 4, 5]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(5, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5135,7 +5087,7 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -5144,7 +5096,7 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::InlineBlock,
@@ -5153,7 +5105,7 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         5,
         NodeInput {
             display: Display::InlineBlock,
@@ -5174,68 +5126,17 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
         Size::new(10.0, 10.0),
         ScrollRect::try_new(Point::new(-7.0, 0.0), Size::new(25.0, 12.0)).unwrap(),
     ));
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(80.0, 50.0)));
-    tree.outputs.insert(3, first_inline);
-    tree.outputs.insert(5, second_inline);
-    tree.styles.insert(4, NodeInput::default());
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(80.0, 50.0)));
+    tree.insert_measure(3, first_inline);
+    tree.insert_measure(5, second_inline);
+    tree.insert_style(4, NodeInput::default());
 
-    struct SegmentedTree {
-        inner: ScrollBlockTree,
-        line_break: LineBreakInput,
-    }
-
-    impl Traverse for SegmentedTree {
-        type Node = u32;
-        type Scalar = Scalar;
-        type Children<'a> = <ScrollBlockTree as Traverse>::Children<'a>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.inner.children(node)
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.inner.child_count(node)
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.inner.child(node, index)
-        }
-    }
-
-    impl Compute for SegmentedTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            self.inner.node_input(node)
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            if node == 4 {
-                LayoutInputOf::line_break(self.line_break)
-            } else {
-                self.inner.layout_input(node)
-            }
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.inner.set_unrounded(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            self.inner.compute_child(node, input)
-        }
-    }
-
-    let mut segmented = SegmentedTree {
-        inner: tree,
-        line_break: LineBreakInput::new()
+    let mut segmented = tree.line_break(
+        4,
+        LineBreakInput::new()
             .with_clear(Clear::Left)
             .with_metrics(metrics),
-    };
+    );
 
     let output = crate::compute_block(
         &mut segmented,
@@ -5272,9 +5173,9 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
 #[test]
 fn block_scroll_geometry_includes_float_child_overflow_rect() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5283,7 +5184,7 @@ fn block_scroll_geometry_includes_float_child_overflow_rect() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -5298,7 +5199,7 @@ fn block_scroll_geometry_includes_float_child_overflow_rect() {
         Size::new(30.0, 10.0),
         ScrollRect::try_new(Point::ZERO, Size::new(140.0, 55.0)).unwrap(),
     ));
-    tree.outputs.insert(2, float_output);
+    tree.insert_measure(2, float_output);
 
     let output = perform_scroll_block(&mut tree);
 
@@ -5328,9 +5229,9 @@ fn block_float_child_node_output_retains_canonical_scroll_geometry() {
     ));
 
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5338,7 +5239,7 @@ fn block_float_child_node_output_retains_canonical_scroll_geometry() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -5349,11 +5250,11 @@ fn block_float_child_node_output_retains_canonical_scroll_geometry() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(2, float_output);
+    tree.insert_measure(2, float_output);
 
     perform_scroll_block(&mut tree);
 
-    let child_layout = tree.layouts[&2];
+    let child_layout = tree.layout(2).expect("child layout is staged");
     assert_eq!(child_layout.size, Size::new(30.0, 10.0));
     assert_eq!(child_layout.content_size, Size::new(70.0, 32.0));
     assert_eq!(child_layout.padding, resolved_padding);
@@ -5371,9 +5272,9 @@ fn block_float_child_node_output_retains_canonical_scroll_geometry() {
 #[test]
 fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5385,7 +5286,7 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -5413,7 +5314,7 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
         Size::new(20.0, 10.0),
         ScrollRect::try_new(Point::new(-2.0, -1.0), Size::new(60.0, 25.0)).unwrap(),
     ));
-    tree.outputs.insert(2, absolute_output);
+    tree.insert_measure(2, absolute_output);
 
     let output = perform_scroll_block(&mut tree);
 
@@ -5435,9 +5336,9 @@ fn block_child_node_output_recomputes_child_scroll_geometry() {
     child_output.scroll_geometry = None;
 
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5445,7 +5346,7 @@ fn block_child_node_output_recomputes_child_scroll_geometry() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -5454,11 +5355,15 @@ fn block_child_node_output_recomputes_child_scroll_geometry() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(2, child_output);
+    tree.insert_measure(2, child_output);
 
     perform_scroll_block(&mut tree);
 
-    let geometry = tree.layouts[&2].scroll_geometry.unwrap();
+    let geometry = tree
+        .layout(2)
+        .expect("child layout is staged")
+        .scroll_geometry
+        .unwrap();
     assert_eq!(geometry.scrollport().size(), Size::new(50.0, 20.0));
     assert_positive_physical_range(geometry.physical_range(), Size::new(30.0, 25.0));
 }
@@ -5466,9 +5371,9 @@ fn block_child_node_output_recomputes_child_scroll_geometry() {
 #[test]
 fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5477,7 +5382,7 @@ fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -5486,14 +5391,18 @@ fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(50.0, 20.0), Size::new(160.0, 90.0)),
     );
 
     perform_scroll_block(&mut tree);
 
-    let geometry = tree.layouts[&2].scroll_geometry.unwrap();
+    let geometry = tree
+        .layout(2)
+        .expect("child layout is staged")
+        .scroll_geometry
+        .unwrap();
     assert_eq!(
         geometry.scrollable_overflow(),
         ScrollRect::try_new(Point::ZERO, Size::new(160.0, 90.0)).unwrap()
@@ -5504,9 +5413,9 @@ fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
 #[test]
 fn block_absolute_child_scroll_geometry_uses_final_node_output_size() {
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5514,7 +5423,7 @@ fn block_absolute_child_scroll_geometry_uses_final_node_output_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -5529,14 +5438,14 @@ fn block_absolute_child_scroll_geometry_uses_final_node_output_size() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(120.0, 30.0)),
     );
 
     perform_scroll_block(&mut tree);
 
-    let child_layout = tree.layouts[&2];
+    let child_layout = tree.layout(2).expect("child layout is staged");
     assert_eq!(child_layout.size.width, 100.0);
     let geometry = child_layout.scroll_geometry.unwrap();
     assert_eq!(geometry.scrollport().size().width, 100.0);
@@ -5555,9 +5464,9 @@ fn block_child_node_output_preserves_child_scrollable_overflow_origin() {
     ));
 
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5565,7 +5474,7 @@ fn block_child_node_output_preserves_child_scrollable_overflow_origin() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -5574,11 +5483,15 @@ fn block_child_node_output_preserves_child_scrollable_overflow_origin() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(2, child_output);
+    tree.insert_measure(2, child_output);
 
     perform_scroll_block(&mut tree);
 
-    let geometry = tree.layouts[&2].scroll_geometry.unwrap();
+    let geometry = tree
+        .layout(2)
+        .expect("child layout is staged")
+        .scroll_geometry
+        .unwrap();
     assert_eq!(
         geometry.scrollable_overflow().origin(),
         Point::new(-15.0, -4.0)
@@ -5598,9 +5511,9 @@ fn block_inline_child_node_output_uses_final_inline_item_geometry() {
     ));
 
     let mut tree = ScrollBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5608,7 +5521,7 @@ fn block_inline_child_node_output_uses_final_inline_item_geometry() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::InlineBlock,
@@ -5617,11 +5530,11 @@ fn block_inline_child_node_output_uses_final_inline_item_geometry() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(2, child_output);
+    tree.insert_measure(2, child_output);
 
     perform_scroll_block(&mut tree);
 
-    let child_layout = tree.layouts[&2];
+    let child_layout = tree.layout(2).expect("child layout is staged");
     assert_eq!(child_layout.size, Size::new(40.0, 12.0));
     assert_eq!(child_layout.content_size, Size::new(65.0, 31.0));
     let geometry = child_layout.scroll_geometry.unwrap();
@@ -5629,79 +5542,12 @@ fn block_inline_child_node_output_uses_final_inline_item_geometry() {
     assert_eq!(geometry.scrollable_overflow(), child_overflow);
 }
 
-fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
-    let size = Size::new(
-        input.known().width.unwrap_or(fallback.width),
-        input.known().height.unwrap_or(fallback.height),
-    );
-    ComputeOutput::from_sizes(size, size)
-}
-
-#[derive(Default)]
-struct CalcBlockTree {
-    children: HashMap<u32, Vec<u32>>,
-    styles: HashMap<u32, NodeInput>,
-    layouts: HashMap<u32, NodeOutput>,
-    inputs: HashMap<u32, Vec<ComputeInput>>,
-}
-
-impl Traverse for CalcBlockTree {
-    type Node = u32;
-
-    type Scalar = Scalar;
-    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-    fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        self.children
-            .get(&node)
-            .map_or([].as_slice(), Vec::as_slice)
-            .iter()
-            .copied()
-    }
-
-    fn child_count(&self, node: Self::Node) -> usize {
-        self.children.get(&node).map_or(0, Vec::len)
-    }
-
-    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-        self.children[&node][index]
-    }
-}
-
-impl Compute for CalcBlockTree {
-    fn node_input(&self, node: Self::Node) -> &NodeInput {
-        &self.styles[&node]
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-        LayoutInputOf::box_input(self.node_input(node).clone())
-    }
-
-    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-        self.layouts.insert(node, layout);
-    }
-
-    fn compute_child(
-        &mut self,
-        node: Self::Node,
-        input: ComputeInput,
-    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
-        Ok({
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known().width.unwrap_or(0.0),
-                input.known().height.unwrap_or(10.0),
-            ))
-        })
-    }
-}
-
 #[test]
 fn block_fixed_parent_height_keeps_orthogonal_child_inline_known() {
     let mut tree = CalcBlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -5709,7 +5555,7 @@ fn block_fixed_parent_height_keeps_orthogonal_child_inline_known() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Grid,
@@ -5737,7 +5583,7 @@ fn block_fixed_parent_height_keeps_orthogonal_child_inline_known() {
     )
     .expect("fixed-height block layout succeeds");
 
-    assert!(tree.inputs[&2].iter().any(|input| {
+    assert!(tree.inputs(2).iter().any(|input| {
         input.known().height == Some(162.0)
             && input.parent().height == Some(162.0)
             && input.available().height == Available::definite(162.0)
@@ -8718,65 +8564,11 @@ fn block_definite_compute_size_keeps_non_empty_flex_child_baselines() {
 
 #[test]
 fn block_layout_stacks_in_flow_children_vertically() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                self.outputs[&node]
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -8791,7 +8583,7 @@ fn block_layout_stacks_in_flow_children_vertically() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -8804,7 +8596,7 @@ fn block_layout_stacks_in_flow_children_vertically() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::Block,
@@ -8817,11 +8609,11 @@ fn block_layout_stacks_in_flow_children_vertically() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         3,
         ComputeOutput::from_sizes(Size::new(30.0, 12.0), Size::new(30.0, 12.0)),
     );
@@ -8849,13 +8641,28 @@ fn block_layout_stacks_in_flow_children_vertically() {
 
     assert_eq!(output.size, Size::new(100.0, 41.0));
     assert_eq!(output.content_size, Size::new(98.0, 39.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(18.0, 6.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
-    assert_eq!(tree.layouts[&2].margin.left, 6.0);
-    assert_eq!(tree.layouts[&3].location, Point::new(12.0, 21.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(30.0, 12.0));
-    assert_eq!(tree.inputs[&2][0].parent(), Size::new(Some(82.0), None));
-    assert_eq!(tree.inputs[&3][0].parent(), Size::new(Some(82.0), None));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(18.0, 6.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.left,
+        6.0
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(12.0, 21.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(30.0, 12.0)
+    );
+    assert_eq!(tree.inputs(2)[0].parent(), Size::new(Some(82.0), None));
+    assert_eq!(tree.inputs(3)[0].parent(), Size::new(Some(82.0), None));
 }
 
 #[test]
@@ -8863,9 +8670,9 @@ fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
     let mut tree = CalcBlockTree::default();
     let margin_left = lp(-4.0, 0.1);
     let width = lp(20.0, 0.5);
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -8873,7 +8680,7 @@ fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -8887,6 +8694,7 @@ fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
             ..NodeInput::default()
         },
     );
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(120.0, 10.0)));
 
     crate::compute_block(
         &mut tree,
@@ -8909,26 +8717,35 @@ fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].known(), Size::new(Some(120.0), None));
-    assert_eq!(tree.layouts[&2].location, Point::new(16.0, 0.0));
-    assert_eq!(tree.layouts[&2].margin.left, 16.0);
-    assert_eq!(tree.layouts[&2].size, Size::new(120.0, 10.0));
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(120.0), None));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(16.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.left,
+        16.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(120.0, 10.0)
+    );
 }
 
 #[test]
 fn block_container_affine_padding_uses_parent_basis() {
     let mut tree = CalcBlockTree::default();
     let padding = lp(2.0, 0.1);
-    tree.children.insert(0, vec![1]);
-    tree.children.insert(1, vec![]);
-    tree.styles.insert(
+    tree.insert_children(0, vec![1]);
+    tree.insert_children(1, vec![]);
+    tree.insert_style(
         0,
         NodeInput {
             padding: Edges::all(Length::value(padding)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(1, NodeInput::default());
+    tree.insert_style(1, NodeInput::default());
 
     let output = crate::compute_block(
         &mut tree,
@@ -8956,60 +8773,10 @@ fn block_container_affine_padding_uses_parent_basis() {
 
 #[test]
 fn block_auto_width_includes_in_flow_child_horizontal_margins() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -9017,7 +8784,7 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -9031,7 +8798,7 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
@@ -9057,69 +8824,22 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(3.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(3.0, 0.0)
+    );
     assert_eq!(output.size, Size::new(32.0, 10.0));
     assert_eq!(output.content_size, Size::new(32.0, 10.0));
 }
 
 #[test]
 fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -9129,7 +8849,7 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
         },
     );
     for node in [2, 3, 4] {
-        tree.styles.insert(
+        tree.insert_style(
             node,
             NodeInput {
                 display: Display::Block,
@@ -9138,7 +8858,7 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
                 ..NodeInput::default()
             },
         );
-        tree.outputs.insert(
+        tree.insert_measure(
             node,
             ComputeOutput::from_sizes(Size::new(50.0, 20.0), Size::new(50.0, 20.0)),
         );
@@ -9166,9 +8886,18 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(154.0, 80.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(102.0, 2.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(52.0, 2.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(2.0, 2.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(102.0, 2.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(52.0, 2.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("child layout is staged").location,
+        Point::new(2.0, 2.0)
+    );
 }
 
 #[test]
@@ -9665,61 +9394,11 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
 
 #[test]
 fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -9727,7 +9406,7 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -9738,7 +9417,7 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::Block,
@@ -9749,11 +9428,11 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(100.0, 10.0), Size::new(100.0, 10.0)),
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         3,
         ComputeOutput::from_sizes(Size::new(100.0, 10.0), Size::new(100.0, 10.0)),
     );
@@ -9779,68 +9458,24 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 20.0)
+    );
     assert_eq!(output.size, Size::new(100.0, 30.0));
     assert_eq!(output.content_size, Size::new(100.0, 30.0));
 }
 
 #[test]
 fn block_layout_collapses_first_child_top_margin_through_parent() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -9848,7 +9483,7 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -9859,7 +9494,7 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(100.0, 5.0), Size::new(100.0, 5.0)),
     );
@@ -9885,7 +9520,10 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
     assert_eq!(output.size, Size::new(100.0, 5.0));
     assert_eq!(
         output.block_margin_collapse.at(PhysicalSide::Top).resolve(),
@@ -9902,60 +9540,10 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
 
 #[test]
 fn block_scroll_container_keeps_first_child_top_margin_inside() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -9964,7 +9552,7 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -9975,7 +9563,7 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(100.0, 5.0), Size::new(100.0, 5.0)),
     );
@@ -10001,7 +9589,10 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 10.0)
+    );
     assert_eq!(output.size, Size::new(100.0, 15.0));
     assert_eq!(output.content_size, Size::new(100.0, 15.0));
     assert_eq!(
@@ -10024,64 +9615,10 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
 
 #[test]
 fn block_rtl_scrollbar_gutter_uses_left_inset() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(10.0),
-                ))
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -10092,13 +9629,14 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
             ..NodeInput::default()
         },
     );
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(83.0, 10.0)));
 
     crate::compute_block(
         &mut tree,
@@ -10121,66 +9659,22 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(17.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(83.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(17.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(83.0, 10.0)
+    );
 }
 
 #[test]
 fn block_layout_collapses_last_child_bottom_margin_through_parent() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -10188,7 +9682,7 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -10199,7 +9693,7 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(100.0, 5.0), Size::new(100.0, 5.0)),
     );
@@ -10225,7 +9719,10 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
     assert_eq!(output.size, Size::new(100.0, 5.0));
     assert_eq!(
         output.block_margin_collapse.at(PhysicalSide::Top).resolve(),
@@ -10242,59 +9739,10 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
 
 #[test]
 fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(ComputeOutput::from_outer_size(Size::new(50.0, 20.0)))
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -10302,7 +9750,7 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Grid,
@@ -10313,6 +9761,7 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
             ..NodeInput::default()
         },
     );
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(50.0, 20.0)));
 
     let output = crate::compute_block(
         &mut tree,
@@ -10336,67 +9785,23 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(50.0, 30.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 10.0));
-    assert_eq!(tree.layouts[&2].margin.top, 10.0);
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.top,
+        10.0
+    );
 }
 
 #[test]
 fn block_layout_collapses_margins_through_empty_in_flow_child() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -10410,7 +9815,7 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -10422,7 +9827,7 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::Block,
@@ -10440,8 +9845,8 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
         CollapsibleMargin::ZERO,
         true,
     );
-    tree.outputs.insert(2, empty_output);
-    tree.outputs.insert(
+    tree.insert_measure(2, empty_output);
+    tree.insert_measure(
         3,
         ComputeOutput::from_sizes(Size::new(100.0, 10.0), Size::new(100.0, 10.0)),
     );
@@ -10467,8 +9872,14 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 11.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 11.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 11.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 11.0)
+    );
     assert_eq!(output.size, Size::new(100.0, 22.0));
     assert_eq!(output.content_size, Size::new(100.0, 20.0));
 }
@@ -10814,60 +10225,10 @@ fn block_in_flow_invalid_numeric_horizontal_margin_uses_zero_fallback() {
 
 #[test]
 fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -10883,7 +10244,7 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -10896,7 +10257,7 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
@@ -10923,67 +10284,26 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 12.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(67.0, 1.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
-    assert_eq!(tree.layouts[&2].margin.right, 7.0);
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(67.0, 1.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.right,
+        7.0
+    );
 }
 
 #[test]
 fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -10991,7 +10311,7 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -11004,7 +10324,7 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
@@ -11032,68 +10352,30 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
 
     assert_eq!(output.size, Size::new(100.0, 10.0));
     assert_eq!(output.content_size, Size::new(100.0, 10.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(40.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
-    assert_eq!(tree.layouts[&2].margin.left, 40.0);
-    assert_eq!(tree.layouts[&2].margin.right, 40.0);
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(40.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.left,
+        40.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.right,
+        40.0
+    );
 }
 
 #[test]
 fn block_content_size_includes_visible_child_overflow_content() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -11101,7 +10383,7 @@ fn block_content_size_includes_visible_child_overflow_content() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -11109,7 +10391,7 @@ fn block_content_size_includes_visible_child_overflow_content() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(40.0, 10.0), Size::new(120.0, 24.0)),
     );
@@ -11135,67 +10417,23 @@ fn block_content_size_includes_visible_child_overflow_content() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(40.0, 10.0)
+    );
     assert_eq!(output.content_size, Size::new(120.0, 24.0));
 }
 
 #[test]
 fn block_relative_child_inset_offsets_final_layout_location() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -11203,7 +10441,7 @@ fn block_relative_child_inset_offsets_final_layout_location() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -11221,7 +10459,7 @@ fn block_relative_child_inset_offsets_final_layout_location() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
@@ -11248,72 +10486,22 @@ fn block_relative_child_inset_offsets_final_layout_location() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 10.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(13.0, 3.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(13.0, 3.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
 }
 
 #[test]
 fn block_layout_stretches_auto_width_in_flow_children() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_sizes(
-                    Size::new(input.known().width.unwrap(), 10.0),
-                    Size::new(input.known().width.unwrap(), 10.0),
-                )
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -11327,7 +10515,7 @@ fn block_layout_stretches_auto_width_in_flow_children() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -11339,6 +10527,7 @@ fn block_layout_stretches_auto_width_in_flow_children() {
             ..NodeInput::default()
         },
     );
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(76.0, 10.0)));
 
     let output = crate::compute_block(
         &mut tree,
@@ -11361,75 +10550,25 @@ fn block_layout_stretches_auto_width_in_flow_children() {
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].known().width, Some(76.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(76.0, 10.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(8.0, 0.0));
+    assert_eq!(tree.inputs(2)[0].known().width, Some(76.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(76.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(8.0, 0.0)
+    );
     assert_eq!(output.content_size, Size::new(100.0, 10.0));
     assert_eq!(output.size, Size::new(100.0, 10.0));
 }
 
 #[test]
 fn block_compute_size_uses_in_flow_children_for_auto_height() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_sizes(
-                    Size::new(input.known().width.unwrap(), 10.0),
-                    Size::new(input.known().width.unwrap(), 10.0),
-                )
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -11443,7 +10582,7 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -11456,6 +10595,7 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
             ..NodeInput::default()
         },
     );
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(76.0, 10.0)));
 
     let output = crate::compute_block(
         &mut tree,
@@ -11478,11 +10618,11 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].run_mode(), RunMode::ComputeSize);
-    assert_eq!(tree.inputs[&2][0].known().width, Some(76.0));
+    assert_eq!(tree.inputs(2)[0].run_mode(), RunMode::ComputeSize);
+    assert_eq!(tree.inputs(2)[0].known().width, Some(76.0));
     assert_eq!(output.size, Size::new(100.0, 26.0));
     assert_eq!(output.content_size, Size::ZERO);
-    assert!(tree.layouts.is_empty());
+    assert!(tree.layout(2).is_none());
 }
 
 #[test]
@@ -11671,60 +10811,10 @@ fn block_definite_compute_size_keeps_grid_children_on_fast_path_until_grid_basel
 
 #[test]
 fn block_auto_height_clamps_to_max_size() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -11733,14 +10823,14 @@ fn block_auto_height_clamps_to_max_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(100.0, 20.0), Size::new(100.0, 20.0)),
     );
@@ -11768,62 +10858,18 @@ fn block_auto_height_clamps_to_max_size() {
 
     assert_eq!(output.size, Size::new(100.0, 12.0));
     assert_eq!(output.content_size, Size::new(100.0, 20.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(100.0, 20.0)
+    );
 }
 
 #[test]
 fn block_auto_size_applies_aspect_ratio_to_max_size() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -11832,14 +10878,14 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(80.0, 40.0), Size::new(80.0, 40.0)),
     );
@@ -11870,60 +10916,11 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
 
 #[test]
 fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(ComputeOutput::from_outer_size(Size::new(60.0, 10.0)))
-        }
-    }
-
     fn run(text_align: TextAlign, direction: Direction) -> NodeOutput {
         let mut tree = BlockTree::default();
-        tree.children.insert(1, vec![2]);
-        tree.children.insert(2, vec![]);
-        tree.styles.insert(
+        tree.insert_children(1, vec![2]);
+        tree.insert_children(2, vec![]);
+        tree.insert_style(
             1,
             NodeInput {
                 display: Display::Block,
@@ -11933,7 +10930,7 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
                 ..NodeInput::default()
             },
         );
-        tree.styles.insert(
+        tree.insert_style(
             2,
             NodeInput {
                 display: Display::Block,
@@ -11941,6 +10938,7 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
                 ..NodeInput::default()
             },
         );
+        tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(60.0, 10.0)));
 
         crate::compute_block(
             &mut tree,
@@ -11963,7 +10961,7 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
         )
         .unwrap();
 
-        tree.layouts[&2]
+        tree.layout(2).expect("child layout is staged")
     }
 
     assert_eq!(
@@ -11983,70 +10981,12 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
 
 #[test]
 fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_display_none() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                if input.run_mode() == RunMode::PerformHiddenLayout {
-                    ComputeOutput::HIDDEN
-                } else {
-                    self.outputs[&node]
-                }
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -12055,14 +10995,14 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::Block,
@@ -12077,20 +11017,25 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         4,
         NodeInput {
             display: Display::None,
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(40.0, 10.0), Size::new(40.0, 10.0)),
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         3,
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(80.0, 32.0)),
+    );
+    tree = tree.measure_when(
+        4,
+        crate::test_support::layout_tree::OracleMeasurement::new(ComputeOutput::HIDDEN)
+            .run_mode(RunMode::PerformHiddenLayout),
     );
 
     let output = crate::compute_block(
@@ -12116,15 +11061,24 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
 
     assert_eq!(output.size, Size::new(100.0, 12.0));
     assert_eq!(output.content_size, Size::new(98.0, 41.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(1.0, 1.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(8.0, 10.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(20.0, 10.0));
     assert_eq!(
-        tree.layouts[&4],
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(1.0, 1.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(8.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("child layout is staged"),
         NodeOutput::with_source_index(crate::SourceIndex::new(2))
     );
     assert_eq!(
-        tree.inputs[&4],
+        tree.inputs(4),
         vec![ComputeInput::hidden(crate::ContainingLayoutContext::new(
             crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr,),
             crate::ParentFormattingContext::BlockFlow
@@ -12134,61 +11088,11 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
 
 #[test]
 fn block_absolute_child_without_insets_uses_static_position_after_flow() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -12197,14 +11101,14 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::Block,
@@ -12213,11 +11117,11 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(98.0, 10.0), Size::new(98.0, 10.0)),
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         3,
         ComputeOutput::from_sizes(Size::new(20.0, 5.0), Size::new(20.0, 5.0)),
     );
@@ -12244,67 +11148,26 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 12.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(1.0, 1.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(1.0, 11.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(20.0, 5.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(1.0, 1.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(1.0, 11.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(20.0, 5.0)
+    );
 }
 
 #[test]
 fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -12312,7 +11175,7 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -12322,7 +11185,7 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(80.0, 40.0), Size::new(80.0, 40.0)),
     );
@@ -12348,68 +11211,18 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(50.0, 25.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(50.0, 25.0)
+    );
 }
 
 #[test]
 fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                output_from_known_or(input, Size::ZERO)
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -12418,7 +11231,7 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -12456,76 +11269,23 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 50.0));
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(74.0), Some(24.0)));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(74.0), Some(24.0))
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(8.0, 14.0)
     );
-    assert_eq!(tree.layouts[&2].location, Point::new(8.0, 14.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(74.0, 24.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(74.0, 24.0)
+    );
 }
 
 #[test]
 fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -12533,7 +11293,7 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -12570,72 +11330,19 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
     )
     .unwrap();
 
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(80.0), Some(40.0)));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(80.0), Some(40.0))
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(80.0, 40.0)
     );
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 40.0));
 }
 
 #[test]
 fn block_absolute_child_expands_horizontal_auto_margins() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                output_from_known_or(input, Size::ZERO)
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -12643,7 +11350,7 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -12686,75 +11393,31 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
     )
     .unwrap();
 
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(20.0), Some(10.0)));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(20.0), Some(10.0))
+        tree.layout(2).expect("child layout is staged").margin.left,
+        40.0
     );
-    assert_eq!(tree.layouts[&2].margin.left, 40.0);
-    assert_eq!(tree.layouts[&2].margin.right, 40.0);
-    assert_eq!(tree.layouts[&2].location, Point::new(40.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.right,
+        40.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(40.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
 }
 
 #[test]
 fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0))
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -12762,7 +11425,7 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -12805,75 +11468,31 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
     )
     .unwrap();
 
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(70.0), Some(10.0)));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(70.0), Some(10.0))
+        tree.layout(2).expect("child layout is staged").margin.left,
+        0.0
     );
-    assert_eq!(tree.layouts[&2].margin.left, 0.0);
-    assert_eq!(tree.layouts[&2].margin.right, 0.0);
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(70.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.right,
+        0.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(70.0, 10.0)
+    );
 }
 
 #[test]
 fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                output_from_known_or(input, Size::ZERO)
-            })
-        }
-    }
-
     let mut tree = BlockTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Block,
@@ -12883,7 +11502,7 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -12920,12 +11539,15 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
     )
     .unwrap();
 
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(20.0), Some(10.0)));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(20.0), Some(10.0))
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(62.0, 1.0)
     );
-    assert_eq!(tree.layouts[&2].location, Point::new(62.0, 1.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
 }
 
 #[derive(Default)]

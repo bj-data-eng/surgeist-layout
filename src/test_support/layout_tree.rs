@@ -205,10 +205,19 @@ impl<S: LayoutScalar> OracleTreeOf<S> {
         self
     }
 
+    pub fn insert_children(&mut self, node: u32, children: impl IntoIterator<Item = u32>) {
+        self.children.insert(node, children.into_iter().collect());
+    }
+
     pub fn style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
         self.layout_inputs
             .insert(node, LayoutInputOf::box_input(style));
         self
+    }
+
+    pub fn insert_style(&mut self, node: u32, style: NodeInputOf<S>) {
+        self.layout_inputs
+            .insert(node, LayoutInputOf::box_input(style));
     }
 
     pub fn line_break(mut self, node: u32, input: LineBreakInputOf<S>) -> Self {
@@ -229,6 +238,13 @@ impl<S: LayoutScalar> OracleTreeOf<S> {
             .or_default()
             .push(OracleMeasurementOf::new(output));
         self
+    }
+
+    pub fn insert_measure(&mut self, node: u32, output: ComputeOutputOf<S>) {
+        self.measurements
+            .entry(node)
+            .or_default()
+            .push(OracleMeasurementOf::new(output));
     }
 
     pub fn measure_when(mut self, node: u32, measurement: OracleMeasurementOf<S>) -> Self {

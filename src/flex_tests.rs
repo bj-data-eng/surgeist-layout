@@ -2,7 +2,13 @@ use std::collections::HashMap;
 
 use crate::flex::FlexAxes;
 use crate::geometry::PhysicalProgression;
+use crate::test_support::layout_tree::{
+    OracleMeasurementOf, OracleTree, OracleTreeOf, PublicLayoutTreeOf,
+};
 use crate::*;
+
+type FlexTree<S = Scalar> = OracleTreeOf<S>;
+type RecursiveTree = OracleTree;
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
@@ -831,47 +837,14 @@ fn fri04_c04_flex_dispatch_container_item_root_and_absolute_report_consuming_alg
     };
     assert_eq!(container_unsupported.algorithm(), SizingAlgorithm::Flex);
 
-    struct FlexRootTree {
-        style: NodeInput,
-    }
-
-    impl Traverse for FlexRootTree {
-        type Node = u32;
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Empty<u32>;
-
-        fn children(&self, _node: Self::Node) -> Self::Children<'_> {
-            std::iter::empty()
-        }
-
-        fn child_count(&self, _node: Self::Node) -> usize {
-            0
-        }
-
-        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-            panic!("flex root has no children")
-        }
-    }
-
-    impl LayoutTree for FlexRootTree {
-        type MeasureError = core::convert::Infallible;
-
-        fn node_input(&self, _node: Self::Node) -> &NodeInput {
-            &self.style
-        }
-
-        fn layout_input(&self, _node: Self::Node) -> LayoutInput {
-            LayoutInput::box_input(self.style.clone())
-        }
-    }
-
-    let root = FlexRootTree {
-        style: NodeInput {
+    let root = PublicLayoutTreeOf::new().style(
+        0,
+        NodeInput {
             display: Display::Flex,
             min_size: Size::new(MinSize::AUTO, MinSize::STRETCH),
             ..NodeInput::default()
         },
-    };
+    );
     let root_error = compute_layout(
         &root,
         0,
@@ -2313,25 +2286,6 @@ fn fri06_mr02_physical_edge_flex_selectors_cover_scalar_optional_and_boolean_car
     assert_fri06_mr02_physical_edge_flex_carrier(Edges::new(false, true, false, true));
 }
 
-fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
-    let size = Size::new(
-        input.known().width.unwrap_or(fallback.width),
-        input.known().height.unwrap_or(fallback.height),
-    );
-    ComputeOutput::from_sizes(size, size)
-}
-
-fn fake_leaf_error(
-    node: u32,
-    error: LayoutError<(), core::convert::Infallible>,
-) -> LayoutError<u32> {
-    LayoutError::new(
-        LayoutErrorSite::Node(node),
-        error.operation(),
-        error.kind().clone(),
-    )
-}
-
 #[test]
 fn flex_direction_retains_row_column_and_reverse_classification() {
     assert!(FlexDirection::Row.is_row());
@@ -2344,65 +2298,11 @@ fn flex_direction_retains_row_column_and_reverse_classification() {
 
 #[test]
 fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                self.outputs[&node]
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
@@ -2412,25 +2312,25 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(30.0), PreferredSize::px(30.0)),
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(40.0, 20.0), Size::new(40.0, 20.0)),
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         3,
         ComputeOutput::from_sizes(Size::new(30.0, 30.0), Size::new(30.0, 30.0)),
     );
@@ -2459,19 +2359,25 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
     assert_eq!(output.size, Size::new(200.0, 42.0));
     assert_eq!(output.content_size, Size::new(198.0, 40.0));
 
-    assert_eq!(tree.layouts[&2].location, Point::new(6.0, 6.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 20.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(56.0, 6.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(30.0, 30.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(6.0, 6.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(40.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(56.0, 6.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(30.0, 30.0)
+    );
 
-    assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(40.0), Some(20.0))
-    );
-    assert_eq!(
-        tree.inputs[&3][0].known(),
-        Size::new(Some(30.0), Some(30.0))
-    );
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(40.0), Some(20.0)));
+    assert_eq!(tree.inputs(3)[0].known(), Size::new(Some(30.0), Some(30.0)));
 }
 
 #[test]
@@ -2612,74 +2518,24 @@ fn flex_margin_resolution_handles_invalid_affine_numeric_result_without_panickin
 
 #[test]
 fn flex_content_size_includes_visible_child_overflow_content() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(40.0, 10.0), Size::new(120.0, 24.0)),
     );
@@ -2705,77 +2561,23 @@ fn flex_content_size_includes_visible_child_overflow_content() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(40.0, 10.0)
+    );
     assert_eq!(output.content_size, Size::new(120.0, 24.0));
 }
 
 #[test]
 fn flex_final_content_size_uses_rerun_output() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                let size = if input.run_mode() == RunMode::PerformLayout
-                    && input.known().width == Some(80.0)
-                {
-                    Size::new(80.0, 40.0)
-                } else {
-                    Size::new(20.0, 10.0)
-                };
-                ComputeOutput::from_sizes(size, size)
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(0, vec![1]);
-    tree.children.insert(1, vec![]);
-    tree.styles.insert(
+    tree.insert_children(0, vec![1]);
+    tree.insert_children(1, vec![]);
+    tree.insert_style(
         0,
         NodeInput {
             display: Display::Flex,
@@ -2783,13 +2585,27 @@ fn flex_final_content_size_uses_rerun_output() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
+    tree = tree
+        .measure_when(
+            1,
+            OracleMeasurementOf::new(ComputeOutput::from_sizes(
+                Size::new(80.0, 40.0),
+                Size::new(80.0, 40.0),
+            ))
+            .run_mode(RunMode::PerformLayout)
+            .known(Size::new(Some(80.0), Some(10.0))),
+        )
+        .measure(
+            1,
+            ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
+        );
 
     let output = compute_flex(
         &mut tree,
@@ -2812,10 +2628,10 @@ fn flex_final_content_size_uses_rerun_output() {
     )
     .unwrap();
 
-    assert!(tree.inputs[&1].iter().any(|input| {
+    assert!(tree.inputs(1).iter().any(|input| {
         input.run_mode() == RunMode::ComputeSize && input.known().width == Some(80.0)
     }));
-    assert!(tree.inputs[&1].iter().any(|input| {
+    assert!(tree.inputs(1).iter().any(|input| {
         input.run_mode() == RunMode::PerformLayout && input.known().width == Some(80.0)
     }));
     assert_eq!(output.content_size.height, 40.0);
@@ -2823,66 +2639,17 @@ fn flex_final_content_size_uses_rerun_output() {
 
 #[test]
 fn flex_relative_child_inset_offsets_final_layout_location() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             inset: Edges {
@@ -2916,72 +2683,29 @@ fn flex_relative_child_inset_offsets_final_layout_location() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(7.0, 3.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(7.0, 3.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
 }
 
 #[test]
 fn flex_relative_child_trailing_inset_offsets_negative() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             inset: Edges {
@@ -3015,7 +2739,10 @@ fn flex_relative_child_trailing_inset_offsets_negative() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(-5.0, -2.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(-5.0, -2.0)
+    );
 }
 
 #[test]
@@ -3105,69 +2832,17 @@ fn flex_compute_size_short_circuits_when_container_size_is_definite() {
 
 #[test]
 fn flex_compute_size_measures_children_without_perform_layout() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {
-            panic!("compute-size must not write child layouts")
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(20.0, 10.0))
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -3197,72 +2872,22 @@ fn flex_compute_size_measures_children_without_perform_layout() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(20.0, 10.0));
-    assert_eq!(tree.inputs[&2][0].run_mode(), RunMode::ComputeSize);
+    assert_eq!(tree.inputs(2)[0].run_mode(), RunMode::ComputeSize);
 }
 
 #[test]
 fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(0.0, input.known().height.unwrap_or(10.0)))
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(50.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -3291,7 +2916,7 @@ fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
     )
     .unwrap();
 
-    let base_input = tree.inputs[&2][0];
+    let base_input = tree.inputs(2)[0];
     assert_eq!(base_input.sizing_mode(), SizingMode::ContentSize);
     assert_eq!(base_input.known().width, None);
     assert_eq!(base_input.known().height, Some(10.0));
@@ -3301,72 +2926,18 @@ fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
 
 #[test]
 fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(40.0),
-                    input.known().height.unwrap_or(50.0),
-                ))
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(50.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -3375,7 +2946,7 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::Block,
@@ -3383,6 +2954,14 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
             ..NodeInput::default()
         },
     );
+    tree = tree
+        .measure_when(
+            2,
+            OracleMeasurementOf::new(ComputeOutput::from_outer_size(Size::new(0.0, 50.0)))
+                .known(Size::new(Some(0.0), Some(50.0))),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(40.0, 50.0)))
+        .measure(3, ComputeOutput::from_outer_size(Size::new(40.0, 50.0)));
 
     compute_flex(
         &mut tree,
@@ -3405,71 +2984,23 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(0.0, 50.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(40.0, 50.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(0.0, 50.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(40.0, 50.0)
+    );
 }
 
 #[test]
 fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(40.0),
-                    input.known().height.unwrap_or(50.0),
-                ))
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             flex_direction: FlexDirection::Column,
@@ -3477,7 +3008,7 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -3489,7 +3020,7 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::Block,
@@ -3497,6 +3028,14 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
             ..NodeInput::default()
         },
     );
+    tree = tree
+        .measure_when(
+            2,
+            OracleMeasurementOf::new(ComputeOutput::from_outer_size(Size::new(100.0, 0.0)))
+                .known(Size::new(Some(100.0), Some(0.0))),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(40.0, 50.0)))
+        .measure(3, ComputeOutput::from_outer_size(Size::new(20.0, 50.0)));
 
     compute_flex(
         &mut tree,
@@ -3519,71 +3058,23 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(20.0, 50.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(100.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(20.0, 50.0)
+    );
 }
 
 #[test]
 fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(40.0),
-                    input.known().height.unwrap_or(50.0),
-                ))
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             flex_direction: FlexDirection::Column,
@@ -3591,7 +3082,7 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Block,
@@ -3603,7 +3094,7 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::Block,
@@ -3611,6 +3102,14 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
             ..NodeInput::default()
         },
     );
+    tree = tree
+        .measure_when(
+            2,
+            OracleMeasurementOf::new(ComputeOutput::from_outer_size(Size::new(100.0, 0.0)))
+                .known(Size::new(Some(100.0), Some(0.0))),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(40.0, 50.0)))
+        .measure(3, ComputeOutput::from_outer_size(Size::new(20.0, 50.0)));
 
     compute_flex(
         &mut tree,
@@ -3633,8 +3132,14 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(20.0, 50.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(100.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(20.0, 50.0)
+    );
 }
 
 #[test]
@@ -3724,91 +3229,35 @@ fn flex_compute_size_uses_definite_min_max_without_measuring_children() {
 
 #[test]
 fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                if input.run_mode() == RunMode::PerformLayout {
-                    ComputeOutput::from_sizes(
-                        Size::new(input.known().width.unwrap(), input.known().height.unwrap()),
-                        Size::ZERO,
-                    )
-                } else {
-                    ComputeOutput::HIDDEN
-                }
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             display: Display::None,
             size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
+    );
+    tree = tree.measure_when(
+        3,
+        OracleMeasurementOf::new(ComputeOutput::HIDDEN).run_mode(RunMode::PerformHiddenLayout),
     );
 
     compute_flex(
@@ -3832,13 +3281,16 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
     assert_eq!(
-        tree.layouts[&3],
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged"),
         NodeOutput::with_source_index(crate::SourceIndex::new(1))
     );
     assert_eq!(
-        tree.inputs[&3],
+        tree.inputs(3),
         vec![ComputeInput::hidden(crate::ContainingLayoutContext::new(
             crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr,),
             crate::ParentFormattingContext::Flex
@@ -3848,59 +3300,10 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
 
 #[test]
 fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
@@ -3909,7 +3312,7 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(0.0), PreferredSize::px(10.0)),
@@ -3941,65 +3344,22 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
     assert_eq!(output.content_size, Size::new(100.0, 40.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(90.0, 10.0));
-    assert_eq!(tree.layouts[&2].location, Point::ZERO);
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(90.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::ZERO
+    );
 }
 
 #[test]
 fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             direction: Direction::Rtl,
@@ -4009,7 +3369,7 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -4038,72 +3398,29 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
 }
 
 #[test]
 fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -4134,89 +3451,35 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(7.0, 7.0));
+    assert_eq!(
+        tree.layout(2)
+            .expect("child layout is staged")
+            .scrollbar_size(),
+        Size::new(7.0, 7.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_uses_insets_without_affecting_flow() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                if node == 3 {
-                    return Ok(ComputeOutput::from_sizes(
-                        Size::new(input.known().width.unwrap(), input.known().height.unwrap()),
-                        Size::new(80.0, 32.0),
-                    ));
-                }
-                output_from_known_or(input, Size::ZERO)
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(25.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             position: Position::Absolute,
@@ -4229,6 +3492,10 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
             overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
+    );
+    tree.insert_measure(
+        3,
+        ComputeOutput::from_sizes(Size::new(20.0, 12.0), Size::new(80.0, 32.0)),
     );
 
     let output = compute_flex(
@@ -4254,82 +3521,38 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
     assert_eq!(output.content_size, Size::new(100.0, 41.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(25.0, 10.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(7.0, 9.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(20.0, 12.0));
     assert_eq!(
-        tree.inputs[&3][0].known(),
-        Size::new(Some(20.0), Some(12.0))
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
     );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(25.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(7.0, 9.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(20.0, 12.0)
+    );
+    assert_eq!(tree.inputs(3)[0].known(), Size::new(Some(20.0), Some(12.0)));
 }
 
 #[test]
 fn flex_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                output_from_known_or(input, Size::ZERO)
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(400.0), PreferredSize::px(300.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -4361,72 +3584,25 @@ fn flex_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
     .unwrap();
 
     assert_eq!(
-        tree.inputs[&2][0].known(),
+        tree.inputs(2)[0].known(),
         Size::new(Some(360.0), Some(120.0))
     );
-    assert_eq!(tree.layouts[&2].location, Point::new(20.0, 15.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(360.0, 120.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(20.0, 15.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(360.0, 120.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                output_from_known_or(input, Size::ZERO)
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             direction: Direction::Rtl,
@@ -4434,7 +3610,7 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -4472,98 +3648,22 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
     .unwrap();
 
     assert_eq!(
-        tree.inputs[&2][0].known(),
+        tree.inputs(2)[0].known(),
         Size::new(Some(160.0), Some(160.0 / 3.0))
     );
-    assert_eq!(tree.layouts[&2].location, Point::new(200.0, 15.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(200.0, 15.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
-    #[derive(Default)]
-    struct RecursiveTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl RecursiveTree {
-        fn compute_node(
-            &mut self,
-            node: u32,
-            input: ComputeInput,
-        ) -> LayoutResultOf<u32, ComputeOutput, Scalar> {
-            let node_input = self.styles[&node].clone();
-            if self.children[&node].is_empty() {
-                return compute_leaf(input, &node_input, |measure_input| {
-                    let known = measure_input.known_content_size();
-                    Ok::<_, core::convert::Infallible>(Size::new(
-                        known.width.unwrap_or(0.0),
-                        known.height.unwrap_or(0.0),
-                    ))
-                })
-                .map_err(|error| fake_leaf_error(node, error));
-            }
-
-            match node_input.display.inner_display() {
-                Display::Flex => compute_flex(self, node, input),
-                Display::Block => crate::compute_block(self, node, input),
-                Display::Grid | Display::GridLanes => crate::compute_grid(self, node, input),
-                Display::None => Ok(ComputeOutput::HIDDEN),
-                Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
-                    unreachable!("inner_display removes inline display variants")
-                }
-            }
-        }
-    }
-
-    impl Traverse for RecursiveTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for RecursiveTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            self.compute_node(node, input)
-        }
-    }
-
     let mut tree = RecursiveTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![3]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![3]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(200.0)),
@@ -4571,7 +3671,7 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -4584,7 +3684,7 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
@@ -4615,73 +3715,35 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 80.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 100.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(100.0, 100.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 80.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(100.0, 100.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(100.0, 100.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs_for(node, input))
-        }
-    }
-
-    impl FlexTree {
-        fn new(
-            align_self: AlignItems,
-            flex_direction: FlexDirection,
-            layout_direction: Direction,
-        ) -> Self {
-            let mut tree = Self::default();
-            tree.children.insert(1, vec![2]);
-            tree.children.insert(2, vec![]);
-            tree.styles.insert(
+    fn layout_child(
+        align_self: AlignItems,
+        flex_direction: FlexDirection,
+        layout_direction: Direction,
+    ) -> NodeOutput {
+        let mut tree = FlexTree::new()
+            .children(1, [2])
+            .children(2, [])
+            .style(
                 1,
                 NodeInput {
                     direction: layout_direction,
@@ -4690,8 +3752,8 @@ fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
                     flex_wrap: FlexWrap::WrapReverse,
                     ..NodeInput::default()
                 },
-            );
-            tree.styles.insert(
+            )
+            .style(
                 2,
                 NodeInput {
                     direction: layout_direction,
@@ -4700,115 +3762,55 @@ fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
                     size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
                     ..NodeInput::default()
                 },
-            );
-            tree
-        }
-
-        fn outputs_for(&self, _node: u32, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
-        }
-
-        fn layout_child(&mut self) -> NodeOutput {
-            compute_flex(
-                self,
-                1,
-                ComputeInput::for_child(
-                    RunMode::PerformLayout,
-                    SizingMode::InherentSize,
-                    RequestedAxis::Both,
-                    Size::NONE,
-                    Size::new(Some(100.0), Some(100.0)),
-                    crate::ContainingLayoutContext::new(
-                        crate::geometry::FlowAxes::new(
-                            crate::WritingMode::HorizontalTb,
-                            crate::Direction::Ltr,
-                        ),
-                        crate::ParentFormattingContext::NoParent,
-                    ),
-                    Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-                ),
             )
-            .unwrap();
-            self.layouts[&2]
-        }
+            .measure(2, ComputeOutput::from_outer_size(Size::splat(20.0)));
+
+        compute_flex(
+            &mut tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::splat(Some(100.0)),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+            ),
+        )
+        .unwrap();
+
+        tree.layout(2).expect("absolute child layout is staged")
     }
 
-    let default_layout =
-        FlexTree::new(AlignItems::Stretch, FlexDirection::Row, Direction::Ltr).layout_child();
+    let default_layout = layout_child(AlignItems::Stretch, FlexDirection::Row, Direction::Ltr);
     assert_eq!(default_layout.location, Point::new(0.0, 80.0));
     assert_eq!(default_layout.size, Size::new(20.0, 20.0));
 
-    let flex_end_layout =
-        FlexTree::new(AlignItems::FlexEnd, FlexDirection::Row, Direction::Ltr).layout_child();
+    let flex_end_layout = layout_child(AlignItems::FlexEnd, FlexDirection::Row, Direction::Ltr);
     assert_eq!(flex_end_layout.location, Point::new(0.0, 0.0));
     assert_eq!(flex_end_layout.size, Size::new(20.0, 20.0));
 
     let column_rtl_layout =
-        FlexTree::new(AlignItems::Stretch, FlexDirection::Column, Direction::Rtl).layout_child();
+        layout_child(AlignItems::Stretch, FlexDirection::Column, Direction::Rtl);
     assert_eq!(column_rtl_layout.location, Point::new(0.0, 0.0));
     assert_eq!(column_rtl_layout.size, Size::new(20.0, 20.0));
 
     let column_rtl_flex_end_layout =
-        FlexTree::new(AlignItems::FlexEnd, FlexDirection::Column, Direction::Rtl).layout_child();
+        layout_child(AlignItems::FlexEnd, FlexDirection::Column, Direction::Rtl);
     assert_eq!(column_rtl_flex_end_layout.location, Point::new(80.0, 0.0));
     assert_eq!(column_rtl_flex_end_layout.size, Size::new(20.0, 20.0));
 }
 
 #[test]
 fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             direction: Direction::Rtl,
@@ -4818,7 +3820,7 @@ fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             direction: Direction::Rtl,
@@ -4854,83 +3856,29 @@ fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(90.0, 80.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(10.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(90.0, 80.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(10.0, 10.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_sizes(
-                    Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ),
-                    Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ),
-                )
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -4966,80 +3914,24 @@ fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(40.0, 30.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(50.0, 60.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(40.0, 30.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(50.0, 60.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_sizes(
-                    Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ),
-                    Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ),
-                )
-            })
-        }
-    }
-
     fn tree_with_child(child_style: NodeInput) -> FlexTree {
         let mut tree = FlexTree::default();
-        tree.children.insert(1, vec![2]);
-        tree.children.insert(2, vec![]);
-        tree.styles.insert(1, NodeInput::default());
-        tree.styles.insert(2, child_style);
+        tree.insert_children(1, vec![2]);
+        tree.insert_children(2, vec![]);
+        tree.insert_style(1, NodeInput::default());
+        tree.insert_style(2, child_style);
         tree
     }
 
@@ -5088,10 +3980,16 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
     });
     run(&mut authored_size);
     assert_eq!(
-        authored_size.inputs[&2][0].known(),
+        authored_size.inputs(2)[0].known(),
         Size::new(Some(22.0), Some(14.0))
     );
-    assert_eq!(authored_size.layouts[&2].size, Size::new(22.0, 14.0));
+    assert_eq!(
+        authored_size
+            .layout(2)
+            .expect("child layout is staged")
+            .size,
+        Size::new(22.0, 14.0)
+    );
 
     let mut max_size = tree_with_child(NodeInput {
         position: Position::Absolute,
@@ -5101,71 +3999,25 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
         ..NodeInput::default()
     });
     run(&mut max_size);
-    assert_eq!(max_size.layouts[&2].size, Size::new(22.0, 14.0));
+    assert_eq!(
+        max_size.layout(2).expect("child layout is staged").size,
+        Size::new(22.0, 14.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -5197,71 +4049,27 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(8.0, 8.0));
+    assert_eq!(
+        tree.layout(2)
+            .expect("child layout is staged")
+            .scrollbar_size(),
+        Size::new(8.0, 8.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_can_resolve_from_trailing_insets() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -5296,72 +4104,29 @@ fn flex_absolute_child_can_resolve_from_trailing_insets() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(72.0, 34.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(72.0, 34.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_expands_auto_margins() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -5402,66 +4167,26 @@ fn flex_absolute_child_expands_auto_margins() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].margin.left, 40.0);
-    assert_eq!(tree.layouts[&2].margin.right, 40.0);
-    assert_eq!(tree.layouts[&2].location, Point::new(40.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.left,
+        40.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.right,
+        40.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(40.0, 0.0)
+    );
 }
 
 #[test]
 fn flex_absolute_child_without_insets_uses_flex_alignment() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
@@ -5470,7 +4195,7 @@ fn flex_absolute_child_without_insets_uses_flex_alignment() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -5500,76 +4225,26 @@ fn flex_absolute_child_without_insets_uses_flex_alignment() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(40.0, 15.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(40.0, 15.0)
+    );
 }
 
 #[test]
 fn flex_row_distributes_positive_free_space_with_flex_grow() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                output_from_known_or(input, Size::ZERO)
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
@@ -5577,7 +4252,7 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
@@ -5609,83 +4284,46 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
 
     assert_eq!(output.size, Size::new(200.0, 20.0));
     assert_eq!(output.content_size, Size::new(200.0, 20.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(105.0, 20.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(105.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(95.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(105.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(105.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(95.0, 20.0)
+    );
 
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known(),
+        tree.inputs(2).last().unwrap().known(),
         Size::new(Some(105.0), Some(20.0))
     );
     assert_eq!(
-        tree.inputs[&3].last().unwrap().known(),
+        tree.inputs(3).last().unwrap().known(),
         Size::new(Some(95.0), Some(20.0))
     );
 }
 
 #[test]
 fn flex_row_with_grow_sum_below_one_uses_that_fraction_of_free_space() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -5716,77 +4354,30 @@ fn flex_row_with_grow_sum_below_one_uses_that_fraction_of_free_space() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
-    assert_eq!(tree.layouts[&2].location, Point::ZERO);
-    assert_eq!(tree.layouts[&2].size, Size::new(60.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::ZERO
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(60.0, 10.0)
+    );
 }
 
 #[test]
 fn flex_row_distributes_negative_free_space_with_flex_shrink() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                output_from_known_or(input, Size::ZERO)
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(80.0), PreferredSize::px(20.0)),
@@ -5794,7 +4385,7 @@ fn flex_row_distributes_negative_free_space_with_flex_shrink() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(70.0), PreferredSize::px(20.0)),
@@ -5825,82 +4416,32 @@ fn flex_row_distributes_negative_free_space_with_flex_shrink() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
-    assert!((tree.layouts[&2].size.width - 53.333).abs() < 0.01);
-    assert!((tree.layouts[&3].location.x - 53.333).abs() < 0.01);
-    assert!((tree.layouts[&3].size.width - 46.667).abs() < 0.01);
-    assert_eq!(tree.layouts[&2].size.height, 20.0);
-    assert_eq!(tree.layouts[&3].size.height, 20.0);
+    assert!((tree.layout(2).expect("child layout is staged").size.width - 53.333).abs() < 0.01);
+    assert!((tree.layout(3).expect("child layout is staged").location.x - 53.333).abs() < 0.01);
+    assert!((tree.layout(3).expect("child layout is staged").size.width - 46.667).abs() < 0.01);
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size.height,
+        20.0
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size.height,
+        20.0
+    );
 }
 
 #[test]
 fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(730.0), PreferredSize::px(300.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             box_sizing: BoxSizing::ContentBox,
@@ -5932,9 +4473,12 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size.width, 730.0);
     assert_eq!(
-        tree.inputs[&2]
+        tree.layout(2).expect("child layout is staged").size.width,
+        730.0
+    );
+    assert_eq!(
+        tree.inputs(2)
             .last()
             .expect("child should be laid out")
             .known()
@@ -5945,86 +4489,18 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
 
 #[test]
 fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                if node == 2
-                    && input.run_mode() == RunMode::ComputeSize
-                    && input.available().width == Available::MIN_CONTENT
-                {
-                    return Ok(ComputeOutput::from_outer_size(Size::new(90.0, 20.0)));
-                }
-
-                let fallback = if node == 2 {
-                    Size::new(160.0, 20.0)
-                } else {
-                    Size::new(40.0, 20.0)
-                };
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(fallback.width),
-                    input.known().height.unwrap_or(fallback.height),
-                ))
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::AUTO, PreferredSize::px(20.0)),
@@ -6032,7 +4508,7 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
@@ -6041,6 +4517,19 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
             ..NodeInput::default()
         },
     );
+    tree = tree
+        .measure_when(
+            2,
+            OracleMeasurementOf::new(ComputeOutput::from_outer_size(Size::new(90.0, 20.0)))
+                .available(Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT)),
+        )
+        .measure_when(
+            2,
+            OracleMeasurementOf::new(ComputeOutput::from_outer_size(Size::new(90.0, 20.0)))
+                .known(Size::new(Some(90.0), Some(20.0))),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(160.0, 20.0)))
+        .measure(3, ComputeOutput::from_outer_size(Size::new(40.0, 20.0)));
 
     let output = compute_flex(
         &mut tree,
@@ -6065,79 +4554,39 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
     assert!(
-        tree.inputs[&2].iter().any(|input| {
+        tree.inputs(2).iter().any(|input| {
             input.run_mode() == RunMode::ComputeSize
                 && input.available().width == Available::MIN_CONTENT
         }),
         "visible flex item should be measured with min-content for its automatic minimum"
     );
-    assert_eq!(tree.layouts[&2].size.width, 90.0);
-    assert_eq!(tree.layouts[&3].location.x, 90.0);
-    assert_eq!(tree.layouts[&3].size.width, 40.0);
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size.width,
+        90.0
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location.x,
+        90.0
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size.width,
+        40.0
+    );
 }
 
 #[test]
 fn flex_row_with_shrink_sum_below_one_uses_that_fraction_of_negative_free_space() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(80.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(10.0)),
@@ -6169,67 +4618,24 @@ fn flex_row_with_shrink_sum_below_one_uses_that_fraction_of_negative_free_space(
     .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 20.0));
-    assert_eq!(tree.layouts[&2].location, Point::ZERO);
-    assert_eq!(tree.layouts[&2].size, Size::new(90.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::ZERO
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(90.0, 10.0)
+    );
 }
 
 #[test]
 fn flex_row_wraps_items_into_multiple_lines() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
@@ -6239,7 +4645,7 @@ fn flex_row_wraps_items_into_multiple_lines() {
         },
     );
     for child in [2, 3, 4] {
-        tree.styles.insert(
+        tree.insert_style(
             child,
             NodeInput {
                 size: Size::new(PreferredSize::px(60.0), PreferredSize::px(10.0)),
@@ -6272,68 +4678,28 @@ fn flex_row_wraps_items_into_multiple_lines() {
 
     assert_eq!(output.size, Size::new(100.0, 38.0));
     assert_eq!(output.content_size, Size::new(100.0, 38.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 14.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 28.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 14.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("child layout is staged").location,
+        Point::new(0.0, 28.0)
+    );
 }
 
 #[test]
 fn flex_row_auto_width_wraps_against_definite_available_width() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
@@ -6343,7 +4709,7 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
         },
     );
     for child in [2, 3, 4] {
-        tree.styles.insert(
+        tree.insert_style(
             child,
             NodeInput {
                 size: Size::new(PreferredSize::px(60.0), PreferredSize::px(10.0)),
@@ -6376,9 +4742,18 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
 
     assert_eq!(output.size, Size::new(100.0, 38.0));
     assert_eq!(output.content_size, Size::new(100.0, 38.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 14.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 28.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 14.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("child layout is staged").location,
+        Point::new(0.0, 28.0)
+    );
 }
 
 #[test]
@@ -6496,60 +4871,11 @@ where
 
 #[test]
 fn flex_row_justifies_items_on_the_main_axis() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
@@ -6558,7 +4884,7 @@ fn flex_row_justifies_items_on_the_main_axis() {
         },
     );
     for child in [2, 3] {
-        tree.styles.insert(
+        tree.insert_style(
             child,
             NodeInput {
                 size: Size::new(PreferredSize::px(25.0), PreferredSize::px(10.0)),
@@ -6590,65 +4916,22 @@ fn flex_row_justifies_items_on_the_main_axis() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(25.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(50.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(25.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(50.0, 0.0)
+    );
 }
 
 #[test]
 fn flex_row_aligns_items_on_the_cross_axis() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
@@ -6656,7 +4939,7 @@ fn flex_row_aligns_items_on_the_cross_axis() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -6686,83 +4969,38 @@ fn flex_row_aligns_items_on_the_cross_axis() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 15.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 15.0)
+    );
 }
 
 #[test]
 fn flex_row_reports_first_child_baseline() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                let size = Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                );
-                ComputeOutput::from_sizes_and_first_baselines(
-                    size,
-                    Size::ZERO,
-                    Point::new(None, Some(7.0)),
-                )
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
+    );
+    tree.insert_measure(
+        2,
+        ComputeOutput::from_sizes_and_first_baselines(
+            Size::new(20.0, 10.0),
+            Size::ZERO,
+            Point::new(None, Some(7.0)),
+        ),
     );
 
     let output = compute_flex(
@@ -6977,107 +5215,64 @@ fn orthogonal_baseline_flex_translation_uses_physical_x_for_f64() {
     assert_flex_translates_orthogonal_child_baselines_on_the_child_block_axis::<f64>();
 }
 
-struct BaselineRefreshTree<S: LayoutScalar> {
-    styles: HashMap<u32, NodeInputOf<S>>,
-    layouts: HashMap<u32, NodeOutputOf<S>>,
-    initial_child_main: S,
-}
-
-impl<S: LayoutScalar> Traverse for BaselineRefreshTree<S> {
-    type Node = u32;
-    type Scalar = S;
-    type Children<'a>
-        = std::iter::Copied<std::slice::Iter<'a, u32>>
-    where
-        Self: 'a;
-
-    fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        match node {
-            1 => [2].iter().copied(),
-            _ => [].iter().copied(),
-        }
-    }
-
-    fn child_count(&self, node: Self::Node) -> usize {
-        usize::from(node == 1)
-    }
-
-    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-        2
-    }
-}
-
-impl<S: LayoutScalar> Compute for BaselineRefreshTree<S> {
-    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
-        &self.styles[&node]
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
-        LayoutInputOf::box_input(self.styles[&node].clone())
-    }
-
-    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
-        self.layouts.insert(node, layout);
-    }
-
-    fn compute_child(
-        &mut self,
-        node: Self::Node,
-        input: ComputeInputOf<S>,
-    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<S>, S> {
-        assert_eq!(node, 2, "the focused flex tree exposes one measured child");
-        let main = input.known().height.unwrap_or(self.initial_child_main);
-        let size = Size::new(main / S::from_f64(2.0), main);
-        Ok(ComputeOutputOf::from_sizes_and_baselines(
+fn assert_logical_flex_sizing_orthogonal_refreshes_mapped_main<S: LayoutScalar>(
+    container_main: f64,
+    child_main: f64,
+    expected_child_size: Size<S>,
+) {
+    let baseline_output = |size| {
+        ComputeOutputOf::from_sizes_and_baselines(
             size,
             size,
             BaselinesOf {
                 first: Point::new(Some(size.width), None),
                 last: Point::new(Some(size.width), None),
             },
-        ))
-    }
-}
-
-fn assert_logical_flex_sizing_orthogonal_refreshes_mapped_main<S: LayoutScalar>(
-    container_main: f64,
-    child_main: f64,
-    expected_child_size: Size<S>,
-) {
-    let mut tree = BaselineRefreshTree {
-        styles: HashMap::from([
-            (
-                1,
-                NodeInputOf::<S> {
-                    display: Display::Flex,
-                    writing_mode: WritingMode::VerticalRl,
-                    flex_direction: FlexDirection::Row,
-                    size: Size::new(
-                        PreferredSizeOf::AUTO,
-                        PreferredSizeOf::px(S::from_f64(container_main)),
-                    ),
-                    ..NodeInputOf::default()
-                },
-            ),
-            (
-                2,
-                NodeInputOf::<S> {
-                    display: Display::Block,
-                    writing_mode: WritingMode::VerticalRl,
-                    size: Size::new(
-                        PreferredSizeOf::AUTO,
-                        PreferredSizeOf::px(S::from_f64(child_main)),
-                    ),
-                    min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
-                    flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow"),
-                    flex_shrink: FlexShrinkOf::try_new(S::ONE).expect("one is a valid flex shrink"),
-                    ..NodeInputOf::default()
-                },
-            ),
-        ]),
-        layouts: HashMap::new(),
-        initial_child_main: S::from_f64(child_main),
+        )
     };
+    let initial_main = S::from_f64(child_main);
+    let initial_size = Size::new(initial_main / S::from_f64(2.0), initial_main);
+    let mut tree = OracleTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf::<S> {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalRl,
+                flex_direction: FlexDirection::Row,
+                size: Size::new(
+                    PreferredSizeOf::AUTO,
+                    PreferredSizeOf::px(S::from_f64(container_main)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf::<S> {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(initial_main)),
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow"),
+                flex_shrink: FlexShrinkOf::try_new(S::ONE).expect("one is a valid flex shrink"),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure_when(
+            2,
+            OracleMeasurementOf::new(baseline_output(expected_child_size)).known(Size::new(
+                Some(expected_child_size.width),
+                Some(expected_child_size.height),
+            )),
+        )
+        .measure_when(
+            2,
+            OracleMeasurementOf::new(baseline_output(expected_child_size))
+                .known(Size::new(None, Some(expected_child_size.height))),
+        )
+        .measure(2, baseline_output(initial_size));
 
     let output = compute_flex(
         &mut tree,
@@ -7100,9 +5295,12 @@ fn assert_logical_flex_sizing_orthogonal_refreshes_mapped_main<S: LayoutScalar>(
     )
     .expect("flex layout succeeds");
 
-    assert_eq!(tree.layouts[&2].size, expected_child_size);
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("child layout is staged").size,
+        expected_child_size
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
         Point::new(S::ZERO, S::ZERO),
         "the corrected mapped main size reaches final physical placement"
     );
@@ -7174,105 +5372,45 @@ fn logical_flex_placement_baseline_refresh_shrink_projects_physical_x_for_f64() 
     assert_logical_flex_sizing_orthogonal_refresh_shrink::<f64>();
 }
 
-struct FinalSizeSelectorTree<S: LayoutScalar> {
-    styles: HashMap<u32, NodeInputOf<S>>,
-    layouts: HashMap<u32, NodeOutputOf<S>>,
-    final_known: Option<Size<Option<S>>>,
-}
-
-impl<S: LayoutScalar> Traverse for FinalSizeSelectorTree<S> {
-    type Node = u32;
-    type Scalar = S;
-    type Children<'a>
-        = std::iter::Copied<std::slice::Iter<'a, u32>>
-    where
-        Self: 'a;
-
-    fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        match node {
-            1 => [2].iter().copied(),
-            _ => [].iter().copied(),
-        }
-    }
-
-    fn child_count(&self, node: Self::Node) -> usize {
-        usize::from(node == 1)
-    }
-
-    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-        2
-    }
-}
-
-impl<S: LayoutScalar> Compute for FinalSizeSelectorTree<S> {
-    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
-        &self.styles[&node]
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
-        LayoutInputOf::box_input(self.styles[&node].clone())
-    }
-
-    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
-        self.layouts.insert(node, layout);
-    }
-
-    fn compute_child(
-        &mut self,
-        node: Self::Node,
-        input: ComputeInputOf<S>,
-    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<S>, S> {
-        assert_eq!(node, 2, "the focused flex tree exposes one child");
-        if input.run_mode() == RunMode::PerformLayout {
-            self.final_known = Some(input.known());
-            let size = Size::new(
-                input.known().width.unwrap_or(S::from_f64(75.0)),
-                input.known().height.unwrap_or(S::from_f64(20.0)),
-            );
-            return Ok(ComputeOutputOf::from_sizes(size, size));
-        }
-
-        Ok(ComputeOutputOf::from_sizes(
-            Size::new(S::from_f64(75.0), S::from_f64(20.0)),
-            Size::new(S::from_f64(75.0), S::from_f64(20.0)),
-        ))
-    }
-}
-
 fn assert_logical_flex_final_size_selector_uses_vertical_row_main_axis<S: LayoutScalar>(
     writing_mode: WritingMode,
 ) {
-    let mut tree = FinalSizeSelectorTree {
-        styles: HashMap::from([
-            (
-                1,
-                NodeInputOf::<S> {
-                    display: Display::Flex,
-                    writing_mode,
-                    size: Size::new(
-                        PreferredSizeOf::px(S::from_f64(200.0)),
-                        PreferredSizeOf::px(S::from_f64(100.0)),
-                    ),
-                    flex_direction: FlexDirection::Row,
-                    ..NodeInputOf::default()
-                },
-            ),
-            (
-                2,
-                NodeInputOf::<S> {
-                    display: Display::Block,
-                    size: Size::new(
-                        PreferredSizeOf::percent(S::from_f64(0.25)),
-                        PreferredSizeOf::px(S::from_f64(20.0)),
-                    ),
-                    min_size: Size::new(MinSizeOf::px(S::from_f64(75.0)), MinSizeOf::ZERO),
-                    ..NodeInputOf::default()
-                },
-            ),
-        ]),
-        layouts: HashMap::new(),
-        final_known: None,
-    };
+    let initial_size = Size::new(S::from_f64(75.0), S::from_f64(20.0));
+    let final_size = Size::new(S::from_f64(50.0), S::from_f64(20.0));
+    let mut tree = OracleTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf::<S> {
+                display: Display::Flex,
+                writing_mode,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(200.0)),
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                ),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf::<S> {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSizeOf::percent(S::from_f64(0.25)),
+                    PreferredSizeOf::px(S::from_f64(20.0)),
+                ),
+                min_size: Size::new(MinSizeOf::px(S::from_f64(75.0)), MinSizeOf::ZERO),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure_when(
+            2,
+            OracleMeasurementOf::new(ComputeOutputOf::from_sizes(final_size, final_size))
+                .run_mode(RunMode::PerformLayout),
+        )
+        .measure(2, ComputeOutputOf::from_sizes(initial_size, initial_size));
 
     compute_flex(
         &mut tree,
@@ -7296,14 +5434,18 @@ fn assert_logical_flex_final_size_selector_uses_vertical_row_main_axis<S: Layout
     .expect("vertical or sideways flex row layout succeeds");
 
     assert_eq!(
-        tree.final_known
+        tree.inputs(2)
+            .iter()
+            .rev()
+            .find(|input| input.run_mode() == RunMode::PerformLayout)
             .expect("final layout request is recorded")
+            .known()
             .width,
         Some(S::from_f64(50.0)),
         "the percentage-dependent physical width is refined after a vertical main-axis row"
     );
     assert_eq!(
-        tree.layouts[&2].size,
+        tree.layout(2).expect("child layout is staged").size,
         Size::new(S::from_f64(50.0), S::from_f64(20.0)),
         "the corrected final known width reaches child output"
     );
@@ -7339,75 +5481,11 @@ fn logical_flex_placement_final_size_selector_maps_sideways_row_for_f64() {
 
 #[test]
 fn flex_row_aligns_baseline_items_by_child_baselines() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                let baseline = match node {
-                    2 => 15.0,
-                    3 => 5.0,
-                    _ => 0.0,
-                };
-                let size = Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                );
-                ComputeOutput::from_sizes_and_first_baselines(
-                    size,
-                    Size::ZERO,
-                    Point::new(None, Some(baseline)),
-                )
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
@@ -7415,19 +5493,35 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
+    );
+    tree.insert_measure(
+        2,
+        ComputeOutput::from_sizes_and_first_baselines(
+            Size::new(20.0, 20.0),
+            Size::ZERO,
+            Point::new(None, Some(15.0)),
+        ),
+    );
+    tree.insert_measure(
+        3,
+        ComputeOutput::from_sizes_and_first_baselines(
+            Size::new(20.0, 10.0),
+            Size::ZERO,
+            Point::new(None, Some(5.0)),
+        ),
     );
 
     let output = compute_flex(
@@ -7452,74 +5546,23 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
-    assert_eq!(tree.layouts[&2].location.y, 0.0);
-    assert_eq!(tree.layouts[&3].location.y, 10.0);
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location.y,
+        0.0
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location.y,
+        10.0
+    );
     assert_eq!(output.first_baselines.y, Some(15.0));
 }
 
 #[test]
 fn flex_row_stretches_auto_cross_size_items() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                let size = Size::new(
-                    input.known().width.unwrap_or(20.0),
-                    input.known().height.unwrap_or(10.0),
-                );
-                ComputeOutput::from_sizes(size, size)
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
@@ -7527,7 +5570,7 @@ fn flex_row_stretches_auto_cross_size_items() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::AUTO),
@@ -7557,73 +5600,26 @@ fn flex_row_stretches_auto_cross_size_items() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 40.0));
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known(),
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 40.0)
+    );
+    assert_eq!(
+        tree.inputs(2).last().unwrap().known(),
         Size::new(Some(20.0), Some(40.0))
     );
 }
 
 #[test]
 fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                output_from_known_or(input, Size::new(20.0, 10.0))
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(200.0), PreferredSize::px(50.0)),
@@ -7631,7 +5627,7 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
@@ -7663,69 +5659,26 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 50.0));
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known(),
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(100.0, 50.0)
+    );
+    assert_eq!(
+        tree.inputs(2).last().unwrap().known(),
         Size::new(Some(100.0), Some(50.0))
     );
 }
 
 #[test]
 fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::new(0.0, 0.0)))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
@@ -7733,7 +5686,7 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
@@ -7764,8 +5717,14 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(200.0, 100.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(200.0, 100.0)
+    );
 }
 
 #[test]
@@ -7776,67 +5735,13 @@ fn flex_replaced_automatic_minimum_selects_smaller_suggestion_and_preserves_cros
 }
 
 fn assert_flex_replaced_automatic_minimum_selects_smaller_suggestion<S: LayoutScalar>() {
-    #[derive(Default)]
-    struct FlexTree<S: LayoutScalar> {
-        styles: HashMap<u32, NodeInputOf<S>>,
-        layouts: HashMap<u32, NodeOutputOf<S>>,
-    }
-
-    impl<S: LayoutScalar> Traverse for FlexTree<S> {
-        type Node = u32;
-        type Scalar = S;
-        type Children<'a>
-            = std::iter::Copied<std::slice::Iter<'a, u32>>
-        where
-            Self: 'a;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            match node {
-                1 => [2].iter().copied(),
-                _ => [].iter().copied(),
-            }
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            usize::from(node == 1)
-        }
-
-        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-            2
-        }
-    }
-
-    impl<S: LayoutScalar> Compute for FlexTree<S> {
-        fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInputOf<S>,
-        ) -> LayoutResultOf<Self::Node, ComputeOutputOf<S>, S> {
-            let size = Size::new(
-                input.known().width.unwrap_or(S::from_f64(90.0)),
-                input.known().height.unwrap_or(S::from_f64(10.0)),
-            );
-            Ok(ComputeOutputOf::from_sizes(size, size))
-        }
-    }
-
     let mut widths = Vec::new();
     let mut heights = Vec::new();
     for item_is_replaced in [true, false] {
         let mut tree = FlexTree::default();
-        tree.styles.insert(
+        tree.insert_children(1, [2]);
+        tree.insert_children(2, []);
+        tree.insert_style(
             1,
             NodeInputOf {
                 display: Display::Flex,
@@ -7848,7 +5753,7 @@ fn assert_flex_replaced_automatic_minimum_selects_smaller_suggestion<S: LayoutSc
                 ..NodeInputOf::default()
             },
         );
-        tree.styles.insert(
+        tree.insert_style(
             2,
             NodeInputOf {
                 item_is_replaced,
@@ -7859,6 +5764,24 @@ fn assert_flex_replaced_automatic_minimum_selects_smaller_suggestion<S: LayoutSc
                 ..NodeInputOf::default()
             },
         );
+        let expected_width = if item_is_replaced {
+            S::from_f64(60.0)
+        } else {
+            S::from_f64(90.0)
+        };
+        tree = tree
+            .measure_when(
+                2,
+                OracleMeasurementOf::new(ComputeOutputOf::from_outer_size(Size::new(
+                    expected_width,
+                    S::from_f64(20.0),
+                )))
+                .known(Size::new(Some(expected_width), Some(S::from_f64(20.0)))),
+            )
+            .measure(
+                2,
+                ComputeOutputOf::from_outer_size(Size::new(S::from_f64(90.0), S::from_f64(10.0))),
+            );
 
         compute_flex(
             &mut tree,
@@ -7881,7 +5804,7 @@ fn assert_flex_replaced_automatic_minimum_selects_smaller_suggestion<S: LayoutSc
         )
         .expect("replaced automatic-minimum flex layout succeeds");
 
-        let layout = tree.layouts[&2];
+        let layout = tree.layout(2).expect("child layout is staged");
         widths.push(layout.size.width);
         heights.push(layout.size.height);
     }
@@ -7892,59 +5815,10 @@ fn assert_flex_replaced_automatic_minimum_selects_smaller_suggestion<S: LayoutSc
 
 #[test]
 fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::new(20.0, 10.0)))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(300.0), PreferredSize::px(100.0)),
@@ -7952,7 +5826,7 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(50.0), PreferredSize::px(100.0)),
@@ -7984,66 +5858,23 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(50.0, 100.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(50.0, 100.0)
+    );
 }
 
 #[test]
 fn flex_row_aligns_wrapped_lines_with_align_content() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
@@ -8054,7 +5885,7 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
         },
     );
     for child in [2, 3] {
-        tree.styles.insert(
+        tree.insert_style(
             child,
             NodeInput {
                 size: Size::new(PreferredSize::px(80.0), PreferredSize::px(10.0)),
@@ -8086,67 +5917,24 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 60.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 18.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 32.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 18.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 32.0)
+    );
 }
 
 #[test]
 fn flex_column_wrap_with_one_line_honors_align_content_end() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3, 4, 5, 6]);
+    tree.insert_children(1, vec![2, 3, 4, 5, 6]);
     for node in 2..=6 {
-        tree.children.insert(node, vec![]);
+        tree.insert_children(node, vec![]);
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
@@ -8157,7 +5945,7 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
         },
     );
     for child in 2..=6 {
-        tree.styles.insert(
+        tree.insert_style(
             child,
             NodeInput {
                 size: Size::new(PreferredSize::px(50.0), PreferredSize::px(10.0)),
@@ -8190,66 +5978,23 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
 
     assert_eq!(output.size, Size::new(100.0, 100.0));
     for child in 2..=6 {
-        assert_eq!(tree.layouts[&child].location.x, 50.0);
+        assert_eq!(
+            tree.layout(child)
+                .expect("child layout is staged")
+                .location
+                .x,
+            50.0
+        );
     }
 }
 
 #[test]
 fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
@@ -8260,7 +6005,7 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
         },
     );
     for child in [2, 3] {
-        tree.styles.insert(
+        tree.insert_style(
             child,
             NodeInput {
                 size: Size::new(PreferredSize::px(80.0), PreferredSize::px(10.0)),
@@ -8293,74 +6038,23 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
 
     assert_eq!(output.size, Size::new(100.0, 60.0));
     assert_eq!(output.content_size, Size::new(100.0, 60.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 32.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 32.0)
+    );
 }
 
 #[test]
 fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                let size = Size::new(
-                    input.known().width.unwrap_or(80.0),
-                    input.known().height.unwrap_or(10.0),
-                );
-                ComputeOutput::from_sizes(size, size)
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
@@ -8372,7 +6066,7 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
         },
     );
     for child in [2, 3] {
-        tree.styles.insert(
+        tree.insert_style(
             child,
             NodeInput {
                 size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
@@ -8403,71 +6097,31 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 28.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(80.0, 28.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 32.0));
     assert_eq!(
-        tree.inputs[&3].last().unwrap().known(),
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(80.0, 28.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(80.0, 28.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 32.0)
+    );
+    assert_eq!(
+        tree.inputs(3).last().unwrap().known(),
         Size::new(Some(80.0), Some(28.0))
     );
 }
 
 #[test]
 fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
@@ -8478,7 +6132,7 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
         },
     );
     for child in [2, 3] {
-        tree.styles.insert(
+        tree.insert_style(
             child,
             NodeInput {
                 size: Size::new(PreferredSize::px(80.0), PreferredSize::px(10.0)),
@@ -8509,65 +6163,22 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 50.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 36.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 50.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 36.0)
+    );
 }
 
 #[test]
 fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
@@ -8576,7 +6187,7 @@ fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -8605,66 +6216,23 @@ fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 50.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 50.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
 }
 
 #[test]
 fn flex_row_wrap_reverse_respects_reversed_align_content() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
@@ -8675,7 +6243,7 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
         },
     );
     for child in [2, 3] {
-        tree.styles.insert(
+        tree.insert_style(
             child,
             NodeInput {
                 size: Size::new(PreferredSize::px(80.0), PreferredSize::px(10.0)),
@@ -8706,73 +6274,30 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 14.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 14.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
 }
 
 #[test]
 fn flex_row_growth_respects_max_main_size() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
@@ -8781,7 +6306,7 @@ fn flex_row_growth_respects_max_main_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
@@ -8811,66 +6336,26 @@ fn flex_row_growth_respects_max_main_size() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(60.0, 20.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(60.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(140.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(60.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(60.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(140.0, 20.0)
+    );
 }
 
 #[test]
 fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
@@ -8878,7 +6363,7 @@ fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -8913,65 +6398,22 @@ fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&2].margin.left, 80.0);
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.left,
+        80.0
+    );
 }
 
 #[test]
 fn flex_row_distributes_cross_axis_auto_margins() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
@@ -8979,7 +6421,7 @@ fn flex_row_distributes_cross_axis_auto_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -9014,67 +6456,30 @@ fn flex_row_distributes_cross_axis_auto_margins() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 15.0));
-    assert_eq!(tree.layouts[&2].margin.top, 15.0);
-    assert_eq!(tree.layouts[&2].margin.bottom, 15.0);
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 15.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.top,
+        15.0
+    );
+    assert_eq!(
+        tree.layout(2)
+            .expect("child layout is staged")
+            .margin
+            .bottom,
+        15.0
+    );
 }
 
 #[test]
 fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
@@ -9082,14 +6487,14 @@ fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
@@ -9118,66 +6523,23 @@ fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(50.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(50.0, 0.0)
+    );
 }
 
 #[test]
 fn flex_row_rtl_places_items_from_the_right_edge() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             direction: Direction::Rtl,
@@ -9185,14 +6547,14 @@ fn flex_row_rtl_places_items_from_the_right_edge() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
@@ -9221,66 +6583,23 @@ fn flex_row_rtl_places_items_from_the_right_edge() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(50.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(50.0, 0.0)
+    );
 }
 
 #[test]
 fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             direction: Direction::Rtl,
@@ -9288,7 +6607,7 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             inset: Edges {
@@ -9299,7 +6618,7 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             inset: Edges {
@@ -9332,65 +6651,22 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(85.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(53.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(85.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(53.0, 0.0)
+    );
 }
 
 #[test]
 fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             direction: Direction::Rtl,
@@ -9406,7 +6682,7 @@ fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -9435,65 +6711,22 @@ fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(74.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(74.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
 }
 
 #[test]
 fn flex_column_rtl_cross_axis_auto_margin_uses_rtl_edges() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             direction: Direction::Rtl,
@@ -9502,7 +6735,7 @@ fn flex_column_rtl_cross_axis_auto_margin_uses_rtl_edges() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
@@ -9537,67 +6770,27 @@ fn flex_column_rtl_cross_axis_auto_margin_uses_rtl_edges() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].margin.right, 77.0);
-    assert_eq!(tree.layouts[&2].margin.left, 3.0);
-    assert_eq!(tree.layouts[&2].location, Point::new(3.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.right,
+        77.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").margin.left,
+        3.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(3.0, 0.0)
+    );
 }
 
 #[test]
 fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(output_from_known_or(input, Size::ZERO))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(40.0), PreferredSize::px(100.0)),
@@ -9605,14 +6798,14 @@ fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(10.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
@@ -9641,80 +6834,29 @@ fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 80.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 50.0));
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 80.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(0.0, 50.0)
+    );
 }
 
 #[test]
 fn flex_row_uses_flex_basis_as_the_main_base_size() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                let size = Size::new(
-                    input.known().width.unwrap_or(10.0),
-                    input.known().height.unwrap_or(10.0),
-                );
-                ComputeOutput::from_sizes(size, size)
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::AUTO, PreferredSize::px(10.0)),
@@ -9744,79 +6886,29 @@ fn flex_row_uses_flex_basis_as_the_main_base_size() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known(),
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(30.0, 10.0)
+    );
+    assert_eq!(
+        tree.inputs(2).last().unwrap().known(),
         Size::new(Some(30.0), Some(10.0))
     );
 }
 
 #[test]
 fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_width() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                output_from_known_or(input, Size::new(34.0, 10.0))
-            })
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(12.0), PreferredSize::px(12.0)),
@@ -9836,7 +6928,7 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(12.0), PreferredSize::px(12.0)),
@@ -9867,80 +6959,40 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
     .unwrap();
 
     assert_eq!(output.size, Size::new(22.0, 14.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(22.0, 14.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(22.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(0.0, 12.0));
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known(),
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").size,
+        Size::new(22.0, 14.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").location,
+        Point::new(22.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("child layout is staged").size,
+        Size::new(0.0, 12.0)
+    );
+    assert_eq!(
+        tree.inputs(2).last().unwrap().known(),
         Size::new(Some(22.0), Some(14.0))
     );
 }
 
 #[test]
 fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
-    #[derive(Default)]
-    struct FlexTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for FlexTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for FlexTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(ComputeOutput::from_sizes(
-                Size::new(0.0, 10.0),
-                Size::new(120.0, 10.0),
-            ))
-        }
-    }
-
     let mut tree = FlexTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             flex_basis: FlexBasis::px(0.0),
@@ -9951,6 +7003,10 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
             },
             ..NodeInput::default()
         },
+    );
+    tree.insert_measure(
+        2,
+        ComputeOutput::from_sizes(Size::new(0.0, 10.0), Size::new(120.0, 10.0)),
     );
 
     let output = compute_flex(
@@ -9976,7 +7032,13 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
 
     assert_eq!(output.size.width, 120.0);
     assert_eq!(output.content_size.width, 120.0);
-    assert_eq!(tree.layouts[&2].content_size.width, 120.0);
+    assert_eq!(
+        tree.layout(2)
+            .expect("child layout is staged")
+            .content_size
+            .width,
+        120.0
+    );
 }
 
 use crate::{LengthPercentageOf, NodeInput, PreferredSize};
