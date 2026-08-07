@@ -2,11 +2,25 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf};
-use crate::test_support::layout_tree::OracleTreeOf;
+use crate::test_support::layout_tree::{OracleMeasurementOf, OracleTreeOf, PublicLayoutTreeOf};
 use crate::*;
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
+}
+
+fn public_layout_tree<S: LayoutScalar>(
+    inputs: HashMap<u32, LayoutInputOf<S>>,
+    children: HashMap<u32, Vec<u32>>,
+) -> PublicLayoutTreeOf<S> {
+    let mut tree = PublicLayoutTreeOf::new();
+    for (node, input) in inputs {
+        tree.insert_input(node, input);
+    }
+    for (node, children) in children {
+        tree.insert_children(node, children);
+    }
+    tree
 }
 
 fn fri06_atomic_participation<S: LayoutScalar>() -> AtomicInlineParticipationOf<S> {
@@ -76,48 +90,6 @@ fn root_and_hidden_contexts_are_explicit_in_both_scalar_lanes() {
     assert_lane::<f64>();
     assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow::<f32>();
     assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow::<f64>();
-}
-
-#[derive(Clone)]
-struct Fri06C02TextTree<S: LayoutScalar> {
-    inputs: HashMap<u32, LayoutInputOf<S>>,
-    node_inputs: HashMap<u32, NodeInputOf<S>>,
-    children: HashMap<u32, Vec<u32>>,
-}
-
-impl<S: LayoutScalar> Traverse for Fri06C02TextTree<S> {
-    type Node = u32;
-    type Scalar = S;
-    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-    fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        self.children
-            .get(&node)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-            .iter()
-            .copied()
-    }
-
-    fn child_count(&self, node: Self::Node) -> usize {
-        self.children.get(&node).map(Vec::len).unwrap_or(0)
-    }
-
-    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-        self.children[&node][index]
-    }
-}
-
-impl<S: LayoutScalar> LayoutTree for Fri06C02TextTree<S> {
-    type MeasureError = ();
-
-    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
-        &self.node_inputs[&node]
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
-        self.inputs[&node].clone()
-    }
 }
 
 fn fri06_c02_segment<S: LayoutScalar>(
@@ -197,11 +169,7 @@ fn fri06_c02_text_batch_with_flow<S: LayoutScalar>(
         1,
         LayoutInputOf::inline_text(InlineTextInputOf::try_new(segments).unwrap()),
     );
-    let tree = Fri06C02TextTree {
-        inputs,
-        node_inputs: HashMap::from([(0, root_input), (1, NodeInputOf::non_box())]),
-        children: HashMap::from([(0, vec![1]), (1, Vec::new())]),
-    };
+    let tree = public_layout_tree(inputs, HashMap::from([(0, vec![1]), (1, Vec::new())]));
 
     let viewport = FlowAxes::new(writing_mode, direction).physical_size(LogicalSizeOf::new(
         available_inline,
@@ -217,21 +185,15 @@ fn fri06_c02_text_nodes_batch<S: LayoutScalar>(
 ) -> CompletedLayoutBatchOf<u32, S> {
     let children = text_nodes.iter().map(|(node, _)| *node).collect::<Vec<_>>();
     let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
-    let mut node_inputs = HashMap::from([(0, root_input)]);
     let mut tree_children = HashMap::from([(0, children)]);
     for (node, segments) in text_nodes {
         inputs.insert(
             node,
             LayoutInputOf::inline_text(InlineTextInputOf::try_new(segments).unwrap()),
         );
-        node_inputs.insert(node, NodeInputOf::non_box());
         tree_children.insert(node, Vec::new());
     }
-    let tree = Fri06C02TextTree {
-        inputs,
-        node_inputs,
-        children: tree_children,
-    };
+    let tree = public_layout_tree(inputs, tree_children);
 
     compute_layout(&tree, 0, LayoutRootRequestOf::viewport(available).unwrap()).unwrap()
 }
@@ -308,18 +270,12 @@ fn fri06_c03_mixed_batch_with_root<S: LayoutScalar>(
         .map(|(node, _, _)| *node)
         .collect::<Vec<_>>();
     let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
-    let mut node_inputs = HashMap::from([(0, root_input)]);
     let mut tree_children = HashMap::from([(0, child_nodes)]);
-    for (node, layout_input, node_input) in children {
+    for (node, layout_input, _node_input) in children {
         inputs.insert(node, layout_input);
-        node_inputs.insert(node, node_input);
         tree_children.insert(node, Vec::new());
     }
-    let tree = Fri06C02TextTree {
-        inputs,
-        node_inputs,
-        children: tree_children,
-    };
+    let tree = public_layout_tree(inputs, tree_children);
 
     compute_layout(
         &tree,
@@ -379,18 +335,12 @@ fn fri06_c04_line_batch<S: LayoutScalar>(
         .map(|(node, _, _)| *node)
         .collect::<Vec<_>>();
     let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
-    let mut node_inputs = HashMap::from([(0, root_input)]);
     let mut tree_children = HashMap::from([(0, child_nodes)]);
-    for (node, layout_input, node_input) in children {
+    for (node, layout_input, _node_input) in children {
         inputs.insert(node, layout_input);
-        node_inputs.insert(node, node_input);
         tree_children.insert(node, Vec::new());
     }
-    let tree = Fri06C02TextTree {
-        inputs,
-        node_inputs,
-        children: tree_children,
-    };
+    let tree = public_layout_tree(inputs, tree_children);
 
     compute_layout(
         &tree,
@@ -415,18 +365,12 @@ fn fri06_c04_bfc_batch<S: LayoutScalar>(
         ..NodeInputOf::default()
     };
     let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_style.clone()))]);
-    let mut node_inputs = HashMap::from([(0, root_style)]);
     let mut children = HashMap::from([(0, root_children)]);
     for (node, style, node_children) in nodes {
         inputs.insert(node, LayoutInputOf::box_input(style.clone()));
-        node_inputs.insert(node, style);
         children.insert(node, node_children);
     }
-    let tree = Fri06C02TextTree {
-        inputs,
-        node_inputs,
-        children,
-    };
+    let tree = public_layout_tree(inputs, children);
 
     compute_layout(
         &tree,
@@ -446,18 +390,12 @@ fn fri06_c04_front_door_batch<S: LayoutScalar>(
 ) -> CompletedLayoutBatchOf<u32, S> {
     let flow_axes = FlowAxes::new(root_style.writing_mode, root_style.direction);
     let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_style.clone()))]);
-    let mut node_inputs = HashMap::from([(0, root_style)]);
     let mut children = HashMap::from([(0, root_children)]);
-    for (node, layout_input, node_input, node_children) in nodes {
+    for (node, layout_input, _node_input, node_children) in nodes {
         inputs.insert(node, layout_input);
-        node_inputs.insert(node, node_input);
         children.insert(node, node_children);
     }
-    let tree = Fri06C02TextTree {
-        inputs,
-        node_inputs,
-        children,
-    };
+    let tree = public_layout_tree(inputs, children);
 
     compute_layout(
         &tree,
@@ -514,7 +452,6 @@ fn fri06_c03_projection_batch<S: LayoutScalar>(
         ..NodeInputOf::default()
     };
     let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
-    let mut node_inputs = HashMap::from([(0, root_input)]);
     let mut children = HashMap::new();
     let mut root_children = Vec::new();
     for (offset, (inline, block, following_break)) in logical_atomics.iter().copied().enumerate() {
@@ -538,16 +475,11 @@ fn fri06_c03_projection_batch<S: LayoutScalar>(
             ..NodeInputOf::default()
         };
         inputs.insert(node, LayoutInputOf::box_input(style.clone()));
-        node_inputs.insert(node, style);
         children.insert(node, Vec::new());
         root_children.push(node);
     }
     children.insert(0, root_children);
-    let tree = Fri06C02TextTree {
-        inputs,
-        node_inputs,
-        children,
-    };
+    let tree = public_layout_tree(inputs, children);
     let available = flow.physical_size(LogicalSizeOf::new(
         AvailableOf::definite(S::from_f64(available_inline)),
         AvailableOf::MAX_CONTENT,
@@ -730,8 +662,8 @@ fn fri06_c03_nested_atomic_baseline_batch<S: LayoutScalar>(
         .with_writing_mode(child_flow.writing_mode())
         .with_direction(child_flow.direction())
         .with_metrics(zero_metrics);
-    let tree = Fri06C02TextTree {
-        inputs: HashMap::from([
+    let tree = public_layout_tree(
+        HashMap::from([
             (0, LayoutInputOf::box_input(root_style.clone())),
             (1, LayoutInputOf::inline_text(parent_text)),
             (2, LayoutInputOf::box_input(atomic_style.clone())),
@@ -739,15 +671,7 @@ fn fri06_c03_nested_atomic_baseline_batch<S: LayoutScalar>(
             (4, LayoutInputOf::line_break(inner_break)),
             (5, LayoutInputOf::inline_text(last_inner_text)),
         ]),
-        node_inputs: HashMap::from([
-            (0, root_style),
-            (1, NodeInputOf::non_box()),
-            (2, atomic_style),
-            (3, NodeInputOf::non_box()),
-            (4, NodeInputOf::non_box()),
-            (5, NodeInputOf::non_box()),
-        ]),
-        children: HashMap::from([
+        HashMap::from([
             (0, vec![1, 2]),
             (1, Vec::new()),
             (2, vec![3, 4, 5]),
@@ -755,7 +679,7 @@ fn fri06_c03_nested_atomic_baseline_batch<S: LayoutScalar>(
             (4, Vec::new()),
             (5, Vec::new()),
         ]),
-    };
+    );
     let viewport = parent_flow.physical_size(LogicalSizeOf::new(
         AvailableOf::definite(S::from_f64(100.0)),
         AvailableOf::MAX_CONTENT,
@@ -766,7 +690,7 @@ fn fri06_c03_nested_atomic_baseline_batch<S: LayoutScalar>(
 
 #[derive(Clone)]
 struct Fri06C03CachedAtomicTree<S: LayoutScalar> {
-    tree: Fri06C02TextTree<S>,
+    tree: PublicLayoutTreeOf<S>,
     atomic_output: ComputeOutputOf<S>,
 }
 
@@ -776,7 +700,7 @@ impl<S: LayoutScalar> Traverse for Fri06C03CachedAtomicTree<S> {
     type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
     fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        self.tree.children(node)
+        Traverse::children(&self.tree, node)
     }
 
     fn child_count(&self, node: Self::Node) -> usize {
@@ -899,8 +823,8 @@ fn fri06_c03_atomic_baseline_visible_inner_and_non_visible_margin_edge_both_scal
             ..NodeInputOf::default()
         };
         let tree = Fri06C03CachedAtomicTree {
-            tree: Fri06C02TextTree {
-                inputs: HashMap::from([
+            tree: public_layout_tree(
+                HashMap::from([
                     (0, LayoutInputOf::box_input(root_style.clone())),
                     (
                         1,
@@ -910,13 +834,8 @@ fn fri06_c03_atomic_baseline_visible_inner_and_non_visible_margin_edge_both_scal
                     ),
                     (2, LayoutInputOf::box_input(atomic_style.clone())),
                 ]),
-                node_inputs: HashMap::from([
-                    (0, root_style),
-                    (1, NodeInputOf::non_box()),
-                    (2, atomic_style),
-                ]),
-                children: HashMap::from([(0, vec![1, 2]), (1, Vec::new()), (2, Vec::new())]),
-            },
+                HashMap::from([(0, vec![1, 2]), (1, Vec::new()), (2, Vec::new())]),
+            ),
             atomic_output: ComputeOutputOf::from_sizes_and_baselines(
                 Size::new(S::from_f64(10.0), S::from_f64(20.0)),
                 Size::new(S::from_f64(10.0), S::from_f64(20.0)),
@@ -1188,14 +1107,13 @@ fn fri06_c03_percentage_definite_physical_and_logical_block_basis_without_indefi
             )),
             ..NodeInputOf::default()
         };
-        let tree = Fri06C02TextTree {
-            inputs: HashMap::from([
+        let tree = public_layout_tree(
+            HashMap::from([
                 (0, LayoutInputOf::box_input(root_style.clone())),
                 (1, LayoutInputOf::box_input(atomic_style.clone())),
             ]),
-            node_inputs: HashMap::from([(0, root_style), (1, atomic_style)]),
-            children: HashMap::from([(0, vec![1]), (1, Vec::new())]),
-        };
+            HashMap::from([(0, vec![1]), (1, Vec::new())]),
+        );
         let viewport = flow_axes.physical_size(LogicalSizeOf::new(
             AvailableOf::definite(S::from_f64(80.0)),
             AvailableOf::MAX_CONTENT,
@@ -1728,7 +1646,7 @@ fn fri06_c03_clear_all_values_accept_all_containing_flows_without_exclusions_bot
     assert_lane::<f64>();
 }
 
-struct Fri06C07DirectTree<S: LayoutScalar>(Fri06C02TextTree<S>);
+struct Fri06C07DirectTree<S: LayoutScalar>(PublicLayoutTreeOf<S>);
 
 impl<S: LayoutScalar> Traverse for Fri06C07DirectTree<S> {
     type Node = u32;
@@ -1736,31 +1654,25 @@ impl<S: LayoutScalar> Traverse for Fri06C07DirectTree<S> {
     type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
     fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        self.0
-            .children
-            .get(&node)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-            .iter()
-            .copied()
+        Traverse::children(&self.0, node)
     }
 
     fn child_count(&self, node: Self::Node) -> usize {
-        self.0.children.get(&node).map(Vec::len).unwrap_or(0)
+        self.0.child_count(node)
     }
 
     fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-        self.0.children[&node][index]
+        self.0.child(node, index)
     }
 }
 
 impl<S: LayoutScalar> Compute<()> for Fri06C07DirectTree<S> {
     fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
-        &self.0.node_inputs[&node]
+        self.0.node_input(node)
     }
 
     fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
-        self.0.inputs[&node].clone()
+        self.0.layout_input(node)
     }
 
     fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutputOf<S>) {}
@@ -1770,7 +1682,7 @@ impl<S: LayoutScalar> Compute<()> for Fri06C07DirectTree<S> {
         node: Self::Node,
         input: ComputeInputOf<S>,
     ) -> LayoutResultOf<Self::Node, ComputeOutputOf<S>, S, ()> {
-        match self.0.inputs[&node].clone() {
+        match self.0.layout_input(node) {
             LayoutInputOf::Box(style) => {
                 assert_eq!(style.display.inner_display(), Display::Block);
                 compute_block(self, node, input)
@@ -1901,26 +1813,20 @@ fn fri06_c07_logical_clear_vertical_control_and_float_projection_both_scalars() 
             .with_direction(row.direction)
             .with_metrics(metrics)
             .with_clear(Clear::Left);
-        let tree = Fri06C02TextTree {
-            inputs: HashMap::from([
+        let tree = public_layout_tree(
+            HashMap::from([
                 (0, LayoutInputOf::box_input(root_style.clone())),
                 (1, LayoutInputOf::box_input(float_style.clone())),
                 (2, text),
                 (3, LayoutInputOf::line_break(break_input)),
             ]),
-            node_inputs: HashMap::from([
-                (0, root_style),
-                (1, float_style),
-                (2, NodeInputOf::non_box()),
-                (3, NodeInputOf::non_box()),
-            ]),
-            children: HashMap::from([
+            HashMap::from([
                 (0, vec![1, 2, 3]),
                 (1, Vec::new()),
                 (2, Vec::new()),
                 (3, Vec::new()),
             ]),
-        };
+        );
         let available = flow_axes.physical_size(LogicalSizeOf::new(
             AvailableOf::definite(S::from_f64(40.0)),
             AvailableOf::definite(S::from_f64(40.0)),
@@ -2465,26 +2371,20 @@ fn fri06_c04_line_band_ordinary_block_keeps_outer_edge_and_inherits_parent_float
                 ),
             ])
             .unwrap();
-            let tree = Fri06C02TextTree {
-                inputs: HashMap::from([
+            let tree = public_layout_tree(
+                HashMap::from([
                     (0, LayoutInputOf::box_input(root_style.clone())),
                     (1, LayoutInputOf::box_input(float_style.clone())),
                     (2, LayoutInputOf::box_input(ordinary_style.clone())),
                     (3, LayoutInputOf::inline_text(text)),
                 ]),
-                node_inputs: HashMap::from([
-                    (0, root_style),
-                    (1, float_style),
-                    (2, ordinary_style),
-                    (3, NodeInputOf::non_box()),
-                ]),
-                children: HashMap::from([
+                HashMap::from([
                     (0, vec![1, 2]),
                     (1, Vec::new()),
                     (2, vec![3]),
                     (3, Vec::new()),
                 ]),
-            };
+            );
 
             let batch = compute_layout(
                 &tree,
@@ -2582,8 +2482,8 @@ fn fri06_c04_line_band_nested_local_float_keeps_combined_ledger_order_both_scala
             InlineBreakOpportunityOf::prohibited(),
         )])
         .unwrap();
-        let tree = Fri06C02TextTree {
-            inputs: HashMap::from([
+        let tree = public_layout_tree(
+            HashMap::from([
                 (0, LayoutInputOf::box_input(root_style.clone())),
                 (1, LayoutInputOf::box_input(preceding_style.clone())),
                 (2, LayoutInputOf::box_input(parent_float_style.clone())),
@@ -2591,15 +2491,7 @@ fn fri06_c04_line_band_nested_local_float_keeps_combined_ledger_order_both_scala
                 (4, LayoutInputOf::box_input(local_float_style.clone())),
                 (5, LayoutInputOf::inline_text(text)),
             ]),
-            node_inputs: HashMap::from([
-                (0, root_style),
-                (1, preceding_style),
-                (2, parent_float_style),
-                (3, ordinary_style),
-                (4, local_float_style),
-                (5, NodeInputOf::non_box()),
-            ]),
-            children: HashMap::from([
+            HashMap::from([
                 (0, vec![1, 2, 3]),
                 (1, Vec::new()),
                 (2, Vec::new()),
@@ -2607,7 +2499,7 @@ fn fri06_c04_line_band_nested_local_float_keeps_combined_ledger_order_both_scala
                 (4, Vec::new()),
                 (5, Vec::new()),
             ]),
-        };
+        );
 
         let batch = compute_layout(
             &tree,
@@ -4371,18 +4263,12 @@ fn assert_fri06_c08_r1_mixed_unit_traversal<S: LayoutScalar>(
         .map(|(node, _, _)| *node)
         .collect::<Vec<_>>();
     let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
-    let mut node_inputs = HashMap::from([(0, root_input)]);
     let mut tree_children = HashMap::from([(0, child_nodes)]);
-    for (node, layout_input, node_input) in children {
+    for (node, layout_input, _node_input) in children {
         inputs.insert(node, layout_input);
-        node_inputs.insert(node, node_input);
         tree_children.insert(node, Vec::new());
     }
-    let tree = Fri06C02TextTree {
-        inputs,
-        node_inputs,
-        children: tree_children,
-    };
+    let tree = public_layout_tree(inputs, tree_children);
     let batch = compute_layout(
         &tree,
         0,
@@ -5324,18 +5210,12 @@ fn fri06_c08_recovery_characterization_batch<S: LayoutScalar>(
         .map(|(node, _, _)| *node)
         .collect::<Vec<_>>();
     let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
-    let mut node_inputs = HashMap::from([(0, root_input)]);
     let mut tree_children = HashMap::from([(0, child_nodes)]);
-    for (node, layout_input, node_input) in children {
+    for (node, layout_input, _node_input) in children {
         inputs.insert(node, layout_input);
-        node_inputs.insert(node, node_input);
         tree_children.insert(node, Vec::new());
     }
-    let tree = Fri06C02TextTree {
-        inputs,
-        node_inputs,
-        children: tree_children,
-    };
+    let tree = public_layout_tree(inputs, tree_children);
     compute_layout(
         &tree,
         0,
@@ -6792,29 +6672,22 @@ fn fri06_c02_block_text_containing_baselines_align_flex_items_both_scalars() {
         let text_two =
             InlineTextInputOf::try_new(vec![fri06_c02_segment_with_metrics(52, 10.0, 4.0, 6.0)])
                 .unwrap();
-        let tree = Fri06C02TextTree {
-            inputs: HashMap::from([
+        let tree = public_layout_tree(
+            HashMap::from([
                 (0, LayoutInputOf::box_input(root.clone())),
                 (1, LayoutInputOf::box_input(item.clone())),
                 (2, LayoutInputOf::box_input(item.clone())),
                 (3, LayoutInputOf::inline_text(text_one)),
                 (4, LayoutInputOf::inline_text(text_two)),
             ]),
-            node_inputs: HashMap::from([
-                (0, root),
-                (1, item.clone()),
-                (2, item),
-                (3, NodeInputOf::non_box()),
-                (4, NodeInputOf::non_box()),
-            ]),
-            children: HashMap::from([
+            HashMap::from([
                 (0, vec![1, 2]),
                 (1, vec![3]),
                 (2, vec![4]),
                 (3, Vec::new()),
                 (4, Vec::new()),
             ]),
-        };
+        );
         let batch = compute_layout(
             &tree,
             0,
@@ -13026,11 +12899,10 @@ fn assert_fri06_mr02_geometry_error_public_root_has_no_batch<S: LayoutScalar>() 
             grid_template_columns: vec![TrackComponentOf::AUTO],
             ..NodeInputOf::default()
         };
-        let tree = Fri06C02TextTree {
-            inputs: HashMap::from([(0, LayoutInputOf::box_input(style.clone()))]),
-            node_inputs: HashMap::from([(0, style)]),
-            children: HashMap::from([(0, Vec::new())]),
-        };
+        let tree = public_layout_tree(
+            HashMap::from([(0, LayoutInputOf::box_input(style))]),
+            HashMap::from([(0, Vec::new())]),
+        );
         let request = LayoutRootRequestOf::viewport(Size::new(
             AvailableOf::definite(largest),
             AvailableOf::definite(S::ONE),
@@ -14840,76 +14712,22 @@ fn f64_tree_can_run_root_layout_smoke_test() {
     );
 }
 
-struct SingleRootTree {
-    style: NodeInput,
-    output: ComputeOutput,
-    layouts: HashMap<u32, NodeOutput>,
-    input: Option<ComputeInput>,
-}
-
-impl SingleRootTree {
-    fn new(style: NodeInput) -> Self {
-        Self {
-            style,
-            output: ComputeOutput::from_outer_size(Size::ZERO),
-            layouts: HashMap::new(),
-            input: None,
-        }
-    }
-}
-
-impl Traverse for SingleRootTree {
-    type Node = u32;
-    type Scalar = Scalar;
-    type Children<'a> = std::iter::Empty<u32>;
-
-    fn children(&self, _node: Self::Node) -> Self::Children<'_> {
-        std::iter::empty()
-    }
-
-    fn child_count(&self, _node: Self::Node) -> usize {
-        0
-    }
-
-    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-        unreachable!("root test tree has no children")
-    }
-}
-
-impl Compute for SingleRootTree {
-    fn node_input(&self, _node: Self::Node) -> &NodeInput {
-        &self.style
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-        LayoutInputOf::box_input(self.node_input(node).clone())
-    }
-
-    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-        self.layouts.insert(node, layout);
-    }
-
-    fn compute_child(
-        &mut self,
-        _node: Self::Node,
-        input: ComputeInput,
-    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
-        Ok({
-            self.input = Some(input);
-            self.output
-        })
-    }
-}
-
 #[test]
 fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
-    let mut tree = SingleRootTree::new(NodeInput {
-        overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
-        scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
-        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
-        ..NodeInput::default()
-    });
-    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+    let mut tree = OracleTreeOf::new()
+        .style(
+            1,
+            NodeInput {
+                overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
+                ..NodeInput::default()
+            },
+        )
+        .measure(
+            1,
+            ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0)),
+        );
 
     compute_root(
         &mut tree,
@@ -14918,7 +14736,7 @@ fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
     )
     .unwrap();
 
-    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    let geometry = tree.layout(1).unwrap().scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollport(),
         ScrollRect::try_new(Point::ZERO, Size::new(90.0, 30.0)).unwrap()
@@ -14935,12 +14753,19 @@ fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
 
 #[test]
 fn root_layout_emits_visible_scroll_geometry_without_range() {
-    let mut tree = SingleRootTree::new(NodeInput {
-        overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
-        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
-        ..NodeInput::default()
-    });
-    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+    let mut tree = OracleTreeOf::new()
+        .style(
+            1,
+            NodeInput {
+                overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
+                ..NodeInput::default()
+            },
+        )
+        .measure(
+            1,
+            ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0)),
+        );
 
     compute_root(
         &mut tree,
@@ -14949,7 +14774,7 @@ fn root_layout_emits_visible_scroll_geometry_without_range() {
     )
     .unwrap();
 
-    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    let geometry = tree.layout(1).unwrap().scroll_geometry.unwrap();
     assert_eq!(geometry.overflow_clip(), None);
     assert_eq!(
         geometry.scrollable_overflow(),
@@ -14960,12 +14785,19 @@ fn root_layout_emits_visible_scroll_geometry_without_range() {
 
 #[test]
 fn root_layout_emits_clip_geometry_without_range() {
-    let mut tree = SingleRootTree::new(NodeInput {
-        overflow: computed_overflow(Overflow::Clip, Overflow::Clip),
-        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
-        ..NodeInput::default()
-    });
-    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+    let mut tree = OracleTreeOf::new()
+        .style(
+            1,
+            NodeInput {
+                overflow: computed_overflow(Overflow::Clip, Overflow::Clip),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
+                ..NodeInput::default()
+            },
+        )
+        .measure(
+            1,
+            ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0)),
+        );
 
     compute_root(
         &mut tree,
@@ -14974,22 +14806,29 @@ fn root_layout_emits_clip_geometry_without_range() {
     )
     .unwrap();
 
-    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    let geometry = tree.layout(1).unwrap().scroll_geometry.unwrap();
     assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
     assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
 fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
-    let mut tree = SingleRootTree::new(NodeInput {
-        overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
-        scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
-        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
-        padding: Edges::all(Length::px(2.0)),
-        border: Edges::all(Length::px(3.0)),
-        ..NodeInput::default()
-    });
-    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+    let mut tree = OracleTreeOf::new()
+        .style(
+            1,
+            NodeInput {
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+                scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
+                padding: Edges::all(Length::px(2.0)),
+                border: Edges::all(Length::px(3.0)),
+                ..NodeInput::default()
+            },
+        )
+        .measure(
+            1,
+            ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0)),
+        );
 
     compute_root(
         &mut tree,
@@ -14998,7 +14837,7 @@ fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
     )
     .unwrap();
 
-    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    let geometry = tree.layout(1).unwrap().scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollport(),
         ScrollRect::try_new(Point::new(3.0, 3.0), Size::new(84.0, 34.0)).unwrap()
@@ -15018,11 +14857,6 @@ fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
 
 #[test]
 fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
-    let mut tree = SingleRootTree::new(NodeInput {
-        overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
-        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
-        ..NodeInput::default()
-    });
     let child_overflow =
         ScrollRect::try_new(Point::new(-12.0, -4.0), Size::new(160.0, 74.0)).unwrap();
     let child_geometry = root_test_scroll_geometry(RootTestScrollGeometryFacts {
@@ -15035,8 +14869,18 @@ fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
         scrollbar_width: 0.0,
         scrollable_overflow: child_overflow,
     });
-    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
-    tree.output.scroll_geometry = Some(child_geometry);
+    let mut output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+    output.scroll_geometry = Some(child_geometry);
+    let mut tree = OracleTreeOf::new()
+        .style(
+            1,
+            NodeInput {
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
+                ..NodeInput::default()
+            },
+        )
+        .measure(1, output);
 
     compute_root(
         &mut tree,
@@ -15045,7 +14889,7 @@ fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
     )
     .unwrap();
 
-    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    let geometry = tree.layout(1).unwrap().scroll_geometry.unwrap();
     assert_eq!(geometry.scrollable_overflow(), child_overflow);
     assert_positive_physical_range(geometry.physical_range(), Size::new(48.0, 30.0));
 }
@@ -15155,66 +14999,20 @@ fn round_layout_diagnostics_rejects_invalid_rounded_scroll_geometry() {
 
 #[test]
 fn root_layout_stores_child_output_as_root_layout() {
-    #[derive(Default)]
-    struct RootTree {
-        style: NodeInput,
-        layout: Option<NodeOutput>,
-        input: Option<ComputeInput>,
-    }
-
-    impl Traverse for RootTree {
-        type Node = u32;
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Empty<u32>;
-
-        fn children(&self, _node: Self::Node) -> Self::Children<'_> {
-            std::iter::empty()
-        }
-
-        fn child_count(&self, _node: Self::Node) -> usize {
-            0
-        }
-
-        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-            unreachable!("root has no children in this test")
-        }
-    }
-
-    impl Compute for RootTree {
-        fn node_input(&self, _node: Self::Node) -> &NodeInput {
-            &self.style
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
-            self.layout = Some(layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.input = Some(input);
-                ComputeOutput::from_sizes(Size::new(80.0, 20.0), Size::new(80.0, 20.0))
-            })
-        }
-    }
-
-    let mut tree = RootTree {
-        style: NodeInput {
-            direction: Direction::Rtl,
-            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
-            scrollbar_width: crate::ScrollbarWidthOf::try_new(13.0).unwrap(),
-            ..NodeInput::default()
-        },
-        ..RootTree::default()
-    };
+    let mut tree = OracleTreeOf::new()
+        .style(
+            1,
+            NodeInput {
+                direction: Direction::Rtl,
+                overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                scrollbar_width: crate::ScrollbarWidthOf::try_new(13.0).unwrap(),
+                ..NodeInput::default()
+            },
+        )
+        .measure(
+            1,
+            ComputeOutput::from_sizes(Size::new(80.0, 20.0), Size::new(80.0, 20.0)),
+        );
 
     compute_root(
         &mut tree,
@@ -15224,8 +15022,8 @@ fn root_layout_stores_child_output_as_root_layout() {
     .unwrap();
 
     assert_eq!(
-        tree.input,
-        Some(ComputeInput::for_child(
+        tree.inputs(1),
+        &[ComputeInput::for_child(
             RunMode::PerformRootLayout,
             SizingMode::InherentSize,
             RequestedAxis::Both,
@@ -15239,9 +15037,9 @@ fn root_layout_stores_child_output_as_root_layout() {
                 crate::ParentFormattingContext::NoParent
             ),
             Size::new(Available::definite(200.0), Available::definite(100.0))
-        ))
+        )]
     );
-    let layout = tree.layout.expect("root layout should be stored");
+    let layout = tree.layout(1).expect("root layout should be stored");
     assert_eq!(layout.location, crate::Point::new(120.0, 0.0));
     assert_eq!(layout.size, Size::new(80.0, 20.0));
     assert_eq!(layout.content_size, Size::new(80.0, 20.0));
@@ -15250,64 +15048,18 @@ fn root_layout_stores_child_output_as_root_layout() {
 
 #[test]
 fn inline_level_root_keeps_intrinsic_width_under_definite_viewport() {
-    #[derive(Default)]
-    struct RootTree {
-        style: NodeInput,
-        layout: Option<NodeOutput>,
-        input: Option<ComputeInput>,
-    }
-
-    impl Traverse for RootTree {
-        type Node = u32;
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Empty<u32>;
-
-        fn children(&self, _node: Self::Node) -> Self::Children<'_> {
-            std::iter::empty()
-        }
-
-        fn child_count(&self, _node: Self::Node) -> usize {
-            0
-        }
-
-        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-            unreachable!("root has no children in this test")
-        }
-    }
-
-    impl Compute for RootTree {
-        fn node_input(&self, _node: Self::Node) -> &NodeInput {
-            &self.style
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
-            self.layout = Some(layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.input = Some(input);
-                ComputeOutput::from_sizes(Size::new(80.0, 20.0), Size::new(80.0, 20.0))
-            })
-        }
-    }
-
-    let mut tree = RootTree {
-        style: NodeInput {
-            display: Display::InlineGrid,
-            ..NodeInput::default()
-        },
-        ..RootTree::default()
-    };
+    let mut tree = OracleTreeOf::new()
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineGrid,
+                ..NodeInput::default()
+            },
+        )
+        .measure(
+            1,
+            ComputeOutput::from_sizes(Size::new(80.0, 20.0), Size::new(80.0, 20.0)),
+        );
 
     compute_root(
         &mut tree,
@@ -15317,77 +15069,38 @@ fn inline_level_root_keeps_intrinsic_width_under_definite_viewport() {
     .unwrap();
 
     assert_eq!(
-        tree.input.expect("root should be computed").known(),
+        tree.inputs(1)
+            .first()
+            .expect("root should be computed")
+            .known(),
         Size::NONE
     );
     assert_eq!(
-        tree.layout.expect("root layout should be stored").size,
+        tree.layout(1).expect("root layout should be stored").size,
         Size::new(80.0, 20.0)
     );
 }
 
 #[test]
 fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
-    #[derive(Default)]
-    struct RootTree {
-        style: NodeInput,
-        layout: Option<NodeOutput>,
-        input: Option<ComputeInput>,
-    }
-
-    impl Traverse for RootTree {
-        type Node = u32;
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Empty<u32>;
-
-        fn children(&self, _node: Self::Node) -> Self::Children<'_> {
-            std::iter::empty()
-        }
-
-        fn child_count(&self, _node: Self::Node) -> usize {
-            0
-        }
-
-        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-            unreachable!("root has no children in this test")
-        }
-    }
-
-    impl Compute for RootTree {
-        fn node_input(&self, _node: Self::Node) -> &NodeInput {
-            &self.style
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
-            self.layout = Some(layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.input = Some(input);
-                let width = input.known().width.unwrap_or(272.0);
-                ComputeOutput::from_sizes(Size::new(width, 72.0), Size::new(width, 72.0))
-            })
-        }
-    }
-
-    let mut tree = RootTree {
-        style: NodeInput {
-            display: Display::Grid,
-            max_size: Size::new(MaxSize::px(260.0), MaxSize::NONE),
-            ..NodeInput::default()
-        },
-        ..RootTree::default()
-    };
+    let expected_known = Size::new(Some(260.0), None);
+    let mut tree = OracleTreeOf::new()
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                max_size: Size::new(MaxSize::px(260.0), MaxSize::NONE),
+                ..NodeInput::default()
+            },
+        )
+        .measure_when(
+            1,
+            OracleMeasurementOf::new(ComputeOutput::from_sizes(
+                Size::new(260.0, 72.0),
+                Size::new(260.0, 72.0),
+            ))
+            .known(expected_known),
+        );
 
     compute_root(
         &mut tree,
@@ -15397,87 +15110,46 @@ fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
     .unwrap();
 
     assert_eq!(
-        tree.input.expect("root should be computed").known(),
-        Size::new(Some(260.0), None)
+        tree.inputs(1)
+            .first()
+            .expect("root should be computed")
+            .known(),
+        expected_known
     );
     assert_eq!(
-        tree.layout.expect("root layout should be stored").size,
+        tree.layout(1).expect("root layout should be stored").size,
         Size::new(260.0, 72.0)
     );
 }
 
 #[test]
 fn block_root_with_max_width_uses_clamped_available_outer_width() {
-    #[derive(Default)]
-    struct RootTree {
-        style: NodeInput,
-        layout: Option<NodeOutput>,
-        input: Option<ComputeInput>,
-    }
-
-    impl Traverse for RootTree {
-        type Node = u32;
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Empty<u32>;
-
-        fn children(&self, _node: Self::Node) -> Self::Children<'_> {
-            std::iter::empty()
-        }
-
-        fn child_count(&self, _node: Self::Node) -> usize {
-            0
-        }
-
-        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-            unreachable!("root has no children in this test")
-        }
-    }
-
-    impl Compute for RootTree {
-        fn node_input(&self, _node: Self::Node) -> &NodeInput {
-            &self.style
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
-            self.layout = Some(layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.input = Some(input);
-                ComputeOutput::from_sizes(
-                    Size::new(input.known().width.unwrap_or(112.0), 20.0),
-                    Size::new(input.known().width.unwrap_or(112.0), 20.0),
-                )
-            })
-        }
-    }
-
-    let mut tree = RootTree {
-        style: NodeInput {
-            display: Display::Grid,
-            box_sizing: BoxSizing::ContentBox,
-            max_size: Size::new(MaxSize::px(260.0), MaxSize::NONE),
-            padding: Edges::new(
-                Length::px(1.0),
-                Length::px(5.0),
-                Length::px(1.0),
-                Length::px(5.0),
-            ),
-            border: Edges::all(Length::px(1.0)),
-            ..NodeInput::default()
-        },
-        ..RootTree::default()
-    };
+    let expected_known = Size::new(Some(272.0), None);
+    let mut tree = OracleTreeOf::new()
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                box_sizing: BoxSizing::ContentBox,
+                max_size: Size::new(MaxSize::px(260.0), MaxSize::NONE),
+                padding: Edges::new(
+                    Length::px(1.0),
+                    Length::px(5.0),
+                    Length::px(1.0),
+                    Length::px(5.0),
+                ),
+                border: Edges::all(Length::px(1.0)),
+                ..NodeInput::default()
+            },
+        )
+        .measure_when(
+            1,
+            OracleMeasurementOf::new(ComputeOutput::from_sizes(
+                Size::new(272.0, 20.0),
+                Size::new(272.0, 20.0),
+            ))
+            .known(expected_known),
+        );
 
     compute_root(
         &mut tree,
@@ -15487,11 +15159,15 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
     .unwrap();
 
     assert_eq!(
-        tree.input.expect("root should be computed").known().width,
+        tree.inputs(1)
+            .first()
+            .expect("root should be computed")
+            .known()
+            .width,
         Some(272.0)
     );
     assert_eq!(
-        tree.layout
+        tree.layout(1)
             .expect("root layout should be stored")
             .size
             .width,
@@ -15501,86 +15177,50 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
 
 #[test]
 fn round_layout_uses_cumulative_viewport_edges() {
-    #[derive(Default)]
-    struct RoundTree {
-        children: HashMap<u32, Vec<u32>>,
-        unrounded: HashMap<u32, NodeOutput>,
-        final_layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for RoundTree {
-        type Node = u32;
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Round for RoundTree {
-        fn unrounded(
-            &self,
-            node: Self::Node,
-        ) -> crate::LayoutResultOf<Self::Node, NodeOutput, Self::Scalar> {
-            Ok(self.unrounded[&node])
-        }
-
-        fn set_final(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.final_layouts.insert(node, layout);
-        }
-    }
-
-    let mut tree = RoundTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.unrounded.insert(
-        1,
-        NodeOutput {
-            location: Point::new(0.2, 0.0),
-            size: Size::new(10.4, 10.0),
-            content_size: Size::new(10.4, 10.0),
-            border: Edges::all(0.4),
-            padding: Edges::all(0.6),
-            ..NodeOutput::new()
-        },
-    );
-    tree.unrounded.insert(
-        2,
-        NodeOutput {
-            location: Point::new(-0.5, 0.0),
-            size: Size::new(10.0, 10.0),
-            content_size: Size::new(10.0, 10.0),
-            border: Edges::all(0.6),
-            padding: Edges::all(0.4),
-            ..NodeOutput::new()
-        },
-    );
+    let mut tree = OracleTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .unrounded(
+            1,
+            NodeOutput {
+                location: Point::new(0.2, 0.0),
+                size: Size::new(10.4, 10.0),
+                content_size: Size::new(10.4, 10.0),
+                border: Edges::all(0.4),
+                padding: Edges::all(0.6),
+                ..NodeOutput::new()
+            },
+        )
+        .unrounded(
+            2,
+            NodeOutput {
+                location: Point::new(-0.5, 0.0),
+                size: Size::new(10.0, 10.0),
+                content_size: Size::new(10.0, 10.0),
+                border: Edges::all(0.6),
+                padding: Edges::all(0.4),
+                ..NodeOutput::new()
+            },
+        );
 
     round_layout(&mut tree, 1).unwrap();
 
-    assert_eq!(tree.final_layouts[&1].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.final_layouts[&1].size.width, 11.0);
-    assert_eq!(tree.final_layouts[&1].content_size.width, 11.0);
-    assert_eq!(tree.final_layouts[&1].border.left, 1.0);
-    assert_eq!(tree.final_layouts[&1].border.right, 1.0);
-    assert_eq!(tree.final_layouts[&1].padding.left, 1.0);
-    assert_eq!(tree.final_layouts[&1].padding.right, 1.0);
+    let root = tree.final_layout(1).expect("root final layout is staged");
+    assert_eq!(root.location, Point::new(0.0, 0.0));
+    assert_eq!(root.size.width, 11.0);
+    assert_eq!(root.content_size.width, 11.0);
+    assert_eq!(root.border.left, 1.0);
+    assert_eq!(root.border.right, 1.0);
+    assert_eq!(root.padding.left, 1.0);
+    assert_eq!(root.padding.right, 1.0);
 
-    assert_eq!(tree.final_layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.final_layouts[&2].size.width, 10.0);
-    assert_eq!(tree.final_layouts[&2].content_size.width, 10.0);
-    assert_eq!(tree.final_layouts[&2].scrollbar_size(), Size::ZERO);
-    assert_eq!(tree.final_layouts[&2].border.left, 0.0);
-    assert_eq!(tree.final_layouts[&2].border.right, 1.0);
+    let child = tree.final_layout(2).expect("child final layout is staged");
+    assert_eq!(child.location, Point::new(0.0, 0.0));
+    assert_eq!(child.size.width, 10.0);
+    assert_eq!(child.content_size.width, 10.0);
+    assert_eq!(child.scrollbar_size(), Size::ZERO);
+    assert_eq!(child.border.left, 0.0);
+    assert_eq!(child.border.right, 1.0);
 }
 
 fn assert_subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis<

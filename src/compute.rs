@@ -3036,40 +3036,6 @@ mod tests {
         NodeInput, ScrollRectOf, ShapedInlineSegmentOf, Traverse,
     };
 
-    struct EmptyTree {
-        input: NodeInput,
-    }
-
-    impl Traverse for EmptyTree {
-        type Node = u32;
-        type Scalar = DefaultScalar;
-        type Children<'a> = std::iter::Empty<u32>;
-
-        fn children(&self, _node: Self::Node) -> Self::Children<'_> {
-            std::iter::empty()
-        }
-
-        fn child_count(&self, _node: Self::Node) -> usize {
-            0
-        }
-
-        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
-            unreachable!("empty test tree has no children")
-        }
-    }
-
-    impl LayoutTree for EmptyTree {
-        type MeasureError = ();
-
-        fn node_input(&self, _node: Self::Node) -> &NodeInput {
-            &self.input
-        }
-
-        fn layout_input(&self, _node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.input.clone())
-        }
-    }
-
     struct BoundedDagTree {
         input: NodeInput,
         children: Vec<Vec<u32>>,
@@ -3160,9 +3126,8 @@ mod tests {
 
     #[test]
     fn compute_session_rejects_missing_staged_unrounded_output() {
-        let tree = EmptyTree {
-            input: NodeInput::default(),
-        };
+        let tree = crate::test_support::layout_tree::PublicLayoutTreeOf::new()
+            .style(0, NodeInput::default());
         let session = ComputeSession::new(&tree, Vec::new());
 
         let error = Round::unrounded(&session, 0).unwrap_err();
