@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/P01-I06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`ac08d4c8df8a8da7cd0698eb2618f1fa5478c5b477bdedc07800543804fbd9ea`,
-committed as `9cbd01560705b7d81579804eedf904999b82ee0c`.
+`6135d2c542967d938508f6a15b9940dbe02b3b15221109911bbad611c67c25a6`,
+committed as `45b6a9b987b37328963c8c1feff67368e91de70b`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -314,21 +314,26 @@ atomic-baseline, physical-placement, comparator, fixture, and acceptance portion
 of `FRI-06.5`, `FRI-06.7`, `FRI-06.9` through `FRI-06.11.3`, and `FRI-06.14`.
 **Prerequisites:** `P01/I06/S01/C11` complete and remotely verified.
 **Entry state:** C11 supplies settled fixture inputs and C12 preserves the sole
-successful full lineage; diagnosis reopens D-18 because current source mutates an
-already reduced group instead of translating its immutable owner target into the
-placement coordinates of the inheriting current grid. D-19 remains dependent on
-that production closure.
-**Bounded outcome:** Complete D-18's immutable per-track target records and
-checked current-grid placement phase for row/block and column/inline consumers,
-including internally derived role/reversal/gutter translation, while preserving
-one-pass auto sizing and distinct child-envelope views; then complete D-19 and
-adopt the preserved lineage without changing public API, fixtures, helper,
-parser, generated output, or running another generation.
-**Observable exit evidence:** D-18 proves complete-record reduction and identical
-row/column placement for positive, equal, and negative half-gaps, reversed and
-non-reversed roles, terminal and owner-direct zero cases, MBP separation,
-repeatability, ordered invalid-input propagation, atomic failure, and the exact
-full-fixture controls before D-19 48/48/48 endpoint accounting and private
+successful full lineage; diagnosis at `44fe9ff42` reopens D-18 because nested
+transport replaces the immutable owner group and retains only the latest
+one-boundary mapping. Activation has 48 horizontal-auto-row and 24 RTL-inline-
+column ordinary mismatches while the LTR and vertical controls remain correct;
+D-19 remains dependent on production closure.
+**Bounded outcome:** Preserve D-18's typed immutable owner group through the
+parent-context carrier and compose a checked owner-to-current track/frame map
+across every inherited boundary for row/block and column/inline consumers. Apply
+role-specific frame and separately accumulated gutter translations by typed
+owner/current applicability while preserving one-pass auto sizing and distinct
+child-envelope views; then complete D-19 and adopt the preserved lineage without
+changing public API, fixtures, helper, parser, generated output, or running
+another generation.
+**Observable exit evidence:** D-18 proves typed owner/current continuity,
+identity and two-boundary track/frame composition, positive/equal/negative
+half-gap accumulation, reversal/progression, MBP/frame separation, repeatability,
+ordered invalid-input propagation, atomic failure, horizontal `53-20+10=43`
+placing y `128`, RTL `53-18+0=35` placing x `265`, and unchanged LTR x `265` and
+vertical x `308`. Full activation has zero ordinary mismatches before D-19
+accounts for exactly 144 endpoint-only fields as 48/48/48 with private
 line-membership proof; final `FRI-06.14` browser/artifact acceptance passes with
 no second full run, generator-architecture, or later-owned behavior change.
 **Handoff:** C13 receives the behavior-correct candidate with generator inputs
