@@ -133,17 +133,17 @@ corroborating evidence, not files imported into this repository by FRI-07.
 | --- | --- |
 | `D-01` | Add public `FlexItemCollapse` with exactly `Normal` and `Collapsed`, and add `NodeInputOf::flex_item_collapse`. The type names the normalized flex-layout effect, not authored or computed visibility. `Normal` is the default. |
 | `D-02` | The field is meaningful only when the node is an in-flow child of a flex container. Other formatting contexts preserve their existing behavior; root supplies `Normal` outside collapsed flex participation. Absolute and `display: none` children never create struts. |
-| `D-03` | A collapsed item remains in the order-modified sequence. The first layout round treats it normally and records the settled cross size of its line as that item's strut. The second round redoes line collection with the collapsed box's main size treated as zero while retaining its resolved main-axis margins and normal line-collection gap positions. After line collection it is ignored for every later sizing/alignment/contribution phase, whose gaps are only between remaining normal items. Its second-round line is floored at the largest collapsed-item strut assigned to that line. |
+| `D-03` | A collapsed item remains in the order-modified sequence. The first layout round treats it normally and records the settled cross size of its line as that item's strut. The second round redoes line collection with the collapsed box's main size treated as zero: non-auto used main-axis margins participate, auto main-axis margins remain zero during collection, and normal line-collection gap positions apply. After line collection the collapsed item is ignored for every later sizing, alignment, auto-margin, and contribution phase; normal items resolve main-axis auto margins in the existing post-collection phase, and its gaps are only between remaining normal items. Its second-round line is floored at the largest collapsed-item strut assigned to that line. |
 | `D-04` | A collapsed item's first-round strut is the used line cross size after ordinary line cross-size calculation and `align-content: stretch`, matching Flexbox section 9.4. It is not the item's own outer cross size, baseline extent, or final container cross size. |
 | `D-05` | The second round is finite and runs at most once. It starts from immutable collected item measurements and immutable per-item struts; second-round geometry never feeds a third round. Scrollbar-settling remains the existing outer fixed-point owner and may rerun the complete finite flex computation with a different available box. |
 | `D-06` | A collapsed item publishes a source-indexed zero `NodeOutputOf` and its descendants take the existing hidden-computation path. It contributes no margin, gap, baseline, intrinsic main size, scrollable overflow, scroll target, container content size, or absolute-child containing geometry. Its strut is private line state, not a public output box. |
-| `D-07` | Cross-axis auto margins follow Flexbox section 9.6 exactly. Positive difference is shared among auto margins. Under overflow, logical cross-start auto resolves to zero and cross-end receives the signed remainder; if only cross-end is auto it receives the signed remainder, and if only cross-start is auto it resolves to zero while the non-auto opposite edge remains unchanged. |
+| `D-07` | Cross-axis auto margins follow Flexbox section 9.6 exactly. Positive difference is shared among auto margins. Under overflow, the normal logical start side of the cross dimension, block-start for a row container or inline-start for a column container, is distinct from wrap-reversible flex cross-start: its auto margin resolves to zero and the opposite margin receives the signed remainder. `FlexAxes` remains the sole mapping owner but exposes this non-wrap-reversible cross-axis pair explicitly. |
 | `D-08` | Ordinary main-axis auto margins retain Flexbox section 9.5 behavior: distribute only positive remaining space; otherwise every main-axis auto margin resolves to zero. FRI-07 does not apply the cross-axis overflow rule to the main axis. |
 | `D-09` | Absolutely positioned flex-child auto margins are resolved per physical axis using the inset-modified containing block. If either inset in that axis is auto, every auto margin in that axis is zero. Otherwise remaining space is inset-modified size minus used size minus non-auto margins and is divided among auto margins. |
 | `D-10` | For an absolutely positioned child with two auto margins and negative inline-axis remaining space, containing-block inline-start is zero and inline-end receives the full signed remainder. In the block axis, negative remaining space is divided normally. Containing `FlowAxes`, not the child's writing mode or a physical-left shortcut, selects inline start/end. |
 | `D-11` | `ResolvedFlexBasis<S>` gains distinct `MinContent` and `MaxContent` states. Dispatch removes exactly those two FRI-07 capability cells. A min-content basis measures the flex item's main size under `AvailableOf::MIN_CONTENT`; a max-content basis measures under `AvailableOf::MAX_CONTENT`. Neither consults the preferred main size as `auto` does, and neither enters the `content` max-content fallback. |
 | `D-12` | Intrinsic flex-basis measurement keeps box-sizing, padding/border floor, min/max clamping, aspect ratio, replaced-item sizing, orthogonal flow, error propagation, scalar type, and percentage context in their existing phases. The intrinsic keyword selects the measurement constraint; it does not bypass those contracts. |
-| `D-13` | `stretch`, bare `fit-content`, `contain`, `fit-content()`, and keyword-basis `calc-size()` retain their exact typed unsupported-capability results. Enabling `MinContent` and `MaxContent` must not broaden another cell. |
+| `D-13` | Direct `MinContent` and `MaxContent` are the only newly supported capability cells. `calc-size()` with `Any` or `FullPercentage` basis retains its already-supported behavior. `calc-size()` with `Auto`, `Content`, `MinContent`, `MaxContent`, `Stretch`, `FitContent`, or `Contain` basis retains its exact `SizingBehavior::CalcSize` unsupported-capability result. Direct `Stretch`, bare `FitContent`, `Contain`, and `fit-content()` retain their exact typed unsupported-capability results. Enabling the two direct intrinsic cells must not broaden another cell. |
 | `D-14` | Existing `ItemOrder`, `FlexAxes`, `item_is_replaced`, normalized overflow, cache, and transaction contracts remain the sole owners of their facts. FRI-07 composes with them and adds no parallel order sort, axis mapping, replaced heuristic, overflow pair, or cache identity. |
 | `D-15` | Browser fixtures use explicit computed/layout-ready facts only. The helper may serialize computed `visibility` as `flex-item-collapse=collapsed` for an exact collapsed flex item; the Rust fixture adapter accepts only `collapsed`, otherwise defaults to `Normal`, and rejects every other explicit token. This is bounded lowering, not a CSS visibility parser. |
 | `D-16` | Exactly six named four-variant sources form the FRI-07 browser set. Inputs and behavior settle before one unfiltered full regeneration. Scoped generation may be used during iteration as a diagnostic, but is not required verification evidence and never writes a report. No redundant full generation is permitted. |
@@ -210,22 +210,28 @@ Let `line_cross` be the used cross size of the item's flex line. Let
 `outer_without_auto` be the item's target cross size plus both non-auto cross
 margins. Let `remaining = line_cross - outer_without_auto`.
 
-| Auto edges | `remaining > 0` | `remaining <= 0` |
+| Logical cross-dimension auto edges | `remaining > 0` | `remaining <= 0` |
 | --- | --- | --- |
 | neither | Preserve both margins; alignment applies normally | Preserve both margins; alignment applies normally |
 | start only | start receives `remaining`; preserve end | start is zero; preserve end |
 | end only | end receives `remaining`; preserve start | end receives `remaining`; preserve start |
 | start and end | each receives `remaining / 2` | start is zero; end receives `remaining` |
 
-Start/end are the flex cross-axis sides selected by `FlexAxes`, including
-`wrap-reverse`, vertical and sideways writing modes, and RTL. Used negative end
-margin is observable in `NodeOutputOf::margin`; placement remains anchored at
-cross-start. The engine must not compare browser computed-style margin strings
-to infer the used layout margin.
+Start/end in this table are the normal logical sides of the cross dimension:
+block-start/end for row and row-reverse containers, and inline-start/end for
+column and column-reverse containers. Writing mode and direction select their
+physical sides; `wrap-reverse` does not swap them. Flex line progression and
+final physical placement continue to use the wrap-aware cross sides after these
+used margins resolve. A negative logical-end margin is observable in
+`NodeOutputOf::margin`. The engine must not compare browser computed-style
+margin strings to infer the used layout margin.
 
 Focused tests cover positive, zero, and negative remaining space; each auto-edge
-combination; row, column, reverse, and wrap-reverse; all ten writing-mode and
-direction mappings; both scalar lanes; and output margin plus physical geometry.
+combination; row, column, main-axis reverse, and wrap-reverse; all ten writing-
+mode and direction mappings; both scalar lanes; and output margin plus physical
+geometry. Paired wrap/wrap-reverse cases prove that the same logical-start
+margin remains zero under overflow while line progression and physical
+placement reverse independently.
 
 ### 6.2 Absolutely Positioned Flex Children
 
@@ -270,8 +276,11 @@ sizing, padding/border, and both scalar lanes.
 | `Content` | `Content` | Existing content path and algorithm-selected available constraint. |
 | `MinContent` | `MinContent` | Item main-size measurement under `AvailableOf::MIN_CONTENT`. |
 | `MaxContent` | `MaxContent` | Item main-size measurement under `AvailableOf::MAX_CONTENT`. |
-| supported numeric/calc-size | `Definite(S)` | Existing percentage and box-sizing path. |
-| every later-owned value | exact unsupported capability | Unchanged payload and owner. |
+| supported ordinary numeric calculation | `Definite(S)` | Existing percentage and box-sizing path. |
+| `calc-size()` with `Any` basis | existing supported definite calculation | Existing calculation and validation behavior. |
+| `calc-size()` with `FullPercentage` basis | existing supported result or missing-basis behavior | Existing percentage context, calculation, and validation behavior. |
+| `calc-size()` with `Auto`, `Content`, `MinContent`, `MaxContent`, `Stretch`, `FitContent`, or `Contain` basis | exact unsupported capability | Unchanged `SizingBehavior::CalcSize` payload with the exact selected basis. |
+| direct `Stretch`, bare `FitContent`, `Contain`, or `fit-content()` | exact unsupported capability | Unchanged payload and owner. |
 
 The collected item retains whether its basis is definite and whether it uses the
 generic content path. It also retains the intrinsic selection needed by final
@@ -303,8 +312,9 @@ The flex computation uses these private phases:
 3. Each collapsed item records its first-round line's used cross size as a
    private strut.
 4. Second-round line collection retains the order-modified item slot, treats its
-   box main size as zero, and still accounts for its resolved main-axis margins
-   and normal line-collection gap positions.
+   box main size as zero, accounts for non-auto used main-axis margins, treats
+   auto main-axis margins as zero, and preserves normal line-collection gap
+   positions.
 5. Second-round sizing, intrinsic contribution, main/cross alignment, baseline,
    container-content, and scroll contribution operate only on normal items.
 6. After ordinary second-round line cross-size calculation and before item
@@ -320,10 +330,12 @@ line use the largest strut, not their sum.
 ### 8.2 Wrapping And Order
 
 Second-round line breaking is redone from the beginning. A collapsed box has
-zero main size while its resolved main-axis margins and the normal gaps between
-collected item slots still affect line membership. This is the exact
-line-collection exception; it does not replace the collapsed item with
-`display:none` before its strut can be assigned.
+zero main size; its non-auto used main-axis margins and the normal gaps between
+collected item slots affect line membership, while its auto main-axis margins
+remain zero during collection. This is the exact line-collection exception; it
+does not replace the collapsed item with `display:none` before its strut can be
+assigned. Main-axis auto margins for remaining normal items resolve only in the
+existing post-collection phase.
 
 After line collection, the collapsed item is ignored. Flexible sizing,
 main-axis placement, and final line size count gaps only between remaining
@@ -393,7 +405,7 @@ The exact six Surgeist-authored sources are:
 | `html/flex/fri07_absolute_auto_margin_insets.html` | Auto-inset zeroing, inset-modified positive distribution, and negative inline/block behavior. |
 | `html/flex/fri07_intrinsic_flex_basis.html` | Distinct min-content and max-content basis geometry with grow/shrink controls. |
 | `html/flex/fri07_collapsed_strut_single_line.html` | One-line cross-size stability, baseline, multiple struts, and zero collapsed output. |
-| `html/flex/fri07_collapsed_strut_wrapping.html` | Zero-main second-round line collection with retained collection margins/gaps, post-collection gap suppression, and changed wrapping. |
+| `html/flex/fri07_collapsed_strut_wrapping.html` | Zero-main second-round line collection with retained non-auto margins, auto margins held at zero, retained collection gaps, post-collection gap suppression, and changed wrapping. |
 | `html/flex/fri07_flex_composition.html` | Order, vertical/sideways flow, replaced sizing, overflow, and collapse composition. |
 
 Each source has the existing four generated box-sizing/direction variants, for
@@ -479,8 +491,9 @@ At minimum, focused evidence proves:
 
 1. default/generic/public construction and crate-root reexport of
    `FlexItemCollapse`, with no general visibility surface;
-2. direct `MinContent`/`MaxContent` dispatcher support and unchanged exact
-   capability payloads for every later-owned flex-basis member;
+2. direct `MinContent`/`MaxContent` dispatcher support; unchanged supported
+   `calc-size(Any)` and `calc-size(FullPercentage)` behavior; and unchanged exact
+   capability payloads for every direct and keyword-basis later-owned member;
 3. distinct `20`/`100` intrinsic provider results through real flex layout,
    including grow/shrink, box-sizing, replaced, orthogonal, error, cache, and
    both scalar lanes;
