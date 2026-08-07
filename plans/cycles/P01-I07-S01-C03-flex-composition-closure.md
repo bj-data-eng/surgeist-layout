@@ -135,9 +135,10 @@ cargo fmt --check
 ```
 
 **Dependency:** reviewed planning packet only. **Intended commit:**
-`test(layout): compose completed flex capabilities`, or an owner-local
-`fix(layout): correct composed flex interaction` followed by the test commit
-when RED proves a production defect.
+`test(layout): compose completed flex capabilities` when characterization is
+green. When RED proves a production defect, commit the failing evidence first
+as `test(layout): expose composed flex interaction`, then commit the owner-local
+correction as `fix(layout): correct composed flex interaction`.
 
 ### 3.2 `P01/I07/S01/C03/T02` Close Combined State And Failure Evidence
 
@@ -156,13 +157,13 @@ entry point until its smallest in-scope correction.
 
 **Acceptance:** cold and warm batches agree for all outputs and committed cache
 facts; provider failure during intrinsic measurement and during the second
-collapse collection commits neither partial output nor cache state; recovery
-matches a fresh tree; measurement traces prove no more than the existing normal
-and collapsed rounds; rounded and unrounded source-associated outputs remain
-coherent; overflow and scrollbar settlement exclude first-round collapsed
-facts; and f32/f64 results agree. Controls also prove unchanged later-owned
-flex-basis capability payloads and inert collapse on the composed absolute
-child.
+round's leaf resolution after second collection commits neither partial output
+nor cache state; recovery matches a fresh tree; measurement traces prove no
+more than the existing normal and collapsed rounds; rounded and unrounded
+source-associated outputs remain coherent; overflow and scrollbar settlement
+exclude first-round collapsed facts; and f32/f64 results agree. Controls also
+prove unchanged later-owned flex-basis capability payloads and inert collapse
+on the composed absolute child.
 
 **Commands:**
 
@@ -176,8 +177,10 @@ cargo fmt --check
 ```
 
 **Dependency:** T01. **Intended commit:**
-`test(layout): close composed flex state evidence`, or an owner-local fix plus
-the evidence commit when RED proves a distinct production defect.
+`test(layout): close composed flex state evidence` when characterization is
+green. When RED proves a distinct production defect, commit the failing evidence
+first as `test(layout): expose composed flex state defect`, then commit the
+owner-local correction as `fix(layout): correct composed flex state`.
 
 ### 3.3 `P01/I07/S01/C03/T03` Document The Completed Leaf Boundary
 
@@ -242,15 +245,17 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
-git diff --exit-code d4915cb6bc5bab629b2236f28b024c41f5feb88a..HEAD -- Cargo.toml Cargo.lock tests/layout/browser_parity tests/layout/browser_parity.rs tests/bin
+git diff --exit-code d4915cb6bc5bab629b2236f28b024c41f5feb88a..HEAD -- . ':(exclude)plans/cycles/P01-I07-S01-C03-flex-composition-closure.md' ':(exclude)README.md' ':(exclude)src/lib.rs' ':(exclude)src/flex.rs' ':(exclude)src/flex_tests.rs' ':(exclude)src/compute.rs' ':(exclude)src/sizing.rs'
+! git diff --unified=0 d4915cb6bc5bab629b2236f28b024c41f5feb88a..HEAD -- src/lib.rs | rg --pcre2 '^[+-](?![+-]|//!)'
+! git diff --unified=0 d4915cb6bc5bab629b2236f28b024c41f5feb88a..HEAD -- '*.rs' | rg --pcre2 '^\+(?!\+\+).*#\s*\[.*\b(?:allow|expect)\s*\('
 ! rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' src tests
 git diff --check d4915cb6bc5bab629b2236f28b024c41f5feb88a..HEAD
 git status --short
 ```
 
-The protected-path diff and unsafe scan print no output; status is clean. The
-generator-feature, corpus, and Taffy commands are read-only and do not authorize
-regeneration. The remotely verified C03 handoff gives C04 behavior-complete,
-documented leaf semantics so fixture inputs can settle without redesign.
-Genuine blockers are limited to those defined by the installed workflow; none
-is currently known.
+The repository exclusion gate, crate-doc-only check, changed-line lint check,
+and unsafe scan print no output; status is clean. The generator-feature, corpus,
+and Taffy commands are read-only and do not authorize regeneration. The
+remotely verified C03 handoff gives C04 behavior-complete, documented leaf
+semantics so fixture inputs can settle without redesign. Genuine blockers are
+limited to those defined by the installed workflow; none is currently known.
