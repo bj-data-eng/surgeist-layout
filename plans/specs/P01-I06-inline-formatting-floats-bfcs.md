@@ -544,7 +544,7 @@ closed construction contract:
 
 | Concern | Required contract |
 | --- | --- |
-| Owner | `src/grid/subgrid.rs` owns `CheckedOwnerToCurrentPlacementMap`, `InheritedCurrentGridBaselinePlacement`, their inputs, composition, validation, and placement errors; `src/grid/child.rs` owns map transport plus the sole placement call and consumer |
+| Owner | `src/grid/subgrid.rs` owns `CheckedOwnerToCurrentPlacementMap`, `InheritedCurrentGridBaselinePlacement`, their inputs, composition, validation, and placement errors. `src/grid/mod.rs` owns the generic parent-context carrier that retains one immutable typed-owner group plus its composed map across boundaries. `src/grid/child.rs` constructs the next composed carrier and owns the sole placement call and consumer |
 | Construction | `try_derive(&AncestorBaselineGroup, InheritedCurrentGridBaselinePlacementInput) -> Result<InheritedCurrentGridBaselinePlacement, InheritedCurrentGridBaselinePlacementError>` receives `GridAxisKind`, physical baseline axis, first/last role, a `CheckedOwnerToCurrentPlacementMap`, and a private current-grid-direct witness created only while iterating that grid's `PendingGridItem`s. The map supplies typed owner/current identities and maps the witness's selected local track to one immutable owner track. The constructor looks up that exact role target and applies the map's role/local-track frame and accumulated gutter translations. No caller supplies a target, mapped edge, translation, or translated target |
 | Map construction | The owner creates an identity map over its settled tracks. Each inherited child boundary calls one checked composition operation with parent/current grid identity, parent span, parent/current physical progression, reversal, start/end MBP, parent/current track-frame origins, and parent/current gaps. Composition maps every current-local track to one owner track and carries role-specific frame and gutter translations; it never reads a target, winner, group envelope, fixture expectation, or placement result |
 | Intrinsic invariants | Group/input axes and physical axes agree; the map's owner equals the immutable group owner and its current grid equals the direct witness's current grid; every selected local track has exactly one in-range owner track; role selects the matching first/last owner target record; the witness belongs to the current container and selected item; every composed boundary is inherited and maps the requested child axis to the same physical owner axis; stored target, frame origins, gaps, component translations, and final target are finite |
@@ -975,7 +975,8 @@ return precomputed final line positions.
 | `src/block.rs` | Inline composition, containing strut, float-band/BFC placement, percentage basis, fast-path baseline predicate, scroll contribution |
 | `src/grid/tracks.rs` | Extend the existing axis-parametric subgrid traversal to emit separate `FlattenedScalarContribution` and `AncestorBaselineMember` records; suppress a fully inherited root only from the ordinary scalar pass; derive one pre-growth member census for auto-track scalar contributions and shims; and reduce direct plus flattened members into immutable settled row and column target records. A strictly larger candidate replaces the complete target record; an equal candidate retains the earliest source-order record. Reduced groups expose no mutator or target-value ownership inference |
 | `src/grid/subgrid.rs` | Own checked ancestor-span, mapped-edge, reversal, typed owner/current-grid identity, physical progression, track-frame origin, gap, margin/border/padding, and half-gutter traversal facts. Ancestor-facing members retain the one outward half-gutter adjustment. A `CheckedOwnerToCurrentPlacementMap` composes owner-track identity plus role-specific frame/gutter translations across inherited boundaries, and that map with a current-grid-direct witness derives `InheritedCurrentGridBaselinePlacement` internally from the immutable owner target. A separate downward mapping derives child-internal `ChildBaselineEnvelopeView`. Neither may mutate or re-enter the ancestor group, and no fully inherited-axis child-to-parent inverse exists |
-| `src/grid/child.rs` | Preserve the immutable owner group and composed placement map through every parent context; never replace either with a current-grid reduced group or gate applicability on group-wide translation history. Select owner-direct target consumption or distinct inherited-current-grid placement by typed owner/current identity for the item's `GridAxisKind`: columns replace the ordinary logical inline offset and rows replace the ordinary logical block offset before containing-grid `FlowAxes` performs one final projection. Child envelope views remain child-internal, ordinary non-inherited baseline behavior remains unchanged, and no post-placement correction or cloned-group mutation is permitted |
+| `src/grid/mod.rs` | Parameterize `GridParentContext`, `InheritedGridAxis`, and the owner-baseline carrier by node identity where required. The carrier contains exactly the immutable typed-owner `AncestorBaselineGroup<Node,S>` and `CheckedOwnerToCurrentPlacementMap<Node,S>`; it has no current-grid reduced group, one-boundary-only mapping, `major_placement_required`, `minor_placement_required`, or equivalent history flag. Context transport preserves owner identity and exposes current identity only through the checked map |
+| `src/grid/child.rs` | Construct the owner identity carrier and compose its map exactly once for each inherited parent-context boundary while preserving the immutable owner group in the `src/grid/mod.rs` carrier; never replace either with a current-grid reduced group or gate applicability on group-wide translation history. Select owner-direct target consumption or distinct inherited-current-grid placement by typed owner/current identity for the item's `GridAxisKind`: columns replace the ordinary logical inline offset and rows replace the ordinary logical block offset before containing-grid `FlowAxes` performs one final projection. Child envelope views remain child-internal, ordinary non-inherited baseline behavior remains unchanged, and no post-placement correction or cloned-group mutation is permitted |
 | `src/cache.rs` | Preserve FRI-01's unit key and support clear-then-store batch application with fragment restoration |
 | Focused Rust tests | Model, line, block, root, cache, scalar, flow, provider, comparator, public surface, and failure evidence |
 | `tests/layout/browser_parity/support.rs` | Exact shaped fixture lowering, fragment/control comparison, and named mismatch diagnostics |
@@ -1258,6 +1259,22 @@ struct CheckedOwnerToCurrentPlacementMap<Node, S> {
     current_progression: PhysicalProgression,
     boundary_count: usize,
     tracks: Vec<OwnerTrackPlacementEntry<S>>,
+}
+
+struct InheritedGridOwnerBaselineTargets<Node, S> {
+    owner_group: AncestorBaselineGroup<Node, S>,
+    placement_map: CheckedOwnerToCurrentPlacementMap<Node, S>,
+}
+
+struct InheritedGridAxis<Node, S> {
+    // Existing inherited track, gap, name, area, baseline-view, span, and
+    // reversal fields remain alongside this owner-preserving carrier.
+    owner_baseline_targets: Option<InheritedGridOwnerBaselineTargets<Node, S>>,
+}
+
+struct GridParentContext<Node, S> {
+    columns: Option<InheritedGridAxis<Node, S>>,
+    rows: Option<InheritedGridAxis<Node, S>>,
 }
 
 struct InheritedCurrentGridBaselinePlacement<Node, S> {
