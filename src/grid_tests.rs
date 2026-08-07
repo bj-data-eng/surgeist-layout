@@ -8,7 +8,7 @@ use crate::geometry::{
 };
 use crate::test_support::{
     self as lts,
-    layout_tree::{OracleMeasurement, OracleTree, OracleTreeOf},
+    layout_tree::{OracleMeasurement, OracleTree, OracleTreeOf, PublicLayoutTreeOf},
 };
 use crate::*;
 
@@ -197,56 +197,10 @@ const FRI06_C07_HEIGHT_ROWS: [Fri06C07HeightRow; 12] = [
     },
 ];
 
-#[derive(Clone, Debug)]
-struct Fri06C07HeightTree<S: LayoutScalar> {
-    children: HashMap<u32, Vec<u32>>,
-    inputs: HashMap<u32, LayoutInputOf<S>>,
-    node_inputs: HashMap<u32, NodeInputOf<S>>,
-}
-
-impl<S: LayoutScalar> Traverse for Fri06C07HeightTree<S> {
-    type Node = u32;
-    type Scalar = S;
-    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-    fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        self.children
-            .get(&node)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-            .iter()
-            .copied()
-    }
-
-    fn child_count(&self, node: Self::Node) -> usize {
-        self.children.get(&node).map(Vec::len).unwrap_or(0)
-    }
-
-    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-        self.children[&node][index]
-    }
-}
-
-impl<S: LayoutScalar> LayoutTree for Fri06C07HeightTree<S> {
-    type MeasureError = ();
-
-    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
-        &self.node_inputs[&node]
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
-        self.inputs[&node].clone()
-    }
-}
-
-fn fri06_c07_height_box_input<S: LayoutScalar>(input: NodeInputOf<S>) -> LayoutInputOf<S> {
-    LayoutInputOf::box_input(input)
-}
-
 fn fri06_c07_height_grid_lanes_tree<S: LayoutScalar>(
     row: Fri06C07HeightRow,
     overflow_hidden: bool,
-) -> Fri06C07HeightTree<S> {
+) -> PublicLayoutTreeOf<S> {
     let scalar = S::from_f64;
     let overflow = if overflow_hidden {
         ComputedOverflow::try_new(Overflow::Hidden, Overflow::Hidden)
@@ -280,25 +234,18 @@ fn fri06_c07_height_grid_lanes_tree<S: LayoutScalar>(
         ),
         ..NodeInputOf::default()
     };
-    let node_inputs = HashMap::from([
-        (0, root.clone()),
-        (1, child(scalar(60.0))),
-        (2, child(scalar(30.0))),
-        (3, child(scalar(30.0))),
-    ]);
-    let inputs = node_inputs
-        .iter()
-        .map(|(node, input)| (*node, fri06_c07_height_box_input(input.clone())))
-        .collect();
-
-    Fri06C07HeightTree {
-        children: HashMap::from([(0, vec![1, 2, 3]), (1, vec![]), (2, vec![]), (3, vec![])]),
-        inputs,
-        node_inputs,
-    }
+    PublicLayoutTreeOf::new()
+        .children(0, [1, 2, 3])
+        .children(1, [])
+        .children(2, [])
+        .children(3, [])
+        .style(0, root)
+        .style(1, child(scalar(60.0)))
+        .style(2, child(scalar(30.0)))
+        .style(3, child(scalar(30.0)))
 }
 
-fn fri06_c07_height_subgrid_tree<S: LayoutScalar>(row: Fri06C07HeightRow) -> Fri06C07HeightTree<S> {
+fn fri06_c07_height_subgrid_tree<S: LayoutScalar>(row: Fri06C07HeightRow) -> PublicLayoutTreeOf<S> {
     let fixture_root = NodeInputOf {
         display: Display::Block,
         box_sizing: row.box_sizing,
@@ -357,32 +304,17 @@ fn fri06_c07_height_subgrid_tree<S: LayoutScalar>(row: Fri06C07HeightRow) -> Fri
         segment(4, 75.0, InlineBreakOpportunityOf::prohibited()),
     ])
     .expect("four unique shaped participants are valid");
-    let node_inputs = HashMap::from([
-        (0, fixture_root.clone()),
-        (1, outer.clone()),
-        (2, subgrid.clone()),
-        (3, text_container.clone()),
-        (4, NodeInputOf::non_box()),
-    ]);
-    let inputs = HashMap::from([
-        (0, fri06_c07_height_box_input(fixture_root)),
-        (1, fri06_c07_height_box_input(outer)),
-        (2, fri06_c07_height_box_input(subgrid)),
-        (3, fri06_c07_height_box_input(text_container)),
-        (4, LayoutInputOf::inline_text(text)),
-    ]);
-
-    Fri06C07HeightTree {
-        children: HashMap::from([
-            (0, vec![1]),
-            (1, vec![2]),
-            (2, vec![3]),
-            (3, vec![4]),
-            (4, vec![]),
-        ]),
-        inputs,
-        node_inputs,
-    }
+    PublicLayoutTreeOf::new()
+        .children(0, [1])
+        .children(1, [2])
+        .children(2, [3])
+        .children(3, [4])
+        .children(4, [])
+        .style(0, fixture_root)
+        .style(1, outer)
+        .style(2, subgrid)
+        .style(3, text_container)
+        .input(4, LayoutInputOf::inline_text(text))
 }
 
 fn fri06_c07_height_output<S: LayoutScalar>(
@@ -751,47 +683,11 @@ const FRI06_C07_SUBGRID_RTL_ROWS: [Fri06C07SubgridRtlRow; 32] = [
 ];
 
 #[derive(Clone, Debug)]
-struct Fri06C07SubgridRtlTree<S: LayoutScalar> {
-    children: HashMap<u32, Vec<u32>>,
-    inputs: HashMap<u32, NodeInputOf<S>>,
+struct Fri06C07SubgridRtlCase<S: LayoutScalar> {
+    tree: PublicLayoutTreeOf<S>,
     target_inline_grid: u32,
     target_subgrid: u32,
     target_subject: u32,
-}
-
-impl<S: LayoutScalar> Traverse for Fri06C07SubgridRtlTree<S> {
-    type Node = u32;
-    type Scalar = S;
-    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-    fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        self.children
-            .get(&node)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-            .iter()
-            .copied()
-    }
-
-    fn child_count(&self, node: Self::Node) -> usize {
-        self.children.get(&node).map(Vec::len).unwrap_or(0)
-    }
-
-    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-        self.children[&node][index]
-    }
-}
-
-impl<S: LayoutScalar> LayoutTree for Fri06C07SubgridRtlTree<S> {
-    type MeasureError = ();
-
-    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
-        &self.inputs[&node]
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
-        LayoutInputOf::box_input(self.inputs[&node].clone())
-    }
 }
 
 fn fri06_c07_subgrid_rtl_alignment_index(alignment: AlignItems) -> usize {
@@ -817,7 +713,7 @@ fn fri06_c07_subgrid_rtl_expected_origin<S: LayoutScalar>(alignment: AlignItems)
 
 fn fri06_c07_subgrid_rtl_tree<S: LayoutScalar>(
     row: Fri06C07SubgridRtlRow,
-) -> Fri06C07SubgridRtlTree<S> {
+) -> Fri06C07SubgridRtlCase<S> {
     let scalar = S::from_f64;
     let root = NodeInputOf {
         display: Display::Block,
@@ -904,9 +800,16 @@ fn fri06_c07_subgrid_rtl_tree<S: LayoutScalar>(
     let target_subject = 100
         + u32::try_from(target_self_index * 4 + target_item_index).expect("finite matrix index");
 
-    Fri06C07SubgridRtlTree {
-        children,
-        inputs,
+    let mut tree = PublicLayoutTreeOf::new();
+    for (node, node_children) in children {
+        tree.insert_children(node, node_children);
+    }
+    for (node, input) in inputs {
+        tree.insert_input(node, LayoutInputOf::box_input(input));
+    }
+
+    Fri06C07SubgridRtlCase {
+        tree,
         target_inline_grid: inline_grid_nodes[target_self_index],
         target_subgrid,
         target_subject,
@@ -923,18 +826,18 @@ fn fri06_c07_subgrid_rtl_mismatches<S: LayoutScalar>() -> Vec<String> {
 
     let mut physical_inline_mismatches = Vec::new();
     for row in FRI06_C07_SUBGRID_RTL_ROWS {
-        let tree = fri06_c07_subgrid_rtl_tree::<S>(row);
+        let case = fri06_c07_subgrid_rtl_tree::<S>(row);
         let batch = compute_layout(
-            &tree,
+            &case.tree,
             0,
             LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(400.0))))
                 .expect("RTL subgrid viewport is valid"),
         )
         .expect("RTL subgrid alignment computes through the public front door");
         let inline_grid =
-            fri06_c07_height_output(batch.unrounded_entries(), tree.target_inline_grid);
-        let subgrid = fri06_c07_height_output(batch.unrounded_entries(), tree.target_subgrid);
-        let subject = fri06_c07_height_output(batch.unrounded_entries(), tree.target_subject);
+            fri06_c07_height_output(batch.unrounded_entries(), case.target_inline_grid);
+        let subgrid = fri06_c07_height_output(batch.unrounded_entries(), case.target_subgrid);
+        let subject = fri06_c07_height_output(batch.unrounded_entries(), case.target_subject);
 
         assert_eq!(subject.size, Size::splat(S::from_f64(40.0)), "{row:?}");
         let root_relative_origin = Point::new(
@@ -6874,62 +6777,12 @@ fn grid_lanes_reports_last_baseline_from_spanning_item_end_edge() {
 
 #[test]
 fn subgrid_template_resolves_to_empty_explicit_tracks_and_grows_implicit_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4, 5, 6]);
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4, 5, 6]);
     for child in 2..=6 {
-        tree.children.insert(child, vec![]);
+        tree.insert_children(child, vec![]);
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -6951,9 +6804,8 @@ fn subgrid_template_resolves_to_empty_explicit_tracks_and_grows_implicit_tracks(
         },
     );
     for child in 2..=6 {
-        tree.styles.insert(child, NodeInput::default());
-        tree.outputs
-            .insert(child, ComputeOutput::from_outer_size(Size::new(10.0, 10.0)));
+        tree.insert_style(child, NodeInput::default());
+        tree.insert_measure(child, ComputeOutput::from_outer_size(Size::new(10.0, 10.0)));
     }
 
     let output = crate::compute_grid(
@@ -6978,7 +6830,10 @@ fn subgrid_template_resolves_to_empty_explicit_tracks_and_grows_implicit_tracks(
     .unwrap();
 
     assert_eq!(output.content_size, Size::new(10.0, 50.0));
-    assert_eq!(tree.layouts[&6].location.y, 40.0);
+    assert_eq!(
+        tree.layout(6).expect("node layout is staged").location.y,
+        40.0
+    );
 }
 
 fn empty_subgrid_track() -> TrackComponent {
@@ -7754,60 +7609,10 @@ fn subgrid_line_names_named_placement_beyond_span_clamps_to_edge_track() {
 
 #[test]
 fn grid_subgrid_declaration_without_parent_grid_keeps_ordinary_grid_fallback() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -7817,9 +7622,8 @@ fn grid_subgrid_declaration_without_parent_grid_keeps_ordinary_grid_fallback() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
 
     let output = crate::compute_grid(
         &mut tree,
@@ -7843,7 +7647,10 @@ fn grid_subgrid_declaration_without_parent_grid_keeps_ordinary_grid_fallback() {
     .unwrap();
 
     assert_eq!(output.content_size, Size::new(20.0, 10.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(20.0, 10.0)
+    );
 }
 
 #[test]
@@ -7980,60 +7787,10 @@ fn assert_non_grid_child_with_subgrid_tracks_lays_out_as_ordinary_child(display:
 
 #[test]
 fn grid_absolute_child_with_subgrid_tracks_does_not_participate_as_subgrid() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -8042,7 +7799,7 @@ fn grid_absolute_child_with_subgrid_tracks_does_not_participate_as_subgrid() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::Grid,
@@ -8052,8 +7809,7 @@ fn grid_absolute_child_with_subgrid_tracks_does_not_participate_as_subgrid() {
             ..NodeInput::default()
         },
     );
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(10.0, 10.0)));
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(10.0, 10.0)));
 
     let output = crate::compute_grid(
         &mut tree,
@@ -8077,7 +7833,10 @@ fn grid_absolute_child_with_subgrid_tracks_does_not_participate_as_subgrid() {
     .unwrap();
 
     assert_eq!(output.content_size, Size::new(40.0, 20.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(10.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(10.0, 10.0)
+    );
 }
 
 #[test]
@@ -11210,68 +10969,11 @@ fn column_subgrid_baseline_alignment_does_not_grow_auto_parent_row_twice() {
 
 #[test]
 fn grid_auto_places_children_into_declared_column_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -11281,8 +10983,8 @@ fn grid_auto_places_children_into_declared_column_tracks() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -11306,76 +11008,31 @@ fn grid_auto_places_children_into_declared_column_tracks() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(200.0, 40.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 40.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(120.0, 40.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(80.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(120.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_column_gap_separates_declared_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -11386,8 +11043,8 @@ fn grid_column_gap_separates_declared_tracks() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -11417,81 +11074,27 @@ fn grid_column_gap_separates_declared_tracks() {
     assert_eq!(output.size, Size::new(210.0, 40.0));
     assert_eq!(output.content_size, Size::new(210.0, 40.0));
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(expected.offset(0), 0.0)
     );
     assert_eq!(
-        tree.layouts[&3].location,
+        tree.layout(3).expect("node layout is staged").location,
         Point::new(expected.offset(1), 0.0)
     );
-    assert_eq!(tree.layouts[&3].size, Size::new(expected.size(1), 40.0));
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(expected.size(1), 40.0)
+    );
 }
 
 #[test]
 fn grid_auto_placement_continues_into_declared_rows_with_gap() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -11502,9 +11105,9 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
-    tree.styles.insert(4, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
+    tree.insert_style(4, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -11528,83 +11131,39 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
     .unwrap();
 
     assert_eq!(output.content_size, Size::new(205.0, 75.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 30.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(105.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(100.0, 30.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 35.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(100.0, 40.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(100.0, 30.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(105.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(100.0, 30.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(0.0, 35.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(100.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_display_none_child_does_not_consume_auto_placement_cell() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-        hidden_inputs: Vec<u32>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                if input.run_mode() == RunMode::PerformHiddenLayout {
-                    self.hidden_inputs.push(node);
-                }
-
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -11614,14 +11173,14 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             display: Display::None,
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -11644,78 +11203,39 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
     )
     .unwrap();
 
-    assert_eq!(tree.hidden_inputs, vec![2]);
-    assert_eq!(tree.layouts[&2].size, Size::ZERO);
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(80.0, 40.0));
+    assert_eq!(
+        tree.inputs(2)
+            .iter()
+            .filter(|input| input.run_mode() == RunMode::PerformHiddenLayout)
+            .count(),
+        1
+    );
+    assert!(
+        tree.inputs(3)
+            .iter()
+            .all(|input| input.run_mode() != RunMode::PerformHiddenLayout)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::ZERO
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(80.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_absolute_child_does_not_consume_auto_placement_cell() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -11725,7 +11245,7 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -11734,7 +11254,7 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -11757,15 +11277,29 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 12.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(80.0, 40.0));
-    let absolute_layout_input = tree.inputs[&2]
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 12.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(80.0, 40.0)
+    );
+    let absolute_layout_input = tree
+        .inputs(2)
         .iter()
         .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("absolute grid child should be laid out");
-    let normal_layout_input = tree.inputs[&3]
+    let normal_layout_input = tree
+        .inputs(3)
         .iter()
         .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("normal grid child should be laid out");
@@ -11930,69 +11464,11 @@ fn named_grid_in_flow_item_occupies_cell_before_auto_sibling() {
 
 #[test]
 fn grid_absolute_child_without_explicit_size_uses_measured_size() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                if node == 2 {
-                    return Ok(ComputeOutput::from_outer_size(Size::new(36.0, 14.0)));
-                }
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree =
+        OracleTree::new().measure(2, ComputeOutput::from_outer_size(Size::new(36.0, 14.0)));
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -12002,7 +11478,7 @@ fn grid_absolute_child_without_explicit_size_uses_measured_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -12031,77 +11507,27 @@ fn grid_absolute_child_without_explicit_size_uses_measured_size() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(36.0, 14.0));
-    assert_eq!(tree.inputs[&2][0].known(), Size::NONE);
     assert_eq!(
-        tree.inputs[&2][0].available(),
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(36.0, 14.0)
+    );
+    assert_eq!(tree.inputs(2)[0].known(), Size::NONE);
+    assert_eq!(
+        tree.inputs(2)[0].available(),
         Size::new(Available::definite(120.0), Available::definite(60.0))
     );
 }
 
 #[test]
 fn grid_absolute_child_resolves_size_from_opposing_insets() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -12111,7 +11537,7 @@ fn grid_absolute_child_resolves_size_from_opposing_insets() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -12146,76 +11572,27 @@ fn grid_absolute_child_resolves_size_from_opposing_insets() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(8.0, 6.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 44.0));
     assert_eq!(
-        tree.inputs[&2][0].known(),
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(8.0, 6.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(100.0, 44.0)
+    );
+    assert_eq!(
+        tree.inputs(2)[0].known(),
         Size::new(Some(100.0), Some(44.0))
     );
 }
 
 #[test]
 fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    30.0,
-                    input.known().height.unwrap_or(12.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree =
+        OracleTree::new().measure(2, ComputeOutput::from_outer_size(Size::new(30.0, 12.0)));
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -12227,7 +11604,7 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -12257,73 +11634,23 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(90.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 12.0));
-    assert_eq!(tree.inputs[&2][0].known(), Size::new(None, Some(12.0)));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(90.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 12.0)
+    );
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(None, Some(12.0)));
 }
 
 #[test]
 fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -12334,7 +11661,7 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -12369,76 +11696,23 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(78.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 12.0));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(30.0), Some(12.0))
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(78.0, 0.0)
     );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 12.0)
+    );
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(30.0), Some(12.0)));
 }
 
 #[test]
 fn grid_absolute_child_expands_horizontal_auto_margins() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -12448,7 +11722,7 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -12483,74 +11757,30 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(45.0, 0.0));
-    assert_eq!(tree.layouts[&2].margin.left, 45.0);
-    assert_eq!(tree.layouts[&2].margin.right, 45.0);
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 12.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(45.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.left,
+        45.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.right,
+        45.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 12.0)
+    );
 }
 
 #[test]
 fn grid_absolute_child_expands_vertical_auto_margins() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -12560,7 +11790,7 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -12600,74 +11830,30 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 10.0));
-    assert_eq!(tree.layouts[&2].margin.top, 40.0);
-    assert_eq!(tree.layouts[&2].margin.bottom, 40.0);
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.top,
+        40.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.bottom,
+        40.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(20.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_absolute_child_percent_size_resolves_against_grid_area() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -12677,7 +11863,7 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -12708,74 +11894,23 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(120.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 20.0));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(40.0), Some(20.0))
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(120.0, 0.0)
     );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(40.0, 20.0)
+    );
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(40.0), Some(20.0)));
 }
 
 #[test]
 fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -12785,7 +11920,7 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -12818,73 +11953,26 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(120.0, 0.0));
-    assert_eq!(tree.layouts[&2].padding, Edges::all(8.0));
-    assert_eq!(tree.layouts[&2].border, Edges::all(4.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(120.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").padding,
+        Edges::all(8.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").border,
+        Edges::all(4.0)
+    );
 }
 
 #[test]
 fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -12894,7 +11982,7 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -12925,75 +12013,19 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 15.0));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(30.0), Some(15.0))
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 15.0)
     );
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(30.0), Some(15.0)));
 }
 
 #[test]
 fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -13003,7 +12035,7 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -13035,75 +12067,19 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(50.0, 30.0));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(50.0), Some(30.0))
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(50.0, 30.0)
     );
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(50.0), Some(30.0)));
 }
 
 #[test]
 fn grid_absolute_child_content_box_size_includes_padding_and_border() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -13113,7 +12089,7 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -13146,73 +12122,19 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(42.0, 32.0));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(42.0), Some(32.0))
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(42.0, 32.0)
     );
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(42.0), Some(32.0)));
 }
 
 #[test]
 fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_sizes(
-                    input.known().map(|value| value.unwrap_or(0.0)),
-                    Size::ZERO,
-                )
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -13222,7 +12144,7 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -13254,71 +12176,20 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(12.0, 10.0));
+    assert_eq!(
+        tree.layout(2)
+            .expect("node layout is staged")
+            .scrollbar_size(),
+        Size::new(12.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -13328,7 +12199,7 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -13360,75 +12231,19 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(12.0, 12.0));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(12.0), Some(12.0))
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(12.0, 12.0)
     );
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(12.0), Some(12.0)));
 }
 
 #[test]
 fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -13438,7 +12253,7 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -13474,75 +12289,19 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].size, Size::new(90.0, 45.0));
     assert_eq!(
-        tree.inputs[&2][0].known(),
-        Size::new(Some(90.0), Some(45.0))
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(90.0, 45.0)
     );
+    assert_eq!(tree.inputs(2)[0].known(), Size::new(Some(90.0), Some(45.0)));
 }
 
 #[test]
 fn grid_absolute_child_available_space_excludes_non_auto_margins() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(8.0),
-                    input.known().height.unwrap_or(6.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -13552,7 +12311,7 @@ fn grid_absolute_child_available_space_excludes_non_auto_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             position: Position::Absolute,
@@ -13588,80 +12347,23 @@ fn grid_absolute_child_available_space_excludes_non_auto_margins() {
     .unwrap();
 
     assert_eq!(
-        tree.inputs[&2][0].available(),
+        tree.inputs(2)[0].available(),
         Size::new(Available::definite(90.0), Available::definite(70.0))
     );
     assert_eq!(
-        tree.inputs[&2][0].parent(),
+        tree.inputs(2)[0].parent(),
         Size::new(Some(120.0), Some(80.0))
     );
 }
 
 #[test]
 fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -13673,9 +12375,9 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
-    tree.styles.insert(4, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
+    tree.insert_style(4, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -13700,80 +12402,41 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
 
     assert_eq!(output.size, Size::new(200.0, 75.0));
     assert_eq!(output.content_size, Size::new(200.0, 75.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 30.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(120.0, 30.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 35.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(80.0, 40.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(80.0, 30.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(120.0, 30.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(0.0, 35.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(80.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4, 5]);
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4, 5]);
     for node in 2..=5 {
-        tree.children.insert(node, vec![]);
-        tree.styles.insert(node, NodeInput::default());
+        tree.insert_children(node, vec![]);
+        tree.insert_style(node, NodeInput::default());
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -13807,25 +12470,49 @@ fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
     .unwrap();
 
     assert_eq!(output.content_size, Size::new(50.0, 75.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(50.0, 10.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 15.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(50.0, 20.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 40.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(50.0, 10.0));
-    assert_eq!(tree.layouts[&5].location, Point::new(0.0, 55.0));
-    assert_eq!(tree.layouts[&5].size, Size::new(50.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(50.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(0.0, 15.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(50.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(0.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(50.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(5).expect("node layout is staged").location,
+        Point::new(0.0, 55.0)
+    );
+    assert_eq!(
+        tree.layout(5).expect("node layout is staged").size,
+        Size::new(50.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_compute_size_applies_aspect_ratio_to_max_size() {
     #[derive(Default)]
-    struct GridTree {
+    struct NoChildMeasurementTree {
         children: HashMap<u32, Vec<u32>>,
         styles: HashMap<u32, NodeInput>,
     }
 
-    impl Traverse for GridTree {
+    impl Traverse for NoChildMeasurementTree {
         type Node = u32;
 
         type Scalar = Scalar;
@@ -13844,7 +12531,7 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
         }
     }
 
-    impl Compute for GridTree {
+    impl Compute for NoChildMeasurementTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
         }
@@ -13865,7 +12552,7 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
         }
     }
 
-    let mut tree = GridTree::default();
+    let mut tree = NoChildMeasurementTree::default();
     tree.children.insert(1, vec![]);
     tree.styles.insert(
         1,
@@ -13906,12 +12593,12 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
 #[test]
 fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
     #[derive(Default)]
-    struct GridTree {
+    struct NoChildMeasurementTree {
         children: HashMap<u32, Vec<u32>>,
         styles: HashMap<u32, NodeInput>,
     }
 
-    impl Traverse for GridTree {
+    impl Traverse for NoChildMeasurementTree {
         type Node = u32;
 
         type Scalar = Scalar;
@@ -13930,7 +12617,7 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
         }
     }
 
-    impl Compute for GridTree {
+    impl Compute for NoChildMeasurementTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
         }
@@ -13951,7 +12638,7 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
         }
     }
 
-    let mut tree = GridTree::default();
+    let mut tree = NoChildMeasurementTree::default();
     tree.children.insert(1, vec![]);
     tree.styles.insert(
         1,
@@ -13994,55 +12681,9 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
 
 #[test]
 fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(ComputeOutput::HIDDEN)
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -14080,64 +12721,10 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
 
 #[test]
 fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_sizes(
-                    input.known().map(|value| value.unwrap_or(0.0)),
-                    Size::ZERO,
-                )
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -14147,7 +12734,7 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
@@ -14177,18 +12764,23 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(11.0, 10.0));
+    assert_eq!(
+        tree.layout(2)
+            .expect("node layout is staged")
+            .scrollbar_size(),
+        Size::new(11.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_content_size_mode_ignores_authored_size() {
     #[derive(Default)]
-    struct GridTree {
+    struct NoChildMeasurementTree {
         children: HashMap<u32, Vec<u32>>,
         styles: HashMap<u32, NodeInput>,
     }
 
-    impl Traverse for GridTree {
+    impl Traverse for NoChildMeasurementTree {
         type Node = u32;
 
         type Scalar = Scalar;
@@ -14207,7 +12799,7 @@ fn grid_content_size_mode_ignores_authored_size() {
         }
     }
 
-    impl Compute for GridTree {
+    impl Compute for NoChildMeasurementTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
         }
@@ -14228,7 +12820,7 @@ fn grid_content_size_mode_ignores_authored_size() {
         }
     }
 
-    let mut tree = GridTree::default();
+    let mut tree = NoChildMeasurementTree::default();
     tree.children.insert(1, vec![]);
     tree.styles.insert(
         1,
@@ -14268,69 +12860,10 @@ fn grid_content_size_mode_ignores_authored_size() {
 
 #[test]
 fn grid_item_margins_reduce_stretched_grid_area() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -14340,7 +12873,7 @@ fn grid_item_margins_reduce_stretched_grid_area() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             margin: Edges {
@@ -14374,81 +12907,44 @@ fn grid_item_margins_reduce_stretched_grid_area() {
     )
     .unwrap();
 
-    let layout_input = tree.inputs[&2]
+    let layout_input = tree
+        .inputs(2)
         .iter()
         .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("grid item should be laid out");
     assert_eq!(layout_input.known(), Size::new(Some(82.0), Some(32.0)));
-    assert_eq!(tree.layouts[&2].location, Point::new(11.0, 3.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(82.0, 32.0));
-    assert_eq!(tree.layouts[&2].margin.left, 11.0);
-    assert_eq!(tree.layouts[&2].margin.right, 7.0);
-    assert_eq!(tree.layouts[&2].margin.top, 3.0);
-    assert_eq!(tree.layouts[&2].margin.bottom, 5.0);
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(11.0, 3.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(82.0, 32.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.left,
+        11.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.right,
+        7.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.top,
+        3.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.bottom,
+        5.0
+    );
 }
 
 #[test]
 fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -14458,7 +12954,7 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             aspect_ratio: AspectRatio::new(2.0),
@@ -14487,75 +12983,28 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
     )
     .unwrap();
 
-    let layout_input = tree.inputs[&2]
+    let layout_input = tree
+        .inputs(2)
         .iter()
         .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("grid item should be laid out");
     assert_eq!(layout_input.known(), Size::new(Some(100.0), Some(50.0)));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 50.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(100.0, 50.0)
+    );
 }
 
 #[test]
 fn grid_item_expands_inline_auto_margins_after_child_layout() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                self.outputs[&node]
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -14565,7 +13014,7 @@ fn grid_item_expands_inline_auto_margins_after_child_layout() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             margin: Edges {
@@ -14577,8 +13026,7 @@ fn grid_item_expands_inline_auto_margins_after_child_layout() {
             ..NodeInput::default()
         },
     );
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(20.0, 40.0)));
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(20.0, 40.0)));
 
     crate::compute_grid(
         &mut tree,
@@ -14601,82 +13049,35 @@ fn grid_item_expands_inline_auto_margins_after_child_layout() {
     )
     .unwrap();
 
-    let layout_input = tree.inputs[&2]
+    let layout_input = tree
+        .inputs(2)
         .iter()
         .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("grid item should be laid out");
     assert_eq!(layout_input.known().width, None);
-    assert_eq!(tree.layouts[&2].location, Point::new(40.0, 0.0));
-    assert_eq!(tree.layouts[&2].margin.left, 40.0);
-    assert_eq!(tree.layouts[&2].margin.right, 40.0);
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(40.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.left,
+        40.0
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").margin.right,
+        40.0
+    );
 }
 
 #[test]
 fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4]);
     for node in 2..=4 {
-        tree.children.insert(node, vec![]);
-        tree.styles.insert(node, NodeInput::default());
+        tree.insert_children(node, vec![]);
+        tree.insert_style(node, NodeInput::default());
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -14711,79 +13112,40 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
     .unwrap();
 
     assert_eq!(output.content_size, Size::new(120.0, 50.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 20.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 20.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(80.0, 30.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(40.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(80.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(0.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(80.0, 30.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(40.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_definite_column_line_places_item_in_explicit_track() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
     for node in 2..=3 {
-        tree.children.insert(node, vec![]);
+        tree.insert_children(node, vec![]);
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -14793,14 +13155,14 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_lines(2, 3).expect("valid grid lines"),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -14836,82 +13198,31 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
     );
 
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(expected_column_area.start, 0.0)
     );
     assert_eq!(
-        tree.layouts[&2].size,
+        tree.layout(2).expect("node layout is staged").size,
         Size::new(expected_column_area.size, 40.0)
     );
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(80.0, 40.0));
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(80.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_definite_row_line_places_item_in_explicit_track() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
     for node in 2..=3 {
-        tree.children.insert(node, vec![]);
+        tree.insert_children(node, vec![]);
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -14921,14 +13232,14 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_row: GridPlacement::try_lines(2, 3).expect("valid grid lines"),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -14951,75 +13262,30 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 20.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 40.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(80.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(80.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(80.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -15030,7 +13296,7 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
@@ -15059,73 +13325,22 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(210.0, 40.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(210.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -15136,7 +13351,7 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
@@ -15165,74 +13380,23 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 70.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(80.0, 70.0)
+    );
 }
 
 #[test]
 fn grid_column_span_auto_places_across_multiple_free_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -15246,14 +13410,14 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_span(2).expect("valid grid span"),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -15294,88 +13458,31 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
     );
 
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(expected_first_columns.start, 0.0)
     );
     assert_eq!(
-        tree.layouts[&2].size,
+        tree.layout(2).expect("node layout is staged").size,
         Size::new(expected_first_columns.size, 20.0)
     );
     assert_eq!(
-        tree.layouts[&3].location,
+        tree.layout(3).expect("node layout is staged").location,
         Point::new(expected_second_columns.start, 0.0)
     );
     assert_eq!(
-        tree.layouts[&3].size,
+        tree.layout(3).expect("node layout is staged").size,
         Size::new(expected_second_columns.size, 20.0)
     );
 }
 
 #[test]
 fn grid_dense_auto_flow_backfills_earlier_free_cells() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -15390,21 +13497,21 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             grid_column: GridPlacement::try_span(2).expect("valid grid span"),
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(4, NodeInput::default());
+    tree.insert_style(4, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -15460,90 +13567,36 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
     );
 
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(second_columns.start, 0.0)
     );
     assert_eq!(
-        tree.layouts[&3].location,
+        tree.layout(3).expect("node layout is staged").location,
         Point::new(third_columns.start, third_rows.start)
     );
     assert_eq!(
-        tree.layouts[&3].size,
+        tree.layout(3).expect("node layout is staged").size,
         Size::new(third_columns.size, third_rows.size)
     );
     assert_eq!(
-        tree.layouts[&4].location,
+        tree.layout(4).expect("node layout is staged").location,
         Point::new(fourth_columns.start, fourth_rows.start)
     );
     assert_eq!(
-        tree.layouts[&4].size,
+        tree.layout(4).expect("node layout is staged").size,
         Size::new(fourth_columns.size, fourth_rows.size)
     );
 }
 
 #[test]
 fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, (2..=10).collect());
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, 2..=10);
     for node in 2..=10 {
-        tree.children.insert(node, vec![]);
-        tree.styles.insert(node, NodeInput::default());
+        tree.insert_children(node, vec![]);
+        tree.insert_style(node, NodeInput::default());
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -15562,7 +13615,7 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         4,
         NodeInput {
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
@@ -15570,7 +13623,7 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         7,
         NodeInput {
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
@@ -15579,7 +13632,7 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         9,
         NodeInput {
             grid_row: GridPlacement::try_line(1).expect("valid grid line"),
@@ -15609,77 +13662,35 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 40.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 80.0));
-    assert_eq!(tree.layouts[&7].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&9].location, Point::new(40.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(0.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(0.0, 80.0)
+    );
+    assert_eq!(
+        tree.layout(7).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(9).expect("node layout is staged").location,
+        Point::new(40.0, 0.0)
+    );
 }
 
 #[test]
 fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -15689,8 +13700,8 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(
         3,
         NodeInput {
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
@@ -15719,73 +13730,22 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(0.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_definite_column_line_span_resolves_from_start_line() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -15800,7 +13760,7 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line_span(2, 2).expect("valid grid line span"),
@@ -15843,78 +13803,21 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
     );
 
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(expected_column_area.start, 0.0)
     );
     assert_eq!(
-        tree.layouts[&2].size,
+        tree.layout(2).expect("node layout is staged").size,
         Size::new(expected_column_area.size, 20.0)
     );
 }
 
 #[test]
 fn grid_definite_column_span_line_resolves_to_end_line() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -15929,7 +13832,7 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_span_line(2, 4).expect("valid grid span line"),
@@ -15972,11 +13875,11 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
     );
 
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(expected_column_area.start, 0.0)
     );
     assert_eq!(
-        tree.layouts[&2].size,
+        tree.layout(2).expect("node layout is staged").size,
         Size::new(expected_column_area.size, 20.0)
     );
 }
@@ -16025,67 +13928,10 @@ fn grid_mixed_positive_negative_line_span_counts_actual_tracks_for_auto_growth()
 
 #[test]
 fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -16100,7 +13946,7 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_row: GridPlacement::try_span(3).expect("valid grid span"),
@@ -16129,73 +13975,22 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(50.0, 70.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(50.0, 70.0)
+    );
 }
 
 #[test]
 fn grid_definite_column_line_creates_required_implicit_columns() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -16207,7 +14002,7 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_lines(3, 4).expect("valid grid lines"),
@@ -16236,73 +14031,22 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(60.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(60.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(40.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_definite_column_end_line_resolves_to_previous_track() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -16317,7 +14061,7 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_end_line(3).expect("valid grid line"),
@@ -16346,73 +14090,22 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(25.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(25.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_definite_row_end_line_resolves_to_previous_track() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -16427,7 +14120,7 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_row: GridPlacement::try_end_line(3).expect("valid grid line"),
@@ -16456,73 +14149,22 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 15.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 15.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(20.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -16533,7 +14175,7 @@ fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -16565,75 +14207,21 @@ fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
     );
 
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(expected.offsets[0], 0.0)
     );
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(80.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_align_content_center_offsets_tracks_inside_inner_height() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -16644,7 +14232,7 @@ fn grid_align_content_center_offsets_tracks_inside_inner_height() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -16667,70 +14255,22 @@ fn grid_align_content_center_offsets_tracks_inside_inner_height() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 30.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 40.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 30.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(80.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -16745,7 +14285,7 @@ fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -16778,76 +14318,22 @@ fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
 
     assert!(expected.safe_fallback_used);
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(0.0, expected.offsets[0])
     );
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 40.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(40.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -16859,8 +14345,8 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -16883,75 +14369,24 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(150.0, 0.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(150.0, 0.0)
+    );
 }
 
 #[test]
 fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
     fn run(alignment: AlignContent) -> (Point, Point) {
-        let mut tree = GridTree::default();
-        tree.children.insert(1, vec![2, 3]);
-        tree.children.insert(2, vec![]);
-        tree.children.insert(3, vec![]);
-        tree.styles.insert(
+        let mut tree = OracleTree::new();
+        tree.insert_children(1, vec![2, 3]);
+        tree.insert_children(2, vec![]);
+        tree.insert_children(3, vec![]);
+        tree.insert_style(
             1,
             NodeInput {
                 display: Display::Grid,
@@ -16963,8 +14398,8 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
                 ..NodeInput::default()
             },
         );
-        tree.styles.insert(2, NodeInput::default());
-        tree.styles.insert(3, NodeInput::default());
+        tree.insert_style(2, NodeInput::default());
+        tree.insert_style(3, NodeInput::default());
 
         crate::compute_grid(
             &mut tree,
@@ -16987,7 +14422,10 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
         )
         .unwrap();
 
-        (tree.layouts[&2].location, tree.layouts[&3].location)
+        (
+            tree.layout(2).expect("node layout is staged").location,
+            tree.layout(3).expect("node layout is staged").location,
+        )
     }
 
     assert_eq!(
@@ -17002,69 +14440,12 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
 
 #[test]
 fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -17079,9 +14460,9 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
-    tree.styles.insert(4, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
+    tree.insert_style(4, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -17111,83 +14492,44 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
         .solve();
     assert_eq!(expected.final_tracks.len(), 3);
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(expected.final_tracks[0].offset, 0.0)
     );
     assert_eq!(
-        tree.layouts[&2].size,
+        tree.layout(2).expect("node layout is staged").size,
         Size::new(expected.final_tracks[0].size, 20.0)
     );
-    assert!((tree.layouts[&3].location.x - expected.final_tracks[1].offset).abs() < 0.000_001);
-    assert!((tree.layouts[&3].size.width - expected.final_tracks[1].size).abs() < 0.000_001);
-    assert!((tree.layouts[&4].location.x - expected.final_tracks[2].offset).abs() < 0.000_001);
-    assert!((tree.layouts[&4].size.width - expected.final_tracks[2].size).abs() < 0.000_001);
+    assert!(
+        (tree.layout(3).expect("node layout is staged").location.x
+            - expected.final_tracks[1].offset)
+            .abs()
+            < 0.000_001
+    );
+    assert!(
+        (tree.layout(3).expect("node layout is staged").size.width - expected.final_tracks[1].size)
+            .abs()
+            < 0.000_001
+    );
+    assert!(
+        (tree.layout(4).expect("node layout is staged").location.x
+            - expected.final_tracks[2].offset)
+            .abs()
+            < 0.000_001
+    );
+    assert!(
+        (tree.layout(4).expect("node layout is staged").size.width - expected.final_tracks[2].size)
+            .abs()
+            < 0.000_001
+    );
 }
 
 #[test]
 fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -17197,8 +14539,8 @@ fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -17221,76 +14563,31 @@ fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(36.0, 20.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(48.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(72.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(36.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(48.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(72.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_fraction_tracks_clamp_available_space_to_min_size() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -17301,8 +14598,8 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -17325,75 +14622,30 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(56.0, 20.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(68.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(112.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(56.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(68.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(112.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -17405,7 +14657,7 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
@@ -17434,74 +14686,23 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(60.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(140.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(60.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(140.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_stretch_distributes_free_space_to_auto_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -17512,8 +14713,8 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     crate::compute_grid(
         &mut tree,
@@ -17543,83 +14744,29 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
         .solve();
 
     assert_eq!(
-        tree.layouts[&2].location,
+        tree.layout(2).expect("node layout is staged").location,
         Point::new(expected.final_tracks[0].offset, 0.0)
     );
     assert_eq!(
-        tree.layouts[&2].size,
+        tree.layout(2).expect("node layout is staged").size,
         Size::new(expected.final_tracks[0].size, 20.0)
     );
     assert_eq!(
-        tree.layouts[&3].location,
+        tree.layout(3).expect("node layout is staged").location,
         Point::new(expected.final_tracks[1].offset, 0.0)
     );
     assert_eq!(
-        tree.layouts[&3].size,
+        tree.layout(3).expect("node layout is staged").size,
         Size::new(expected.final_tracks[1].size, 20.0)
     );
 }
 
 #[test]
 fn grid_auto_track_uses_single_item_intrinsic_contribution() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                self.outputs[&node]
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -17631,9 +14778,8 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(80.0, 24.0)));
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(80.0, 24.0)));
 
     let output = crate::compute_grid(
         &mut tree,
@@ -17699,16 +14845,20 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
             expected_rows.final_tracks[0].size
         )
     );
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(
-        tree.layouts[&2].size,
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
         Size::new(
             expected_columns.final_tracks[0].size,
             expected_rows.final_tracks[0].size
         )
     );
-    assert_eq!(tree.inputs[&2][0].run_mode(), RunMode::ComputeSize);
-    let layout_input = tree.inputs[&2]
+    assert_eq!(tree.inputs(2)[0].run_mode(), RunMode::ComputeSize);
+    let layout_input = tree
+        .inputs(2)
         .iter()
         .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("grid item should be laid out after intrinsic measurement");
@@ -17723,68 +14873,13 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
 
 #[test]
 fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(80.0),
-                        input.known().height.unwrap_or(10.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure(2, ComputeOutput::from_outer_size(Size::new(80.0, 10.0)))
+        .measure(3, ComputeOutput::from_outer_size(Size::new(80.0, 10.0)));
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -17793,8 +14888,8 @@ fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -17818,75 +14913,36 @@ fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(160.0, 10.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 10.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(80.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(80.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(80.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(80.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_auto_width_uses_max_width_as_track_available_space() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(10.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(0.0, 10.0)))
+                .run_mode(RunMode::ComputeSize),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(100.0, 10.0)));
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -17896,7 +14952,7 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
@@ -17926,74 +14982,38 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(260.0, 10.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(160.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(160.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(100.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                match input.available().width {
-                    Available::Definite(width) if width <= 30.0 => {
-                        ComputeOutput::from_outer_size(Size::new(30.0, 20.0))
-                    }
-                    _ => ComputeOutput::from_outer_size(Size::new(40.0, 10.0)),
-                }
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(30.0, 20.0)))
+                .known(Size::new(Some(30.0), None))
+                .available(Size::new(Available::definite(30.0), Available::MAX_CONTENT)),
+        )
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(30.0, 20.0)))
+                .known(Size::new(Some(30.0), Some(20.0)))
+                .available(Size::new(
+                    Available::definite(30.0),
+                    Available::definite(20.0),
+                )),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(40.0, 10.0)));
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -18004,7 +15024,7 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -18028,9 +15048,12 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(30.0, 20.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 20.0)
+    );
     assert!(
-        tree.inputs[&2]
+        tree.inputs(2)
             .iter()
             .any(|input| input.run_mode() == RunMode::ComputeSize
                 && input.known().width == Some(30.0)
@@ -18041,69 +15064,21 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
 
 #[test]
 fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                match input.known().width {
-                    Some(width) if width <= 80.0 => {
-                        ComputeOutput::from_outer_size(Size::new(width, 96.0))
-                    }
-                    Some(width) => ComputeOutput::from_outer_size(Size::new(width, 64.0)),
-                    None => ComputeOutput::from_outer_size(Size::new(100.0, 64.0)),
-                }
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(80.0, 96.0)))
+                .known(Size::new(Some(80.0), None)),
+        )
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(80.0, 96.0)))
+                .known(Size::new(Some(80.0), Some(96.0))),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(100.0, 64.0)));
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -18115,7 +15090,7 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -18139,9 +15114,12 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 96.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(80.0, 96.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(80.0, 96.0)
+    );
     assert!(
-        tree.inputs[&2]
+        tree.inputs(2)
             .iter()
             .any(|input| input.run_mode() == RunMode::ComputeSize
                 && input.known().width == Some(80.0)
@@ -18738,63 +15716,11 @@ fn logical_ordinary_grid_intrinsic_reruns_fake_measurements_f64() {
 
 #[test]
 fn grid_row_intrinsic_sizing_includes_item_vertical_margins() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(50.0, 10.0))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree =
+        OracleTree::new().measure(2, ComputeOutput::from_outer_size(Size::new(50.0, 10.0)));
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -18805,7 +15731,7 @@ fn grid_row_intrinsic_sizing_includes_item_vertical_margins() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             margin: Edges {
@@ -18838,72 +15764,28 @@ fn grid_row_intrinsic_sizing_includes_item_vertical_margins() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(50.0, 20.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 10.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(50.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 10.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(50.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_minmax_max_content_minimum_overrides_fixed_maximum() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(40.0),
-                    input.known().height.unwrap_or(10.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(40.0, 40.0)))
+                .known(Size::new(Some(40.0), Some(40.0))),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(40.0, 10.0)));
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -18917,7 +15799,7 @@ fn grid_minmax_max_content_minimum_overrides_fixed_maximum() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
+    tree.insert_style(2, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -18941,77 +15823,19 @@ fn grid_minmax_max_content_minimum_overrides_fixed_maximum() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(40.0, 40.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 40.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(40.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                match input.run_mode() {
-                    RunMode::ComputeSize => self.outputs[&node],
-                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                        ComputeOutput::from_outer_size(Size::new(
-                            input.known().width.unwrap_or(0.0),
-                            input.known().height.unwrap_or(0.0),
-                        ))
-                    }
-                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-                }
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -19023,12 +15847,10 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(10.0, 20.0)));
-    tree.outputs
-        .insert(3, ComputeOutput::from_outer_size(Size::new(100.0, 20.0)));
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(10.0, 20.0)));
+    tree.insert_measure(3, ComputeOutput::from_outer_size(Size::new(100.0, 20.0)));
 
     let output = crate::compute_grid(
         &mut tree,
@@ -19053,80 +15875,37 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
 
     assert_eq!(output.size, Size::new(110.0, 20.0));
     assert_eq!(output.content_size, Size::new(110.0, 20.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(10.0, 20.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(10.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(100.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(10.0, 20.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(10.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(100.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_intrinsic_column_sizing_resolves_horizontal_percent_margins_against_containing_inline_size()
 {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                match input.run_mode() {
-                    RunMode::ComputeSize => self.outputs[&node],
-                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                        ComputeOutput::from_outer_size(Size::new(
-                            input.known().width.unwrap_or(0.0),
-                            input.known().height.unwrap_or(0.0),
-                        ))
-                    }
-                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-                }
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(20.0, 10.0)))
+                .run_mode(RunMode::ComputeSize),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(0.0, 10.0)));
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -19138,7 +15917,7 @@ fn grid_intrinsic_column_sizing_resolves_horizontal_percent_margins_against_cont
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             margin: Edges {
@@ -19150,8 +15929,7 @@ fn grid_intrinsic_column_sizing_resolves_horizontal_percent_margins_against_cont
             ..NodeInput::default()
         },
     );
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
 
     let output = crate::compute_grid(
         &mut tree,
@@ -19463,76 +16241,28 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
 
 #[test]
 fn grid_recomputes_min_content_columns_from_resolved_row_height() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |measure_input| {
-                let known = measure_input.known_content_size();
-                Ok::<_, core::convert::Infallible>(match node {
-                    2 => Size::new(
-                        if known.height == Some(40.0) {
-                            40.0
-                        } else {
-                            20.0
-                        },
-                        known.height.unwrap_or(40.0),
-                    ),
-                    3 => Size::new(20.0, 20.0),
-                    _ => Size::ZERO,
-                })
-            })
-            .map_err(|error| fake_leaf_error(node, error))
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(40.0, 40.0)))
+                .known(Size::new(None, Some(40.0))),
+        )
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(40.0, 40.0)))
+                .known(Size::new(Some(40.0), Some(40.0))),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(20.0, 40.0)))
+        .measure_when(
+            3,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(40.0, 20.0)))
+                .known(Size::new(Some(40.0), Some(20.0))),
+        )
+        .measure(3, ComputeOutput::from_outer_size(Size::new(20.0, 20.0)));
+    tree.insert_children(1, vec![2, 3]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -19541,14 +16271,14 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             writing_mode: WritingMode::VerticalLr,
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(3, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -19572,81 +16302,34 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(40.0, 60.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 40.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(0.0, 40.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(40.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(40.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(0.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(40.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |measure_input| {
-                let available = measure_input
-                    .available_content_size()
-                    .map(MeasurementAvailable::into_available);
-                if node == 4 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, core::convert::Infallible>(Size::new(40.0, 40.0))
-                } else if node == 4 {
-                    Ok::<_, core::convert::Infallible>(Size::new(80.0, 40.0))
-                } else {
-                    Ok::<_, core::convert::Infallible>(Size::ZERO)
-                }
-            })
-            .map_err(|error| fake_leaf_error(node, error))
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure_when(
+            4,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(40.0, 40.0)))
+                .available(Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT)),
+        )
+        .measure(4, ComputeOutput::from_outer_size(Size::new(80.0, 40.0)));
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -19664,7 +16347,7 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
@@ -19672,7 +16355,7 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
@@ -19680,7 +16363,7 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         4,
         NodeInput {
             grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
@@ -19711,82 +16394,38 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 40.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(60.0, 40.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(60.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(20.0, 40.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(80.0, 40.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(60.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(60.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(20.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(80.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_spanning_item_grows_auto_track_after_min_content_track() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |measure_input| {
-                let available = measure_input
-                    .available_content_size()
-                    .map(MeasurementAvailable::into_available);
-                if node == 4 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, core::convert::Infallible>(Size::new(40.0, 10.0))
-                } else if node == 4 {
-                    Ok::<_, core::convert::Infallible>(Size::new(80.0, 10.0))
-                } else {
-                    Ok::<_, core::convert::Infallible>(Size::ZERO)
-                }
-            })
-            .map_err(|error| fake_leaf_error(node, error))
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure_when(
+            4,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(40.0, 10.0)))
+                .available(Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT)),
+        )
+        .measure(4, ComputeOutput::from_outer_size(Size::new(80.0, 10.0)));
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -19795,9 +16434,9 @@ fn grid_spanning_item_grows_auto_track_after_min_content_track() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
-    tree.styles.insert(
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
+    tree.insert_style(
         4,
         NodeInput {
             grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
@@ -19827,83 +16466,42 @@ fn grid_spanning_item_grows_auto_track_after_min_content_track() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 50.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 40.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(20.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(60.0, 40.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 40.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(80.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(20.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(20.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(60.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(0.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(80.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |measure_input| {
-                let available = measure_input
-                    .available_content_size()
-                    .map(MeasurementAvailable::into_available);
-                if node == 4 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, core::convert::Infallible>(Size::new(40.0, 10.0))
-                } else if node == 4 {
-                    Ok::<_, core::convert::Infallible>(Size::new(80.0, 10.0))
-                } else {
-                    Ok::<_, core::convert::Infallible>(Size::ZERO)
-                }
-            })
-            .map_err(|error| fake_leaf_error(node, error))
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
-    tree.children.insert(2, vec![]);
-    tree.children.insert(3, vec![]);
-    tree.children.insert(4, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new()
+        .measure_when(
+            4,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(40.0, 10.0)))
+                .available(Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT)),
+        )
+        .measure(4, ComputeOutput::from_outer_size(Size::new(80.0, 10.0)));
+    tree.insert_children(1, vec![2, 3, 4]);
+    tree.insert_children(2, vec![]);
+    tree.insert_children(3, vec![]);
+    tree.insert_children(4, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -19912,9 +16510,9 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
-    tree.styles.insert(
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_style(3, NodeInput::default());
+    tree.insert_style(
         4,
         NodeInput {
             overflow: computed_overflow(Overflow::Clip, Overflow::Clip),
@@ -19945,74 +16543,36 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 50.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 40.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(40.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(40.0, 40.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 40.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(80.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(40.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(40.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(40.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(0.0, 40.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(80.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_spanning_item_grows_underfilled_auto_track_first() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |_input| {
-                Ok::<_, core::convert::Infallible>(Size::ZERO)
-            })
-            .map_err(|error| fake_leaf_error(node, error))
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4]);
     for node in 2..=4 {
-        tree.children.insert(node, vec![]);
+        tree.insert_children(node, vec![]);
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -20031,7 +16591,7 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
@@ -20040,7 +16600,7 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             size: Size::new(PreferredSize::px(40.0), PreferredSize::px(30.0)),
@@ -20049,7 +16609,7 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         4,
         NodeInput {
             size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
@@ -20081,98 +16641,46 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(320.0, 640.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(100.0, 50.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(100.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(40.0, 30.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 50.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(120.0, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(100.0, 50.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(100.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(40.0, 30.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(0.0, 50.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(120.0, 20.0)
+    );
 }
 
 #[test]
 fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        unrounded: HashMap<u32, NodeOutput>,
-        rounded: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.unrounded.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |measure_input| {
-                let available = measure_input
-                    .available_content_size()
-                    .map(MeasurementAvailable::into_available);
-                if node == 2 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, core::convert::Infallible>(Size::new(80.0, 40.0))
-                } else if node == 2 {
-                    Ok::<_, core::convert::Infallible>(Size::new(160.0, 40.0))
-                } else {
-                    Ok::<_, core::convert::Infallible>(Size::ZERO)
-                }
-            })
-            .map_err(|error| fake_leaf_error(node, error))
-        }
-    }
-
-    impl Round for GridTree {
-        fn unrounded(
-            &self,
-            node: Self::Node,
-        ) -> crate::LayoutResultOf<Self::Node, NodeOutput, Self::Scalar> {
-            Ok(self.unrounded[&node])
-        }
-
-        fn set_final(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.rounded.insert(node, layout);
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4, 5, 6, 7, 8]);
+    let mut tree = OracleTree::new()
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(80.0, 40.0)))
+                .available(Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT)),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(160.0, 40.0)));
+    tree.insert_children(1, vec![2, 3, 4, 5, 6, 7, 8]);
     for node in 2..=8 {
-        tree.children.insert(node, vec![]);
+        tree.insert_children(node, vec![]);
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -20190,7 +16698,7 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line_span(1, 6).expect("valid grid line span"),
@@ -20198,7 +16706,7 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
         },
     );
     for node in 3..=8 {
-        tree.styles.insert(node, NodeInput::default());
+        tree.insert_style(node, NodeInput::default());
     }
 
     let output = crate::compute_grid(
@@ -20225,106 +16733,91 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
     let mut root_layout = NodeOutput::new();
     root_layout.size = output.size;
     root_layout.content_size = output.content_size;
-    tree.unrounded.insert(1, root_layout);
+    tree.set_unrounded(1, root_layout);
 
     round_layout(&mut tree, 1).unwrap();
-    assert_eq!(tree.rounded[&3].size, Size::new(10.0, 40.0));
-    assert_eq!(tree.rounded[&4].location, Point::new(10.0, 40.0));
-    assert_eq!(tree.rounded[&4].size, Size::new(89.0, 40.0));
-    assert_eq!(tree.rounded[&5].location, Point::new(99.0, 40.0));
-    assert_eq!(tree.rounded[&5].size, Size::new(10.0, 40.0));
-    assert_eq!(tree.rounded[&6].location, Point::new(109.0, 40.0));
-    assert_eq!(tree.rounded[&6].size, Size::new(9.0, 40.0));
-    assert_eq!(tree.rounded[&7].location, Point::new(118.0, 40.0));
-    assert_eq!(tree.rounded[&7].size, Size::new(10.0, 40.0));
-    assert_eq!(tree.rounded[&8].location, Point::new(128.0, 40.0));
-    assert_eq!(tree.rounded[&8].size, Size::new(32.0, 40.0));
+    assert_eq!(
+        tree.final_layout(3)
+            .expect("node final layout is staged")
+            .size,
+        Size::new(10.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(4)
+            .expect("node final layout is staged")
+            .location,
+        Point::new(10.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(4)
+            .expect("node final layout is staged")
+            .size,
+        Size::new(89.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(5)
+            .expect("node final layout is staged")
+            .location,
+        Point::new(99.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(5)
+            .expect("node final layout is staged")
+            .size,
+        Size::new(10.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(6)
+            .expect("node final layout is staged")
+            .location,
+        Point::new(109.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(6)
+            .expect("node final layout is staged")
+            .size,
+        Size::new(9.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(7)
+            .expect("node final layout is staged")
+            .location,
+        Point::new(118.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(7)
+            .expect("node final layout is staged")
+            .size,
+        Size::new(10.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(8)
+            .expect("node final layout is staged")
+            .location,
+        Point::new(128.0, 40.0)
+    );
+    assert_eq!(
+        tree.final_layout(8)
+            .expect("node final layout is staged")
+            .size,
+        Size::new(32.0, 40.0)
+    );
 }
 
 #[test]
 fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        unrounded: HashMap<u32, NodeOutput>,
-        rounded: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.unrounded.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |measure_input| {
-                let available = measure_input
-                    .available_content_size()
-                    .map(MeasurementAvailable::into_available);
-                if node == 2 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, core::convert::Infallible>(Size::new(160.0, 40.0))
-                } else if node == 2 {
-                    Ok::<_, core::convert::Infallible>(Size::new(320.0, 40.0))
-                } else {
-                    Ok::<_, core::convert::Infallible>(Size::ZERO)
-                }
-            })
-            .map_err(|error| fake_leaf_error(node, error))
-        }
-    }
-
-    impl Round for GridTree {
-        fn unrounded(
-            &self,
-            node: Self::Node,
-        ) -> crate::LayoutResultOf<Self::Node, NodeOutput, Self::Scalar> {
-            Ok(self.unrounded[&node])
-        }
-
-        fn set_final(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.rounded.insert(node, layout);
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, (2..=15).collect());
+    let mut tree = OracleTree::new()
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(160.0, 40.0)))
+                .available(Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT)),
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(320.0, 40.0)));
+    tree.insert_children(1, 2..=15);
     for node in 2..=15 {
-        tree.children.insert(node, vec![]);
+        tree.insert_children(node, vec![]);
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -20349,7 +16842,7 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line_span(1, 13).expect("valid grid line span"),
@@ -20357,7 +16850,7 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
         },
     );
     for node in 3..=15 {
-        tree.styles.insert(node, NodeInput::default());
+        tree.insert_style(node, NodeInput::default());
     }
 
     let output = crate::compute_grid(
@@ -20383,11 +16876,16 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
     let mut root_layout = NodeOutput::new();
     root_layout.size = output.size;
     root_layout.content_size = output.content_size;
-    tree.unrounded.insert(1, root_layout);
+    tree.set_unrounded(1, root_layout);
 
     round_layout(&mut tree, 1).unwrap();
     let widths = (3..=15)
-        .map(|node| tree.rounded[&node].size.width)
+        .map(|node| {
+            tree.final_layout(node)
+                .expect("node final layout is staged")
+                .size
+                .width
+        })
         .collect::<Vec<_>>();
     assert_eq!(output.size, Size::new(322.0, 80.0));
     assert_eq!(
@@ -20400,60 +16898,10 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
 
 #[test]
 fn grid_content_size_includes_visible_child_overflow_content() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -20465,14 +16913,14 @@ fn grid_content_size_includes_visible_child_overflow_content() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(40.0, 10.0), Size::new(120.0, 24.0)),
     );
@@ -20498,67 +16946,23 @@ fn grid_content_size_includes_visible_child_overflow_content() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(40.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(40.0, 10.0)
+    );
     assert_eq!(output.content_size, Size::new(120.0, 24.0));
 }
 
 #[test]
 fn grid_content_size_for_later_column_uses_final_container_local_item_end() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            _input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok(self.outputs[&node])
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -20570,7 +16974,7 @@ fn grid_content_size_for_later_column_uses_final_container_local_item_end() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
@@ -20578,7 +16982,7 @@ fn grid_content_size_for_later_column_uses_final_container_local_item_end() {
             ..NodeInput::default()
         },
     );
-    tree.outputs.insert(
+    tree.insert_measure(
         2,
         ComputeOutput::from_sizes(Size::new(50.0, 10.0), Size::new(80.0, 10.0)),
     );
@@ -20604,74 +17008,26 @@ fn grid_content_size_for_later_column_uses_final_container_local_item_end() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(50.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(50.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(50.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(50.0, 10.0)
+    );
     assert_eq!(output.content_size, Size::new(130.0, 10.0));
 }
 
 #[test]
 fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(100.0),
-                    input.known().height.unwrap_or(100.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4]);
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4]);
     for node in 2..=4 {
-        tree.children.insert(node, vec![]);
-        tree.styles.insert(node, NodeInput::default());
+        tree.insert_children(node, vec![]);
+        tree.insert_style(node, NodeInput::default());
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -20684,7 +17040,7 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
@@ -20693,7 +17049,7 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
@@ -20701,7 +17057,7 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         4,
         NodeInput {
             grid_column: GridPlacement::try_line(3).expect("valid grid line"),
@@ -20732,72 +17088,35 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 100.0));
-    assert_eq!(tree.layouts[&3].location, Point::new(40.0, 0.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(40.0, 50.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(80.0, 50.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(40.0, 80.0));
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").location,
+        Point::new(40.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(40.0, 50.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(80.0, 50.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(40.0, 80.0)
+    );
 }
 
 #[test]
 fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(100.0),
-                    input.known().height.unwrap_or(100.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3]);
+    let mut tree = OracleTree::new()
+        .measure(2, ComputeOutput::from_outer_size(Size::new(100.0, 100.0)))
+        .measure(3, ComputeOutput::from_outer_size(Size::new(100.0, 100.0)));
+    tree.insert_children(1, vec![2, 3]);
     for node in 2..=3 {
-        tree.children.insert(node, vec![]);
-        tree.styles.insert(node, NodeInput::default());
+        tree.insert_children(node, vec![]);
+        tree.insert_style(node, NodeInput::default());
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -20806,7 +17125,7 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
@@ -20814,7 +17133,7 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         3,
         NodeInput {
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
@@ -20849,67 +17168,13 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
 
 #[test]
 fn grid_percent_rows_resolve_against_known_layout_height() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            _node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(0.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2, 3, 4, 5]);
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2, 3, 4, 5]);
     for node in 2..=5 {
-        tree.children.insert(node, vec![]);
-        tree.styles.insert(node, NodeInput::default());
+        tree.insert_children(node, vec![]);
+        tree.insert_style(node, NodeInput::default());
     }
-    tree.styles.insert(
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -20941,81 +17206,38 @@ fn grid_percent_rows_resolve_against_known_layout_height() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(20.0, 10.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(20.0, 3.0));
-    assert_eq!(tree.layouts[&3].size, Size::new(2.0, 3.0));
-    assert_eq!(tree.layouts[&4].location, Point::new(0.0, 3.0));
-    assert_eq!(tree.layouts[&4].size, Size::new(20.0, 1.0));
-    assert_eq!(tree.layouts[&5].location, Point::new(20.0, 3.0));
-    assert_eq!(tree.layouts[&5].size, Size::new(2.0, 1.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(20.0, 3.0)
+    );
+    assert_eq!(
+        tree.layout(3).expect("node layout is staged").size,
+        Size::new(2.0, 3.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").location,
+        Point::new(0.0, 3.0)
+    );
+    assert_eq!(
+        tree.layout(4).expect("node layout is staged").size,
+        Size::new(20.0, 1.0)
+    );
+    assert_eq!(
+        tree.layout(5).expect("node layout is staged").location,
+        Point::new(20.0, 3.0)
+    );
+    assert_eq!(
+        tree.layout(5).expect("node layout is staged").size,
+        Size::new(2.0, 1.0)
+    );
 }
 
 #[test]
 fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                match input.run_mode() {
-                    RunMode::ComputeSize => self.outputs[&node],
-                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                        ComputeOutput::from_outer_size(Size::new(
-                            input.known().width.unwrap_or(0.0),
-                            input.known().height.unwrap_or(0.0),
-                        ))
-                    }
-                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-                }
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -21025,9 +17247,8 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(70.0, 18.0)));
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(70.0, 18.0)));
 
     let output = crate::compute_grid(
         &mut tree,
@@ -21052,77 +17273,22 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
 
     assert_eq!(output.size, Size::new(70.0, 18.0));
     assert_eq!(output.content_size, Size::new(70.0, 18.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(70.0, 18.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(70.0, 18.0)
+    );
 }
 
 #[test]
 fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                match input.run_mode() {
-                    RunMode::ComputeSize => self.outputs[&node],
-                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                        ComputeOutput::from_outer_size(Size::new(
-                            input.known().width.unwrap_or(0.0),
-                            input.known().height.unwrap_or(0.0),
-                        ))
-                    }
-                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-                }
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -21134,15 +17300,14 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             grid_column: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
             ..NodeInput::default()
         },
     );
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(100.0, 20.0)));
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(100.0, 20.0)));
 
     let output = crate::compute_grid(
         &mut tree,
@@ -21187,78 +17352,23 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
         .sum::<f32>();
 
     assert_eq!(output.content_size, Size::new(expected_width, 20.0));
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(expected_width, 20.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(expected_width, 20.0)
+    );
 }
 
 #[test]
 fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                match input.run_mode() {
-                    RunMode::ComputeSize => self.outputs[&node],
-                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                        ComputeOutput::from_outer_size(Size::new(
-                            input.known().width.unwrap_or(0.0),
-                            input.known().height.unwrap_or(0.0),
-                        ))
-                    }
-                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-                }
-            })
-        }
-    }
-
     fn run(track: TrackComponent) -> (ComputeOutput, NodeOutput) {
-        let mut tree = GridTree::default();
-        tree.children.insert(1, vec![2]);
-        tree.children.insert(2, vec![]);
-        tree.styles.insert(
+        let mut tree = OracleTree::new();
+        tree.insert_children(1, vec![2]);
+        tree.insert_children(2, vec![]);
+        tree.insert_style(
             1,
             NodeInput {
                 display: Display::Grid,
@@ -21270,9 +17380,8 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
                 ..NodeInput::default()
             },
         );
-        tree.styles.insert(2, NodeInput::default());
-        tree.outputs
-            .insert(2, ComputeOutput::from_outer_size(Size::new(90.0, 22.0)));
+        tree.insert_style(2, NodeInput::default());
+        tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(90.0, 22.0)));
 
         let output = crate::compute_grid(
             &mut tree,
@@ -21295,7 +17404,7 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
         )
         .unwrap();
 
-        (output, tree.layouts[&2])
+        (output, tree.layout(2).expect("node layout is staged"))
     }
 
     for track in [TrackComponent::MIN_CONTENT, TrackComponent::MAX_CONTENT] {
@@ -21308,67 +17417,10 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
 
 #[test]
 fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -21379,9 +17431,8 @@ fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(30.0, 10.0)));
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(30.0, 10.0)));
 
     crate::compute_grid(
         &mut tree,
@@ -21404,73 +17455,22 @@ fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 15.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 15.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_align_self_overrides_parent_align_items() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -21481,15 +17481,14 @@ fn grid_align_self_overrides_parent_align_items() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             align_self: Some(AlignItems::End),
             ..NodeInput::default()
         },
     );
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(30.0, 10.0)));
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(30.0, 10.0)));
 
     crate::compute_grid(
         &mut tree,
@@ -21512,8 +17511,14 @@ fn grid_align_self_overrides_parent_align_items() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 30.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 30.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 10.0)
+    );
 }
 
 #[test]
@@ -22149,67 +18154,10 @@ fn grid_baseline_less_child_in_fixed_row_does_not_grow_intrinsic_sizing() {
 
 #[test]
 fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -22220,9 +18168,8 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(30.0, 10.0)));
+    tree.insert_style(2, NodeInput::default());
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(30.0, 10.0)));
 
     crate::compute_grid(
         &mut tree,
@@ -22245,74 +18192,24 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(25.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(25.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known().width.unwrap_or(0.0),
-                    input.known().height.unwrap_or(10.0),
-                ))
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
+    let mut tree = OracleTree::new();
     let width = lp(10.0, 0.5);
     let margin = lp(5.0, 0.1);
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -22322,7 +18219,7 @@ fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::value(width), PreferredSize::px(10.0)),
@@ -22358,76 +18255,25 @@ fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
     .unwrap();
 
     assert_eq!(
-        tree.inputs[&2].last().map(|input| input.known()),
+        tree.inputs(2).last().map(|input| input.known()),
         Some(Size::new(Some(60.0), Some(10.0)))
     );
-    assert_eq!(tree.layouts[&2].location, Point::new(15.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(60.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(15.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(60.0, 10.0)
+    );
 }
 
 #[test]
 fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -22437,7 +18283,7 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(150.0), PreferredSize::px(50.0)),
@@ -22467,73 +18313,22 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(150.0, 50.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(0.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(150.0, 50.0)
+    );
 }
 
 #[test]
 fn grid_justify_self_overrides_parent_justify_items() {
-    #[derive(Default)]
-    struct GridTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        outputs: HashMap<u32, ComputeOutput>,
-    }
-
-    impl Traverse for GridTree {
-        type Node = u32;
-
-        type Scalar = Scalar;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for GridTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInput,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                self.outputs.get(&node).copied().unwrap_or_else(|| {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known().width.unwrap_or(0.0),
-                        input.known().height.unwrap_or(0.0),
-                    ))
-                })
-            })
-        }
-    }
-
-    let mut tree = GridTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(
+    let mut tree = OracleTree::new();
+    tree.insert_children(1, vec![2]);
+    tree.insert_children(2, vec![]);
+    tree.insert_style(
         1,
         NodeInput {
             display: Display::Grid,
@@ -22544,15 +18339,14 @@ fn grid_justify_self_overrides_parent_justify_items() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(
+    tree.insert_style(
         2,
         NodeInput {
             justify_self: Some(AlignItems::End),
             ..NodeInput::default()
         },
     );
-    tree.outputs
-        .insert(2, ComputeOutput::from_outer_size(Size::new(30.0, 10.0)));
+    tree.insert_measure(2, ComputeOutput::from_outer_size(Size::new(30.0, 10.0)));
 
     crate::compute_grid(
         &mut tree,
@@ -22575,8 +18369,14 @@ fn grid_justify_self_overrides_parent_justify_items() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].location, Point::new(50.0, 0.0));
-    assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").location,
+        Point::new(50.0, 0.0)
+    );
+    assert_eq!(
+        tree.layout(2).expect("node layout is staged").size,
+        Size::new(30.0, 10.0)
+    );
 }
 
 #[test]

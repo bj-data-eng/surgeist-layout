@@ -40,6 +40,10 @@ impl<S: LayoutScalar> PublicLayoutTreeOf<S> {
         self
     }
 
+    pub fn insert_children(&mut self, node: u32, children: impl IntoIterator<Item = u32>) {
+        self.children.insert(node, children.into_iter().collect());
+    }
+
     pub fn style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
         self.layout_inputs
             .insert(node, LayoutInputOf::box_input(style));
@@ -49,6 +53,10 @@ impl<S: LayoutScalar> PublicLayoutTreeOf<S> {
     pub fn input(mut self, node: u32, input: LayoutInputOf<S>) -> Self {
         self.layout_inputs.insert(node, input);
         self
+    }
+
+    pub fn insert_input(&mut self, node: u32, input: LayoutInputOf<S>) {
+        self.layout_inputs.insert(node, input);
     }
 
     pub fn measure(mut self, node: u32, size: Size<S>) -> Self {
