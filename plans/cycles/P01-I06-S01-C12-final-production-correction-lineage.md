@@ -10,17 +10,17 @@ Cycle base: `8ffb4bc551a24d2283ad54436870ab3f5e66a473`
 
 Reviewed specification:
 `plans/specs/P01-I06-inline-formatting-floats-bfcs.md`, normalized semantic-content
-SHA-256 `7409fa58bd333731976b765cef36491a6f8f51a4170c6b62e9622f4ac4b01105`,
-commit `d80db2c86f4b9111a1b10eecd7d0a2d2939f0b09`: `FRI-06.3`,
-`FRI-06.4 D-16`, `D-18`, and `D-19`, the control, comparator, fixture, and
-subgrid portions of `FRI-06.7`, module/test contracts in `FRI-06.9` and `.10`,
-browser/artifact contracts in `FRI-06.11` through `.11.3`, and acceptance in
-`FRI-06.14`.
+SHA-256 `ac08d4c8df8a8da7cd0698eb2618f1fa5478c5b477bdedc07800543804fbd9ea`,
+commit `9cbd01560705b7d81579804eedf904999b82ee0c`: `FRI-06.3`,
+`FRI-06.4 D-16`, `D-18`, and `D-19`; the private subgrid carrier/error contract
+in `FRI-06.6`; control and subgrid portions of `FRI-06.7`; module/test contracts
+in `FRI-06.9` and `.10`; browser/comparator/artifact contracts in `FRI-06.11`
+through `.11.3`; and acceptance in `FRI-06.14`.
 
 Reviewed implementation sequence:
 `plans/sequences/P01-I06-S01-inline-formatting-floats-bfcs.md`, normalized
-SHA-256 `719c219d618c337671763e0f6a8392b73fc2d1db413ff1efd99fd67c5a4971e6`,
-commit `c7326b9bc87d1ce3edf15fe48ff78bbf0755814c`, entry
+SHA-256 `7d1cca5c49bdd7349bdaa402abb4db98dc39380a7b6f9fe86fcb5575ba9391eb`,
+commit `3a208b983cb9449b9e095748d550b268f6890866`, entry
 `P01/I06/S01/C12`.
 
 ## 1 Outcome
@@ -51,21 +51,26 @@ D-19 appends one comparator/test-support correction range; it does not invalidat
 those results.
 
 T08 was task-clean at `8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`
-before the full-fixture diagnosis. Its six reviewed ordered ranges are:
+before the full-fixture diagnosis. Its complete historical lineage is:
 
 - `89adbbc29ba3b2350c1fb64876a8a69520af8e07..9ff1b91dabd7d53b32ee0942a7e6962515a80b79`;
 - `9ff1b91dabd7d53b32ee0942a7e6962515a80b79..5f7f72c45090d9c230f7a2957bffadd5904625b4`;
 - `a64b3272c675e52fecec61fa9617c9e972e2b514..e36830143235e28625ac010489d8c7aa998d714f`;
 - `e36830143235e28625ac010489d8c7aa998d714f..f2a3e0485adbc63521276f688ddf7e1f71fa448e`;
 - `f2a3e0485adbc63521276f688ddf7e1f71fa448e..e367a493f4d6b574a1d1a53b31314528a5e5a213`;
+- `e367a493f4d6b574a1d1a53b31314528a5e5a213..8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`;
+- `34294ee6d50d8e685a7b09f9b9a7a8671d62af29..881fd361c892cc6c043c8485f2ed7aad391b0392`;
   and
-- `e367a493f4d6b574a1d1a53b31314528a5e5a213..8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`.
+- `881fd361c892cc6c043c8485f2ed7aad391b0392..bf56ed87d537c484c3418bf2d9d2d0404aaaabcd`.
 
-D-18 is reopened by full-fixture diagnosis. Its prior focused controls remain
-valid, but they did not cover direct members consuming settled column groups,
-auto-row growth driven by flattened members, or a nested descendant's one-time
-half-gutter adjustment. T08 appends one correction range after these six reviewed
-ranges; it does not discard or rewrite them.
+The first six ranges were task-clean. Review rejected the seventh because
+reversal filtered a settled target and row-gap compensation occurred after
+placement; review rejected the eighth because it cloned and mutated an
+already-reduced group based on target inequality. A third no-commit attempt
+removed that mutator, but pre-reduction and child-view variants violated existing
+intrinsic or mapping controls; all diagnostic residue was removed. D-18 therefore
+reopened at architecture/specification, and T08 now appends a ninth correction
+range without discarding or rewriting history.
 
 After the final T07 helper correction, one full unfiltered generation completed
 successfully and remains in the canonical worktree as exactly 5,712 changed XML
@@ -109,13 +114,17 @@ three production divergences:
   five-pixel half-gutter error.
 
 The owners are `src/grid/tracks.rs`, `src/grid/subgrid.rs`, and
-`src/grid/child.rs`. The correction uses one pre-growth member census for
-one-pass auto scalar sizing and shims, then recomputes immutable row/block and
-column/inline targets from settled tracks without feedback. Direct and flattened
-members consume the same target, the descendant half-gutter enters once before
-ancestor reduction, and only a downward child view translates into child-local
-coordinates. No fixed-point loop, publication inverse, parser change, fixture
-change, or regeneration is permitted.
+`src/grid/child.rs`. The correction retains complete immutable per-track target
+records, then chooses either owner-direct consumption or a distinct checked
+`InheritedCurrentGridBaselinePlacement`. For span `[start,end)`, that placement
+derives local track as `selected-start` or `end-1-selected` under reversal,
+maps First/Last to Start/End and swaps the edge under reversal, and applies
+`edge_sign * (current_gap-parent_gap)/2` only when the mapped role edge crosses a
+gutter. It derives every value internally from the group, mapping, and direct-item
+witness. MBP remains in the owner target. A `ChildBaselineEnvelopeView` is solely
+the downward child-internal phase. No target-value applicability test, group
+mutation, fixed-point loop, publication inverse, parser/fixture change, or
+generation is permitted.
 
 The representative vertical-rl model geometry is previous atomic `[55, 75]`,
 zero-size control `[55, 55]`, and next atomic `[35, 55]`. Closed overlap correctly
@@ -142,8 +151,9 @@ geometry remains directly compared.
 - **Public API and compatibility:** unchanged; D-18 changes private layout
   production and D-19 changes private test support.
 - **Production/tests:** T08 may change `src/grid/tracks.rs`,
-  `src/grid/subgrid.rs`, `src/grid/child.rs`, `src/grid_tests.rs`, and focused
-  strict-fixture proof in `tests/layout/browser_parity.rs` only.
+  `src/grid/subgrid.rs`, `src/grid/child.rs`, and `src/grid_tests.rs` only;
+  existing strict fixture proof in `tests/layout/browser_parity.rs` is read-only
+  acceptance.
 - **Comparator/tests:** T07 may change
   `tests/layout/browser_parity/support.rs`,
   `tests/layout/browser_parity.rs`, and `src/inline_tests.rs` only.
@@ -160,53 +170,61 @@ geometry remains directly compared.
 ### 5.1 `P01/I06/S01/C12/T08` Close Settled Axis-Parametric Baseline Placement
 
 **Files/area:** `src/grid/tracks.rs`, `src/grid/subgrid.rs`,
-`src/grid/child.rs`, `src/grid_tests.rs`, and focused ordinary-geometry proof in
-`tests/layout/browser_parity.rs`. Do not edit comparator support, helper, parser,
-fixtures, generator logic, generated artifacts, manifests, or public API.
+`src/grid/child.rs`, and `src/grid_tests.rs`. Existing browser-parity tests and
+artifacts are read-only. Do not edit comparator support, helper, parser, fixtures,
+generator logic/output, manifests, or public API.
 
-**RED:** Add
-`fri06_c12_t08_inline_column_direct_members_consume_column_group`,
-`fri06_c12_t08_vertical_auto_rows_preserve_full_fixture_targets`,
-`fri06_c12_t08_vertical_nested_direct_members_use_ancestor_half_gap`, and
-`fri06_c12_t08_representative_xml_has_strict_ordinary_geometry` test-first. The
-first three preserve the diagnosed wrong and required values in Section 2. The
-fourth parses exactly these preserved representative files through the real
-`Golden`:
+**RED:** Add the exact specification tests first:
 
-- `tests/layout/browser_parity/xml/subgrid/subgrid_baseline_inline_column_inner_col1_first__border_box_ltr.xml`;
-- `tests/layout/browser_parity/xml/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_first__border_box_ltr.xml`;
+- `inherited_current_grid_baseline_placement_maps_row_and_column_half_gaps`;
+- `inherited_current_grid_baseline_placement_maps_first_and_last_edges_through_reversal`;
+- `inherited_current_grid_baseline_placement_is_zero_at_role_terminal_edges`;
+- `inherited_current_grid_baseline_placement_is_zero_for_equal_gaps_and_owner_direct_items`;
+- `inherited_current_grid_baseline_placement_keeps_mbp_in_base_mapping`;
+- `inherited_current_grid_baseline_placement_repeat_is_identical_and_mutates_no_input`;
+- `vertical_auto_rows_current_grid_first_moves_x126_to_x121_while_last_stays_x30`;
+- `inherited_current_grid_baseline_placement_rejects_axis_mismatch_first`;
+- `inherited_current_grid_baseline_placement_rejects_physical_axis_mismatch`;
+- `inherited_current_grid_baseline_placement_rejects_span_out_of_range`;
+- `inherited_current_grid_baseline_placement_rejects_selected_track_out_of_range`;
+- `inherited_current_grid_baseline_placement_rejects_role_target_mismatch`;
+- `inherited_current_grid_baseline_placement_rejects_ownership_mismatch`;
+- `inherited_current_grid_baseline_placement_rejects_unusable_inherited_mapping`;
+- `inherited_current_grid_baseline_placement_rejects_non_finite_last`;
+- `subgrid_baseline_placement_error_propagates_with_node_site`;
+- `subgrid_baseline_placement_error_propagates_with_container_subject_site`;
   and
-- `tests/layout/browser_parity/xml/subgrid/subgrid_baseline_vertical_nested_inner_row1_first__border_box_ltr.xml`.
+- `late_subgrid_baseline_placement_error_after_prior_item_preparation_mutates_no_item_output_or_batch`.
 
-It clones only each expectation tree, recursively clears `browser_control`
-observations, proves the layout-ready `root` input is unchanged, and invokes the
-real strict layout assertion. It fails only ordinary geometry before correction;
-no comparator exception, generated edit, or generation command supplies RED.
+Missing target records/checked placement or the legacy cloned-group mutator must
+produce RED; no artifact edit, comparator exception, or generation supplies it.
 
-**Outcome:** Derive one pre-growth ancestor-member census for scalar auto-track
-sizing and baseline shims. After tracks settle, reduce direct and flattened
-members once into immutable row/block and column/inline targets. Apply each
-descendant's accumulated edge and half-gutter once before ancestor reduction;
-translate only a downward, non-publishable child view. `child.rs` consumes the
-selected axis target before the containing grid performs the final physical
-projection. Preserve ordinary non-inherited grid behavior.
+**Outcome:** Preserve the pre-growth census and settled reduction, but replace
+scalar-only group slots with complete immutable target records whose strictly
+larger candidate replaces the whole record and whose equal candidate retains the
+earliest record. Derive checked inherited-axis mapping and current-grid placement
+internally by the Section 2/specification formula; owner-direct consumers use the
+group target, current-grid direct consumers use placement, and only child-internal
+layout uses the envelope view. Remove the cloned-group mutator and all target-value
+ownership/applicability inference. Preserve non-inherited behavior and one final
+`FlowAxes` projection.
 
-**Acceptance:** Inline-column direct block controls are x `470` and `415`, the
-six direct flex siblings match their preserved XML coordinates, and RTL
-serialized geometry includes root first x `527`. Vertical auto rows are exactly
-`[212, 194, 194]`, outer x/width is `196`/`371`, nested first x is `308`, nested
-last x is `222`, and every later sibling matches. Vertical nested targets are
-exactly `[(66, 15), (43, 32), (38, 40)]`, with all six later direct siblings
-matching. All ordinary fields in the three representative XML files pass strict
-layout comparison before D-19; only their existing endpoint observations remain
-for T07. Existing positive, equal, and negative gutter, reversed-axis,
-idempotence, and non-inherited controls stay green. The generated corpus is
-byte-identical.
+**Acceptance:** The canonical target/offset matrix is exact for row/column,
+first/last, reversed/non-reversed, positive/equal/negative half-gaps, terminal
+edges, owner-direct items, and MBP; repeated derivation changes no input. Ordered
+compound-invalid cases, node/container-subject propagation, and late failure are
+atomic. Inline-column x `470/415` and RTL root-first x `527`, vertical auto rows
+`[212,194,194]` with outer x/width `196/371`, nested x `308/222`, vertical fixed
+targets `[(66,15),(43,32),(38,40)]`, all later siblings, and all ordinary fields
+of the three representative XML controls pass. Generated artifacts are
+byte-identical and only existing D-19 endpoint observations remain.
 
 **Commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c12_t08_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib inherited_current_grid_baseline_placement_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib subgrid_baseline_placement_error_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t08_representative_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib
 CARGO_NET_OFFLINE=true just check
 CARGO_NET_OFFLINE=true just clippy
@@ -214,8 +232,8 @@ CARGO_NET_OFFLINE=true just fmt-check
 git diff --check
 ```
 
-**Dependency:** Append the correction span after T08's six reviewed ranges and
-review the complete seven-range T08 lineage. T07 remains blocked until T08 is
+**Dependency:** Append the correction span after T08's eight historical ranges
+and review the complete nine-range T08 lineage. T07 remains blocked until T08 is
 task-clean. Preserve the successful generated lineage unchanged.
 
 **Intended commit:** `fix(layout): close settled subgrid baseline placement`.
