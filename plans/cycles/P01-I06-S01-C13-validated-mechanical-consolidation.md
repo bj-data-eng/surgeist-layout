@@ -246,7 +246,9 @@ CARGO_NET_OFFLINE=true just verify
 ### 3.5 `P01/I06/S01/C13/T05` Share Exact Optional-Size Arithmetic
 
 **Files/area:** new private `src/layout_math.rs`; `src/lib.rs`; `src/block.rs`,
-`src/flex.rs`, `src/grid/mod.rs`, `src/compute.rs`; focused module tests.
+`src/flex.rs`, `src/grid/mod.rs`, `src/compute.rs`; focused module tests; and only
+the `src/layout_math.rs` entry required by the complete production-source audit
+inventory in `src/lib_tests.rs`.
 
 **Outcome:** move only the exact optional-size classes named in Section 1 to the
 private owner. Preserve operand order and aspect-ratio projection. Share unchecked
@@ -262,7 +264,9 @@ passes at the task base.
 
 **Acceptance:** the four repeated common methods have one implementation; the two
 shared policy classes have one implementation each; named counterexamples retain
-their operation order; no call-site result or public surface changes.
+their operation order; the existing production-source audit includes the new
+private module without changing its audit logic or expected accounting; no
+call-site result or public surface changes.
 
 **Commands:**
 
