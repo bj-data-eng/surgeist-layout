@@ -354,9 +354,13 @@ behavior, dependencies, features, fixtures, generator logic/output, and all 59
 finding-owner assignments. Do not close an FRI-07 finding.
 **Observable exit evidence:** Every MR item has one validated disposition;
 characterization and applicable scaling evidence preserve the C12 behavior and
-artifact hashes without changing public API, fixtures, or generated output.
-**Handoff:** Return the final FRI-06 leaf candidate and complete MR disposition to
-the P01/root coordinator before FRI-07 planning begins.
+artifact hashes without changing public API, fixtures, or generated output. All
+configured checks and independent task/holistic reviews are clean; the candidate
+is published to the authority remote's `main`, and fresh remote readback proves
+local `main`, its tracking ref, and observed remote `main` agree.
+**Handoff:** Return the remotely verified final FRI-06 leaf candidate, authority
+remote/readback evidence, preserved artifact hashes, and complete MR disposition
+to the P01/root coordinator before FRI-07 planning begins.
 
 ## 5 Sequence Completion
 
