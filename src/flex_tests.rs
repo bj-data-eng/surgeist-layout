@@ -2572,6 +2572,532 @@ fn fri07_c02_collapse_round_measurement_ledger_proves_two_rounds_and_no_third() 
     assert_fri07_c02_collapse_round_ledger_is_finite::<f64>();
 }
 
+fn fri07_c02_collapsed_output_subtree<S: LayoutScalar>(
+    with_collapsed_descendants: bool,
+) -> PublicLayoutTreeOf<S> {
+    let preferred = |value| PreferredSizeOf::px(S::from_f64(value));
+    let length = |value| LengthOf::px(S::from_f64(value));
+    let auto_length = |value| LengthAutoOf::px(S::from_f64(value));
+    let collapsed = NodeInputOf {
+        flex_item_collapse: FlexItemCollapse::Collapsed,
+        box_sizing: BoxSizing::BorderBox,
+        size: Size::new(preferred(30.0), preferred(25.0)),
+        margin: Edges::new(
+            auto_length(13.0),
+            auto_length(17.0),
+            auto_length(19.0),
+            auto_length(23.0),
+        ),
+        padding: Edges::all(length(3.0)),
+        border: Edges::all(length(2.0)),
+        overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+        scrollbar_width: ScrollbarWidthOf::try_new(S::from_f64(4.0))
+            .expect("collapsed scrollbar width is finite"),
+        scroll_margin: ScrollMarginOf::try_new(
+            S::from_f64(5.0),
+            S::from_f64(6.0),
+            S::from_f64(7.0),
+            S::from_f64(8.0),
+        )
+        .expect("collapsed scroll margin is finite"),
+        scroll_snap_align: ScrollSnapAlign::new(
+            ScrollSnapAlignValue::Center,
+            ScrollSnapAlignValue::End,
+        ),
+        scroll_snap_stop: ScrollSnapStop::Always,
+        flex_grow: FlexGrowOf::ZERO,
+        flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink"),
+        ..NodeInputOf::default()
+    };
+    let mut tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 6, 7])
+        .children(3, [])
+        .children(6, [])
+        .children(7, [8])
+        .children(8, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                box_sizing: BoxSizing::BorderBox,
+                size: Size::new(preferred(120.0), preferred(60.0)),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidthOf::try_new(S::from_f64(3.0))
+                    .expect("container scrollbar width is finite"),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(2, collapsed)
+        .style(
+            3,
+            fri07_c02_collapse_round_item(20.0, 10.0, FlexItemCollapse::Normal),
+        )
+        .style(
+            6,
+            NodeInputOf {
+                position: Position::Absolute,
+                flex_item_collapse: FlexItemCollapse::Collapsed,
+                inset: Edges {
+                    top: auto_length(3.0),
+                    left: auto_length(4.0),
+                    ..Edges::all(LengthAutoOf::AUTO)
+                },
+                size: Size::new(preferred(10.0), preferred(8.0)),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            7,
+            NodeInputOf {
+                display: Display::None,
+                flex_item_collapse: FlexItemCollapse::Collapsed,
+                size: Size::new(preferred(90.0), preferred(80.0)),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            8,
+            fri07_c02_collapse_round_item(70.0, 60.0, FlexItemCollapse::Normal),
+        );
+
+    if with_collapsed_descendants {
+        tree = tree
+            .children(2, [4, 5])
+            .children(4, [])
+            .children(5, [])
+            .style(
+                4,
+                NodeInputOf {
+                    size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO),
+                    overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                    scrollbar_width: ScrollbarWidthOf::try_new(S::from_f64(9.0))
+                        .expect("nested scrollbar width is finite"),
+                    scroll_margin: ScrollMarginOf::try_new(
+                        S::from_f64(31.0),
+                        S::from_f64(32.0),
+                        S::from_f64(33.0),
+                        S::from_f64(34.0),
+                    )
+                    .expect("nested scroll margin is finite"),
+                    scroll_snap_align: ScrollSnapAlign::new(
+                        ScrollSnapAlignValue::End,
+                        ScrollSnapAlignValue::Center,
+                    ),
+                    scroll_snap_stop: ScrollSnapStop::Always,
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                5,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    inset: Edges {
+                        right: auto_length(-200.0),
+                        bottom: auto_length(-150.0),
+                        ..Edges::all(LengthAutoOf::AUTO)
+                    },
+                    size: Size::new(preferred(300.0), preferred(250.0)),
+                    overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(4, Size::new(S::from_f64(400.0), S::from_f64(350.0)));
+    } else {
+        tree = tree.children(2, []);
+    }
+
+    tree
+}
+
+fn assert_fri07_c02_collapsed_output_zero_and_hidden_subtree<S: LayoutScalar>() {
+    let hostile = compute_layout(
+        &fri07_c02_collapsed_output_subtree::<S>(true),
+        1,
+        fri07_c02_collapse_round_request(),
+    )
+    .expect("collapsed subtree layout succeeds");
+    let leaf = compute_layout(
+        &fri07_c02_collapsed_output_subtree::<S>(false),
+        1,
+        fri07_c02_collapse_round_request(),
+    )
+    .expect("collapsed leaf control layout succeeds");
+
+    for entries in [hostile.unrounded_entries(), hostile.final_entries()] {
+        for (node, source_index) in [(2, 0), (4, 0), (5, 1)] {
+            assert_eq!(
+                fri07_c01_composition_output(entries, node),
+                NodeOutputOf::with_source_index(SourceIndex::new(source_index)),
+                "collapsed node and descendants publish exact hidden output"
+            );
+        }
+    }
+
+    for node in [1, 3, 6, 7, 8] {
+        assert_eq!(
+            fri07_c02_collapse_round_output(&hostile, node),
+            fri07_c02_collapse_round_output(&leaf, node),
+            "collapsed nested content cannot change retained output for node {node}"
+        );
+    }
+
+    let collapsed = fri07_c02_collapse_round_output(&hostile, 2);
+    assert_eq!(collapsed.source_index, SourceIndex::new(0));
+    assert_eq!(collapsed.location, Point::ZERO);
+    assert_eq!(collapsed.size, Size::ZERO);
+    assert_eq!(collapsed.content_size, Size::ZERO);
+    assert_eq!(collapsed.border, Edges::ZERO);
+    assert_eq!(collapsed.padding, Edges::ZERO);
+    assert_eq!(collapsed.margin, Edges::ZERO);
+    assert_eq!(collapsed.scroll_geometry, None);
+
+    let normal = fri07_c02_collapse_round_output(&hostile, 3);
+    assert_eq!(normal.source_index, SourceIndex::new(1));
+    assert_eq!(normal.location, Point::ZERO);
+    assert_eq!(normal.size, Size::new(S::from_f64(20.0), S::from_f64(10.0)));
+
+    let absolute = fri07_c02_collapse_round_output(&hostile, 6);
+    assert_eq!(absolute.source_index, SourceIndex::new(2));
+    assert_eq!(
+        absolute.location,
+        Point::new(S::from_f64(4.0), S::from_f64(3.0))
+    );
+    assert_eq!(
+        absolute.size,
+        Size::new(S::from_f64(10.0), S::from_f64(8.0))
+    );
+    assert!(absolute.scroll_geometry.is_some());
+    assert_eq!(
+        fri07_c02_collapse_round_output(&hostile, 7),
+        NodeOutputOf::with_source_index(SourceIndex::new(3)),
+        "display-none keeps its existing source-indexed hidden owner"
+    );
+}
+
+#[test]
+fn fri07_c02_collapsed_output_is_exact_zero_and_hides_normal_and_absolute_descendants() {
+    assert_fri07_c02_collapsed_output_zero_and_hidden_subtree::<f32>();
+    assert_fri07_c02_collapsed_output_zero_and_hidden_subtree::<f64>();
+}
+
+fn assert_fri07_c02_collapsed_output_baseline_is_private<S: LayoutScalar>() {
+    let tree = Fri07C02CollapseRoundBaselineTree {
+        children: HashMap::from([(1, vec![2, 3]), (2, vec![]), (3, vec![])]),
+        styles: HashMap::from([
+            (
+                1,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::new(
+                        PreferredSizeOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::px(S::from_f64(40.0)),
+                    ),
+                    overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                    align_items: Some(AlignItems::Baseline),
+                    ..NodeInputOf::default()
+                },
+            ),
+            (
+                2,
+                NodeInputOf {
+                    margin: Edges::all(LengthAutoOf::px(S::from_f64(12.0))),
+                    overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                    scroll_snap_align: ScrollSnapAlign::new(
+                        ScrollSnapAlignValue::Center,
+                        ScrollSnapAlignValue::End,
+                    ),
+                    scroll_snap_stop: ScrollSnapStop::Always,
+                    ..fri07_c02_collapse_round_item(20.0, 10.0, FlexItemCollapse::Collapsed)
+                },
+            ),
+            (
+                3,
+                fri07_c02_collapse_round_item(20.0, 20.0, FlexItemCollapse::Normal),
+            ),
+        ]),
+    };
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("baseline-bearing collapsed layout succeeds");
+
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 2),
+        NodeOutputOf::with_source_index(SourceIndex::new(0)),
+        "the first-round baseline and margins remain private strut inputs"
+    );
+    assert_eq!(
+        fri07_c02_collapse_round_output(&batch, 3).location,
+        Point::ZERO,
+        "the collapsed baseline cannot become a final alignment subject"
+    );
+}
+
+#[test]
+fn fri07_c02_collapsed_output_carries_no_baseline_margin_overflow_or_scroll_target() {
+    assert_fri07_c02_collapsed_output_baseline_is_private::<f32>();
+    assert_fri07_c02_collapsed_output_baseline_is_private::<f64>();
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri07C02CollapsedOutputMeasureMode {
+    Values,
+    FailFirstRound,
+    FailSecondRound,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri07C02CollapsedOutputMeasureError {
+    FirstRound,
+    SecondRound,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Fri07C02CollapsedOutputRetained<S: LayoutScalar> {
+    unrounded: HashMap<u32, NodeOutputOf<S>>,
+    final_outputs: HashMap<u32, NodeOutputOf<S>>,
+    caches: HashMap<u32, CacheOf<S>>,
+}
+
+#[derive(Clone, Debug)]
+struct Fri07C02CollapsedOutputTree<S: LayoutScalar> {
+    tree: PublicLayoutTreeOf<S>,
+    measure_mode: Cell<Fri07C02CollapsedOutputMeasureMode>,
+    measurement_requests: RefCell<Vec<LeafMeasureInputOf<S>>>,
+    cache_queries: RefCell<Vec<(u32, bool)>>,
+    retained: Fri07C02CollapsedOutputRetained<S>,
+}
+
+impl<S: LayoutScalar> Fri07C02CollapsedOutputTree<S> {
+    fn new() -> Self {
+        let tree = PublicLayoutTreeOf::new()
+            .children(1, [2, 3])
+            .children(2, [])
+            .children(3, [])
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::new(
+                        PreferredSizeOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::AUTO,
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                2,
+                fri07_c02_collapse_round_item(40.0, 30.0, FlexItemCollapse::Collapsed),
+            )
+            .style(
+                3,
+                NodeInputOf {
+                    flex_basis: FlexBasisOf::px(S::from_f64(20.0)),
+                    flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow"),
+                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    ..NodeInputOf::default()
+                },
+            );
+        Self {
+            tree,
+            measure_mode: Cell::new(Fri07C02CollapsedOutputMeasureMode::Values),
+            measurement_requests: RefCell::new(Vec::new()),
+            cache_queries: RefCell::new(Vec::new()),
+            retained: Fri07C02CollapsedOutputRetained::default(),
+        }
+    }
+
+    fn apply_cache_entry(
+        retained: &mut Fri07C02CollapsedOutputRetained<S>,
+        entry: &LayoutCacheStoreEntryOf<u32, S>,
+    ) {
+        retained
+            .caches
+            .entry(entry.node())
+            .or_default()
+            .store_with_context(entry.input(), entry.context(), entry.output());
+    }
+}
+
+impl<S: LayoutScalar> Traverse for Fri07C02CollapsedOutputTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = <PublicLayoutTreeOf<S> as Traverse>::Children<'a>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        Traverse::children(&self.tree, node)
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.tree.child_count(node)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.tree.child(node, index)
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri07C02CollapsedOutputTree<S> {
+    type MeasureError = Fri07C02CollapsedOutputMeasureError;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        self.tree.node_input(node)
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.tree.layout_input(node)
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        node == 3
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        input: LeafMeasureInputOf<S>,
+    ) -> Option<Result<Size<S>, Self::MeasureError>> {
+        if node != 3 {
+            return None;
+        }
+        self.measurement_requests.borrow_mut().push(input);
+        let known = input.known_content_size();
+        let first_round = known.height.is_none() && known.width == Some(S::from_f64(60.0));
+        let second_round = known.height.is_none() && known.width == Some(S::from_f64(100.0));
+        match self.measure_mode.get() {
+            Fri07C02CollapsedOutputMeasureMode::FailFirstRound if first_round => {
+                Some(Err(Fri07C02CollapsedOutputMeasureError::FirstRound))
+            }
+            Fri07C02CollapsedOutputMeasureMode::FailSecondRound if second_round => {
+                Some(Err(Fri07C02CollapsedOutputMeasureError::SecondRound))
+            }
+            _ => Some(Ok(Size::new(S::from_f64(20.0), S::from_f64(17.0)))),
+        }
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<S>,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<S>> {
+        let output = self
+            .retained
+            .caches
+            .get(&node)
+            .and_then(|cache| cache.get_with_context(input, context));
+        self.cache_queries
+            .borrow_mut()
+            .push((node, output.is_some()));
+        output
+    }
+
+    fn unrounded_layout(&self, node: Self::Node) -> Option<NodeOutputOf<S>> {
+        self.retained.unrounded.get(&node).copied()
+    }
+}
+
+impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri07C02CollapsedOutputTree<S> {
+    type Error = core::convert::Infallible;
+    type Prepared = Fri07C02CollapsedOutputRetained<S>;
+
+    fn prepare_layout_batch(
+        &self,
+        batch: &CompletedLayoutBatchOf<u32, S>,
+    ) -> Result<Self::Prepared, Self::Error> {
+        let mut prepared = self.retained.clone();
+        for node in batch.invalidated_nodes() {
+            prepared.unrounded.remove(node);
+            prepared.final_outputs.remove(node);
+            prepared.caches.remove(node);
+        }
+        for entry in batch.unrounded_entries() {
+            prepared.unrounded.insert(entry.node(), entry.output());
+        }
+        for entry in batch.final_entries() {
+            prepared.final_outputs.insert(entry.node(), entry.output());
+        }
+        for entry in batch.cache_clear_entries() {
+            prepared.caches.remove(&entry.node());
+        }
+        for entry in batch.cache_store_entries() {
+            Self::apply_cache_entry(&mut prepared, entry);
+        }
+        Ok(prepared)
+    }
+
+    fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
+        self.retained = prepared;
+    }
+}
+
+fn assert_fri07_c02_collapsed_output_cache_and_failures_are_atomic<S: LayoutScalar>() {
+    let mut tree = Fri07C02CollapsedOutputTree::<S>::new();
+    let request = fri07_c02_collapse_round_request();
+    let cold = compute_layout(&tree, 1, request).expect("cold collapsed layout succeeds");
+    let cold_unrounded = cold.unrounded_entries().to_vec();
+    let cold_final = cold.final_entries().to_vec();
+    assert_eq!(
+        fri07_c02_collapse_round_output(&cold, 2),
+        NodeOutputOf::with_source_index(SourceIndex::new(0))
+    );
+    cold.apply_to(&mut tree)
+        .expect("infallible collapsed batch commit succeeds");
+
+    tree.cache_queries.borrow_mut().clear();
+    let warm = compute_layout(&tree, 1, request).expect("warm collapsed layout succeeds");
+    assert_eq!(warm.unrounded_entries(), cold_unrounded);
+    assert_eq!(warm.final_entries(), cold_final);
+    assert!(
+        tree.cache_queries
+            .borrow()
+            .iter()
+            .any(|(node, hit)| *node == 3 && *hit),
+        "warm collapsed layout reuses a committed normal-item measurement"
+    );
+
+    for (mode, expected_error, expected_failed_width) in [
+        (
+            Fri07C02CollapsedOutputMeasureMode::FailFirstRound,
+            Fri07C02CollapsedOutputMeasureError::FirstRound,
+            S::from_f64(60.0),
+        ),
+        (
+            Fri07C02CollapsedOutputMeasureMode::FailSecondRound,
+            Fri07C02CollapsedOutputMeasureError::SecondRound,
+            S::from_f64(100.0),
+        ),
+    ] {
+        tree.measure_mode.set(mode);
+        tree.measurement_requests.borrow_mut().clear();
+        let retained_before_failure = tree.retained.clone();
+        let error = compute_layout_invalidated(&tree, 1, request, &[3])
+            .expect_err("failed collapse round returns no partial batch");
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(3));
+        assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+        assert!(matches!(
+            error.kind(),
+            LayoutErrorKindOf::Measurement(error) if *error == expected_error
+        ));
+        assert_eq!(tree.retained, retained_before_failure);
+        assert!(
+            tree.measurement_requests.borrow().iter().any(|input| {
+                let known = input.known_content_size();
+                known.height.is_none() && known.width == Some(expected_failed_width)
+            }),
+            "the requested collapse round reached its failing measurement"
+        );
+    }
+}
+
+#[test]
+fn fri07_c02_collapsed_output_cache_cold_warm_and_both_round_failures_are_atomic() {
+    assert_fri07_c02_collapsed_output_cache_and_failures_are_atomic::<f32>();
+    assert_fri07_c02_collapsed_output_cache_and_failures_are_atomic::<f64>();
+}
+
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }

@@ -4206,7 +4206,10 @@ where
 {
     let children = tree.children(node).collect::<Vec<_>>();
     for (source_index, child) in children.into_iter().enumerate() {
-        if tree.node_input(child).display != super::Display::None {
+        let style = tree.node_input(child);
+        let is_collapsed_in_flow = style.position != Position::Absolute
+            && style.flex_item_collapse == FlexItemCollapse::Collapsed;
+        if style.display != super::Display::None && !is_collapsed_in_flow {
             continue;
         }
 
