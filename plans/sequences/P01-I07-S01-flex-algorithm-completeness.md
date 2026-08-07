@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/P01-I07-flex-algorithm-completeness.md`, normalized semantic-content
 SHA-256
-`6f5d480970116600bdf0cccfb7b684893e3c47f1b9cb0ba84113ef55bd21a3a5`,
-committed as `8afd4fef2a70cb93c08b3f1c5009f6ec104db3fc`.
+`9e2a899476d27e09133a05531cb4bb4dfab1479d949d66167548c26ee1972b57`,
+committed as `451954e6aab6529ce7464c299be7e2aff6ea3753`.
 
 The specification owns behavior, public API, compatibility, ownership,
 artifacts, errors, and acceptance. This sequence owns only durable dependency
@@ -36,6 +36,11 @@ before the one full unfiltered existing-pinned regeneration in C04. C05 begins
 only from that published artifact candidate and cannot rerun generation unless
 the sprawl assessment confirms a genuine behavior, input-honesty, or artifact
 defect that reopens the owning contract.
+
+Each cycle verifies only its focused behavior and FRI-07-owned parity surface.
+Repository-wide `just parity-all` remains the FRI-13 aggregate release gate and
+may appear in FRI-07 evidence only as a diagnostic compared with an immutable
+entry inventory.
 
 ## 3 Ordered Cycles
 
