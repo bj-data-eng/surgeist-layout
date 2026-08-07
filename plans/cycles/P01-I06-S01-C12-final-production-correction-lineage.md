@@ -29,8 +29,8 @@ Preserve the task-clean T01-T06 results and the sole successful full browser
 lineage. Reopen T08 first to complete D-18's settled axis-parametric baseline
 placement. Then reopen T07 for D-19's typed endpoint-unobservable comparator
 state and independent private line-membership proof. Finally adopt the
-already-generated artifacts and exact evidence constants without another full
-or scoped generation.
+already-generated artifacts and exact evidence constants, then reconcile the
+stale Rust-only recovery evidence exposed by adoption, without generation.
 
 ## 2 Boundary And Current Evidence
 
@@ -155,6 +155,8 @@ geometry remains directly compared.
 - **Comparator/tests:** T07 may change
   `tests/layout/browser_parity/support.rs`,
   `tests/layout/browser_parity.rs`, and `src/inline_tests.rs` only.
+- **Recovery evidence:** T10 may update stale Rust-only report, helper, and
+  synthetic-fixture assertions in the two T09 test files after adoption.
 - **Helper/parser/fixtures/generator logic:** unchanged; no HTML, JavaScript,
   fixture, parser, serializer, or generator-architecture change.
 - **Generated artifacts:** T09 adopts the preserved 5,712 XML files and report
@@ -310,9 +312,10 @@ or output, so the already-successful full run is the sole acceptance lineage.
 exact 16 missing-root unsupported rows, zero other buckets, one full report, the
 six exact hashes above, exact 388-row activation membership, exact 144 typed
 endpoint-unobservable fields, and semantic preservation of the other 5,324 XML
-bodies. Full configured verification is read-only and green. No process, scoped
-report, temporary artifact, helper/parser/fixture change, or second generation
-exists.
+bodies. Focused activation, corpus, and Taffy verification are read-only and
+green. Broader Rust suites may retain only the exact stale T10 evidence below.
+No process, scoped report, temporary artifact, helper/parser/fixture change, or
+second generation exists.
 
 `fri06_c12_t09_final_lineage_hashes_match_preserved_run` binds the hashes with
 these canonical procedures: helper and report hash exact file bytes; complete XML
@@ -328,8 +331,6 @@ path, NUL byte, body without its provenance line, and NUL byte over the exact
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_final_lineage_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t09_final_lineage_hashes_match_preserved_run
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 git diff --check
@@ -342,9 +343,43 @@ and appends the final adoption span.
 
 **Intended commit:** `test(parity): adopt final FRI-06 lineage`.
 
+### 5.4 `P01/I06/S01/C12/T10` Align Final-Lineage Recovery Evidence
+
+**Files/area:** Rust-only test evidence in
+`tests/bin/surgeist-layout-generate/generator.rs` and
+`tests/layout/browser_parity.rs`. Do not edit production, helper, parser,
+serializer, HTML/XML/report artifacts, manifests, dependencies, or features.
+
+**RED:** After T09 removes its rejected extra edits, default and generator
+verification fail only stale report/source digests, helper-observation assertions,
+and C08 float, shape, grid-range, and mixed-wrap synthetic XML expectations.
+Record the exact failing tests before correction; no generation supplies RED.
+
+**Outcome:** Update those existing Rust-only observations and synthetic inputs to
+the already-preserved honest helper/XML lineage and current explicit-input model.
+Preserve fixture-name independence, negative controls, and every production and
+artifact byte. Do not add a parser layer, substitute oracle, or suppression.
+
+**Acceptance:** Default and generator verification are green; T09's six hashes,
+388-row activation, 144-field accounting, and 5,713 artifact bytes are unchanged.
+Only the two named Rust test files change.
+
+**Commands:**
+```sh
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t09_final_lineage_hashes_match_preserved_run
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
+git diff --check
+```
+
+**Dependency:** T09 is task-clean after its review-fix span.
+
+**Intended commit:** `test(parity): align final lineage recovery evidence`.
+
 ## 6 Cycle Completion
 
-After T08, T07, and T09 are independently task-clean, change only `Status` to
+After T08, T07, T09, and T10 are independently task-clean, change only `Status` to
 `complete` in a separate commit. At that exact head run:
 
 ```sh
