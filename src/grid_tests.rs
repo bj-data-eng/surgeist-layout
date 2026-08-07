@@ -8713,6 +8713,127 @@ fn fri06_c12_t08_inline_column_direct_members_consume_column_group() {
     assert_eq!(first.location.x + 25.0, second.location.x + 10.0);
 }
 
+fn fri06_c12_t08_reversed_inherited_column_baselines(alignment: AlignItems) -> [(f32, f32); 3] {
+    let mut tree = OracleTree::new()
+        .children(1, [2, 5])
+        .children(2, [3, 4])
+        .children(3, [])
+        .children(4, [])
+        .children(5, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::px(80.0)),
+                grid_template_columns: vec![TrackComponent::px(100.0), TrackComponent::px(100.0)],
+                grid_template_rows: vec![TrackComponent::px(80.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Grid,
+                direction: Direction::Rtl,
+                grid_column: GridPlacement::try_lines(1, 3).expect("valid inherited column span"),
+                grid_template_columns: vec![empty_subgrid_track()],
+                grid_template_rows: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                grid_column: GridPlacement::try_line(1).expect("valid first local column"),
+                grid_row: GridPlacement::try_line(1).expect("valid first local row"),
+                justify_self: Some(alignment),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                grid_column: GridPlacement::try_line(1).expect("valid first local column"),
+                grid_row: GridPlacement::try_line(2).expect("valid second local row"),
+                justify_self: Some(alignment),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            5,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                grid_column: GridPlacement::try_line(2).expect("valid ancestor column"),
+                justify_self: Some(alignment),
+                ..NodeInput::default()
+            },
+        );
+    let (first, second, ancestor) = match alignment {
+        AlignItems::Baseline => (
+            vertical_baseline_measure(30.0, 20.0, Some(24.0), None),
+            vertical_baseline_measure(50.0, 20.0, Some(9.0), None),
+            vertical_baseline_measure(100.0, 20.0, Some(45.0), None),
+        ),
+        AlignItems::LastBaseline => (
+            vertical_baseline_measure(30.0, 20.0, None, Some(7.0)),
+            vertical_baseline_measure(50.0, 20.0, None, Some(18.0)),
+            vertical_baseline_measure(100.0, 20.0, None, Some(40.0)),
+        ),
+        _ => unreachable!("the reversed-column control uses baseline alignment"),
+    };
+    tree = tree
+        .measure(3, first)
+        .measure(4, second)
+        .measure(5, ancestor);
+
+    compute_root(
+        &mut tree,
+        1,
+        Size::new(Available::Definite(200.0), Available::Definite(80.0)),
+    )
+    .expect("reversed inherited-column layout computes");
+    round_layout(&mut tree, 1).expect("reversed inherited-column layout rounds");
+
+    let subgrid_x = tree
+        .final_layout(2)
+        .expect("reversed inherited-column grid is laid out")
+        .location
+        .x;
+    [3_u32, 4, 5].map(|node| {
+        let layout = tree
+            .final_layout(node)
+            .expect("reversed-column member is laid out");
+        let baseline = match (alignment, node) {
+            (AlignItems::Baseline, 3) => 24.0,
+            (AlignItems::Baseline, 4) => 9.0,
+            (AlignItems::Baseline, 5) => 45.0,
+            (AlignItems::LastBaseline, 3) => 23.0,
+            (AlignItems::LastBaseline, 4) => 32.0,
+            (AlignItems::LastBaseline, 5) => 60.0,
+            _ => unreachable!("the reversed-column control uses baseline alignment"),
+        };
+        let parent_x = if node == 5 { 0.0 } else { subgrid_x };
+        (
+            parent_x + layout.location.x,
+            parent_x + layout.location.x + baseline,
+        )
+    })
+}
+
+#[test]
+fn fri06_c12_t08_reversed_inherited_columns_preserve_first_baseline_target() {
+    let members = fri06_c12_t08_reversed_inherited_column_baselines(AlignItems::Baseline);
+    assert_eq!(members.map(|member| member.1), [145.0; 3], "{members:?}");
+}
+
+#[test]
+fn fri06_c12_t08_reversed_inherited_columns_preserve_last_baseline_target() {
+    let members = fri06_c12_t08_reversed_inherited_column_baselines(AlignItems::LastBaseline);
+    assert_eq!(members.map(|member| member.1), [160.0; 3], "{members:?}");
+}
+
 #[test]
 fn fri06_c12_t08_vertical_auto_rows_preserve_full_fixture_targets() {
     let mut tree = OracleTree::new()
@@ -9324,6 +9445,135 @@ fn fri06_c12_t08_smaller_inherited_gap_applies_one_signed_track_transform() {
         fri06_c12_t08_inherited_baseline_gap_position(20.0, 10.0),
         82.0
     );
+}
+
+fn fri06_c12_t08_nested_inherited_row_baseline_delta(
+    parent_gap: f32,
+    child_gap: f32,
+    reversed: bool,
+    alignment: AlignItems,
+) -> f32 {
+    let child_writing_mode = if reversed {
+        WritingMode::VerticalLr
+    } else {
+        WritingMode::VerticalRl
+    };
+    let mut tree = OracleTree::new()
+        .children(1, [2])
+        .children(2, [3, 4])
+        .children(3, [])
+        .children(4, [5])
+        .children(5, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(80.0)),
+                grid_template_rows: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
+                grid_template_columns: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+                gap: Size::new(Length::px(parent_gap), Length::ZERO),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: child_writing_mode,
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid inherited row span"),
+                grid_column: GridPlacement::try_lines(1, 3).expect("valid column span"),
+                grid_template_rows: vec![empty_subgrid_track()],
+                grid_template_columns: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+                gap: Size::new(Length::px(child_gap), Length::ZERO),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                writing_mode: child_writing_mode,
+                grid_row: GridPlacement::try_line(2).expect("valid direct row"),
+                grid_column: GridPlacement::try_line(1).expect("valid direct column"),
+                align_self: Some(alignment),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: child_writing_mode,
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid nested row span"),
+                grid_column: GridPlacement::try_line(2).expect("valid nested column"),
+                grid_template_rows: vec![empty_subgrid_track()],
+                grid_template_columns: vec![TrackComponent::px(40.0)],
+                gap: Size::new(Length::px(child_gap), Length::ZERO),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            5,
+            NodeInput {
+                writing_mode: child_writing_mode,
+                grid_row: GridPlacement::try_line(2).expect("valid flattened row"),
+                align_self: Some(alignment),
+                ..NodeInput::default()
+            },
+        );
+    let (direct, nested) = match alignment {
+        AlignItems::Baseline => (
+            vertical_baseline_measure(30.0, 20.0, Some(20.0), None),
+            vertical_baseline_measure(30.0, 20.0, Some(5.0), None),
+        ),
+        AlignItems::LastBaseline => (
+            vertical_baseline_measure(30.0, 20.0, None, Some(5.0)),
+            vertical_baseline_measure(30.0, 20.0, None, Some(20.0)),
+        ),
+        _ => unreachable!("the inherited-row control uses baseline alignment"),
+    };
+    tree = tree.measure(3, direct).measure(5, nested);
+
+    compute_root(
+        &mut tree,
+        1,
+        Size::new(Available::Definite(140.0), Available::Definite(80.0)),
+    )
+    .expect("nested inherited-row layout computes");
+    round_layout(&mut tree, 1).expect("nested inherited-row layout rounds");
+
+    let direct_layout = tree.final_layout(3).expect("direct member is laid out");
+    let nested_grid = tree.final_layout(4).expect("nested grid is laid out");
+    let nested_layout = tree.final_layout(5).expect("flattened member is laid out");
+    let (direct_baseline, nested_baseline) = match alignment {
+        AlignItems::Baseline => (20.0, 5.0),
+        AlignItems::LastBaseline => (25.0, 10.0),
+        _ => unreachable!("the inherited-row control uses baseline alignment"),
+    };
+    direct_layout.location.x + direct_baseline
+        - nested_grid.location.x
+        - nested_layout.location.x
+        - nested_baseline
+}
+
+#[test]
+fn fri06_c12_t08_inherited_row_gap_adjustment_stays_in_member_and_view_mapping() {
+    let cases = [
+        (10.0, 20.0, false, AlignItems::Baseline),
+        (10.0, 20.0, false, AlignItems::LastBaseline),
+        (20.0, 10.0, false, AlignItems::Baseline),
+        (20.0, 10.0, false, AlignItems::LastBaseline),
+        (10.0, 20.0, true, AlignItems::Baseline),
+        (10.0, 20.0, true, AlignItems::LastBaseline),
+        (20.0, 10.0, true, AlignItems::Baseline),
+        (20.0, 10.0, true, AlignItems::LastBaseline),
+    ];
+    let deltas = cases.map(|(parent_gap, child_gap, reversed, alignment)| {
+        fri06_c12_t08_nested_inherited_row_baseline_delta(
+            parent_gap, child_gap, reversed, alignment,
+        )
+    });
+    assert_eq!(deltas, [0.0; 8]);
 }
 
 #[test]

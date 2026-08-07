@@ -687,7 +687,7 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
             return Err(SubgridTrackInheritanceError::SpanOutOfRange);
         }
         let mut parent_major = group
-            .track_groups()
+            .track_groups_for_child_view(input.reversed)
             .iter()
             .map(|track| track.first)
             .collect::<Vec<_>>();
@@ -698,7 +698,7 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
             subtract_baseline(baseline, translation, input.physical_axis);
         }
         let mut parent_minor = group
-            .track_groups()
+            .track_groups_for_child_view(input.reversed)
             .iter()
             .map(|track| track.last)
             .collect::<Vec<_>>();
@@ -708,18 +708,38 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
         {
             subtract_baseline(baseline, -translation, input.physical_axis);
         }
+        if input.reversed {
+            let (major_translation, minor_translation) = group.reversed_child_view_translations();
+            for (baseline, translation) in parent_major
+                .iter_mut()
+                .zip(major_translation.iter().copied())
+            {
+                subtract_baseline(baseline, translation, input.physical_axis);
+            }
+            for (baseline, translation) in parent_minor
+                .iter_mut()
+                .zip(minor_translation.iter().copied())
+            {
+                subtract_baseline(baseline, translation, input.physical_axis);
+            }
+        }
+        let (start_mbp, end_mbp, parent_gap) = if input.reversed {
+            (S::ZERO, S::ZERO, input.subgrid_gap)
+        } else {
+            (input.start_mbp, input.end_mbp, input.parent_gap)
+        };
         let inherited = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
             parent_major: &parent_major,
             parent_minor: &parent_minor,
             physical_axis: input.physical_axis,
             parent_span: input.parent_span,
             reversed: input.reversed,
-            start_mbp: input.start_mbp,
-            end_mbp: input.end_mbp,
-            parent_gap: input.parent_gap,
+            start_mbp,
+            end_mbp,
+            parent_gap,
             subgrid_gap: input.subgrid_gap,
         })?;
-        let edge_translation = if input.axis == GridAxisKind::Column {
+        let edge_translation = if input.axis == GridAxisKind::Column && !input.reversed {
             -(input.start_mbp + input.end_mbp)
         } else {
             S::ZERO
@@ -732,7 +752,7 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
         for baseline in &mut minor {
             subtract_baseline(baseline, edge_translation, input.physical_axis);
         }
-        if input.ancestor_progression_decreasing && !group.is_downward_view() {
+        if !input.reversed && input.ancestor_progression_decreasing && !group.is_downward_view() {
             let half_gap = (input.subgrid_gap - input.parent_gap) / S::from_f64(2.0);
             for baseline in &mut major {
                 subtract_baseline(baseline, half_gap, input.physical_axis);

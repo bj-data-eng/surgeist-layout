@@ -109,6 +109,8 @@ pub(super) struct AncestorBaselineMember<Node, S: LayoutScalar = Scalar> {
     role: AncestorBaselineRole,
     containing_logical_distance: S,
     ancestor_adjustment: S,
+    opposite_containing_logical_distance: S,
+    opposite_ancestor_adjustment: S,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -116,6 +118,9 @@ pub(super) struct AncestorBaselineGroup<S: LayoutScalar = Scalar> {
     axis: GridAxisKind,
     physical_axis: crate::geometry::PhysicalAxis,
     tracks: Vec<TrackBaselineGroup<S>>,
+    reversed_tracks: Vec<TrackBaselineGroup<S>>,
+    reversed_major_translation: Vec<S>,
+    reversed_minor_translation: Vec<S>,
     downward_view: bool,
 }
 
@@ -126,7 +131,7 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         major: &[Option<PhysicalBaseline<S>>],
         minor: &[Option<PhysicalBaseline<S>>],
     ) -> Self {
-        let tracks = major
+        let tracks: Vec<TrackBaselineGroup<S>> = major
             .iter()
             .copied()
             .zip(minor.iter().copied())
@@ -135,7 +140,10 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         Self {
             axis,
             physical_axis,
+            reversed_tracks: tracks.clone(),
             tracks,
+            reversed_major_translation: vec![S::ZERO; major.len()],
+            reversed_minor_translation: vec![S::ZERO; minor.len()],
             downward_view: true,
         }
     }
@@ -147,6 +155,9 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
         members: impl IntoIterator<Item = AncestorBaselineMember<Node, S>>,
     ) -> Self {
         let mut tracks = vec![TrackBaselineGroup::default(); track_count];
+        let mut reversed_tracks = vec![TrackBaselineGroup::default(); track_count];
+        let mut reversed_major_translation = vec![S::ZERO; track_count];
+        let mut reversed_minor_translation = vec![S::ZERO; track_count];
         for member in members {
             if member.axis != axis || member.physical_axis != physical_axis {
                 continue;
@@ -170,11 +181,48 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
                     merge_expected_baseline(&mut track.last, baseline, physical_axis);
                 }
             }
+            let Some(reversed_track) = reversed_tracks.get_mut(member.selected_track) else {
+                continue;
+            };
+            let reversed_baseline =
+                PhysicalBaseline::new(physical_axis, member.opposite_containing_logical_distance);
+            let replace_reversed = match member.role {
+                AncestorBaselineRole::First => reversed_track.first,
+                AncestorBaselineRole::Last => reversed_track.last,
+            }
+            .is_none_or(|current| reversed_baseline.coordinate() > current.coordinate());
+            match member.role {
+                AncestorBaselineRole::First => merge_expected_baseline(
+                    &mut reversed_track.first,
+                    reversed_baseline,
+                    physical_axis,
+                ),
+                AncestorBaselineRole::Last => merge_expected_baseline(
+                    &mut reversed_track.last,
+                    reversed_baseline,
+                    physical_axis,
+                ),
+            };
+            if replace_reversed {
+                match member.role {
+                    AncestorBaselineRole::First => {
+                        reversed_major_translation[member.selected_track] =
+                            member.opposite_ancestor_adjustment;
+                    }
+                    AncestorBaselineRole::Last => {
+                        reversed_minor_translation[member.selected_track] =
+                            member.opposite_ancestor_adjustment;
+                    }
+                }
+            }
         }
         Self {
             axis,
             physical_axis,
             tracks,
+            reversed_tracks,
+            reversed_major_translation,
+            reversed_minor_translation,
             downward_view: false,
         }
     }
@@ -292,6 +340,41 @@ impl<S: LayoutScalar> AncestorBaselineGroup<S> {
 
     pub(super) fn track_groups(&self) -> &[TrackBaselineGroup<S>] {
         &self.tracks
+    }
+
+    pub(super) fn track_groups_for_child_view(&self, reversed: bool) -> &[TrackBaselineGroup<S>] {
+        if reversed {
+            &self.reversed_tracks
+        } else {
+            &self.tracks
+        }
+    }
+
+    pub(super) fn reversed_child_view_translations(&self) -> (&[S], &[S]) {
+        (
+            &self.reversed_major_translation,
+            &self.reversed_minor_translation,
+        )
+    }
+
+    pub(super) fn translate_changed_downward_targets(
+        &mut self,
+        inherited_view: &Self,
+        translation: S,
+    ) {
+        for (track, inherited) in self.tracks.iter_mut().zip(&inherited_view.tracks) {
+            if track.first != inherited.first
+                && let Some(first) = &mut track.first
+            {
+                *first =
+                    PhysicalBaseline::new(self.physical_axis, first.coordinate() + translation);
+            }
+            if track.last != inherited.last
+                && let Some(last) = &mut track.last
+            {
+                *last = PhysicalBaseline::new(self.physical_axis, last.coordinate() - translation);
+            }
+        }
     }
 
     pub(super) const fn is_downward_view(&self) -> bool {
@@ -883,27 +966,31 @@ pub(super) fn ancestor_baseline_member<Node: Copy, S: LayoutScalar>(
         return None;
     }
 
-    let (role, baseline, selected_track, ancestor_adjustment) = match participation.group? {
-        BaselineGroupKind::Major => (
-            AncestorBaselineRole::First,
-            baselines.first_or_synthesize_block_baseline(input.child_flow_axes, input.output.size),
-            input.ancestor_span.start.checked_sub(1)?,
-            input.start_adjustment,
-        ),
-        BaselineGroupKind::Minor => (
-            AncestorBaselineRole::Last,
-            baselines
-                .last_block_baseline(input.child_flow_axes)
-                .unwrap_or_else(|| {
-                    baselines.first_or_synthesize_block_baseline(
-                        input.child_flow_axes,
-                        input.output.size,
-                    )
-                }),
-            input.ancestor_span.end.checked_sub(2)?,
-            input.end_adjustment,
-        ),
-    };
+    let (role, baseline, selected_track, ancestor_adjustment, opposite_ancestor_adjustment) =
+        match participation.group? {
+            BaselineGroupKind::Major => (
+                AncestorBaselineRole::First,
+                baselines
+                    .first_or_synthesize_block_baseline(input.child_flow_axes, input.output.size),
+                input.ancestor_span.start.checked_sub(1)?,
+                input.start_adjustment,
+                input.end_adjustment,
+            ),
+            BaselineGroupKind::Minor => (
+                AncestorBaselineRole::Last,
+                baselines
+                    .last_block_baseline(input.child_flow_axes)
+                    .unwrap_or_else(|| {
+                        baselines.first_or_synthesize_block_baseline(
+                            input.child_flow_axes,
+                            input.output.size,
+                        )
+                    }),
+                input.ancestor_span.end.checked_sub(2)?,
+                input.end_adjustment,
+                input.start_adjustment,
+            ),
+        };
     let physical_coordinate = baseline.coordinate_on(physical_axis)?;
     let physical_extent = grid_axis_size(input.containing_flow_axes, input.output.size, input.axis);
     let logical_margin = input.containing_flow_axes.logical_edges(input.margin);
@@ -933,6 +1020,24 @@ pub(super) fn ancestor_baseline_member<Node: Copy, S: LayoutScalar>(
                 }
         }
     } + ancestor_adjustment;
+    let opposite_containing_logical_distance = match role {
+        AncestorBaselineRole::First => {
+            end_margin
+                + if decreasing {
+                    physical_coordinate
+                } else {
+                    physical_extent - physical_coordinate
+                }
+        }
+        AncestorBaselineRole::Last => {
+            start_margin
+                + if decreasing {
+                    physical_extent - physical_coordinate
+                } else {
+                    physical_coordinate
+                }
+        }
+    } + opposite_ancestor_adjustment;
 
     Some(AncestorBaselineMember {
         source: input.source,
@@ -943,6 +1048,8 @@ pub(super) fn ancestor_baseline_member<Node: Copy, S: LayoutScalar>(
         role,
         containing_logical_distance,
         ancestor_adjustment,
+        opposite_containing_logical_distance,
+        opposite_ancestor_adjustment,
     })
 }
 
