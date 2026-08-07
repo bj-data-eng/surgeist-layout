@@ -94,6 +94,11 @@ browser observation, model control geometry, neighboring node geometry, and the
 closed relation are all correct; only the comparator equates distinct evidence
 domains.
 
+The immutable cycle base predates the realized C12 tests. Reopened task commands
+resolve against the current entry state: the activation test and final-lineage
+freeze tests are preserved T07/T09 code already present at the plan commit. Only
+the three D-19 tests named below are new.
+
 ## 3 Known Chrome Measurement Failures
 
 None. This is not a Chrome failure, expected-fail, quarantine, or synthetic
@@ -128,8 +133,12 @@ fixtures, generator logic, or generated artifacts.
 **RED:** Against the preserved successful lineage, run the focused activation
 test once. It enumerates exactly 388 rows and fails exactly 144 `next_line`
 comparisons: the 48/48/48 families recorded above all report browser `Later`
-versus model `Same`, while 244 rows pass. Add the focused typed-result and private
-line-membership regressions test-first; no generation command supplies RED.
+versus model `Same`, while 244 rows pass. Then add
+`fri06_c12_t07_endpoint_unobservable_requires_exact_shared_endpoint`,
+`fri06_c12_t07_endpoint_accounting_is_exact`, and
+`fri06_c12_t07_endpoint_break_commits_following_atomic_to_next_line` test-first;
+their missing typed result/accounting fails before the comparator correction.
+No generation command supplies RED.
 
 **Outcome:** After ordinary node geometry compares, report only `next_line` as a
 typed endpoint-unobservable field when every `FRI-06.11.3` predicate holds: a
@@ -169,17 +178,22 @@ generated lineage unchanged.
 
 ### 5.2 `P01/I06/S01/C12/T09` Adopt Final FRI-06 Lineage
 
-**Files/area:** evidence constants only in
+**Files/area:** test-only evidence constants and digest assertions in
 `tests/bin/surgeist-layout-generate/generator.rs` and
 `tests/layout/browser_parity.rs`, plus the already-preserved 5,712 XML files and
 `tests/layout/browser_parity/xml/generation-reports/all.json`. Do not run the
 generator binary or edit generator logic, helper, parser, fixtures, serializer,
-comparator, production, manifest, dependency, or feature surface.
+comparator, production, manifest, dependency, or feature surface. Minimal
+test-only digest helpers and assertions in the two named Rust test files are
+authorized solely to bind the six final hashes below.
 
 **RED:** After T07 is task-clean, run the focused final-lineage freeze before
-editing constants. The preserved artifacts differ from the stale committed
-evidence constants for the exact successful hashes above. This is adoption RED,
-not permission to generate or alter artifact bodies.
+editing constants. The existing
+`fri06_c08r_lineage_helper_and_nine_html_inputs_are_byte_frozen`,
+`fri06_c08r_final_lineage_report_closes_inventory_and_provenance`, and
+`fri06_c08r_final_lineage_preserves_nonactivation_xml_semantics` tests fail on
+their stale committed helper/report-body evidence. This is adoption RED, not
+permission to generate or alter artifact bodies.
 
 **Outcome:** Update only the exact evidence constants, then commit those constants
 with the preserved XML/report as the final lineage. Do not run a full or scoped
@@ -194,10 +208,19 @@ bodies. Full configured verification is read-only and green. No process, scoped
 report, temporary artifact, helper/parser/fixture change, or second generation
 exists.
 
+`fri06_c12_t09_final_lineage_hashes_match_preserved_run` binds the hashes with
+these canonical procedures: helper and report hash exact file bytes; complete XML
+hashes LF-terminated sorted records containing the file SHA-256, two ASCII spaces,
+and repo-relative path; inventory hashes the LF-terminated sorted corpus-relative
+XML paths; and activation/preserved bodies use the existing sorted aggregate of
+path, NUL byte, body without its provenance line, and NUL byte over the exact
+388/5,324 partition. The expected digests are the six values in Section 2.
+
 **Commands:**
 ```sh
 ! pgrep -f '[s]urgeist-layout-generate'
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_final_lineage_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t09_final_lineage_hashes_match_preserved_run
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
 CARGO_NET_OFFLINE=true just parity-all
 CARGO_NET_OFFLINE=true just verify
