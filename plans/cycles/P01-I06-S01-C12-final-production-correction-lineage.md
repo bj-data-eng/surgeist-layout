@@ -9,226 +9,196 @@ Owning repository: `surgeist-layout`
 Cycle base: `8ffb4bc551a24d2283ad54436870ab3f5e66a473`
 
 Reviewed specification:
-`plans/specs/P01-I06-inline-formatting-floats-bfcs.md`, normalized SHA-256
-`0f0a1f03eba4e79954efefcd6dd114547af27e891d2acc35ef54a398e542acad`,
-commit `0344d20801c0b93d600bcf7f20f461c929b49ab9`: `FRI-06.3`,
-`FRI-06.4 D-16` and `D-18`, subgrid and fixture portions of `FRI-06.7`,
-module/test contracts in `FRI-06.9` and `.10`, browser/artifact contracts in
-`FRI-06.11` and `.11.2`, and acceptance in `FRI-06.14`.
+`plans/specs/P01-I06-inline-formatting-floats-bfcs.md`, normalized semantic-content
+SHA-256 `c94b388c1bb31b94a1b09bb287440e7ca22338da60d6bf161d7d3b7d7ec0fe38`,
+commit `967f3ca9d71ddec1451e69bc6cccf60d9399d511`: `FRI-06.3`,
+`FRI-06.4 D-16`, `D-18`, and `D-19`, the control, comparator, fixture, and
+subgrid portions of `FRI-06.7`, module/test contracts in `FRI-06.9` and `.10`,
+browser/artifact contracts in `FRI-06.11` through `.11.3`, and acceptance in
+`FRI-06.14`.
 
 Reviewed implementation sequence:
 `plans/sequences/P01-I06-S01-inline-formatting-floats-bfcs.md`, normalized
-SHA-256
-`205e19677824de9768915405641ef268a1925b0031e08d08510c213d8492c308`,
-commit `16991d7dd0b5dca7777518716a8a4f7ce4be2692`, entry
+SHA-256 `de8476bc841610e6842cf370ab5af6820322b73bb88365e0a5137b2319a95ae6`,
+commit `52de2e8ddeab8b2fc3e0885828017e67b6c7d116`, entry
 `P01/I06/S01/C12`.
 
 ## 1 Outcome
 
-Preserve the task-clean T01-T06 results and the D-18-clean T08 result. Reopen T07
-only for the confirmed vertical-lr BR-probe sign bug exposed by the first failed
-full lineage attempt, then derive one final full browser lineage after the helper
-input changes and the complete T07 range is independently clean again.
+Preserve the task-clean T01-T06 results, D-18-clean T08 production, and the sole
+successful full browser lineage. Reopen T07 only to implement D-19's typed
+endpoint-unobservable comparator state and independent private line-membership
+proof. Then adopt the already-generated artifacts and exact evidence constants
+without another full or scoped generation.
 
 ## 2 Boundary And Current Evidence
 
-T01-T05 retain their exact reviewed ranges and outcomes:
+T01-T06 remain task-clean under their recorded ordered ranges. T07's reviewed
+ordered implementation ranges are:
 
-| Task | Realized commits |
+- `111492fbcd60251e5fd71bb76a889ced0508b6b3..323d73afa98ddc73e65fd9c1da223a5fbd85875e`;
+- `79d8c9204039656438083328bb3cdde80c813051..d42a667494055e3ed4bba4b8502220a214b97ef4`;
+- `d6b0c1e36bb7803a7a80480cf4d85a09c7b72753..89adbbc29ba3b2350c1fb64876a8a69520af8e07`;
+- `bfd588ef87c393527f2f7f8fc65b0fa41a7bd066..2ed9382d0f3b2f47c5701aa5290e26567b44ac3a`;
+- `2ed9382d0f3b2f47c5701aa5290e26567b44ac3a..17fffd9374647633eb0a7dcd1ecbf56b0ed8a37c`;
+  and
+- `fb7335c47d2c160f9fa787e73d3ac750db3a75da..d58bc9e8e42ffd0f74fa5342556680f81f2b3d84`.
+
+Those ranges already preserve honest layout-ready fixture input, browser-measured
+BR metrics, finite physical baseline distances, and the closed interval relation.
+D-19 appends one comparator/test-support correction range; it does not invalidate
+those results.
+
+T08 remains task-clean at
+`8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`. Its six reviewed ordered ranges are:
+
+- `89adbbc29ba3b2350c1fb64876a8a69520af8e07..9ff1b91dabd7d53b32ee0942a7e6962515a80b79`;
+- `9ff1b91dabd7d53b32ee0942a7e6962515a80b79..5f7f72c45090d9c230f7a2957bffadd5904625b4`;
+- `a64b3272c675e52fecec61fa9617c9e972e2b514..e36830143235e28625ac010489d8c7aa998d714f`;
+- `e36830143235e28625ac010489d8c7aa998d714f..f2a3e0485adbc63521276f688ddf7e1f71fa448e`;
+- `f2a3e0485adbc63521276f688ddf7e1f71fa448e..e367a493f4d6b574a1d1a53b31314528a5e5a213`;
+  and
+- `e367a493f4d6b574a1d1a53b31314528a5e5a213..8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`.
+
+D-18 production and exact public geometry are closed. No production file is
+reopened.
+
+After the final T07 helper correction, one full unfiltered generation completed
+successfully and remains in the canonical worktree as exactly 5,712 changed XML
+files plus `xml/generation-reports/all.json`. Its report has `filter: null`, 5,712
+generated, the exact 16 missing-root unsupported rows, and zero expected-fail,
+quarantined, failed, or failed-to-generate rows. No generator process or scoped
+report remains. Its evidence is:
+
+| Evidence | SHA-256 |
 | --- | --- |
-| T01 | `cff9204ed6119ed46609372529740addbcf0ce91`, `70d6e048c249b45fe5202b03063a9c76a926501e` |
-| T02 | `37a776b3e7ffef463ef9a3e474aede5c6e0c1f76`, `48f7bfacdc64a66a26e4fce917727769e7d833ae` |
-| T03 | `7f6a0657d1d2a8977ffa3fd7236f38aeb6283725`, `150a379a45ebd654aad0bb29ba3c778af5237663` |
-| T04 | `515b712c85eb33e3b499755264332bb96c63ca09`, `90c7e8618d04e218874dc5b12b4113eda6b3dd4c` |
-| T05 | `5ba51d3fcfe1a2ec46c47fb4e7ffbe0c169ba131`, `78876ebecd005a7a7f4e988a9d1c4c0a32dfcbd6`, `0bbfbc04b324826c95f9282e0409297b05acb4b9`, `40ccaeb2fbf012b017a58615a6f0f856e6918672` |
+| Browser helper | `42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2` |
+| Full report | `8d59c87d1fcc185bda0372968ae81dbeff74f241c17335db98629ad49f1f463f` |
+| Complete XML | `d2530aa79f214b536e46aee263095a6e7c0a1d7a329bdce7baeb194af3670896` |
+| Activation bodies | `f3d9b41973e6b0e51e258f027496dc2651c4fba7d24567b05d4f088ee63de335` |
+| Preserved bodies | `b2684877302ed7b1b6b1e52b5ae4c4ae4508ff425d6c34ff237b7e37440a3c79` |
+| Inventory | `0c327c2d93b140ea5ed5660e45ad947a0afb583b9aa97b3163ea59b45d371715` |
 
-T07's complete ordered implementation evidence ends with:
+The lineage closes the four unequal-line block-height rows. Activation is now
+244 passing and 144 failing, partitioned exactly as 48
+`subgrid_baseline_inline_column_*`, 48
+`subgrid_baseline_vertical_auto_rows_*`, and 48
+`subgrid_baseline_vertical_nested_*` variants. Every failure is only serialized
+browser `next_line = Later` versus model closed-overlap `Same`.
 
-- `323d73afa98ddc73e65fd9c1da223a5fbd85875e`;
-- `d42a667494055e3ed4bba4b8502220a214b97ef4`;
-- `89adbbc29ba3b2350c1fb64876a8a69520af8e07`;
-- `2ed9382d0f3b2f47c5701aa5290e26567b44ac3a`; and
-- `17fffd9374647633eb0a7dcd1ecbf56b0ed8a37c`.
-
-Those changes measure BR baselines in Chrome, reject synthetic line-height
-fallback, and make touching comparator intervals `Same`. T07 was task-clean, but
-the first T09 full run exposed one retained fake/real sign mismatch and reopens
-only that helper boundary.
-
-T08's historical spans are
-`9ff1b91dabd7d53b32ee0942a7e6962515a80b79` and
-`5f7f72c45090d9c230f7a2957bffadd5904625b4`. Their D-17 publication/inverse
-premise is superseded. Three bounded corrections could satisfy either nested
-coordinates or intrinsic and round-trip controls, but not all together; every
-attempt was fully reverted and no diagnostic residue remains.
-
-At source state `ed246a31d8af7957e5592c27e111345e86479fe6`, public
-geometry is:
-
-| Control | Browser | Current |
-| --- | ---: | ---: |
-| auto-row root height | 411 | 459 |
-| inline-column LTR/RTL x | 470 / 527 | 415 / 570 |
-| nested-block descendant/sibling y | 62 / 110 | 57 / 125 |
-| vertical-auto x | 196 | 202 |
-| vertical-nested x | 153 | 168 |
-
-The checked-in report from T09 commit
-`0a355604d0862a8f07811d323acfdece912921cd` remains diagnostic: 5,712
-generated, 16 unsupported, 144 of 388 activation rows passing, and 244 failing.
-Its report SHA-256 is
-`f46d8d8b50c722037127fdca79679649bd5cfd6db16fb24c0d69a7e5a082147a`.
-Some activation XML still carry the pre-T07 touching-interval observation. In
-particular, vertical-auto reaches every geometry comparison after T08 but its 48
-rows still report expected `Later` versus observed `Same`; T08 uses public layout
-evidence for stale families until T09 replaces the settled lineage.
-
-At the final T08 head, the production correction resolves 96 of those diagnostic
-activation failures without changing checked-in XML: all 48 auto-row and all 48
-nested-block rows. The exact pre-generation activation state is therefore 240 of
-388 rows passing and 148 failing, with no new failures: 144 stale subgrid
-neighbor-line comparisons and four stale unequal-line block heights.
-
-At T08 head `8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`, the first
-unfiltered T09 attempt ran once and stopped without a commit. Its report generated
-5,708 rows, retained the exact 16 missing-root unsupported rows, and recorded one
-failed input: `block_br_vertical_lr_inline_block_metrics.html`, where the helper
-rejected a negative signed distance. The failed report SHA-256 is
-`2efb49434033b86bf53465914fcf507e49b773392469903f7824846e63f368bf`;
-the complete XML SHA-256 is
-`30c93c9d8c43b463da2c85da8e46f300d53a54d2c663d6007067dc4a97eb2a81`.
-A single isolated scoped diagnostic then measured pinned Chrome markers at
-top/baseline/bottom x `30/15/0`: all finite, with the baseline between both line
-edges. The helper selected `baseline - top = -15`; its unit fake encoded the
-opposite orientation. No diagnostic residue remains.
+The representative vertical-rl model geometry is previous atomic `[55, 75]`,
+zero-size control `[55, 55]`, and next atomic `[35, 55]`. Closed overlap correctly
+classifies both relations `Same`. Chrome independently reports its non-model BR
+rectangle `[60, 70]` and categorical next-line effect `Later`. Production,
+browser observation, model control geometry, neighboring node geometry, and the
+closed relation are all correct; only the comparator equates distinct evidence
+domains.
 
 ## 3 Known Chrome Measurement Failures
 
-None. Chrome remains authoritative; the failed run confirmed a helper sign bug,
-not a browser failure. No synthetic substitute or expected-fail entry is
-authorized.
+None. This is not a Chrome failure, expected-fail, quarantine, or synthetic
+substitute. Chrome's observation remains serialized and exact neighboring node
+geometry remains directly compared.
 
 ## 4 Impacts
 
-- **Public API and compatibility:** unchanged; every D-18 carrier is private.
-- **Browser helper:** reopened T07 owns only the non-horizontal BR distance in
-  `test_helper.js` and its generator unit regression. It changes no fixture or
-  generator architecture.
-- **Production:** T08 owns `src/grid/tracks.rs`, `src/grid/subgrid.rs`,
-  `src/grid/child.rs`, and focused `src/grid_tests.rs` as one atomic correction.
-- **Fixture/parser/comparator:** unchanged.
-- **Generated artifacts:** T09 alone replaces the 5,712 XML files and
-  `xml/generation-reports/all.json`; T07 changes focused generator tests only,
-  while T09 changes generator Rust evidence constants only.
+- **Public API and compatibility:** unchanged; D-19 is private test support.
+- **Production:** unchanged; no `src/` behavior changes except a private unit
+  regression in `src/inline_tests.rs`.
+- **Comparator/tests:** T07 may change
+  `tests/layout/browser_parity/support.rs`,
+  `tests/layout/browser_parity.rs`, and `src/inline_tests.rs` only.
+- **Helper/parser/fixtures/generator logic:** unchanged; no HTML, JavaScript,
+  fixture, parser, serializer, or generator-architecture change.
+- **Generated artifacts:** T09 adopts the preserved 5,712 XML files and report
+  byte-for-byte and updates only their Rust evidence constants.
 - **Dependencies, features, docs, examples, MSRV, root:** unchanged.
-- **Safety:** no `unsafe`, lint suppression, parser layer, generator architecture,
-  or later-owned behavior is permitted.
+- **Safety:** no `unsafe`, lint suppression, parser layer, public test API, or
+  later-owned behavior is permitted.
 
-## 5 Preserved Result And Tasks
+## 5 Tasks
 
-### 5.1 `P01/I06/S01/C12/T07` Correct Vertical-LR BR Baseline Distance
+### 5.1 `P01/I06/S01/C12/T07` Classify Endpoint-Unobservable Controls
 
-**Files/area:**
-`tests/layout/browser_parity/scripts/gentest/test_helper.js` and focused unit
-tests in `tests/bin/surgeist-layout-generate/generator.rs`. Before edits, verify
-the preserved failed-run inventory and restore only its 5,708 XML changes and
-`xml/generation-reports/all.json` to the exact T08 head; no failed generated
-output is retained or committed.
+**Files/area:** `tests/layout/browser_parity/support.rs`, focused activation
+accounting in `tests/layout/browser_parity.rs`, and a private line-builder
+regression in `src/inline_tests.rs`. Do not edit production, helper, parser,
+fixtures, generator logic, or generated artifacts.
 
-**RED:** In the bundled helper harness, reproduce pinned Chrome's vertical-lr
-marker order: line-over x 30, baseline x 15, and line-under x 0 at line height 30.
-The current writing-mode sign branch selects `15 - 30 = -15` and rejects the
-measurement. The test fails for that exact reason without a browser or generator
-run.
+**RED:** Against the preserved successful lineage, run the focused activation
+test once. It enumerates exactly 388 rows and fails exactly 144 `next_line`
+comparisons: the 48/48/48 families recorded above all report browser `Later`
+versus model `Same`, while 244 rows pass. Add the focused typed-result and private
+line-membership regressions test-first; no generation command supplies RED.
 
-**Outcome:** Treat a non-horizontal BR baseline as the finite non-negative
-physical x-distance magnitude between the line-over and baseline markers;
-writing mode and direction do not assign a sign to that scalar. Preserve the
-horizontal top-to-baseline calculation, finite/non-negative line-height checks,
-zero-height fast path, line-height clamp, complete computed font context, and
-probe cleanup. Make the unit fake reproduce Chrome's vertical-lr orientation.
+**Outcome:** After ordinary node geometry compares, report only `next_line` as a
+typed endpoint-unobservable field when every `FRI-06.11.3` predicate holds: a
+visible forced break has zero-size model output, both adjacent model neighbors
+have unrounded output, its point is within `0.1` of their exact shared physical
+block endpoint, closed comparison yields `Same` for both neighbors, and the
+serialized browser observation distinguishes the following line. Preserve the
+browser value. Do not inspect fixture identity or expected geometry to select
+layout input or comparator behavior.
 
-**Acceptance:** The new vertical-lr regression reports baseline `15px` and line
-height `30px`; existing horizontal, vertical-rl, sideways, zero, clamped,
-nonfinite, normal-line-height, and cleanup controls remain green. The helper
-change leaves checked-in evidence constants and XML stale for T09. No generation
-command runs.
+**Acceptance:** Focused support negative controls reject any missing predicate,
+wrong/missing neighboring geometry, non-endpoint mismatch, or widened skipped
+field. The private line-builder regression proves the forced break ends the prior
+line and the following atomic has the next private line index. Activation accepts
+all 388 rows while reporting exactly 144 typed endpoint-unobservable `next_line`
+fields in the exact 48/48/48 family partition; every other field is directly
+compared. The closed interval relation, model geometry, browser XML, and known-
+failure/expected-fail counts remain unchanged.
 
 **Commands:**
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c12_t07_br_inline_metrics_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c12_t07_endpoint_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c12_t07_endpoint_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
+CARGO_NET_OFFLINE=true just parity-all
 CARGO_NET_OFFLINE=true just check
 CARGO_NET_OFFLINE=true just clippy
 CARGO_NET_OFFLINE=true just fmt-check
 git diff --check
 ```
 
-**Dependency:** Append the correction span to T07's five historical commits and
-review the complete ordered T07 lineage. The failed full run and scoped probe are
-diagnostic evidence, not verification or task spans.
+**Dependency:** Append the correction span after T07's six reviewed ranges and
+review the complete seven-range T07 lineage. Preserve T08 and the successful
+generated lineage unchanged.
 
-**Intended commit:** `fix(parity): measure vertical-lr BR baseline magnitude`.
+**Intended commit:** `fix(parity): classify endpoint-unobservable controls`.
 
-### 5.2 Preserved T08 Result
+### 5.2 `P01/I06/S01/C12/T09` Adopt Final FRI-06 Lineage
 
-T08 is clean at `8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`; it is not an
-executable task after this amendment. Its reviewed ordered ranges are:
+**Files/area:** evidence constants only in
+`tests/bin/surgeist-layout-generate/generator.rs` and
+`tests/layout/browser_parity.rs`, plus the already-preserved 5,712 XML files and
+`tests/layout/browser_parity/xml/generation-reports/all.json`. Do not run the
+generator binary or edit generator logic, helper, parser, fixtures, serializer,
+comparator, production, manifest, dependency, or feature surface.
 
-- `89adbbc29ba3b2350c1fb64876a8a69520af8e07..9ff1b91dabd7d53b32ee0942a7e6962515a80b79`;
-- `9ff1b91dabd7d53b32ee0942a7e6962515a80b79..5f7f72c45090d9c230f7a2957bffadd5904625b4`;
-- `a64b3272c675e52fecec61fa9617c9e972e2b514..e36830143235e28625ac010489d8c7aa998d714f`;
-- `e36830143235e28625ac010489d8c7aa998d714f..f2a3e0485adbc63521276f688ddf7e1f71fa448e`;
-- `f2a3e0485adbc63521276f688ddf7e1f71fa448e..e367a493f4d6b574a1d1a53b31314528a5e5a213`; and
-- `e367a493f4d6b574a1d1a53b31314528a5e5a213..8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`.
+**RED:** After T07 is task-clean, run the focused final-lineage freeze before
+editing constants. The preserved artifacts differ from the stale committed
+evidence constants for the exact successful hashes above. This is adoption RED,
+not permission to generate or alter artifact bodies.
 
-Its clean verdict covers D-18 direct descendant participation, root-empty
-grouping, private child views, removal of the D-17 inverse, and the exact public
-auto, nested, inline, and vertical geometry. T09 alone replaces its stale
-interval-relation artifacts.
+**Outcome:** Update only the exact evidence constants, then commit those constants
+with the preserved XML/report as the final lineage. Do not run a full or scoped
+generation: D-19 changes no generator input or output, so the already-successful
+full run is the sole acceptance lineage.
 
-### 5.3 `P01/I06/S01/C12/T09` Replace Final Browser Lineage
-
-**Files/area:** `tests/bin/surgeist-layout-generate/generator.rs` evidence
-constants, `tests/layout/browser_parity.rs` evidence constants, all 5,712
-manifest-owned XML files, and `xml/generation-reports/all.json`. No helper, HTML,
-parser, serializer, comparator, production, API, manifest, dependency, feature,
-or generator logic.
-
-**RED:** At the committed T07 correction head, the stale evidence constants and
-checked-in pre-T07 XML fail their focused freeze and activation tests. Reproduce
-those failures once without modifying the worktree. The activation-only test
-enumerates exactly 388 rows and must report exactly 148 failing paths: 144
-subgrid neighbor-line mismatches and four unequal-line block-height mismatches,
-so 240 rows pass. Separately, pre-generation `just parity-all` must fail with the
-settled 520-fixture whole-corpus state. The broad command is not activation-count
-evidence. Do not edit evidence constants before generation.
-
-**Outcome:** With a clean worktree, no filter or browser override except the
-explicit existing pin, and no generator process, run full unfiltered
-`generate-existing` exactly once after the T07 helper input changes. The earlier
-failed full attempt is retained only as evidence and is not a replacement
-lineage. Run no scoped generation in T09. Update only the resulting XML/report
-and their exact evidence constants. If the run exposes another unmet input or
-production assumption, preserve its evidence and return to the affected task
-before any replacement run; never rerun unchanged inputs.
-
-**Acceptance:** Report is `filter: null`, 5,712 generated, the exact 16
-missing-root unsupported rows, and empty expected-fail, quarantine, generation-
-failure, and failed-to-generate buckets. All 388 activation rows pass with no
-substitute. The other 5,324 XML bodies preserve semantics. Record exact helper,
-report, complete XML, activation, preserved-body, and inventory hashes. No scoped
-report, process, or temporary resource remains.
+**Acceptance:** Focused lineage tests prove `filter: null`, 5,712 generated, the
+exact 16 missing-root unsupported rows, zero other buckets, one full report, the
+six exact hashes above, exact 388-row activation membership, exact 144 typed
+endpoint-unobservable fields, and semantic preservation of the other 5,324 XML
+bodies. Full configured verification is read-only and green. No process, scoped
+report, temporary artifact, helper/parser/fixture change, or second generation
+exists.
 
 **Commands:**
 ```sh
-test -z "$(git status --porcelain)"
 ! pgrep -f '[s]urgeist-layout-generate'
-"target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" --version
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_final_lineage_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_final_activation_union_browser_passes_without_substitutes -- --nocapture
-CARGO_NET_OFFLINE=true just parity-all
-env -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 CARGO_NET_OFFLINE=true just parity-all
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
@@ -237,21 +207,17 @@ CARGO_NET_OFFLINE=true just taffy-check
 git diff --check
 ```
 
-The first status is empty, the process probe finds no process, and Chrome reports
-`149.0.7827.115`. The Cargo run is the sole generation. All later commands are
-read-only verification.
+**Dependency:** T07 is task-clean and T08 remains preserved-clean. T09's complete
+ordered lineage begins with diagnostic range
+`a1d165e30f6abbc3ad1759504fcd9c90dc52a709..0a355604d0862a8f07811d323acfdece912921cd`
+and appends the final adoption span.
 
-**Dependency:** Reopened T07 is task-clean and T08 remains preserved-clean at
-`8740d5ef3432c80f49eb7086e65bbd9c012cb1aa`. Append the replacement span after
-T09 diagnostic commit `0a355604d0862a8f07811d323acfdece912921cd` and review
-the complete ordered T09 lineage.
-
-**Intended commit:** `test(parity): replace final FRI-06 lineage`.
+**Intended commit:** `test(parity): adopt final FRI-06 lineage`.
 
 ## 6 Cycle Completion
 
-After both executable tasks are clean, change only `Status` to `complete` in a
-separate commit. At that exact head run:
+After T07 and T09 are independently task-clean, change only `Status` to
+`complete` in a separate commit. At that exact head run:
 
 ```sh
 CARGO_NET_OFFLINE=true just verify
@@ -265,5 +231,6 @@ test -z "$(git status --short)"
 ```
 
 The unsafe scan returns no match and final status is clean. Record exact task
-ranges and artifact hashes, then follow the canonical holistic review,
-publication, remote readback, cleanup, and C13 handoff contracts. Blocker: none.
+ranges and artifact hashes, obtain the mandatory holistic review, publish and
+read back authority remote `main`, clean owned temporary resources, and hand the
+frozen behavior-correct candidate to C13. Blocker: none.
