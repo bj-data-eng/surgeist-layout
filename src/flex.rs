@@ -1004,6 +1004,7 @@ struct ResolvedFlexItem<Node, S: LayoutScalar> {
     size: Size<Option<S>>,
     initial_output: ComputeOutputOf<S>,
     flex_basis: S,
+    intrinsic_flex_basis: Option<AvailableOf<S>>,
     hypothetical_main_size: S,
     max_content_main_size: S,
     target_size: Size<S>,
@@ -1070,6 +1071,7 @@ impl<Node, S: LayoutScalar> From<CollectedFlexItem<Node, S>> for ResolvedFlexIte
             size: item.size,
             initial_output: item.initial_output,
             flex_basis: item.flex_basis,
+            intrinsic_flex_basis: item.intrinsic_flex_basis,
             hypothetical_main_size: item.hypothetical_main_size,
             max_content_main_size: item.max_content_main_size,
             target_size: item.hypothetical_size,
@@ -1912,11 +1914,13 @@ where
                         ParentFormattingContext::Flex,
                     ),
                     constants.axes.size_from_main_cross(
-                        constants
-                            .axes
-                            .main_size(constants.node_inner_size)
-                            .map(AvailableOf::definite)
-                            .unwrap_or(AvailableOf::MAX_CONTENT),
+                        item.intrinsic_flex_basis.unwrap_or_else(|| {
+                            constants
+                                .axes
+                                .main_size(constants.node_inner_size)
+                                .map(AvailableOf::definite)
+                                .unwrap_or(AvailableOf::MAX_CONTENT)
+                        }),
                         available_cross,
                     ),
                 )
@@ -3631,11 +3635,13 @@ where
                 constants.node_inner_size,
                 ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
                 constants.axes.size_from_main_cross(
-                    constants
-                        .axes
-                        .main_size(constants.node_inner_size)
-                        .map(AvailableOf::definite)
-                        .unwrap_or(AvailableOf::MAX_CONTENT),
+                    item.intrinsic_flex_basis.unwrap_or_else(|| {
+                        constants
+                            .axes
+                            .main_size(constants.node_inner_size)
+                            .map(AvailableOf::definite)
+                            .unwrap_or(AvailableOf::MAX_CONTENT)
+                    }),
                     constants
                         .axes
                         .cross_size(constants.node_inner_size)

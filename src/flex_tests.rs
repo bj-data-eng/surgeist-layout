@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap};
 
 use crate::flex::FlexAxes;
 use crate::geometry::PhysicalProgression;
@@ -27,6 +27,7 @@ struct Fri07C01IntrinsicTree<S: LayoutScalar> {
     children: HashMap<u32, Vec<u32>>,
     styles: HashMap<u32, NodeInputOf<S>>,
     measured_nodes: Vec<u32>,
+    child_requests: RefCell<HashMap<u32, Vec<ComputeInputOf<S>>>>,
     mode: Fri07C01IntrinsicMeasureMode,
 }
 
@@ -36,6 +37,7 @@ impl<S: LayoutScalar> Fri07C01IntrinsicTree<S> {
             children: HashMap::new(),
             styles: HashMap::new(),
             measured_nodes: Vec::new(),
+            child_requests: RefCell::new(HashMap::new()),
             mode,
         }
     }
@@ -53,6 +55,14 @@ impl<S: LayoutScalar> Fri07C01IntrinsicTree<S> {
     fn measured(mut self, node: u32) -> Self {
         self.measured_nodes.push(node);
         self
+    }
+
+    fn child_requests(&self, node: u32) -> Vec<ComputeInputOf<S>> {
+        self.child_requests
+            .borrow()
+            .get(&node)
+            .cloned()
+            .unwrap_or_default()
     }
 }
 
@@ -124,6 +134,20 @@ impl<S: LayoutScalar> LayoutTree for Fri07C01IntrinsicTree<S> {
                 )))
             }
         }
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<Self::Scalar>,
+        _context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<Self::Scalar>> {
+        self.child_requests
+            .borrow_mut()
+            .entry(node)
+            .or_default()
+            .push(*input);
+        None
     }
 }
 
@@ -287,6 +311,71 @@ fn fri07_c01_intrinsic_child_container_tree<S: LayoutScalar>(
 fn fri07_c01_intrinsic_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
     LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(300.0))))
         .expect("intrinsic test viewport is finite")
+}
+
+fn fri07_c01_intrinsic_recomputation_tree<S: LayoutScalar>(
+    flex_basis: FlexBasisOf<S>,
+) -> Fri07C01IntrinsicTree<S> {
+    Fri07C01IntrinsicTree::new(Fri07C01IntrinsicMeasureMode::Values)
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(200.0)),
+                    PreferredSizeOf::px(S::from_f64(40.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(77.0)),
+                    PreferredSizeOf::AUTO,
+                ),
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                flex_basis,
+                flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow"),
+                ..NodeInputOf::default()
+            },
+        )
+        .measured(2)
+}
+
+fn assert_fri07_c01_intrinsic_provider_constraint_survives_recomputation<S: LayoutScalar>() {
+    for (flex_basis, expected) in [
+        (FlexBasisOf::<S>::MIN_CONTENT, AvailableOf::MIN_CONTENT),
+        (FlexBasisOf::<S>::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+    ] {
+        let tree = fri07_c01_intrinsic_recomputation_tree(flex_basis);
+        compute_layout(&tree, 1, fri07_c01_intrinsic_request())
+            .expect("intrinsic flex basis remains supported through final layout");
+
+        let observed = tree
+            .child_requests(2)
+            .into_iter()
+            .map(|input| (input.run_mode(), input.available().width))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            observed,
+            vec![
+                (RunMode::PerformRootLayout, expected),
+                (RunMode::ComputeSize, expected),
+                (RunMode::PerformLayout, expected),
+            ],
+            "every initial, cross-recomputation, and final child request must retain the selected intrinsic main-axis constraint",
+        );
+    }
+}
+
+#[test]
+fn fri07_c01_intrinsic_public_layout_retains_provider_constraint_through_final_layout() {
+    assert_fri07_c01_intrinsic_provider_constraint_survives_recomputation::<f32>();
+    assert_fri07_c01_intrinsic_provider_constraint_survives_recomputation::<f64>();
 }
 
 fn assert_fri07_c01_intrinsic_leaf_geometry<S: LayoutScalar>() {
