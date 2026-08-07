@@ -316,7 +316,7 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 test "$(shasum -a 256 plans/P01-layout/P01-I06-mechanical-refactoring-review-findings.md | cut -d ' ' -f 1)" = 11437dd9dfe83d41ae6b01e41453d9cc1a893172c6977e5b3d77346aa3948f34
-git diff --exit-code dc82c4566ad0ab95c443638aab8fda15fca8db78..HEAD -- Cargo.toml Cargo.lock README.md tests/layout/browser_parity tests/layout/browser_parity.rs tests/bin/surgeist-layout-generate.rs tests/bin/surgeist-layout-generate/generator.rs plans/P01-layout/P01-initial-review-findings.md
+git diff --exit-code dc82c4566ad0ab95c443638aab8fda15fca8db78..HEAD -- Cargo.toml Cargo.lock README.md tests/layout/browser_parity tests/layout/browser_parity.rs tests/bin/surgeist-layout-generate.rs tests/bin/surgeist-layout-generate/generator.rs plans/P01-layout/P01-index.md plans/P01-layout/P01-initial-review-findings.md
 ! rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' .
 git diff --check dc82c4566ad0ab95c443638aab8fda15fca8db78..HEAD
 test -z "$(git status --short)"
@@ -324,7 +324,8 @@ test -z "$(git status --short)"
 
 The hash test proves all six frozen C12 artifact digests without generation. The
 path diff proves no manifest, lockfile, crate docs, fixture, helper, generator,
-generated output, or 59-finding assignment changed. A fresh
+generated output, authoritative ownership index, or 59-finding assignment
+changed. A fresh
 `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `dc82c4566ad0ab95c443638aab8fda15fca8db78..cycle_head`, including the complete
 MR-002 source inventory and all MR-003 equivalence/counterexample predicates.
