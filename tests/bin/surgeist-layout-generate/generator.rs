@@ -4746,6 +4746,17 @@ fn input_attrs_with_parent_writing_mode(
     );
     maybe(&mut attrs, "direction", string(style, "direction"), None);
     maybe(&mut attrs, "order", string(style, "order"), Some("0"));
+    match style.get("flexItemCollapse") {
+        None => {}
+        Some(Value::String(value)) if value == "collapsed" => {
+            attrs.push(("flex-item-collapse", value.clone()));
+        }
+        Some(value) => {
+            panic!(
+                "layout-ready fixture field `flexItemCollapse` must be exactly `collapsed` when present, got {value}"
+            )
+        }
+    }
     if let Some(writing_mode) = writing_mode_attr(style, parent_writing_mode) {
         attrs.push(("writing-mode", writing_mode));
     }
@@ -7018,6 +7029,97 @@ for (const raw of ["-1fr", "NaNfr", "Infinityfr"]) {
         serde_json::from_slice(&output.stdout).expect("helper test must emit one JSON value")
     }
 
+    #[test]
+    fn fri07_c04_collapse_helper_lowers_only_computed_in_flow_flex_item_collapse() {
+        let script = format!(
+            r#"
+const window = {{}};
+const document = {{ styleSheets: [] }};
+
+{TEST_HELPER_SOURCE}
+
+const parent = {{}};
+const element = {{
+  id: "original-name",
+  parentElement: parent,
+  getBoundingClientRect() {{ return {{ x: 1, y: 2, width: 3, height: 4 }}; }},
+}};
+let parentDisplay = "flex";
+function getComputedStyle(target) {{
+  if (target !== parent) throw new Error("collapse lowering inspected an unexpected element");
+  return {{ display: parentDisplay }};
+}}
+
+const cases = [
+  ["collapsed flex item", {{ visibility: "collapse", position: "static", display: "block" }}, "flex", "collapsed"],
+  ["normal flex item", {{ visibility: "visible", position: "static", display: "block" }}, "flex", undefined],
+  ["hidden flex item", {{ visibility: "hidden", position: "static", display: "block" }}, "flex", undefined],
+  ["absolute flex child", {{ visibility: "collapse", position: "absolute", display: "block" }}, "flex", undefined],
+  ["display-none flex child", {{ visibility: "collapse", position: "static", display: "none" }}, "flex", undefined],
+  ["non-flex child", {{ visibility: "collapse", position: "static", display: "block" }}, "block", undefined],
+];
+for (const [label, style, display, expected] of cases) {{
+  parentDisplay = display;
+  const actual = normalizedFlexItemCollapse(element, style);
+  if (actual !== expected) {{
+    throw new Error(`${{label}}: expected ${{String(expected)}}, got ${{String(actual)}}`);
+  }}
+}}
+
+parentDisplay = "flex";
+const collapsedStyle = {{ visibility: "collapse", position: "relative", display: "block" }};
+const before = normalizedFlexItemCollapse(element, collapsedStyle);
+element.id = "renamed-fixture";
+element.getBoundingClientRect = () => ({{ x: 90, y: 80, width: 70, height: 60 }});
+const after = normalizedFlexItemCollapse(element, collapsedStyle);
+if (before !== "collapsed" || after !== before) {{
+  throw new Error(`fixture name or geometry changed normalized collapse: ${{before}} -> ${{after}}`);
+}}
+"#
+        );
+
+        run_bundled_helper_script("fri07-c04-collapse-helper", script);
+    }
+
+    #[test]
+    fn fri07_c04_collapse_serializer_emits_exact_attribute_only_for_collapsed() {
+        let collapsed = input_attrs(&json!({
+            "tagName": "div",
+            "style": {"flexItemCollapse": "collapsed"}
+        }));
+        assert_eq!(
+            collapsed
+                .iter()
+                .filter(|(name, _)| *name == "flex-item-collapse")
+                .collect::<Vec<_>>(),
+            vec![&("flex-item-collapse", "collapsed".to_string())]
+        );
+
+        let normal = input_attrs(&json!({"tagName": "div", "style": {}}));
+        assert!(normal.iter().all(|(name, _)| *name != "flex-item-collapse"));
+    }
+
+    #[test]
+    fn fri07_c04_collapse_serializer_rejects_every_noncollapsed_explicit_state() {
+        for value in [
+            json!("normal"),
+            json!("visible"),
+            json!("hidden"),
+            json!("inherit"),
+            json!(""),
+            json!(true),
+        ] {
+            let node = json!({
+                "tagName": "div",
+                "style": {"flexItemCollapse": value}
+            });
+            assert!(
+                std::panic::catch_unwind(|| input_attrs(&node)).is_err(),
+                "serializer accepted explicit collapse state {value}"
+            );
+        }
+    }
+
     fn keep_imported_browser_parity_support_reachable(golden: &browser_parity_support::Golden) {
         let parse_file = |path: &Path| browser_parity_support::Golden::parse_file(path);
         let _ = parse_file;
@@ -7773,7 +7875,7 @@ if (expectedReason === undefined) {{
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            FRI06_C12_T09_HELPER_SHA256
+            FRI07_C04_T02_HELPER_SHA256
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
@@ -14055,6 +14157,8 @@ status = "active"
 
     const FRI06_C12_T09_HELPER_SHA256: &str =
         "42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2";
+    const FRI07_C04_T02_HELPER_SHA256: &str =
+        "caafa5a48787c9b80a45d8b2c8ac6f91b8ad7ab14a85e5bcdf3a3e922ebce019";
     const FRI06_C12_T09_REPORT_SHA256: &str =
         "8d59c87d1fcc185bda0372968ae81dbeff74f241c17335db98629ad49f1f463f";
     const FRI06_C12_T09_COMPLETE_XML_SHA256: &str =
@@ -14106,7 +14210,7 @@ status = "active"
         let corpus = repository.join("tests/layout/browser_parity");
         assert_eq!(
             sha256_file(&corpus.join("scripts/gentest/test_helper.js")).expect("browser helper"),
-            FRI06_C12_T09_HELPER_SHA256
+            FRI07_C04_T02_HELPER_SHA256
         );
         assert_eq!(
             sha256_file(&corpus.join("xml/generation-reports/all.json"))
@@ -14306,7 +14410,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         for (path, expected) in [
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                FRI06_C12_T09_HELPER_SHA256,
+                FRI07_C04_T02_HELPER_SHA256,
             ),
             (
                 "tests/layout/browser_parity/html/subgrid/subgrid_baseline_auto_columns_first_item.html",
@@ -14368,7 +14472,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         );
         assert_eq!(
             sha256_bytes(serializer.as_bytes()),
-            "52dd29a3afbde210b8701112f81827940cd2c1fa2d034e6ffe564db8cb90799a"
+            "e027bda7a58ab7a7f06a8256e26648ef3379494c44b9d4661a30a3a057b72269"
         );
     }
 
@@ -14907,7 +15011,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
 
         assert_eq!(
             sha256_bytes(production.as_bytes()),
-            "9b60c99658a26f75c5f876bb1f1919d325bb4fbae812b005dfd0ff98843d9cbc",
+            "82813a20f472fece53495ee98977a3c2cff658c2e9aef399e40269bf1c3422c3",
             "generator production source must match the reviewed C08R correction"
         );
         for (path, expected) in [
@@ -14925,7 +15029,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                FRI06_C12_T09_HELPER_SHA256,
+                FRI07_C04_T02_HELPER_SHA256,
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_base_style.css",

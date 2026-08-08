@@ -906,6 +906,7 @@ function describeElement(e, expectedElement = null) {
 
       writingMode: parseEnum(computedStyle.writingMode),
       order: computedStyle.order,
+      flexItemCollapse: normalizedFlexItemCollapse(e, computedStyle),
 
       cssFloat: parseEnum(styleValue("cssFloat")),
       clear: parseEnum(styleValue("clear")),
@@ -1051,6 +1052,18 @@ function describeElement(e, expectedElement = null) {
 
     children,
   };
+}
+
+function normalizedFlexItemCollapse(e, computedStyle) {
+  if (computedStyle.visibility !== 'collapse' ||
+      computedStyle.display === 'none' ||
+      computedStyle.position === 'absolute' ||
+      computedStyle.position === 'fixed') {
+    return undefined;
+  }
+  const parent = e.parentElement;
+  if (!parent || getComputedStyle(parent).display !== 'flex') return undefined;
+  return 'collapsed';
 }
 
 function authoredStyleValue(e, property, computedStyle) {

@@ -3369,7 +3369,13 @@ fn to_node_input_in_flow(
     attrs: &StyleAttrs,
     containing_flow: Option<layout::FlowAxes>,
 ) -> Result<layout::NodeInput, Error> {
-    for name in ["overflow", "scroll-padding", "scroll-margin", "transform"] {
+    for name in [
+        "overflow",
+        "scroll-padding",
+        "scroll-margin",
+        "transform",
+        "visibility",
+    ] {
         if attrs.get(name).is_some() {
             return Err(Error::new(format!(
                 "unsupported authored fixture attribute `{name}`"
@@ -3391,6 +3397,16 @@ fn to_node_input_in_flow(
     };
     if let Some(value) = attrs.get("order") {
         input.item_order = parse_item_order(value)?;
+    }
+    if let Some(value) = attrs.get("flex-item-collapse") {
+        input.flex_item_collapse = match value {
+            "collapsed" => layout::FlexItemCollapse::Collapsed,
+            _ => {
+                return Err(Error::new(format!(
+                    "unsupported normalized flex-item collapse `{value}`"
+                )));
+            }
+        };
     }
     if let Some(value) = attrs.get("box-sizing") {
         input.box_sizing = parse_box_sizing(value)?;
@@ -5236,6 +5252,87 @@ mod tests {
                 .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
                 .collect(),
         }
+    }
+
+    #[test]
+    fn fri07_c04_collapse_parser_maps_only_collapsed_and_defaults_absence() {
+        let collapsed = test_node_input(fri05_c06_attrs(&[("flex-item-collapse", "collapsed")]))
+            .expect("normalized collapsed fixture fact should parse");
+        assert_eq!(
+            collapsed.flex_item_collapse,
+            layout::FlexItemCollapse::Collapsed
+        );
+
+        let normal = test_node_input(fri05_c06_attrs(&[]))
+            .expect("absent collapse fixture fact should use the public default");
+        assert_eq!(normal.flex_item_collapse, layout::FlexItemCollapse::Normal);
+    }
+
+    #[test]
+    fn fri07_c04_collapse_parser_rejects_noncanonical_and_authored_states() {
+        for value in [
+            "normal",
+            "visible",
+            "hidden",
+            "inherit",
+            "initial",
+            "unset",
+            "revert",
+            "revert-layer",
+            "",
+            "collapse",
+            "COLLAPSED",
+            " collapsed ",
+        ] {
+            assert!(
+                test_node_input(fri05_c06_attrs(&[("flex-item-collapse", value)])).is_err(),
+                "parser accepted flex-item-collapse={value:?}"
+            );
+        }
+        assert!(
+            test_node_input(fri05_c06_attrs(&[("visibility", "collapse")])).is_err(),
+            "parser accepted authored visibility"
+        );
+    }
+
+    #[test]
+    fn fri07_c04_collapse_parser_rejects_duplicate_normalized_attributes() {
+        let error = Golden::parse(concat!(
+            "<test name=\"duplicate\">",
+            "<viewport width=\"max-content\" height=\"max-content\"/>",
+            "<input><div flex-item-collapse=\"collapsed\" flex-item-collapse=\"collapsed\"/></input>",
+            "<expectations><node/></expectations>",
+            "</test>"
+        ))
+        .expect_err("duplicate collapse attributes must be rejected");
+        assert!(error.to_string().contains("attribute"), "{error}");
+    }
+
+    #[test]
+    fn fri07_c04_collapse_parser_ignores_fixture_name_and_expected_geometry() {
+        fn parsed_input(name: &str, width: &str) -> layout::NodeInput {
+            let raw = format!(
+                concat!(
+                    "<test name=\"{}\">",
+                    "<viewport width=\"max-content\" height=\"max-content\"/>",
+                    "<input><div flex-item-collapse=\"collapsed\"/></input>",
+                    "<expectations><node width=\"{}\"/></expectations>",
+                    "</test>"
+                ),
+                name, width
+            );
+            let golden = Golden::parse(&raw).expect("collapse fixture should parse");
+            TestTree::from_golden(&golden.root)
+                .expect("fixture should lower")
+                .nodes[0]
+                .node_input
+                .clone()
+        }
+
+        assert_eq!(
+            parsed_input("collapsed-name", "10"),
+            parsed_input("renamed-control", "999")
+        );
     }
 
     #[test]
