@@ -1,6 +1,6 @@
 # P01-I07-S01-C04 Bounded Browser And Artifact Candidate
 
-Status: in_progress
+Status: draft
 
 Cycle ID: `P01/I07/S01/C04`
 
