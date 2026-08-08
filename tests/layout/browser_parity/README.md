@@ -103,13 +103,18 @@ The Taffy baseline is fetched from the pinned upstream repository and commit in
 `SURGEIST_LAYOUT_BROWSER_PARITY_ROOT` may select a self-contained corpus root.
 Only one unfiltered full run writes and prunes the canonical report and XML
 artifacts used as final evidence. A successful full run writes the manifest's
-`all.json` and removes non-manifest reports. Reports and XML carry schema-2
-provenance, including the launch-profile digest and stable repository-relative
-browser provenance.
+`all.json` and removes non-manifest reports. `all.json` is the sole provenance
+authority: its schema-versioned global metadata records the generator, stable
+repository-relative browser provenance, launch profile, helper, base style,
+corpus manifest, and Taffy revision once; each generated entry records its
+repository-relative source/output identity, source hash, linked-resource hashes,
+and XML hash. Generated XML is comment-free.
 
 `check-corpus` is browser-free: it reads neither browser selection variables nor
-the generation filter, and validates the exact manifest report inventory,
-metadata, report relations, and XML provenance. `check-taffy-corpus` and
+the generation filter, and validates the exact manifest report/XML inventory,
+global metadata, strict paths and identities, uniqueness, every source,
+linked-resource, and XML hash, and the absence of embedded XML provenance.
+`check-taffy-corpus` and
 `import-taffy` are also browser-free; import remains an acquisition-capable
 operation and should be run only with explicit authority.
 

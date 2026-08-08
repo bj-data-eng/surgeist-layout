@@ -32,8 +32,13 @@ report write. Both modes use the same headless launch profile, including
 `use-mock-keychain`.
 
 `check-corpus`, `check-taffy-corpus`, and `import-taffy` are browser-free command
-paths. In particular, `check-corpus` validates the committed report and XML
-provenance without reading a browser selection or generation filter.
+paths. In particular, `check-corpus` treats
+`tests/layout/browser_parity/xml/generation-reports/all.json` as the sole
+generated-artifact provenance authority: it verifies the shared generator,
+browser, launch-profile, helper, base-style, corpus, and Taffy metadata plus each
+generated entry's repository-relative source/output identity, source and linked
+resource hashes, and XML hash. Generated XML is comment-free, and embedded
+provenance is rejected without reading a browser selection or generation filter.
 
 Layout owns normalized layout values, algorithm inputs, traversal contracts,
 caches, reports, and box output. Retained tree identity and sibling coordination

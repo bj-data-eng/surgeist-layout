@@ -874,6 +874,7 @@ fn generation_lease_owner(config: &GenerationConfig) -> Result<String, String> {
 async fn generate(config: GenerationConfig) -> Result<(), String> {
     let browser = resolve_pinned_browser(&config).await?;
     let mut report = GenerationReport {
+        metadata: Some(generation_report_metadata(&config, &browser.provenance)?),
         filter: config.filter.clone(),
         ..GenerationReport::default()
     };
@@ -1592,7 +1593,7 @@ async fn generate_batch(
                             continue;
                         }
                     };
-                    let result = match generate_job(config, pinned_browser, &page, job, report).await {
+                    let result = match generate_job(config, &page, job, report).await {
                         Err(error) if is_retryable_generation_error(&error) => {
                             eprintln!(
                                 "retrying browser parity generation for {} after navigation timeout",
@@ -1799,7 +1800,6 @@ async fn close_browser_and_handler(
 
 async fn generate_job(
     config: &GenerationConfig,
-    pinned_browser: &PinnedBrowser,
     page: &chromiumoxide::Page,
     job: &GenerationJob,
     report: &mut GenerationReport,
@@ -1807,7 +1807,7 @@ async fn generate_job(
     match job {
         GenerationJob::ConstrainedHtml(fixture) => {
             match describe_fixture(page, fixture, &config.launch_profile).await {
-                Ok(desc) => write_fixture_goldens(config, pinned_browser, fixture, &desc, report),
+                Ok(desc) => write_fixture_goldens(config, fixture, &desc, report),
                 Err(error) => Err(error),
             }
         }
@@ -1844,7 +1844,7 @@ async fn retry_job_in_fresh_browser(
                     .new_page("about:blank")
                     .await
                     .map_err(|error| format!("failed to create retry page: {error}"))?;
-                let result = generate_job(config, pinned_browser, &page, job, report).await;
+                let result = generate_job(config, &page, job, report).await;
                 finish_after_cleanup(
                     result,
                     page.close()
@@ -2420,7 +2420,6 @@ fn collect_html_into(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String
 
 fn write_fixture_goldens(
     config: &GenerationConfig,
-    pinned_browser: &PinnedBrowser,
     fixture: &Path,
     desc: &Value,
     report: &mut GenerationReport,
@@ -2440,13 +2439,9 @@ fn write_fixture_goldens(
         .ok_or_else(|| format!("fixture has no UTF-8 stem: {}", fixture.display()))?;
     let source = rel.to_string_lossy().replace('\\', "/");
     let source_sha256 = sha256_file(fixture)?;
-    let helper_sha256 = sha256_bytes(TEST_HELPER_SOURCE.as_bytes());
-    let base_style_sha256 = if source_references_base_style(fixture)? {
-        Some(sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()))
-    } else {
-        None
-    };
-    let browser = pinned_browser.provenance.clone();
+    let report_source = format!("html/{source}");
+    let linked_resources =
+        expected_linked_resource_provenance(&config.corpus, Path::new(&report_source), fixture)?;
     let output_dir = config.corpus.xml_root.join(group);
     fs::create_dir_all(&output_dir)
         .map_err(|error| format!("failed to create {}: {error}", output_dir.display()))?;
@@ -2458,35 +2453,27 @@ fn write_fixture_goldens(
             .ok_or_else(|| format!("measurement JSON missing {key}"))?;
         let name = format!("{stem}__{variant}");
         let output_file = output_dir.join(format!("{name}.xml"));
-        let report_source = format!("html/{source}");
         if let Some(reason) = unsupported_fixture_reason(data) {
             planned.push(PlannedGoldenOutput::Unsupported {
                 name,
-                source: report_source,
+                source: report_source.clone(),
                 output_file,
                 variant: variant.to_string(),
                 reason: reason.to_string(),
             });
             continue;
         }
-        let provenance = GeneratedProvenance {
-            schema_version: 2,
-            source: report_source.clone(),
-            source_sha256: source_sha256.clone(),
-            linked_resources: Vec::new(),
-            linked_resources_recorded: false,
-            helper_sha256: helper_sha256.clone(),
-            base_style_sha256: base_style_sha256.clone(),
-            browser: browser.clone(),
-            launch_profile_sha256: config.launch_profile.digest.clone(),
-        };
+        let xml = generate_xml(&name, data);
         planned.push(PlannedGoldenOutput::Generated {
             name: name.clone(),
-            source: report_source,
+            source: report_source.clone(),
             output: root_relative_source(&config.corpus.root, &output_file)?,
             output_file,
             variant: variant.to_string(),
-            xml: generate_xml_with_provenance(&name, data, Some(&provenance)),
+            source_sha256: source_sha256.clone(),
+            linked_resources: linked_resources.clone(),
+            xml_sha256: sha256_bytes(xml.as_bytes()),
+            xml,
         });
     }
 
@@ -2511,9 +2498,20 @@ fn write_fixture_goldens(
                 source,
                 output,
                 variant,
+                source_sha256,
+                linked_resources,
+                xml_sha256,
                 ..
             } => {
-                report.record_generated(name, source, output, variant);
+                report.record_generated(GeneratedReportEntry {
+                    name,
+                    source,
+                    output,
+                    variant,
+                    source_sha256,
+                    linked_resources,
+                    xml_sha256,
+                });
             }
         }
     }
@@ -2527,6 +2525,9 @@ enum PlannedGoldenOutput {
         output: String,
         output_file: PathBuf,
         variant: String,
+        source_sha256: String,
+        linked_resources: Vec<GeneratedLinkedResourceProvenance>,
+        xml_sha256: String,
         xml: String,
     },
     Unsupported {
@@ -2804,7 +2805,8 @@ fn generation_job_report_identity(config: &Config, job: &GenerationJob) -> (Stri
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct GenerationReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     metadata: Option<GenerationReportMetadata>,
@@ -2817,17 +2819,19 @@ struct GenerationReport {
     failed_to_generate: Vec<StatusReportEntry>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct GenerationReportMetadata {
     schema_version: u32,
-    generator: &'static str,
+    generator: String,
     browser_source: String,
     browser_version: String,
+    browser: String,
     launch_profile_sha256: String,
     helper_sha256: String,
     base_style_sha256: String,
     corpus_manifest_sha256: String,
-    taffy_commit: &'static str,
+    taffy_commit: String,
 }
 
 impl GenerationReport {
@@ -2839,14 +2843,9 @@ impl GenerationReport {
             || self.summary.failed_to_generate > 0
     }
 
-    fn record_generated(&mut self, name: String, source: String, output: String, variant: String) {
+    fn record_generated(&mut self, entry: GeneratedReportEntry) {
         self.summary.generated += 1;
-        self.generated.push(GeneratedReportEntry {
-            name,
-            source,
-            output,
-            variant,
-        });
+        self.generated.push(entry);
     }
 
     fn record_unsupported(
@@ -2893,7 +2892,8 @@ impl GenerationReport {
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct GenerationReportSummary {
     generated: usize,
     unsupported: usize,
@@ -2902,15 +2902,20 @@ struct GenerationReportSummary {
     failed_to_generate: usize,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(deny_unknown_fields)]
 struct GeneratedReportEntry {
     name: String,
     source: String,
     output: String,
     variant: String,
+    source_sha256: String,
+    linked_resources: Vec<GeneratedLinkedResourceProvenance>,
+    xml_sha256: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(deny_unknown_fields)]
 struct UnsupportedReportEntry {
     name: String,
     source: String,
@@ -2918,7 +2923,8 @@ struct UnsupportedReportEntry {
     reason: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(deny_unknown_fields)]
 struct StatusReportEntry {
     name: String,
     source: String,
@@ -2948,10 +2954,85 @@ where
             .map_err(|error| format!("failed to create {}: {error}", parent.display()))?;
     }
     let mut report = report.clone();
-    report.metadata = Some(generation_report_metadata(config)?);
+    if report.metadata.is_none() {
+        return Err("full generation report is missing resolved browser metadata".to_string());
+    }
+    canonicalize_generation_report(&mut report);
+    validate_generation_report_before_write(config, &path, &report)?;
     let raw = serde_json::to_string_pretty(&report)
         .map_err(|error| format!("failed to serialize generation report: {error}"))?;
     commit_generated_report_atomically(&path, &format!("{raw}\n"), before_install)
+}
+
+fn validate_generation_report_before_write(
+    config: &GenerationConfig,
+    path: &Path,
+    report: &GenerationReport,
+) -> Result<(), String> {
+    let metadata = report
+        .metadata
+        .as_ref()
+        .expect("caller requires report metadata");
+    let expected_metadata = generation_report_metadata(config, &metadata.browser)?;
+    if *metadata != expected_metadata {
+        return Err(format!(
+            "{} generation report global metadata is stale",
+            path.display()
+        ));
+    }
+    validate_report_browser_provenance(path, &metadata.browser, &config.manifest.browser)?;
+    validate_generation_report_provenance(&config.corpus, path, report)?;
+    for (bucket, summary, entries) in [
+        (
+            "generated",
+            report.summary.generated,
+            report.generated.len(),
+        ),
+        (
+            "unsupported",
+            report.summary.unsupported,
+            report.unsupported.len(),
+        ),
+        (
+            "expected_fail",
+            report.summary.expected_fail,
+            report.expected_fail.len(),
+        ),
+        (
+            "quarantined",
+            report.summary.quarantined,
+            report.quarantined.len(),
+        ),
+        (
+            "failed_to_generate",
+            report.summary.failed_to_generate,
+            report.failed_to_generate.len(),
+        ),
+    ] {
+        if summary != entries {
+            return Err(format!(
+                "{} generation report {bucket} summary is {summary} but bucket has {entries} entries",
+                path.display()
+            ));
+        }
+    }
+    if report.summary.failed_to_generate == 0 {
+        let report_outputs = generation_report_outputs(report, path)?;
+        let xml_outputs = collect_relative_files(&config.corpus.xml_root)?
+            .into_iter()
+            .filter(|entry| {
+                entry.extension().and_then(|extension| extension.to_str()) == Some("xml")
+            })
+            .map(|entry| format!("xml/{}", entry.to_string_lossy().replace('\\', "/")))
+            .collect::<BTreeSet<_>>();
+        if report_outputs != xml_outputs {
+            return Err(format!(
+                "{} generation report outputs do not exactly match generated XML inventory",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn commit_generated_report_atomically<F>(
@@ -3043,11 +3124,15 @@ fn replace_generated_report(temp_path: &Path, path: &Path) -> Result<(), String>
 
 fn generation_report_metadata(
     config: &GenerationConfig,
+    browser: &str,
 ) -> Result<GenerationReportMetadata, String> {
-    generation_report_metadata_for_manifest(
+    let mut metadata = generation_report_metadata_for_manifest(
         &config.manifest,
         &sha256_file(&config.corpus.root.join("corpus.toml"))?,
-    )
+    )?;
+    metadata.launch_profile_sha256 = config.launch_profile.digest.clone();
+    metadata.browser = browser.to_string();
+    Ok(metadata)
 }
 
 fn generation_report_metadata_for_manifest(
@@ -3055,16 +3140,39 @@ fn generation_report_metadata_for_manifest(
     corpus_manifest_sha256: &str,
 ) -> Result<GenerationReportMetadata, String> {
     Ok(GenerationReportMetadata {
-        schema_version: 2,
-        generator: "surgeist-layout-generate",
+        schema_version: 3,
+        generator: "surgeist-layout-generate".to_string(),
         browser_source: manifest.browser.source.clone(),
         browser_version: manifest.browser.version.clone(),
+        browser: String::new(),
         launch_profile_sha256: launch_profile_digest(&manifest.browser.launch)?,
         helper_sha256: sha256_bytes(TEST_HELPER_SOURCE.as_bytes()),
         base_style_sha256: sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()),
         corpus_manifest_sha256: corpus_manifest_sha256.to_string(),
-        taffy_commit: TAFFY_COMMIT,
+        taffy_commit: TAFFY_COMMIT.to_string(),
     })
+}
+
+fn canonicalize_generation_report(report: &mut GenerationReport) {
+    report.generated.sort_by(|left, right| {
+        left.source
+            .cmp(&right.source)
+            .then_with(|| {
+                fixture_variant_rank(&left.variant).cmp(&fixture_variant_rank(&right.variant))
+            })
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    report.unsupported.sort();
+    report.expected_fail.sort();
+    report.quarantined.sort();
+    report.failed_to_generate.sort();
+}
+
+fn fixture_variant_rank(variant: &str) -> usize {
+    fixture_cases()
+        .iter()
+        .position(|(candidate, _)| *candidate == variant)
+        .unwrap_or(usize::MAX)
 }
 
 fn validate_generation_report_freshness(
@@ -3104,6 +3212,16 @@ fn validate_generation_report_freshness(
         inventory.full,
         &expected,
     )?;
+    validate_report_browser_provenance(
+        &report_dir.join(&inventory.full.file),
+        &full
+            .metadata
+            .as_ref()
+            .expect("validated report metadata")
+            .browser,
+        &manifest.browser,
+    )?;
+    validate_generation_report_provenance(config, &report_dir.join(&inventory.full.file), &full)?;
     let full_outputs = generation_report_outputs(&full, &report_dir.join(&inventory.full.file))?;
     let xml_outputs = collect_relative_files(&config.xml_root)?
         .into_iter()
@@ -3123,6 +3241,15 @@ fn validate_generation_report_freshness(
             Some(scoped.filter.as_str()),
             scoped,
             &expected,
+        )?;
+        validate_report_browser_provenance(
+            &path,
+            &report
+                .metadata
+                .as_ref()
+                .expect("validated report metadata")
+                .browser,
+            &manifest.browser,
         )?;
         let outputs = generation_report_outputs(&report, &path)?;
         let expected_outputs = full_outputs
@@ -3190,152 +3317,119 @@ fn validate_generation_report_metadata<E: GenerationReportExpectation>(
     expected_filter: Option<&str>,
     expected_counts: &E,
     expected: &GenerationReportMetadata,
-) -> Result<Value, String> {
+) -> Result<GenerationReport, String> {
     let raw = fs::read_to_string(path).map_err(|error| {
         format!(
             "failed to read generation report {}: {error}",
             path.display()
         )
     })?;
-    let json = serde_json::from_str::<Value>(&raw).map_err(|error| {
+    let report = serde_json::from_str::<GenerationReport>(&raw).map_err(|error| {
         format!(
             "failed to parse generation report {}: {error}",
             path.display()
         )
     })?;
-    match expected_filter {
-        None => {
-            if !json["filter"].is_null() {
-                return Err(format!(
-                    "{} report filter is {:?}, expected full-corpus null",
-                    path.display(),
-                    json["filter"]
-                ));
-            }
-        }
-        Some(expected_filter) => {
-            let filter = json["filter"].as_str().ok_or_else(|| {
-                format!(
-                    "{} scoped report filter must be a non-empty string",
-                    path.display()
-                )
-            })?;
-            if filter != expected_filter {
-                return Err(format!(
-                    "{} report filter is {:?}, expected {:?}",
-                    path.display(),
-                    filter,
-                    expected_filter
-                ));
-            }
-        }
+    if report.filter.as_deref() != expected_filter {
+        return Err(format!(
+            "{} report filter is {:?}, expected {:?}",
+            path.display(),
+            report.filter,
+            expected_filter
+        ));
     }
-    let metadata = json
-        .get("metadata")
+    let metadata = report
+        .metadata
+        .as_ref()
         .ok_or_else(|| format!("{} is missing generation report metadata", path.display()))?;
-    let checks = [
+    for (key, matches) in [
         (
             "schema_version",
-            metadata["schema_version"]
-                .as_u64()
-                .map(|value| value.to_string()),
-            Some(expected.schema_version.to_string()),
+            metadata.schema_version == expected.schema_version,
         ),
-        (
-            "generator",
-            metadata["generator"].as_str().map(str::to_string),
-            Some(expected.generator.to_string()),
-        ),
+        ("generator", metadata.generator == expected.generator),
         (
             "browser_source",
-            metadata["browser_source"].as_str().map(str::to_string),
-            Some(expected.browser_source.to_string()),
+            metadata.browser_source == expected.browser_source,
         ),
         (
             "browser_version",
-            metadata["browser_version"].as_str().map(str::to_string),
-            Some(expected.browser_version.clone()),
+            metadata.browser_version == expected.browser_version,
         ),
         (
             "launch_profile_sha256",
-            metadata["launch_profile_sha256"]
-                .as_str()
-                .map(str::to_string),
-            Some(expected.launch_profile_sha256.clone()),
+            metadata.launch_profile_sha256 == expected.launch_profile_sha256,
         ),
         (
             "helper_sha256",
-            metadata["helper_sha256"].as_str().map(str::to_string),
-            Some(expected.helper_sha256.clone()),
+            metadata.helper_sha256 == expected.helper_sha256,
         ),
         (
             "base_style_sha256",
-            metadata["base_style_sha256"].as_str().map(str::to_string),
-            Some(expected.base_style_sha256.clone()),
+            metadata.base_style_sha256 == expected.base_style_sha256,
         ),
         (
             "corpus_manifest_sha256",
-            metadata["corpus_manifest_sha256"]
-                .as_str()
-                .map(str::to_string),
-            Some(expected.corpus_manifest_sha256.clone()),
+            metadata.corpus_manifest_sha256 == expected.corpus_manifest_sha256,
         ),
         (
             "taffy_commit",
-            metadata["taffy_commit"].as_str().map(str::to_string),
-            Some(expected.taffy_commit.to_string()),
+            metadata.taffy_commit == expected.taffy_commit,
         ),
-    ];
-    for (key, actual, expected) in checks {
-        if actual != expected {
+    ] {
+        if !matches {
             return Err(format!(
-                "{} generation report metadata `{key}` is {:?}, expected {:?}; regenerate browser parity XML",
-                path.display(),
-                actual,
-                expected
+                "{} generation report metadata `{key}` is stale; regenerate browser parity XML",
+                path.display()
             ));
         }
     }
-    validate_generation_report_body(path, &json, expected_counts)?;
-    Ok(json)
+    validate_generation_report_body(path, &report, expected_counts)?;
+    Ok(report)
 }
 
 fn validate_generation_report_body<E: GenerationReportExpectation>(
     path: &Path,
-    json: &Value,
+    report: &GenerationReport,
     expected: &E,
 ) -> Result<(), String> {
-    if json.get("skipped").is_some() || json["summary"].get("skipped").is_some() {
-        return Err(format!(
-            "{} generation report uses a generic skipped bucket; use explicit unsupported, expected_fail, quarantined, or failed_to_generate buckets",
-            path.display()
-        ));
-    }
-    let expected_counts = [
-        ("generated", expected.generated()),
-        ("unsupported", expected.unsupported()),
-        ("expected_fail", expected.expected_fail()),
-        ("quarantined", expected.quarantined()),
-        ("failed_to_generate", expected.failed_to_generate()),
+    let counts = [
+        (
+            "generated",
+            report.summary.generated,
+            report.generated.len(),
+            expected.generated(),
+        ),
+        (
+            "unsupported",
+            report.summary.unsupported,
+            report.unsupported.len(),
+            expected.unsupported(),
+        ),
+        (
+            "expected_fail",
+            report.summary.expected_fail,
+            report.expected_fail.len(),
+            expected.expected_fail(),
+        ),
+        (
+            "quarantined",
+            report.summary.quarantined,
+            report.quarantined.len(),
+            expected.quarantined(),
+        ),
+        (
+            "failed_to_generate",
+            report.summary.failed_to_generate,
+            report.failed_to_generate.len(),
+            expected.failed_to_generate(),
+        ),
     ];
-    for (bucket, expected_count) in expected_counts {
-        let entries = json[bucket].as_array().ok_or_else(|| {
-            format!(
-                "{} generation report `{bucket}` bucket must be an array",
-                path.display()
-            )
-        })?;
-        let summary = json["summary"][bucket].as_u64().ok_or_else(|| {
-            format!(
-                "{} generation report `{bucket}` summary must be a number",
-                path.display()
-            )
-        })? as usize;
-        if summary != entries.len() {
+    for (bucket, summary, entry_count, expected_count) in counts {
+        if summary != entry_count {
             return Err(format!(
-                "{} generation report {bucket} summary is {summary} but bucket has {} entries; regenerate browser parity XML",
-                path.display(),
-                entries.len()
+                "{} generation report {bucket} summary is {summary} but bucket has {entry_count} entries; regenerate browser parity XML",
+                path.display()
             ));
         }
         if summary != expected_count {
@@ -3348,24 +3442,16 @@ fn validate_generation_report_body<E: GenerationReportExpectation>(
     Ok(())
 }
 
-fn generation_report_outputs(report: &Value, path: &Path) -> Result<BTreeSet<String>, String> {
-    let entries = report["generated"].as_array().ok_or_else(|| {
-        format!(
-            "{} generation report generated bucket must be an array",
-            path.display()
-        )
-    })?;
-    let outputs = entries
+fn generation_report_outputs(
+    report: &GenerationReport,
+    path: &Path,
+) -> Result<BTreeSet<String>, String> {
+    let outputs = report
+        .generated
         .iter()
-        .map(|entry| entry["output"].as_str().map(str::to_string))
-        .collect::<Option<BTreeSet<_>>>()
-        .ok_or_else(|| {
-            format!(
-                "{} generation report generated entry is missing output",
-                path.display()
-            )
-        })?;
-    if outputs.len() != entries.len() {
+        .map(|entry| entry.output.clone())
+        .collect::<BTreeSet<_>>();
+    if outputs.len() != report.generated.len() {
         return Err(format!(
             "{} generation report has duplicate generated output paths",
             path.display()
@@ -3374,46 +3460,100 @@ fn generation_report_outputs(report: &Value, path: &Path) -> Result<BTreeSet<Str
     Ok(outputs)
 }
 
-fn validate_xml_provenance_freshness(
+fn validate_generation_report_provenance(
     config: &Config,
-    manifest: &CorpusManifest,
+    report_path: &Path,
+    report: &GenerationReport,
 ) -> Result<(), String> {
-    if !config.xml_root.is_dir() {
+    let mut canonical = report.clone();
+    canonicalize_generation_report(&mut canonical);
+    if canonical.generated != report.generated
+        || canonical.unsupported != report.unsupported
+        || canonical.expected_fail != report.expected_fail
+        || canonical.quarantined != report.quarantined
+        || canonical.failed_to_generate != report.failed_to_generate
+    {
         return Err(format!(
-            "missing generated XML directory {}; regenerate browser parity XML",
-            config.xml_root.display()
+            "{} generation report entries are not in deterministic order; regenerate browser parity XML",
+            report_path.display()
         ));
     }
-    let expected_helper_sha256 = sha256_bytes(TEST_HELPER_SOURCE.as_bytes());
-    let expected_launch_profile_sha256 = launch_profile_digest(&manifest.browser.launch)?;
+
+    let mut names = BTreeSet::new();
+    let mut outputs = BTreeSet::new();
     let mut linked_resource_cache =
         BTreeMap::<PathBuf, Vec<GeneratedLinkedResourceProvenance>>::new();
-    for rel in collect_relative_files(&config.xml_root)? {
-        if rel.extension().and_then(|extension| extension.to_str()) != Some("xml") {
-            continue;
-        }
-        let path = config.xml_root.join(&rel);
-        let raw = fs::read_to_string(&path)
-            .map_err(|error| format!("failed to read generated XML {}: {error}", path.display()))?;
-        let provenance = parse_generated_provenance_comment(&raw).map_err(|error| {
-            format!(
-                "{} has invalid surgeist-layout-generate provenance: {error}",
-                path.display()
-            )
-        })?;
-        let source_rel = local_source_from_provenance(&provenance.source).map_err(|error| {
-            format!("{} has invalid provenance source: {error}", path.display())
-        })?;
-        let source_path = config.root.join(&source_rel);
-        let expected_source_sha256 = sha256_file(&source_path)?;
-        if provenance.source_sha256 != expected_source_sha256 {
+    for entry in &report.generated {
+        if !names.insert(entry.name.as_str()) {
             return Err(format!(
-                "{} generated XML source-sha256 is {}, expected {}; regenerate browser parity XML",
-                path.display(),
-                provenance.source_sha256,
-                expected_source_sha256
+                "{} generation report has duplicate generated identity {:?}",
+                report_path.display(),
+                entry.name
             ));
         }
+        if !outputs.insert(entry.output.as_str()) {
+            return Err(format!(
+                "{} generation report has duplicate generated output {:?}",
+                report_path.display(),
+                entry.output
+            ));
+        }
+        let source_rel =
+            validate_report_relative_path("generation report generated source", &entry.source)?;
+        let output_rel =
+            validate_report_relative_path("generation report generated output", &entry.output)?;
+        if !source_rel.starts_with("html")
+            || source_rel
+                .extension()
+                .and_then(|extension| extension.to_str())
+                != Some("html")
+        {
+            return Err(format!(
+                "{} generation report source {:?} must be an HTML path beneath html/",
+                report_path.display(),
+                entry.source
+            ));
+        }
+        if !output_rel.starts_with("xml")
+            || output_rel
+                .extension()
+                .and_then(|extension| extension.to_str())
+                != Some("xml")
+        {
+            return Err(format!(
+                "{} generation report output {:?} must be an XML path beneath xml/",
+                report_path.display(),
+                entry.output
+            ));
+        }
+        let expected_output = expected_report_output(&source_rel, &entry.variant)?;
+        let expected_name = expected_output
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .expect("expected report output has a UTF-8 stem");
+        if output_rel != expected_output || entry.name != expected_name {
+            return Err(format!(
+                "{} generated identity {:?}, source {:?}, output {:?}, and variant {:?} do not identify one output",
+                report_path.display(),
+                entry.name,
+                entry.source,
+                entry.output,
+                entry.variant
+            ));
+        }
+
+        validate_sha256("generated source", &entry.source_sha256)?;
+        validate_sha256("generated XML", &entry.xml_sha256)?;
+        let source_path = config.root.join(&source_rel);
+        let expected_source_sha256 = sha256_file(&source_path)?;
+        if entry.source_sha256 != expected_source_sha256 {
+            return Err(format!(
+                "{} generated source_sha256 for {:?} is stale; regenerate browser parity XML",
+                report_path.display(),
+                entry.source
+            ));
+        }
+
         let expected_linked_resources = if let Some(cached) = linked_resource_cache.get(&source_rel)
         {
             cached.clone()
@@ -3422,77 +3562,143 @@ fn validate_xml_provenance_freshness(
             linked_resource_cache.insert(source_rel.clone(), expected.clone());
             expected
         };
-        if provenance.linked_resources_recorded
-            && provenance.linked_resources != expected_linked_resources
-        {
+        validate_linked_resource_entries(&entry.linked_resources)?;
+        if entry.linked_resources != expected_linked_resources {
             return Err(format!(
-                "{} generated XML linked-resource-sha256 is {}, expected {}; linked support resource provenance is stale; regenerate browser parity XML",
-                path.display(),
-                render_linked_resource_provenance(&provenance.linked_resources),
-                render_linked_resource_provenance(&expected_linked_resources)
+                "{} generated linked_resources for {:?} are stale; regenerate browser parity XML",
+                report_path.display(),
+                entry.source
             ));
         }
-        if provenance.helper_sha256 != expected_helper_sha256 {
+
+        let output_path = config.root.join(&output_rel);
+        let raw = fs::read_to_string(&output_path).map_err(|error| {
+            format!(
+                "failed to read generated XML {}: {error}",
+                output_path.display()
+            )
+        })?;
+        reject_embedded_xml_provenance(&output_path, &raw)?;
+        let expected_xml_sha256 = sha256_bytes(raw.as_bytes());
+        if entry.xml_sha256 != expected_xml_sha256 {
             return Err(format!(
-                "{} generated XML helper-sha256 is {}, expected {}; regenerate browser parity XML",
-                path.display(),
-                provenance.helper_sha256,
-                expected_helper_sha256
+                "{} generated xml_sha256 for {:?} is stale; regenerate browser parity XML",
+                report_path.display(),
+                entry.output
             ));
         }
-        validate_xml_base_style_provenance(&path, &source_path, &provenance)?;
-        if provenance.schema_version != 2 {
-            return Err(format!(
-                "{} generated XML schema is {}, expected 2; regenerate browser parity XML",
-                path.display(),
-                provenance.schema_version
-            ));
-        }
-        if provenance.launch_profile_sha256 != expected_launch_profile_sha256 {
-            return Err(format!(
-                "{} generated XML launch-profile-sha256 is {}, expected {}; regenerate browser parity XML",
-                path.display(),
-                provenance.launch_profile_sha256,
-                expected_launch_profile_sha256
-            ));
-        }
-        validate_xml_browser_provenance(&path, &provenance.browser, &manifest.browser)?;
     }
     Ok(())
 }
 
-fn validate_xml_base_style_provenance(
-    path: &Path,
-    source_path: &Path,
-    provenance: &GeneratedProvenance,
-) -> Result<(), String> {
-    if !source_references_base_style(source_path)? {
-        return Ok(());
+fn expected_report_output(source: &Path, variant: &str) -> Result<PathBuf, String> {
+    if fixture_variant_rank(variant) == usize::MAX {
+        return Err(format!("unsupported generated variant {variant:?}"));
     }
-    let expected = sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes());
-    match provenance.base_style_sha256.as_deref() {
-        Some(actual) if actual == expected => Ok(()),
-        Some(actual) => Err(format!(
-            "{} generated XML base-style-sha256 is {}, expected {}; regenerate browser parity XML",
-            path.display(),
-            actual,
-            expected
-        )),
-        None => Err(format!(
-            "{} generated XML is missing base-style-sha256 for source referencing test_base_style.css; regenerate browser parity XML",
-            path.display()
-        )),
-    }
+    let source_under_html = source
+        .strip_prefix("html")
+        .map_err(|_| format!("generated source {} is not beneath html/", source.display()))?;
+    let parent = source_under_html.parent().unwrap_or_else(|| Path::new(""));
+    let stem = source_under_html
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .ok_or_else(|| format!("generated source {} has no UTF-8 stem", source.display()))?;
+    Ok(PathBuf::from("xml")
+        .join(parent)
+        .join(format!("{stem}__{variant}.xml")))
 }
 
-fn validate_xml_browser_provenance(
+fn validate_sha256(kind: &str, hash: &str) -> Result<(), String> {
+    if hash.len() != 64
+        || !hash
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(format!(
+            "{kind} SHA-256 must be 64 lowercase hexadecimal characters"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_report_relative_path(kind: &str, raw: &str) -> Result<PathBuf, String> {
+    if raw.trim() != raw || raw.contains('\\') || raw.split('/').any(str::is_empty) {
+        return Err(format!(
+            "{kind} must be a normalized repository-relative slash path"
+        ));
+    }
+    validate_strict_relative_path(kind, raw)
+}
+
+fn validate_linked_resource_entries(
+    resources: &[GeneratedLinkedResourceProvenance],
+) -> Result<(), String> {
+    let mut previous = None;
+    for resource in resources {
+        validate_report_relative_path("generated linked-resource path", &resource.path)?;
+        validate_sha256("generated linked resource", &resource.sha256)?;
+        if previous.is_some_and(|path: &str| path >= resource.path.as_str()) {
+            return Err(
+                "generated linked_resources must have unique paths in deterministic order"
+                    .to_string(),
+            );
+        }
+        previous = Some(resource.path.as_str());
+    }
+    Ok(())
+}
+
+fn validate_xml_provenance_freshness(
+    config: &Config,
+    _manifest: &CorpusManifest,
+) -> Result<(), String> {
+    if !config.xml_root.is_dir() {
+        return Err(format!(
+            "missing generated XML directory {}; regenerate browser parity XML",
+            config.xml_root.display()
+        ));
+    }
+    for rel in collect_relative_files(&config.xml_root)? {
+        if rel.extension().and_then(|extension| extension.to_str()) != Some("xml") {
+            continue;
+        }
+        let path = config.xml_root.join(&rel);
+        let raw = fs::read_to_string(&path)
+            .map_err(|error| format!("failed to read generated XML {}: {error}", path.display()))?;
+        reject_embedded_xml_provenance(&path, &raw)?;
+    }
+    Ok(())
+}
+
+fn reject_embedded_xml_provenance(path: &Path, raw: &str) -> Result<(), String> {
+    if [
+        "generated-by: surgeist-layout-generate",
+        "source-sha256=",
+        "linked-resource-sha256=",
+        "xml-sha256=",
+        "helper-sha256=",
+        "base-style-sha256=",
+        "launch-profile-sha256=",
+    ]
+    .iter()
+    .any(|marker| raw.contains(marker))
+    {
+        return Err(format!(
+            "{} contains embedded generated provenance; all.json is the sole provenance authority",
+            path.display()
+        ));
+    }
+    Ok(())
+}
+
+fn validate_report_browser_provenance(
     path: &Path,
     browser: &str,
     manifest: &BrowserManifest,
 ) -> Result<(), String> {
     if browser.trim().is_empty() {
         return Err(format!(
-            "{} generated XML browser provenance is empty; regenerate browser parity XML",
+            "{} generation report browser provenance is empty; regenerate browser parity XML",
             path.display()
         ));
     }
@@ -3509,15 +3715,15 @@ fn validate_xml_browser_provenance(
         .and_then(|value| value.strip_suffix(suffix))
         .ok_or_else(|| {
             format!(
-                "{} generated XML browser provenance is {browser:?}, expected manifest format {template:?}; regenerate browser parity XML",
+                "{} generation report browser provenance is {browser:?}, expected manifest format {template:?}; regenerate browser parity XML",
                 path.display()
             )
         })?;
     let relative_path =
-        validate_strict_relative_path("generated XML browser provenance", relative)?;
+        validate_report_relative_path("generation report browser provenance", relative)?;
     if !relative_path.starts_with(&manifest.cache_root) {
         return Err(format!(
-            "{} generated XML browser provenance {} is outside manifest browser cache {}; regenerate browser parity XML",
+            "{} generation report browser provenance {} is outside manifest browser cache {}; regenerate browser parity XML",
             path.display(),
             relative,
             manifest.cache_root
@@ -3526,111 +3732,90 @@ fn validate_xml_browser_provenance(
     Ok(())
 }
 
-fn parse_generated_provenance_comment(raw: &str) -> Result<GeneratedProvenance, String> {
-    let trimmed = raw.trim_start();
-    if !trimmed.starts_with("<!-- generated-by: surgeist-layout-generate ") {
-        return Err("missing generated-by comment".to_string());
-    }
-    let end = trimmed
-        .find("-->")
-        .ok_or_else(|| "unterminated generated-by comment".to_string())?;
-    let comment = &trimmed[..end];
-    let linked_resource_attr = provenance_attr_optional(comment, "linked-resource-sha256")?;
-    let linked_resources_recorded = linked_resource_attr.is_some();
-    Ok(GeneratedProvenance {
-        schema_version: provenance_schema_attr(comment)?,
-        source: provenance_attr(comment, "source")?,
-        source_sha256: provenance_attr(comment, "source-sha256")?,
-        linked_resources: parse_linked_resource_provenance(&linked_resource_attr)?,
-        linked_resources_recorded,
-        helper_sha256: provenance_attr(comment, "helper-sha256")?,
-        base_style_sha256: provenance_attr_optional(comment, "base-style-sha256")?,
-        browser: provenance_attr(comment, "browser")?,
-        launch_profile_sha256: provenance_attr(comment, "launch-profile-sha256")?,
-    })
-}
-
-fn provenance_schema_attr(comment: &str) -> Result<u32, String> {
-    let marker = "schema=";
-    let start = comment
-        .find(marker)
-        .ok_or_else(|| "missing `schema` attribute".to_string())?
-        + marker.len();
-    let value = comment[start..]
-        .split_ascii_whitespace()
-        .next()
-        .ok_or_else(|| "missing schema value".to_string())?;
-    if value.starts_with('"') {
-        return Err("schema attribute must be an unquoted generated schema number".to_string());
-    }
-    value
-        .parse()
-        .map_err(|error| format!("invalid schema attribute: {error}"))
-}
-
-fn provenance_attr_optional(comment: &str, key: &str) -> Result<Option<String>, String> {
-    let marker = format!("{key}=\"");
-    let Some(start) = comment.find(&marker).map(|start| start + marker.len()) else {
-        return Ok(None);
-    };
-    let value = &comment[start..];
-    let end = value
-        .find('"')
-        .ok_or_else(|| format!("unterminated `{key}` attribute"))?;
-    Ok(Some(unescape_attr(&value[..end])))
-}
-
-fn provenance_attr(comment: &str, key: &str) -> Result<String, String> {
-    let marker = format!("{key}=\"");
-    let start = comment
-        .find(&marker)
-        .ok_or_else(|| format!("missing `{key}` attribute"))?
-        + marker.len();
-    let value = &comment[start..];
-    let end = value
-        .find('"')
-        .ok_or_else(|| format!("unterminated `{key}` attribute"))?;
-    Ok(unescape_attr(&value[..end]))
-}
-
-fn unescape_attr(value: &str) -> String {
-    value
-        .replace("&quot;", "\"")
-        .replace("&lt;", "<")
-        .replace("&amp;", "&")
-}
-
-fn local_source_from_provenance(source: &str) -> Result<PathBuf, String> {
-    let local = source
-        .split(';')
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .replace('\\', "/");
-    if local.is_empty() {
-        return Err("empty source".to_string());
-    }
-    let path = PathBuf::from(&local);
-    if path.is_absolute()
-        || path.components().any(|component| {
-            matches!(
-                component,
-                std::path::Component::ParentDir | std::path::Component::Prefix(_)
-            )
-        })
-    {
-        return Err(format!("source `{local}` must be a local relative path"));
-    }
-    Ok(path)
-}
-
 fn expected_linked_resource_provenance(
     config: &Config,
     source_rel: &Path,
     source_path: &Path,
 ) -> Result<Vec<GeneratedLinkedResourceProvenance>, String> {
-    let _ = (config, source_rel, source_path);
-    Ok(Vec::new())
+    let raw = fs::read_to_string(source_path)
+        .map_err(|error| format!("failed to read {}: {error}", source_path.display()))?;
+    let mut references = BTreeSet::new();
+    for marker in ["src=\"", "src='", "href=\"", "href='"] {
+        let quote = marker
+            .chars()
+            .last()
+            .expect("linked-resource marker has a quote");
+        for (start, _) in raw.match_indices(marker) {
+            let value = &raw[start + marker.len()..];
+            let Some(end) = value.find(quote) else {
+                return Err(format!(
+                    "{} has an unterminated linked-resource attribute",
+                    source_path.display()
+                ));
+            };
+            let reference = value[..end].split(['?', '#']).next().unwrap_or_default();
+            if reference.is_empty()
+                || reference.starts_with('/')
+                || reference.contains("://")
+                || reference.starts_with("data:")
+            {
+                continue;
+            }
+            let resolved = resolve_corpus_relative_reference(source_rel, reference)?;
+            if matches!(
+                resolved.to_str(),
+                Some("scripts/gentest/test_helper.js" | "scripts/gentest/test_base_style.css")
+            ) {
+                continue;
+            }
+            references.insert(resolved);
+        }
+    }
+    references
+        .into_iter()
+        .map(|path| {
+            let path_text = path.to_string_lossy().replace('\\', "/");
+            Ok(GeneratedLinkedResourceProvenance {
+                sha256: sha256_file(&config.root.join(&path))?,
+                path: path_text,
+            })
+        })
+        .collect()
+}
+
+fn resolve_corpus_relative_reference(source: &Path, reference: &str) -> Result<PathBuf, String> {
+    let mut resolved = source
+        .parent()
+        .unwrap_or_else(|| Path::new(""))
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(segment) => Some(segment.to_os_string()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for component in Path::new(reference).components() {
+        match component {
+            Component::Normal(segment) => resolved.push(segment.to_os_string()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if resolved.pop().is_none() {
+                    return Err(format!(
+                        "linked resource {reference:?} escapes the corpus root"
+                    ));
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(format!(
+                    "linked resource {reference:?} must be corpus-relative"
+                ));
+            }
+        }
+    }
+    let path = resolved.into_iter().collect::<PathBuf>();
+    validate_strict_relative_path(
+        "resolved linked-resource path",
+        &path.to_string_lossy().replace('\\', "/"),
+    )
 }
 
 fn generation_report_path(config: &GenerationConfig) -> Option<PathBuf> {
@@ -3676,20 +3861,8 @@ fn prune_stale_generation_reports_after_success(
     Ok(())
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct GeneratedProvenance {
-    schema_version: u32,
-    source: String,
-    source_sha256: String,
-    linked_resources: Vec<GeneratedLinkedResourceProvenance>,
-    linked_resources_recorded: bool,
-    helper_sha256: String,
-    base_style_sha256: Option<String>,
-    browser: String,
-    launch_profile_sha256: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(deny_unknown_fields)]
 struct GeneratedLinkedResourceProvenance {
     path: String,
     sha256: String,
@@ -3730,36 +3903,6 @@ fn root_relative_source(root: &Path, source_path: &Path) -> Result<String, Strin
     Ok(relative.to_string_lossy().replace('\\', "/"))
 }
 
-fn parse_linked_resource_provenance(
-    raw: &Option<String>,
-) -> Result<Vec<GeneratedLinkedResourceProvenance>, String> {
-    let Some(raw) = raw else {
-        return Ok(Vec::new());
-    };
-    if raw.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    raw.split(',')
-        .map(|entry| {
-            let (path, sha256) = entry
-                .split_once('=')
-                .ok_or_else(|| format!("invalid linked-resource-sha256 entry `{entry}`"))?;
-            Ok(GeneratedLinkedResourceProvenance {
-                path: path.to_string(),
-                sha256: sha256.to_string(),
-            })
-        })
-        .collect()
-}
-
-fn render_linked_resource_provenance(resources: &[GeneratedLinkedResourceProvenance]) -> String {
-    resources
-        .iter()
-        .map(|resource| format!("{}={}", resource.path, resource.sha256))
-        .collect::<Vec<_>>()
-        .join(",")
-}
-
 fn absolutize_path(path: &Path) -> Result<PathBuf, String> {
     if path.is_absolute() {
         Ok(path.to_path_buf())
@@ -3774,12 +3917,6 @@ fn sha256_file(path: &Path) -> Result<String, String> {
     let raw =
         fs::read(path).map_err(|error| format!("failed to read {}: {error}", path.display()))?;
     Ok(sha256_bytes(&raw))
-}
-
-fn source_references_base_style(path: &Path) -> Result<bool, String> {
-    let raw = fs::read_to_string(path)
-        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-    Ok(raw.contains("test_base_style.css"))
 }
 
 fn sha256_bytes(raw: &[u8]) -> String {
@@ -3815,44 +3952,8 @@ fn fixture_cases() -> [(&'static str, &'static str); 4] {
     ]
 }
 
-#[cfg(test)]
 fn generate_xml(name: &str, node: &Value) -> String {
-    generate_xml_with_provenance(name, node, None)
-}
-
-fn generate_xml_with_provenance(
-    name: &str,
-    node: &Value,
-    provenance: Option<&GeneratedProvenance>,
-) -> String {
     let mut lines = Vec::new();
-    if let Some(provenance) = provenance {
-        let linked_resources = &provenance.linked_resources;
-        let linked_resources = if provenance.linked_resources.is_empty() {
-            String::new()
-        } else {
-            format!(
-                " linked-resource-sha256=\"{}\"",
-                escape_attr(render_linked_resource_provenance(linked_resources))
-            )
-        };
-        let base_style = provenance
-            .base_style_sha256
-            .as_ref()
-            .map(|hash| format!(" base-style-sha256=\"{}\"", escape_attr(hash)))
-            .unwrap_or_default();
-        lines.push(format!(
-            "<!-- generated-by: surgeist-layout-generate schema={} source=\"{}\" source-sha256=\"{}\"{} helper-sha256=\"{}\"{} browser=\"{}\" launch-profile-sha256=\"{}\" -->",
-            provenance.schema_version,
-            escape_attr(&provenance.source),
-            escape_attr(&provenance.source_sha256),
-            linked_resources,
-            escape_attr(&provenance.helper_sha256),
-            base_style,
-            escape_attr(&provenance.browser),
-            escape_attr(&provenance.launch_profile_sha256),
-        ));
-    }
     let use_rounding = bool_field(node, "useRounding");
     lines.push(format!(
         "<test name=\"{}\" use-rounding=\"{}\">",
@@ -5381,6 +5482,50 @@ mod tests {
         }
     }
 
+    fn test_generated_entry(
+        name: &str,
+        source: &str,
+        output: &str,
+        variant: &str,
+    ) -> GeneratedReportEntry {
+        GeneratedReportEntry {
+            name: name.to_string(),
+            source: source.to_string(),
+            output: output.to_string(),
+            variant: variant.to_string(),
+            source_sha256: "a".repeat(64),
+            linked_resources: Vec::new(),
+            xml_sha256: "b".repeat(64),
+        }
+    }
+
+    fn current_test_generated_entry(
+        config: &Config,
+        name: &str,
+        source: &str,
+        output: &str,
+        variant: &str,
+    ) -> GeneratedReportEntry {
+        let source_path = config.root.join(source);
+        let mut entry = test_generated_entry(name, source, output, variant);
+        entry.source_sha256 = sha256_file(&source_path).expect("current test source hash");
+        entry.linked_resources =
+            expected_linked_resource_provenance(config, Path::new(source), &source_path)
+                .expect("current test linked-resource hashes");
+        entry.xml_sha256 = sha256_file(&config.root.join(output)).expect("current test XML hash");
+        entry
+    }
+
+    fn attach_test_report_metadata(report: &mut GenerationReport, config: &GenerationConfig) {
+        report.metadata = Some(
+            generation_report_metadata(
+                config,
+                "chrome-for-testing/149.0.7827.115 (target/surgeist-browser/browser)",
+            )
+            .expect("test report metadata"),
+        );
+    }
+
     fn test_generation_lock_config(
         repository_root: PathBuf,
         filter: Option<&str>,
@@ -5407,6 +5552,286 @@ mod tests {
         ));
         fs::create_dir_all(&root).expect("browser root");
         root
+    }
+
+    fn centralized_provenance_report_fixture(
+        name: &str,
+        source_sha256: &str,
+        linked_resources: Value,
+        xml_sha256: &str,
+    ) -> (PathBuf, Config, CorpusManifest) {
+        let root = test_browser_root(name);
+        let config = Config::from_root(root.clone()).expect("test corpus config");
+        fs::create_dir_all(config.html_root.join("block")).expect("HTML fixture directory");
+        fs::create_dir_all(config.xml_root.join("block")).expect("XML fixture directory");
+        fs::create_dir_all(config.xml_root.join("generation-reports")).expect("report directory");
+        fs::write(
+            config.html_root.join("block/example.html"),
+            "<!doctype html>\n",
+        )
+        .expect("HTML fixture");
+        fs::write(
+            config.xml_root.join("block/example__border_box_ltr.xml"),
+            "<test name=\"example__border_box_ltr\"/>\n",
+        )
+        .expect("XML fixture");
+
+        let mut manifest =
+            parse_corpus_manifest(&test_schema_two_manifest("")).expect("test manifest");
+        manifest.generation_reports.full.generated = 1;
+        manifest.generation_reports.full.unsupported = 0;
+        let manifest_raw = test_schema_two_manifest("");
+        fs::write(root.join("corpus.toml"), &manifest_raw).expect("corpus manifest");
+        let mut metadata = generation_report_metadata_for_manifest(
+            &manifest,
+            &sha256_bytes(manifest_raw.as_bytes()),
+        )
+        .expect("report metadata");
+        metadata.browser =
+            "chrome-for-testing/149.0.7827.115 (target/surgeist-browser/browser)".to_string();
+        let source_sha256 = if source_sha256 == "CURRENT" {
+            sha256_file(&config.html_root.join("block/example.html")).expect("source hash")
+        } else {
+            source_sha256.to_string()
+        };
+        let xml_sha256 = if xml_sha256 == "CURRENT" {
+            sha256_file(&config.xml_root.join("block/example__border_box_ltr.xml"))
+                .expect("XML hash")
+        } else {
+            xml_sha256.to_string()
+        };
+        let report = json!({
+            "metadata": metadata,
+            "filter": null,
+            "summary": {
+                "generated": 1,
+                "unsupported": 0,
+                "expected_fail": 0,
+                "quarantined": 0,
+                "failed_to_generate": 0
+            },
+            "generated": [{
+                "name": "example__border_box_ltr",
+                "source": "html/block/example.html",
+                "output": "xml/block/example__border_box_ltr.xml",
+                "variant": "border_box_ltr",
+                "source_sha256": source_sha256,
+                "linked_resources": linked_resources,
+                "xml_sha256": xml_sha256
+            }],
+            "unsupported": [],
+            "expected_fail": [],
+            "quarantined": [],
+            "failed_to_generate": []
+        });
+        fs::write(
+            config.xml_root.join("generation-reports/all.json"),
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&report).expect("serialize report")
+            ),
+        )
+        .expect("generation report");
+        (root, config, manifest)
+    }
+
+    #[test]
+    fn centralized_provenance_report_schema_binds_every_generated_output() {
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("test manifest");
+        let mut report = GenerationReport {
+            metadata: Some(
+                generation_report_metadata_for_manifest(&manifest, &"a".repeat(64))
+                    .expect("report metadata"),
+            ),
+            ..GenerationReport::default()
+        };
+        report.record_generated(GeneratedReportEntry {
+            name: "example__border_box_ltr".to_string(),
+            source: "html/block/example.html".to_string(),
+            output: "xml/block/example__border_box_ltr.xml".to_string(),
+            variant: "border_box_ltr".to_string(),
+            source_sha256: "b".repeat(64),
+            linked_resources: Vec::new(),
+            xml_sha256: "c".repeat(64),
+        });
+        let report = serde_json::to_value(report).expect("serialize generation report");
+        assert_eq!(report["metadata"]["schema_version"].as_u64(), Some(3));
+        for entry in report["generated"].as_array().expect("generated entries") {
+            assert_eq!(entry["source_sha256"].as_str().map(str::len), Some(64));
+            assert!(entry["linked_resources"].is_array());
+            assert_eq!(entry["xml_sha256"].as_str().map(str::len), Some(64));
+        }
+    }
+
+    #[test]
+    fn centralized_provenance_report_serialization_is_deterministically_ordered() {
+        let mut report = GenerationReport::default();
+        for (source, variant) in [
+            ("html/grid/zeta.html", "content_box_rtl"),
+            ("html/grid/alpha.html", "content_box_ltr"),
+            ("html/grid/alpha.html", "border_box_ltr"),
+        ] {
+            let stem = Path::new(source)
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .expect("source stem");
+            report.record_generated(test_generated_entry(
+                &format!("{stem}__{variant}"),
+                source,
+                &format!("xml/grid/{stem}__{variant}.xml"),
+                variant,
+            ));
+        }
+
+        canonicalize_generation_report(&mut report);
+
+        assert_eq!(
+            report
+                .generated
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "alpha__border_box_ltr",
+                "alpha__content_box_ltr",
+                "zeta__content_box_rtl"
+            ]
+        );
+        assert_eq!(
+            serde_json::to_string_pretty(&report).expect("first serialization"),
+            serde_json::to_string_pretty(&report).expect("second serialization")
+        );
+    }
+
+    #[test]
+    fn centralized_provenance_generation_emits_comment_free_xml() {
+        let node = json!({
+            "useRounding": true,
+            "viewport": { "width": "max-content", "height": "max-content" },
+            "style": { "display": "block" },
+            "children": [],
+            "smartRoundedLayout": { "x": 0, "y": 0, "width": 10, "height": 20 },
+            "unroundedLayout": { "x": 0, "y": 0, "width": 10, "height": 20 },
+            "naivelyRoundedLayout": { "clientWidth": 10, "clientHeight": 20 }
+        });
+        let xml = generate_xml("example__border_box_ltr", &node);
+
+        assert!(
+            xml.starts_with("<test "),
+            "generated XML must be comment-free"
+        );
+        assert!(!xml.contains("generated-by: surgeist-layout-generate"));
+    }
+
+    #[test]
+    fn centralized_provenance_rejects_stale_entry_hashes() {
+        for (name, source_hash, linked_resources, xml_hash, expected_error) in [
+            (
+                "stale-source",
+                "0".repeat(64),
+                json!([]),
+                "CURRENT".to_string(),
+                "source_sha256",
+            ),
+            (
+                "stale-linked-resource",
+                "CURRENT".to_string(),
+                json!([{"path": "assets/example.css", "sha256": "3".repeat(64)}]),
+                "CURRENT".to_string(),
+                "linked_resources",
+            ),
+            (
+                "stale-xml",
+                "CURRENT".to_string(),
+                json!([]),
+                "0".repeat(64),
+                "xml_sha256",
+            ),
+        ] {
+            let (root, config, manifest) = centralized_provenance_report_fixture(
+                name,
+                &source_hash,
+                linked_resources,
+                &xml_hash,
+            );
+            let error = validate_generation_report_freshness(&config, &manifest)
+                .expect_err("stale entry hash must be rejected");
+            assert!(
+                error.contains(expected_error),
+                "{name} returned the wrong error: {error}"
+            );
+            fs::remove_dir_all(root).expect("test root cleanup");
+        }
+    }
+
+    #[test]
+    fn centralized_provenance_accepts_current_exact_inventory() {
+        let (root, config, manifest) = centralized_provenance_report_fixture(
+            "current-inventory",
+            "CURRENT",
+            json!([]),
+            "CURRENT",
+        );
+        validate_generation_report_freshness(&config, &manifest)
+            .expect("current exact report/XML inventory");
+        fs::remove_dir_all(root).expect("test root cleanup");
+    }
+
+    #[test]
+    fn centralized_provenance_recomputes_linked_resource_hashes() {
+        let root = test_browser_root("linked-resource-hash");
+        let config = Config::from_root(root.clone()).expect("test corpus config");
+        let source_rel = Path::new("html/block/example.html");
+        let source = config.root.join(source_rel);
+        let asset = config.root.join("assets/example.css");
+        fs::create_dir_all(source.parent().expect("source parent")).expect("source directory");
+        fs::create_dir_all(asset.parent().expect("asset parent")).expect("asset directory");
+        fs::write(
+            &source,
+            "<link rel=\"stylesheet\" href=\"../../assets/example.css\">\n",
+        )
+        .expect("source fixture");
+        fs::write(&asset, "first\n").expect("linked resource");
+
+        let first = expected_linked_resource_provenance(&config, source_rel, &source)
+            .expect("first linked-resource lineage");
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].path, "assets/example.css");
+        assert_eq!(first[0].sha256, sha256_file(&asset).expect("first hash"));
+
+        fs::write(&asset, "second\n").expect("mutated linked resource");
+        let second = expected_linked_resource_provenance(&config, source_rel, &source)
+            .expect("second linked-resource lineage");
+        assert_ne!(first[0].sha256, second[0].sha256);
+        fs::remove_dir_all(root).expect("test root cleanup");
+    }
+
+    #[test]
+    fn centralized_provenance_rejects_embedded_xml_provenance() {
+        let root = test_browser_root("embedded-provenance");
+        let config = Config::from_root(root.clone()).expect("test corpus config");
+        fs::create_dir_all(config.html_root.join("block")).expect("HTML fixture directory");
+        fs::create_dir_all(config.xml_root.join("block")).expect("XML fixture directory");
+        let source = config.html_root.join("block/example.html");
+        fs::write(&source, "<!doctype html>\n").expect("HTML fixture");
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("test manifest");
+        let source_sha256 = sha256_file(&source).expect("source hash");
+        let xml = format!(
+            "<!-- generated-by: surgeist-layout-generate schema=2 source=\"html/block/example.html\" source-sha256=\"{source_sha256}\" helper-sha256=\"{}\" browser=\"chrome-for-testing/149.0.7827.115 (target/surgeist-browser/browser)\" launch-profile-sha256=\"{}\" -->\n<test name=\"example__border_box_ltr\"/>\n",
+            sha256_bytes(TEST_HELPER_SOURCE.as_bytes()),
+            launch_profile_digest(&manifest.browser.launch).expect("launch profile digest")
+        );
+        fs::write(
+            config.xml_root.join("block/example__border_box_ltr.xml"),
+            xml,
+        )
+        .expect("XML fixture");
+
+        assert!(
+            validate_xml_provenance_freshness(&config, &manifest).is_err(),
+            "embedded generated provenance must be rejected"
+        );
+        fs::remove_dir_all(root).expect("test root cleanup");
     }
 
     #[test]
@@ -6515,19 +6940,14 @@ for (const raw of ["-1fr", "NaNfr", "Infinityfr"]) {
     }
 
     #[test]
-    fn browser_provenance_parses_the_schema_two_xml_comment_format() {
-        let raw = concat!(
-            "<!-- generated-by: surgeist-layout-generate schema=2 ",
-            "source=\"html/block/case.html\" source-sha256=\"source\" ",
-            "helper-sha256=\"helper\" browser=\"chrome-for-testing/149.0.7827.115 ",
-            "(target/surgeist-browser/browser)\" launch-profile-sha256=\"launch\" -->\n",
-            "<test name=\"case\"/>"
-        );
-
-        let provenance = parse_generated_provenance_comment(raw)
-            .expect("schema-two generated provenance should parse");
-        assert_eq!(provenance.schema_version, 2);
-        assert_eq!(provenance.launch_profile_sha256, "launch");
+    fn browser_provenance_validates_from_the_central_report() {
+        let manifest = test_browser_manifest();
+        validate_report_browser_provenance(
+            Path::new("all.json"),
+            "chrome-for-testing/149.0.7827.115 (target/surgeist-browser/browser)",
+            &manifest,
+        )
+        .expect("central report browser provenance");
     }
 
     #[test]
@@ -6535,7 +6955,7 @@ for (const raw of ["-1fr", "NaNfr", "Infinityfr"]) {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let metadata = generation_report_metadata_for_manifest(&manifest, "manifest-sha")
             .expect("report metadata");
-        assert_eq!(metadata.schema_version, 2);
+        assert_eq!(metadata.schema_version, 3);
         assert_eq!(metadata.browser_source, "chrome-for-testing");
         assert_eq!(metadata.browser_version, "149.0.7827.115");
         assert_eq!(metadata.launch_profile_sha256.len(), 64);
@@ -11587,19 +12007,8 @@ for (const testCase of [
         });
 
         let mut report = GenerationReport::default();
-        write_fixture_goldens(
-            &config,
-            &PinnedBrowser {
-                executable: PathBuf::from("/tmp/chrome"),
-                repository_relative_executable: "target/surgeist-browser/chrome".to_string(),
-                provenance: "chrome-for-testing/149.0.7827.115 (target/surgeist-browser/chrome)"
-                    .to_string(),
-            },
-            &fixture,
-            &desc,
-            &mut report,
-        )
-        .expect("unsupported cases should be reported without XML");
+        write_fixture_goldens(&config, &fixture, &desc, &mut report)
+            .expect("unsupported cases should be reported without XML");
 
         assert!(
             !xml_root.join("inline/mixed__border_box_ltr.xml").exists(),
@@ -12861,7 +13270,7 @@ status = "active"
     }
 
     #[test]
-    fn xml_generation_records_provenance_comment() {
+    fn xml_generation_is_comment_free() {
         let node = serde_json::json!({
             "useRounding": true,
             "viewport": { "width": "max-content", "height": "max-content" },
@@ -12871,28 +13280,10 @@ status = "active"
             "unroundedLayout": { "x": 0, "y": 0, "width": 10, "height": 20 },
             "naivelyRoundedLayout": { "clientWidth": 10, "clientHeight": 20 }
         });
-        let provenance = GeneratedProvenance {
-            schema_version: 2,
-            source: "grid/basic.html".to_string(),
-            source_sha256: "abc123".to_string(),
-            linked_resources: Vec::new(),
-            linked_resources_recorded: false,
-            helper_sha256: "def456".to_string(),
-            base_style_sha256: Some("base789".to_string()),
-            browser: "chrome-for-testing/149".to_string(),
-            launch_profile_sha256:
-                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string(),
-        };
+        let xml = generate_xml("basic__border_box_ltr", &node);
 
-        let xml = generate_xml_with_provenance("basic__border_box_ltr", &node, Some(&provenance));
-
-        assert!(xml.starts_with("<!-- generated-by: surgeist-layout-generate schema=2 "));
-        assert!(xml.contains("source=\"grid/basic.html\""));
-        assert!(xml.contains("source-sha256=\"abc123\""));
-        assert!(xml.contains("helper-sha256=\"def456\""));
-        assert!(xml.contains("base-style-sha256=\"base789\""));
-        assert!(xml.contains("browser=\"chrome-for-testing/149\""));
-        assert!(xml.contains("launch-profile-sha256=\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""));
+        assert!(xml.starts_with("<test "));
+        assert!(!xml.contains("generated-by: surgeist-layout-generate"));
     }
 
     #[test]
@@ -12940,7 +13331,7 @@ status = "active"
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let metadata =
             generation_report_metadata_for_manifest(&manifest, "manifest-sha").expect("metadata");
-        assert_eq!(metadata.schema_version, 2);
+        assert_eq!(metadata.schema_version, 3);
         assert_eq!(metadata.launch_profile_sha256.len(), 64);
     }
     #[test]
@@ -13148,12 +13539,12 @@ status = "active"
             filter: config.filter.clone(),
             ..GenerationReport::default()
         };
-        filtered_report.record_generated(
-            "matched".to_string(),
-            "html/grid/matched.html".to_string(),
-            "xml/grid/matched__border_box_ltr.xml".to_string(),
-            "border_box_ltr".to_string(),
-        );
+        filtered_report.record_generated(test_generated_entry(
+            "matched__border_box_ltr",
+            "html/grid/matched.html",
+            "xml/grid/matched__border_box_ltr.xml",
+            "border_box_ltr",
+        ));
         finish_generation(&config, &filtered_report).expect("filtered diagnostic completion");
         assert_eq!(
             fs::read_to_string(&full_report).unwrap(),
@@ -13191,12 +13582,14 @@ status = "active"
         let mut full_config = test_generation_config(corpus);
         full_config.manifest = manifest;
         let mut full_generation_report = GenerationReport::default();
-        full_generation_report.record_generated(
-            "matched".to_string(),
-            "html/grid/matched.html".to_string(),
-            "xml/grid/matched__border_box_ltr.xml".to_string(),
-            "border_box_ltr".to_string(),
-        );
+        attach_test_report_metadata(&mut full_generation_report, &full_config);
+        full_generation_report.record_generated(current_test_generated_entry(
+            &full_config.corpus,
+            "matched__border_box_ltr",
+            "html/grid/matched.html",
+            "xml/grid/matched__border_box_ltr.xml",
+            "border_box_ltr",
+        ));
         finish_generation(&full_config, &full_generation_report).expect("full completion");
         assert_ne!(
             fs::read_to_string(&full_report).unwrap(),
@@ -13310,11 +13703,12 @@ status = "active"
         fs::create_dir_all(path.parent().unwrap()).expect("report directory");
         fs::write(&path, "old report\n").expect("old report");
 
-        let error =
-            write_generation_report_with_hook(&config, &GenerationReport::default(), || {
-                Err("refuse report installation".to_string())
-            })
-            .expect_err("report installation failure should be returned");
+        let mut report = GenerationReport::default();
+        attach_test_report_metadata(&mut report, &config);
+        let error = write_generation_report_with_hook(&config, &report, || {
+            Err("refuse report installation".to_string())
+        })
+        .expect_err("report installation failure should be returned");
 
         assert!(error.contains("refuse report installation"));
         assert_eq!(
@@ -13336,20 +13730,37 @@ status = "active"
         let path = generation_report_path(&config).unwrap();
         fs::create_dir_all(path.parent().unwrap()).expect("report directory");
         fs::write(&path, "old report\n").expect("old report");
+        fs::create_dir_all(config.corpus.html_root.join("block")).expect("HTML directory");
+        fs::create_dir_all(config.corpus.xml_root.join("block")).expect("XML directory");
+        fs::write(
+            config.corpus.html_root.join("block/case.html"),
+            "<!doctype html>\n",
+        )
+        .expect("HTML source");
+        fs::write(
+            config
+                .corpus
+                .xml_root
+                .join("block/case__border_box_ltr.xml"),
+            "<test name=\"case__border_box_ltr\"/>\n",
+        )
+        .expect("generated XML");
 
         let mut report = GenerationReport::default();
-        report.record_generated(
-            "case".to_string(),
-            "html/block/case.html".to_string(),
-            "xml/block/case__border_box_ltr.xml".to_string(),
-            "border_box_ltr".to_string(),
-        );
+        attach_test_report_metadata(&mut report, &config);
+        report.record_generated(current_test_generated_entry(
+            &config.corpus,
+            "case__border_box_ltr",
+            "html/block/case.html",
+            "xml/block/case__border_box_ltr.xml",
+            "border_box_ltr",
+        ));
         write_generation_report(&config, &report).expect("report write");
 
         let written =
             serde_json::from_str::<Value>(&fs::read_to_string(&path).expect("written report"))
                 .expect("report JSON");
-        assert_eq!(written["metadata"]["schema_version"].as_u64(), Some(2));
+        assert_eq!(written["metadata"]["schema_version"].as_u64(), Some(3));
         assert_eq!(
             written["metadata"]["launch_profile_sha256"]
                 .as_str()
@@ -13386,6 +13797,7 @@ status = "active"
         fs::write(&stale_report, "stale").expect("stale report");
 
         let mut report = GenerationReport::default();
+        attach_test_report_metadata(&mut report, &config);
         report.record_failed_to_generate(
             "case".to_string(),
             "html/block/case.html".to_string(),
@@ -13411,7 +13823,7 @@ status = "active"
     fn xml_provenance_freshness_rejects_stale_source_hash() {
         let manifest = test_browser_manifest();
         assert!(
-            validate_xml_browser_provenance(Path::new("fixture.xml"), "wrong", &manifest).is_err()
+            validate_report_browser_provenance(Path::new("all.json"), "wrong", &manifest).is_err()
         );
     }
     #[test]
@@ -13422,8 +13834,8 @@ status = "active"
     fn xml_provenance_freshness_rejects_stale_browser_version() {
         let manifest = test_browser_manifest();
         assert!(
-            validate_xml_browser_provenance(
-                Path::new("fixture.xml"),
+            validate_report_browser_provenance(
+                Path::new("all.json"),
                 "chrome-for-testing/148 (target/surgeist-browser/browser)",
                 &manifest
             )
@@ -13434,8 +13846,8 @@ status = "active"
     fn xml_provenance_freshness_accepts_custom_browser_path() {
         let manifest = test_browser_manifest();
         assert!(
-            validate_xml_browser_provenance(
-                Path::new("fixture.xml"),
+            validate_report_browser_provenance(
+                Path::new("all.json"),
                 "chrome-for-testing/149.0.7827.115 (target/surgeist-browser/browser)",
                 &manifest
             )
@@ -13460,6 +13872,9 @@ status = "active"
             output: "xml/grid/example.xml".to_string(),
             output_file: output.clone(),
             variant: "border_box_ltr".to_string(),
+            source_sha256: "a".repeat(64),
+            linked_resources: Vec::new(),
+            xml_sha256: "b".repeat(64),
             xml: "<new/>".to_string(),
         }];
 
@@ -13953,7 +14368,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         );
         assert_eq!(
             sha256_bytes(serializer.as_bytes()),
-            "5b03bacde641266c548871ab6c0d11d413b00e0b4199fff6c93ab732b7922716"
+            "52dd29a3afbde210b8701112f81827940cd2c1fa2d034e6ffe564db8cb90799a"
         );
     }
 
@@ -14492,7 +14907,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
 
         assert_eq!(
             sha256_bytes(production.as_bytes()),
-            "7a31afe088f100405d4c3533a7d40f4576d2fb861f5bc2117299a5f1fed065c4",
+            "9b60c99658a26f75c5f876bb1f1919d325bb4fbae812b005dfd0ff98843d9cbc",
             "generator production source must match the reviewed C08R correction"
         );
         for (path, expected) in [
