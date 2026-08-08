@@ -1,6 +1,6 @@
 # P01-I07-S01-C04 Bounded Browser And Artifact Candidate
 
-Status: reviewed
+Status: in_progress
 
 Cycle ID: `P01/I07/S01/C04`
 
