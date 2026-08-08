@@ -52,13 +52,14 @@ order and materializes settled integer areas into geometry. Track expansion
 helpers may remain beside existing track definitions when they are pure inputs
 to topology construction; they do not become a second expanded-topology owner.
 
-C01 retains enough origin metadata for C02 auto-fit collapse but does not
-collapse or otherwise resize tracks. It leaves ordinary track sizing,
-fit-content, stretch, all grid-lanes policies, standalone subgrid traversal,
+C01 retains enough origin metadata for C02 auto-fit collapse, then invokes the
+existing ordinary sizing path after settled placement. It does not change that
+sizing path's policy or algorithms and does not implement auto-fit collapse.
+Fit-content, stretch, all grid-lanes policies, standalone subgrid traversal,
 browser inputs, generator behavior, provenance, artifacts, public APIs, and
-documentation to their sequenced owners. It adds no dependency, feature,
-allow/expect attribute, unsafe code, expected-fail row, quarantine, generated
-artifact, or compatibility shim.
+documentation remain with their sequenced owners. C01 adds no dependency,
+feature, allow/expect attribute, unsafe code, expected-fail row, quarantine,
+generated artifact, or compatibility shim.
 
 ## 3 Compatibility And Frozen Evidence
 
@@ -273,4 +274,6 @@ verification, and the handoff record; do not duplicate that choreography here.
 If a final check or holistic review fails, use the planning gate's required
 status transition and corrective-task path. C02 then receives the published C01
 tip, stable integer placements, canonical expanded topology, and retained track
-origin metadata. C02 alone owns ordinary track sizing and auto-fit collapse.
+origin metadata. C02 alone owns changes to ordinary track-sizing policy and
+algorithms, plus auto-fit collapse; C01 merely invokes the existing sizing path
+after placement.
