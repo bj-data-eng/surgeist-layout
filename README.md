@@ -50,10 +50,21 @@ non-finite evaluation; no value is guessed.
 
 Preferred size, minimum size, maximum size, and flex basis are distinct closed
 property domains. Their role-valid keywords cannot cross property boundaries.
+Direct `FlexBasisOf::MIN_CONTENT` and `FlexBasisOf::MAX_CONTENT` values retain
+their distinct intrinsic measurement constraints through the public layout
+front door; neither is normalized to the generic content basis.
 `SizingCalculationOf<S>` combines finite affine leaves with nested `min`, `max`,
 and `clamp` in a validated program that is evaluated iteratively. Percentages
 remain symbolic until layout receives an explicit basis, and a required missing
 basis remains unresolved.
+
+`NodeInputOf::flex_item_collapse` is a normalized, layout-ready flex effect, and
+`FlexItemCollapse::Normal` is its default. A collapsed in-flow flex item
+participates through a finite cross-size strut replay, publishes zero committed
+collapsed geometry, and hides its descendants. Root `surgeist` owns
+computed-style lowering from a flex item's `visibility: collapse` to this
+normalized state, while rendering owns painting. This leaf does not parse
+authored CSS or provide a general visibility model.
 
 Canonical layout-ready `calc-size()` input pairs a property-specific basis with a
 validated `CalcSizeCalculationOf<S>` containing finite absolute-pixel,
