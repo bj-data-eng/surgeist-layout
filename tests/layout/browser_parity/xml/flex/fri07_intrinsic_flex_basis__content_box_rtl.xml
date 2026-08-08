@@ -1,0 +1,35 @@
+<test name="fri07_intrinsic_flex_basis__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-direction="column" width="260px" row-gap="10px" column-gap="10px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="260px">
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1" flex-basis="min-content" min-width="0px">
+          alpha beta gamma
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1" flex-basis="max-content" min-width="0px">
+          alpha beta gamma
+        </text>
+      </div>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="120px">
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1" flex-basis="min-content" min-width="0px">
+          longword short tail
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1" flex-basis="max-content" min-width="0px">
+          longword short tail
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="260" height="70">
+      <node x="0" y="0" width="260" height="30">
+        <node x="185" y="0" width="75" height="30"/>
+        <node x="0" y="0" width="185" height="30"/>
+      </node>
+      <node x="140" y="40" width="120" height="30">
+        <node x="84" y="0" width="36" height="30"/>
+        <node x="0" y="0" width="84" height="30"/>
+      </node>
+    </node>
+  </expectations>
+</test>

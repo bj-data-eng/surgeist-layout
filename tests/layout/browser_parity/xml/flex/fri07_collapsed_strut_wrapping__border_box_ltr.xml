@@ -1,0 +1,21 @@
+<test name="fri07_collapsed_strut_wrapping__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-wrap="wrap" width="130px" row-gap="8px" column-gap="10px">
+      <div source-tag="div" display="flex" direction="ltr" flex-shrink="0" width="50px" height="20px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-item-collapse="collapsed" flex-shrink="0" width="80px" height="35px" margin-left="5px" margin-right="auto"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-shrink="0" width="50px" height="30px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-item-collapse="collapsed" flex-shrink="0" width="100px" height="25px" margin-left="7px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-shrink="0" width="50px" height="15px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="130" height="157">
+      <node x="0" y="0" width="50" height="20"/>
+      <node x="5" y="28" width="80" height="35"/>
+      <node x="0" y="71" width="50" height="30"/>
+      <node x="7" y="109" width="100" height="25"/>
+      <node x="0" y="142" width="50" height="15"/>
+    </node>
+  </expectations>
+</test>

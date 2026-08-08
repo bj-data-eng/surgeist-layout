@@ -1,0 +1,19 @@
+<test name="fri07_absolute_auto_margin_insets__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="120px" height="80px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" position="absolute" width="20px" height="20px" margin-top="auto" margin-left="auto" margin-bottom="auto" margin-right="auto" top="auto" left="auto" bottom="10px" right="10px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" position="absolute" width="20px" height="20px" margin-top="auto" margin-left="auto" margin-bottom="auto" margin-right="auto" top="10px" left="10px" bottom="10px" right="10px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" position="absolute" width="130px" height="20px" margin-left="auto" margin-right="auto" top="45px" left="10px" right="10px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" position="absolute" width="20px" height="90px" margin-top="-15px" margin-bottom="-15px" top="10px" bottom="10px" right="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="120" height="80">
+      <node x="90" y="50" width="20" height="20"/>
+      <node x="50" y="30" width="20" height="20"/>
+      <node x="10" y="45" width="130" height="20"/>
+      <node x="90" y="-5" width="20" height="90"/>
+    </node>
+  </expectations>
+</test>

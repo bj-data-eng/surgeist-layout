@@ -115,6 +115,158 @@ fn fri07_c04_fixture_input_exact_six_source_four_variant_inventory_is_bounded() 
     assert_eq!(fixtures.len(), 1_438);
 }
 
+fn fri07_c04_browser_output_paths() -> Vec<PathBuf> {
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+    [
+        "cross_auto_margin_overflow",
+        "absolute_auto_margin_insets",
+        "intrinsic_flex_basis",
+        "collapsed_strut_single_line",
+        "collapsed_strut_wrapping",
+        "flex_composition",
+    ]
+    .into_iter()
+    .flat_map(|name| {
+        [
+            "border_box_ltr",
+            "border_box_rtl",
+            "content_box_ltr",
+            "content_box_rtl",
+        ]
+        .into_iter()
+        .map({
+            let corpus = corpus.clone();
+            move |variant| corpus.join(format!("xml/flex/fri07_{name}__{variant}.xml"))
+        })
+    })
+    .collect()
+}
+
+#[test]
+fn fri07_c04_browser_parity_exact_twenty_four_outputs_parse_without_embedded_provenance() {
+    let paths = fri07_c04_browser_output_paths();
+    assert_eq!(paths.len(), 24);
+    assert!(paths.iter().all(|path| path.is_file()));
+
+    for path in paths {
+        let raw = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("{} should read: {error}", path.display()));
+        assert!(
+            !raw.contains("<!-- generated-by: surgeist-layout-generate "),
+            "{} contains embedded provenance",
+            path.display()
+        );
+        let golden = support::Golden::parse(&raw)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", path.display()));
+        assert_eq!(golden.name, path.file_stem().unwrap().to_string_lossy());
+    }
+}
+
+#[test]
+fn fri07_c04_browser_parity_exact_twelve_ordinary_variants_match_production() {
+    let paths = fri07_c04_browser_output_paths()
+        .into_iter()
+        .filter(|path| {
+            let name = path.file_name().unwrap().to_string_lossy();
+            name.contains("fri07_cross_auto_margin_overflow")
+                || name.contains("fri07_absolute_auto_margin_insets")
+                || name.contains("fri07_intrinsic_flex_basis")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(paths.len(), 12);
+
+    for path in paths {
+        let golden = support::Golden::parse_file(&path)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", path.display()));
+        support::assert_surgeist_matches(&golden)
+            .unwrap_or_else(|error| panic!("{} failed layout comparison: {error}", path.display()));
+    }
+}
+
+#[test]
+fn fri07_c04_browser_parity_exact_twelve_chrome_variants_reproduce_reviewed_signatures() {
+    let paths = fri07_c04_browser_output_paths()
+        .into_iter()
+        .filter(|path| {
+            let name = path.file_name().unwrap().to_string_lossy();
+            name.contains("fri07_collapsed_strut_single_line")
+                || name.contains("fri07_collapsed_strut_wrapping")
+                || name.contains("fri07_flex_composition")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(paths.len(), 12);
+
+    for path in paths {
+        let golden = support::Golden::parse_file(&path)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", path.display()));
+        let expected = if golden
+            .name
+            .starts_with("fri07_collapsed_strut_single_line__")
+        {
+            format!("{}/0: y mismatch, expected 0, got 5", golden.name)
+        } else if golden.name.starts_with("fri07_collapsed_strut_wrapping__") {
+            format!("{}: height mismatch, expected 157, got 68", golden.name)
+        } else if golden.name.ends_with("_ltr") {
+            format!("{}/0: y mismatch, expected 6, got 27", golden.name)
+        } else {
+            format!("{}/0: y mismatch, expected 134, got 113", golden.name)
+        };
+        let actual = support::assert_surgeist_matches(&golden)
+            .expect_err("qualified Chrome row must retain its reviewed mismatch")
+            .to_string();
+        assert_eq!(actual, expected, "{}", path.display());
+    }
+}
+
+#[test]
+fn fri07_c04_browser_parity_final_inventory_and_report_are_closed() {
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+    assert_eq!(
+        support::fixture_files_in(&corpus.join("html"), "html")
+            .expect("HTML corpus inventory")
+            .len(),
+        1_438
+    );
+    assert_eq!(
+        support::fixture_files_in(&corpus.join("xml"), "xml")
+            .expect("XML corpus inventory")
+            .len(),
+        5_736
+    );
+
+    let report: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(corpus.join("xml/generation-reports/all.json"))
+            .expect("authoritative generation report"),
+    )
+    .expect("authoritative report JSON");
+    assert_eq!(report["metadata"]["schema_version"], 3);
+    assert!(report["filter"].is_null());
+    for (bucket, count) in [
+        ("generated", 5_736),
+        ("unsupported", 16),
+        ("expected_fail", 3),
+        ("quarantined", 0),
+        ("failed_to_generate", 0),
+    ] {
+        assert_eq!(report["summary"][bucket], count);
+        assert_eq!(report[bucket].as_array().map(Vec::len), Some(count));
+    }
+    let expected_fail_names = report["expected_fail"]
+        .as_array()
+        .expect("expected-fail report bucket")
+        .iter()
+        .map(|entry| entry["name"].as_str().expect("expected-fail name"))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        expected_fail_names,
+        BTreeSet::from([
+            "flex/fri07_collapsed_strut_single_line",
+            "flex/fri07_collapsed_strut_wrapping",
+            "flex/fri07_flex_composition",
+        ])
+    );
+}
+
 #[test]
 fn runs_browser_parity_smoke_fixture_against_surgeist_layout() {
     let golden = support::Golden::parse(include_str!(
@@ -494,12 +646,12 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
 
     let xml = support::fixture_files_in(&corpus_root.join("xml"), "xml")
         .expect("XML parity fixtures should be readable");
-    assert_eq!(xml.len(), 5712);
+    assert_eq!(xml.len(), 5736);
 
     let manifest_path = corpus_root.join("corpus.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("{} should read: {error}", manifest_path.display()));
-    assert!(manifest.contains("generated = 5712"));
+    assert!(manifest.contains("generated = 5736"));
     for source in sources {
         let case = format!(
             "id = \"{}\"\nsource_root = \"surgeist\"\nsource = \"{source}\"\ngenerator = \"constrained-html\"\nstatus = \"active\"",
@@ -528,11 +680,11 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
             .unwrap_or_else(|error| panic!("{} should read: {error}", report_path.display())),
     )
     .unwrap_or_else(|error| panic!("{} should parse: {error}", report_path.display()));
-    assert_eq!(report["summary"]["generated"], 5712);
+    assert_eq!(report["summary"]["generated"], 5736);
     assert_eq!(report["summary"]["unsupported"], 16);
-    for bucket in ["expected_fail", "quarantined", "failed_to_generate"] {
-        assert_eq!(report["summary"][bucket], 0, "nonzero {bucket} summary");
-    }
+    assert_eq!(report["summary"]["expected_fail"], 3);
+    assert_eq!(report["summary"]["quarantined"], 0);
+    assert_eq!(report["summary"]["failed_to_generate"], 0);
 }
 
 fn fri05_c06_computed_overflow_paths() -> Vec<PathBuf> {
@@ -611,7 +763,7 @@ fn fri05_c06_computed_overflow_corpus_outputs_match_layout() {
 }
 
 #[test]
-fn fri05_c06_computed_overflow_corpus_outputs_have_current_provenance() {
+fn fri05_c06_computed_overflow_corpus_outputs_have_centralized_provenance() {
     let report_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/layout/browser_parity/xml/generation-reports/all.json");
     let report: serde_json::Value = serde_json::from_str(
@@ -619,23 +771,32 @@ fn fri05_c06_computed_overflow_corpus_outputs_have_current_provenance() {
             .unwrap_or_else(|error| panic!("{} should read: {error}", report_path.display())),
     )
     .unwrap_or_else(|error| panic!("{} should parse: {error}", report_path.display()));
-    let helper_sha = report["metadata"]["helper_sha256"]
-        .as_str()
-        .expect("report should name helper provenance");
+    assert_eq!(
+        report["metadata"]["helper_sha256"].as_str().map(str::len),
+        Some(64)
+    );
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
     for path in fri05_c06_computed_overflow_paths() {
         let raw = std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("{} should read: {error}", path.display()));
         assert!(
-            raw.trim_start()
-                .starts_with("<!-- generated-by: surgeist-layout-generate "),
-            "{} lacks generator provenance",
+            !raw.contains("generated-by: surgeist-layout-generate"),
+            "{} contains embedded provenance",
             path.display()
         );
-        assert!(
-            raw.contains(&format!("helper-sha256=\"{helper_sha}\"")),
-            "{} has stale helper provenance",
-            path.display()
-        );
+        let output = path
+            .strip_prefix(&corpus)
+            .expect("fixture should be under corpus root")
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/");
+        let entries = report["generated"]
+            .as_array()
+            .expect("generated report bucket")
+            .iter()
+            .filter(|entry| entry["output"].as_str() == Some(output.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(entries.len(), 1, "{output}");
+        assert_eq!(entries[0]["xml_sha256"].as_str().map(str::len), Some(64));
     }
 }
 
@@ -2770,7 +2931,7 @@ fn parses_generated_xml_with_provenance_comment() {
 }
 
 #[test]
-fn all_checked_in_browser_parity_xml_has_generator_provenance() {
+fn all_checked_in_browser_parity_xml_is_comment_free_with_centralized_provenance() {
     let fixtures = support::fixture_files("xml").expect("fixtures should load");
     assert!(
         !fixtures.is_empty(),
@@ -2781,9 +2942,8 @@ fn all_checked_in_browser_parity_xml_has_generator_provenance() {
         let raw = std::fs::read_to_string(&fixture)
             .unwrap_or_else(|error| panic!("{} should read: {error}", fixture.display()));
         assert!(
-            raw.trim_start()
-                .starts_with("<!-- generated-by: surgeist-layout-generate "),
-            "{} is missing surgeist-layout-generate provenance",
+            !raw.contains("generated-by: surgeist-layout-generate"),
+            "{} contains embedded generated provenance",
             fixture.display()
         );
     }
@@ -2881,9 +3041,9 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5712);
+    assert_eq!(report_json["summary"]["generated"], 5736);
     assert_eq!(report_json["summary"]["unsupported"], 16);
-    assert_eq!(report_json["summary"]["expected_fail"], 0);
+    assert_eq!(report_json["summary"]["expected_fail"], 3);
     assert_eq!(report_json["summary"]["quarantined"], 0);
     assert_eq!(report_json["summary"]["failed_to_generate"], 0);
     assert!(
@@ -2892,7 +3052,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5712,
+        5736,
         "generated bucket length must match its summary"
     );
     assert_eq!(
@@ -2902,7 +3062,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "expected_fail"),
-        0,
+        3,
         "expected_fail bucket length must match its summary"
     );
     assert_eq!(

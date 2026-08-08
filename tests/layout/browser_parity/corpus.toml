@@ -54,9 +54,9 @@ scoped = []
 
 [generation_reports.full]
 file = "all.json"
-generated = 5712
+generated = 5736
 unsupported = 16
-expected_fail = 0
+expected_fail = 3
 quarantined = 0
 failed_to_generate = 0
 
@@ -92,6 +92,51 @@ source_root = "surgeist"
 source = "flex/fri03_order_modified_flex.html"
 generator = "constrained-html"
 status = "active"
+
+[[cases]]
+id = "flex/fri07_cross_auto_margin_overflow"
+source_root = "surgeist"
+source = "flex/fri07_cross_auto_margin_overflow.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/fri07_absolute_auto_margin_insets"
+source_root = "surgeist"
+source = "flex/fri07_absolute_auto_margin_insets.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/fri07_intrinsic_flex_basis"
+source_root = "surgeist"
+source = "flex/fri07_intrinsic_flex_basis.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/fri07_collapsed_strut_single_line"
+source_root = "surgeist"
+source = "flex/fri07_collapsed_strut_single_line.html"
+generator = "constrained-html"
+status = "expected-fail"
+reason = "Chrome 149.0.7827.115 places the first visible item at y=0 instead of the CSS Flexbox section 4.4 collapsed-strut requirement y=5 in all four variants; WPT flexbox_visibility-collapse.html corroborates removal; revalidate on a Chrome pin/profile change, CSS/WPT expectation change, or Chrome collapsed-flex-strut support"
+
+[[cases]]
+id = "flex/fri07_collapsed_strut_wrapping"
+source_root = "surgeist"
+source = "flex/fri07_collapsed_strut_wrapping.html"
+generator = "constrained-html"
+status = "expected-fail"
+reason = "Chrome 149.0.7827.115 reports root height 157 instead of the CSS Flexbox section 4.4 collapsed-strut requirement 68 in all four variants; WPT flexbox_visibility-collapse-line-wrapping.html corroborates removal and rewrapping; revalidate on a Chrome pin/profile change, CSS/WPT expectation change, or Chrome collapsed-flex-strut support"
+
+[[cases]]
+id = "flex/fri07_flex_composition"
+source_root = "surgeist"
+source = "flex/fri07_flex_composition.html"
+generator = "constrained-html"
+status = "expected-fail"
+reason = "Chrome 149.0.7827.115 places child zero at y=6 instead of 27 in LTR and y=134 instead of 113 in RTL for both box modes after valid zero clip-box lowering; CSS Flexbox section 4.4 and WPT collapse oracles require collapsed-item removal with a retained strut; revalidate on a Chrome pin/profile change, CSS/WPT expectation change, or Chrome collapsed-flex-strut support"
 
 [[cases]]
 id = "grid/fri03_order_modified_grid"

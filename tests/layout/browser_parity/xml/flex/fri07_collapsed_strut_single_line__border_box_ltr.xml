@@ -1,0 +1,27 @@
+<test name="fri07_collapsed_strut_single_line__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" align-items="baseline" width="180px">
+      <text source-tag="div" display="flex" direction="ltr" flex-shrink="0" width="30px" height="20px">
+        base
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" flex-item-collapse="collapsed" flex-shrink="0" width="40px" height="40px">
+        small strut
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" flex-shrink="0" width="30px" height="25px">
+        peer
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" flex-item-collapse="collapsed" flex-shrink="0" width="50px" height="60px">
+        large strut
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="60">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="30" y="0" width="40" height="40"/>
+      <node x="70" y="0" width="30" height="25"/>
+      <node x="100" y="0" width="50" height="60"/>
+    </node>
+  </expectations>
+</test>

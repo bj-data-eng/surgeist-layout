@@ -5594,6 +5594,7 @@ mod tests {
             parse_corpus_manifest(&test_schema_two_manifest("")).expect("test manifest");
         manifest.generation_reports.full.generated = 1;
         manifest.generation_reports.full.unsupported = 0;
+        manifest.generation_reports.full.expected_fail = 0;
         let manifest_raw = test_schema_two_manifest("");
         fs::write(root.join("corpus.toml"), &manifest_raw).expect("corpus manifest");
         let mut metadata = generation_report_metadata_for_manifest(
@@ -6595,7 +6596,7 @@ mod tests {
         let reports = generation_report_manifest(&manifest).expect("report manifest");
         assert_eq!(reports.all_files().len(), 1);
         assert_eq!(reports.full.file, "all.json");
-        assert_eq!(reports.full.generated, 5712);
+        assert_eq!(reports.full.generated, 5736);
         assert!(reports.scoped.is_empty());
     }
 
@@ -6667,9 +6668,9 @@ mod tests {
         let reports = generation_report_manifest(&manifest).expect("report manifest");
         assert_eq!(reports.all_files(), BTreeSet::from(["all.json"]));
         assert!(reports.scoped.is_empty());
-        assert_eq!(reports.full.generated, 5712);
+        assert_eq!(reports.full.generated, 5736);
         assert_eq!(reports.full.unsupported, 16);
-        assert_eq!(reports.full.expected_fail, 0);
+        assert_eq!(reports.full.expected_fail, 3);
         assert_eq!(reports.full.quarantined, 0);
         assert_eq!(reports.full.failed_to_generate, 0);
     }
@@ -7410,6 +7411,159 @@ if (before !== "collapsed" || after !== before) {{
         assert_eq!(actual.len(), 24);
     }
 
+    fn fri07_c04_case_ids() -> [&'static str; 6] {
+        [
+            "flex/fri07_cross_auto_margin_overflow",
+            "flex/fri07_absolute_auto_margin_insets",
+            "flex/fri07_intrinsic_flex_basis",
+            "flex/fri07_collapsed_strut_single_line",
+            "flex/fri07_collapsed_strut_wrapping",
+            "flex/fri07_flex_composition",
+        ]
+    }
+
+    fn fri07_c04_expected_fail_reasons() -> BTreeMap<&'static str, &'static str> {
+        BTreeMap::from([
+            (
+                "flex/fri07_collapsed_strut_single_line",
+                "Chrome 149.0.7827.115 places the first visible item at y=0 instead of the CSS Flexbox section 4.4 collapsed-strut requirement y=5 in all four variants; WPT flexbox_visibility-collapse.html corroborates removal; revalidate on a Chrome pin/profile change, CSS/WPT expectation change, or Chrome collapsed-flex-strut support",
+            ),
+            (
+                "flex/fri07_collapsed_strut_wrapping",
+                "Chrome 149.0.7827.115 reports root height 157 instead of the CSS Flexbox section 4.4 collapsed-strut requirement 68 in all four variants; WPT flexbox_visibility-collapse-line-wrapping.html corroborates removal and rewrapping; revalidate on a Chrome pin/profile change, CSS/WPT expectation change, or Chrome collapsed-flex-strut support",
+            ),
+            (
+                "flex/fri07_flex_composition",
+                "Chrome 149.0.7827.115 places child zero at y=6 instead of 27 in LTR and y=134 instead of 113 in RTL for both box modes after valid zero clip-box lowering; CSS Flexbox section 4.4 and WPT collapse oracles require collapsed-item removal with a retained strut; revalidate on a Chrome pin/profile change, CSS/WPT expectation change, or Chrome collapsed-flex-strut support",
+            ),
+        ])
+    }
+
+    fn fri07_c04_output_paths() -> BTreeSet<String> {
+        fri07_c04_case_ids()
+            .into_iter()
+            .flat_map(|id| {
+                fixture_cases()
+                    .into_iter()
+                    .map(move |(variant, _)| format!("xml/{id}__{variant}.xml"))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn fri07_c04_manifest_freezes_exact_three_active_and_three_expected_fail_cases() {
+        let manifest =
+            parse_corpus_manifest(include_str!("../../layout/browser_parity/corpus.toml"))
+                .expect("frozen corpus manifest should parse");
+        let expected_fail = fri07_c04_expected_fail_reasons();
+
+        for id in fri07_c04_case_ids() {
+            let matches = manifest
+                .cases
+                .iter()
+                .filter(|case| case.id == id)
+                .collect::<Vec<_>>();
+            assert_eq!(matches.len(), 1, "expected one frozen case for {id}");
+            let case = matches[0];
+            assert_eq!(case.source_root, CorpusSourceRoot::Surgeist);
+            assert_eq!(case.source, format!("{id}.html"));
+            assert_eq!(case.generator, CorpusGenerator::ConstrainedHtml);
+            if let Some(reason) = expected_fail.get(id) {
+                assert_eq!(case.status, CorpusStatus::ExpectedFail);
+                assert_eq!(case.reason.as_deref(), Some(*reason));
+            } else {
+                assert_eq!(case.status, CorpusStatus::Active);
+                assert_eq!(case.reason, None);
+            }
+        }
+        assert_eq!(expected_fail.len(), 3);
+
+        let reports = generation_report_manifest(&manifest).expect("report manifest");
+        assert_eq!(reports.all_files(), BTreeSet::from(["all.json"]));
+        assert!(reports.scoped.is_empty());
+        assert_eq!(reports.full.generated, 5_736);
+        assert_eq!(reports.full.unsupported, 16);
+        assert_eq!(reports.full.expected_fail, 3);
+        assert_eq!(reports.full.quarantined, 0);
+        assert_eq!(reports.full.failed_to_generate, 0);
+    }
+
+    #[test]
+    fn fri07_c04_corpus_has_exact_final_inventory_and_centralized_provenance() {
+        let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let xml_paths = collect_relative_files(&corpus.join("xml"))
+            .expect("generated XML inventory")
+            .into_iter()
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("xml"))
+            .map(|path| format!("xml/{}", path.to_string_lossy().replace('\\', "/")))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(xml_paths.len(), 5_736);
+
+        let expected = fri07_c04_output_paths();
+        assert_eq!(expected.len(), 24);
+        assert!(expected.is_subset(&xml_paths));
+
+        let report: Value = serde_json::from_str(
+            &fs::read_to_string(corpus.join("xml/generation-reports/all.json"))
+                .expect("authoritative generation report"),
+        )
+        .expect("authoritative report JSON");
+        assert_eq!(report["metadata"]["schema_version"].as_u64(), Some(3));
+        assert!(report["filter"].is_null());
+        for (bucket, count) in [
+            ("generated", 5_736),
+            ("unsupported", 16),
+            ("expected_fail", 3),
+            ("quarantined", 0),
+            ("failed_to_generate", 0),
+        ] {
+            assert_eq!(report["summary"][bucket].as_u64(), Some(count));
+            assert_eq!(
+                report[bucket].as_array().map(Vec::len),
+                Some(count as usize)
+            );
+        }
+
+        let generated = report["generated"]
+            .as_array()
+            .expect("generated report bucket");
+        let reported = generated
+            .iter()
+            .map(|entry| {
+                assert_eq!(entry["source_sha256"].as_str().map(str::len), Some(64));
+                assert_eq!(entry["xml_sha256"].as_str().map(str::len), Some(64));
+                assert!(entry["linked_resources"].is_array());
+                entry["output"]
+                    .as_str()
+                    .expect("generated output path")
+                    .to_string()
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(reported, xml_paths);
+        assert!(expected.is_subset(&reported));
+
+        let reported_expected_fail = report["expected_fail"]
+            .as_array()
+            .expect("expected-fail report bucket")
+            .iter()
+            .map(|entry| {
+                (
+                    entry["name"].as_str().expect("expected-fail name"),
+                    entry["reason"].as_str().expect("expected-fail reason"),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(reported_expected_fail, fri07_c04_expected_fail_reasons());
+
+        for output in &xml_paths {
+            let raw = fs::read_to_string(corpus.join(output)).expect(output);
+            assert!(
+                !raw.contains("<!-- generated-by: surgeist-layout-generate "),
+                "{output} contains embedded provenance"
+            );
+        }
+    }
+
     fn keep_imported_browser_parity_support_reachable(golden: &browser_parity_support::Golden) {
         let parse_file = |path: &Path| browser_parity_support::Golden::parse_file(path);
         let _ = parse_file;
@@ -7769,9 +7923,9 @@ if (expectedReason === undefined) {{
             "17e19f30a6b4f2a97880dc090dc056fac2f5a061679768891f12cccf026261b7"
         );
 
-        assert_eq!(manifest.generation_reports.full.generated, 5_712);
+        assert_eq!(manifest.generation_reports.full.generated, 5_736);
         assert_eq!(manifest.generation_reports.full.unsupported, 16);
-        assert_eq!(manifest.generation_reports.full.expected_fail, 0);
+        assert_eq!(manifest.generation_reports.full.expected_fail, 3);
         assert_eq!(manifest.generation_reports.full.quarantined, 0);
         assert_eq!(manifest.generation_reports.full.failed_to_generate, 0);
     }
@@ -8169,7 +8323,7 @@ if (expectedReason === undefined) {{
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
-            "99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701"
+            "4419c4aab9429d1f81ac46426095719e19cf92cfbf51caf66d4f737c07c452cc"
         );
     }
 
@@ -14427,13 +14581,9 @@ status = "active"
         let mut digest = Sha256::new();
         for output in outputs {
             let raw = fs::read_to_string(corpus.join(output)).expect(output);
-            let body = raw
-                .split_once('\n')
-                .map(|(_, body)| body)
-                .expect("generated XML provenance line");
             digest.update(output.as_bytes());
             digest.update([0]);
-            digest.update(body.as_bytes());
+            digest.update(raw.as_bytes());
             digest.update([0]);
         }
         hex_digest(&digest.finalize())
@@ -14445,20 +14595,18 @@ status = "active"
         serde_json::from_str(&raw).expect("authoritative report JSON")
     }
 
-    const FRI06_C12_T09_HELPER_SHA256: &str =
-        "42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2";
     const FRI07_C04_T02_HELPER_SHA256: &str =
         "caafa5a48787c9b80a45d8b2c8ac6f91b8ad7ab14a85e5bcdf3a3e922ebce019";
-    const FRI06_C12_T09_REPORT_SHA256: &str =
-        "8d59c87d1fcc185bda0372968ae81dbeff74f241c17335db98629ad49f1f463f";
-    const FRI06_C12_T09_COMPLETE_XML_SHA256: &str =
-        "d2530aa79f214b536e46aee263095a6e7c0a1d7a329bdce7baeb194af3670896";
+    const FRI07_C04_T04_REPORT_SHA256: &str =
+        "5c560f240d27ad28d00023156b0bf2744aa8392d34fe916d800e02894e10353f";
+    const FRI07_C04_T04_COMPLETE_XML_SHA256: &str =
+        "4d951ba1c022466db5c3903dc84072064a0ec17a7a8aadb008363c442d1a4a96";
     const FRI06_C12_T09_ACTIVATION_BODIES_SHA256: &str =
         "f3d9b41973e6b0e51e258f027496dc2651c4fba7d24567b05d4f088ee63de335";
     const FRI06_C12_T09_PRESERVED_BODIES_SHA256: &str =
         "b2684877302ed7b1b6b1e52b5ae4c4ae4508ff425d6c34ff237b7e37440a3c79";
-    const FRI06_C12_T09_INVENTORY_SHA256: &str =
-        "0c327c2d93b140ea5ed5660e45ad947a0afb583b9aa97b3163ea59b45d371715";
+    const FRI07_C04_T04_INVENTORY_SHA256: &str =
+        "0468935c1a2165886cd842572d50a5f6099d7dc0712e9b0b104ad7a6879ad11b";
 
     fn fri06_c12_t09_xml_lineage_digests(repository: &Path, corpus: &Path) -> (String, String) {
         let mut complete_xml = Sha256::new();
@@ -14474,7 +14622,7 @@ status = "active"
                     .replace('\\', "/")
             })
             .collect::<BTreeSet<_>>();
-        assert_eq!(xml_paths.len(), 5_712);
+        assert_eq!(xml_paths.len(), 5_736);
         for corpus_relative in xml_paths {
             let repository_relative = format!("tests/layout/browser_parity/{corpus_relative}");
             complete_xml.update(
@@ -14495,7 +14643,7 @@ status = "active"
     }
 
     #[test]
-    fn fri06_c12_t09_final_lineage_hashes_match_preserved_run() {
+    fn fri07_c04_final_lineage_hashes_and_preserved_bodies_match_reviewed_derivation() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
         let corpus = repository.join("tests/layout/browser_parity");
         assert_eq!(
@@ -14505,12 +14653,12 @@ status = "active"
         assert_eq!(
             sha256_file(&corpus.join("xml/generation-reports/all.json"))
                 .expect("full generation report"),
-            FRI06_C12_T09_REPORT_SHA256
+            FRI07_C04_T04_REPORT_SHA256
         );
 
         let (complete_xml, inventory) = fri06_c12_t09_xml_lineage_digests(repository, &corpus);
-        assert_eq!(complete_xml, FRI06_C12_T09_COMPLETE_XML_SHA256);
-        assert_eq!(inventory, FRI06_C12_T09_INVENTORY_SHA256);
+        assert_eq!(complete_xml, FRI07_C04_T04_COMPLETE_XML_SHA256);
+        assert_eq!(inventory, FRI07_C04_T04_INVENTORY_SHA256);
 
         let report = fri06_c08r_final_report(&corpus);
         let generated = report["generated"]
@@ -14525,11 +14673,17 @@ status = "active"
             })
             .collect::<BTreeSet<_>>();
         let activation = fri06_c08r_activation_outputs();
-        let preserved = generated
+        let fri07 = fri07_c04_output_paths();
+        let nonactivation = generated
             .difference(&activation)
             .cloned()
             .collect::<BTreeSet<_>>();
+        let preserved = nonactivation
+            .difference(&fri07)
+            .cloned()
+            .collect::<BTreeSet<_>>();
         assert_eq!(activation.len(), 388);
+        assert_eq!(fri07.len(), 24);
         assert_eq!(preserved.len(), 5_324);
         assert_eq!(
             fri06_c08r_xml_body_aggregate(&corpus, &activation),
@@ -14563,7 +14717,7 @@ status = "active"
         .expect("frozen corpus manifest");
         assert_eq!(
             sha256_file(&corpus.join("corpus.toml")).expect("manifest hash"),
-            "99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701"
+            "4419c4aab9429d1f81ac46426095719e19cf92cfbf51caf66d4f737c07c452cc"
         );
         assert_eq!(
             sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()),
@@ -14773,9 +14927,9 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         let report = fri06_c08r_final_report(&corpus);
         assert!(report["filter"].is_null());
         for (field, expected) in [
-            ("generated", 5_712),
+            ("generated", 5_736),
             ("unsupported", 16),
-            ("expected_fail", 0),
+            ("expected_fail", 3),
             ("quarantined", 0),
             ("failed_to_generate", 0),
         ] {
@@ -14801,14 +14955,14 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
                 "launch_profile_sha256",
                 "9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb",
             ),
-            ("helper_sha256", FRI06_C12_T09_HELPER_SHA256),
+            ("helper_sha256", FRI07_C04_T02_HELPER_SHA256),
             (
                 "base_style_sha256",
                 "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
             ),
             (
                 "corpus_manifest_sha256",
-                "99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701",
+                "4419c4aab9429d1f81ac46426095719e19cf92cfbf51caf66d4f737c07c452cc",
             ),
             ("taffy_commit", TAFFY_COMMIT),
         ] {
@@ -14835,13 +14989,20 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
                     .to_string()
             })
             .collect::<BTreeSet<_>>();
-        assert_eq!(generated.len(), 5_712);
+        assert_eq!(generated.len(), 5_736);
         let activation = fri06_c08r_activation_outputs();
         assert!(activation.is_subset(&generated));
-        let preserved = generated
+        let fri07 = fri07_c04_output_paths();
+        assert!(fri07.is_subset(&generated));
+        let nonactivation = generated
             .difference(&activation)
             .cloned()
             .collect::<BTreeSet<_>>();
+        let preserved = nonactivation
+            .difference(&fri07)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        assert_eq!(fri07.len(), 24);
         assert_eq!(preserved.len(), 5_324);
         assert_eq!(
             fri06_c08r_xml_body_aggregate(&corpus, &preserved),
@@ -15327,7 +15488,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
             ),
             (
                 "tests/layout/browser_parity/corpus.toml",
-                "99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701",
+                "4419c4aab9429d1f81ac46426095719e19cf92cfbf51caf66d4f737c07c452cc",
             ),
         ] {
             assert_eq!(
