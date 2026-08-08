@@ -2440,8 +2440,7 @@ fn write_fixture_goldens(
     let source = rel.to_string_lossy().replace('\\', "/");
     let source_sha256 = sha256_file(fixture)?;
     let report_source = format!("html/{source}");
-    let linked_resources =
-        expected_linked_resource_provenance(&config.corpus, Path::new(&report_source), fixture)?;
+    let mut linked_resources: Option<Vec<GeneratedLinkedResourceProvenance>> = None;
     let output_dir = config.corpus.xml_root.join(group);
     fs::create_dir_all(&output_dir)
         .map_err(|error| format!("failed to create {}: {error}", output_dir.display()))?;
@@ -2463,6 +2462,18 @@ fn write_fixture_goldens(
             });
             continue;
         }
+        let linked_resources = match &linked_resources {
+            Some(linked_resources) => linked_resources.clone(),
+            None => {
+                let provenance = expected_linked_resource_provenance(
+                    &config.corpus,
+                    Path::new(&report_source),
+                    fixture,
+                )?;
+                linked_resources = Some(provenance.clone());
+                provenance
+            }
+        };
         let xml = generate_xml(&name, data);
         planned.push(PlannedGoldenOutput::Generated {
             name: name.clone(),
@@ -2471,7 +2482,7 @@ fn write_fixture_goldens(
             output_file,
             variant: variant.to_string(),
             source_sha256: source_sha256.clone(),
-            linked_resources: linked_resources.clone(),
+            linked_resources,
             xml_sha256: sha256_bytes(xml.as_bytes()),
             xml,
         });
@@ -3479,18 +3490,10 @@ fn validate_generation_report_provenance(
         ));
     }
 
-    let mut names = BTreeSet::new();
     let mut outputs = BTreeSet::new();
     let mut linked_resource_cache =
         BTreeMap::<PathBuf, Vec<GeneratedLinkedResourceProvenance>>::new();
     for entry in &report.generated {
-        if !names.insert(entry.name.as_str()) {
-            return Err(format!(
-                "{} generation report has duplicate generated identity {:?}",
-                report_path.display(),
-                entry.name
-            ));
-        }
         if !outputs.insert(entry.output.as_str()) {
             return Err(format!(
                 "{} generation report has duplicate generated output {:?}",
@@ -5789,6 +5792,74 @@ mod tests {
     }
 
     #[test]
+    fn centralized_provenance_accepts_repeated_names_with_unique_output_paths() {
+        let root = test_browser_root("repeated-generated-name");
+        let config = Config::from_root(root.clone()).expect("test corpus config");
+        let mut report = GenerationReport::default();
+
+        for group in ["block", "flex"] {
+            let source = format!("html/{group}/example.html");
+            let output = format!("xml/{group}/example__border_box_ltr.xml");
+            let source_path = config.root.join(&source);
+            let output_path = config.root.join(&output);
+            fs::create_dir_all(source_path.parent().expect("source parent"))
+                .expect("source directory");
+            fs::create_dir_all(output_path.parent().expect("output parent"))
+                .expect("output directory");
+            fs::write(&source_path, "<!doctype html>\n").expect("source fixture");
+            fs::write(&output_path, "<test name=\"example__border_box_ltr\"/>\n")
+                .expect("XML fixture");
+            report.record_generated(current_test_generated_entry(
+                &config,
+                "example__border_box_ltr",
+                &source,
+                &output,
+                "border_box_ltr",
+            ));
+        }
+        canonicalize_generation_report(&mut report);
+
+        validate_generation_report_provenance(&config, Path::new("all.json"), &report)
+            .expect("output paths, not globally repeated stems, identify generated entries");
+        fs::remove_dir_all(root).expect("test root cleanup");
+    }
+
+    #[test]
+    fn centralized_provenance_rejects_duplicate_exact_source_output_relation() {
+        let root = test_browser_root("duplicate-generated-relation");
+        let config = Config::from_root(root.clone()).expect("test corpus config");
+        let source = "html/block/example.html";
+        let output = "xml/block/example__border_box_ltr.xml";
+        fs::create_dir_all(config.root.join("html/block")).expect("source directory");
+        fs::create_dir_all(config.root.join("xml/block")).expect("output directory");
+        fs::write(config.root.join(source), "<!doctype html>\n").expect("source fixture");
+        fs::write(
+            config.root.join(output),
+            "<test name=\"example__border_box_ltr\"/>\n",
+        )
+        .expect("XML fixture");
+        let entry = current_test_generated_entry(
+            &config,
+            "example__border_box_ltr",
+            source,
+            output,
+            "border_box_ltr",
+        );
+        let mut report = GenerationReport::default();
+        report.record_generated(entry.clone());
+        report.record_generated(entry);
+        canonicalize_generation_report(&mut report);
+
+        let error = validate_generation_report_provenance(&config, Path::new("all.json"), &report)
+            .expect_err("an exact source/output relation must remain unique");
+        assert!(
+            error.contains("duplicate generated output"),
+            "wrong duplicate relation error: {error}"
+        );
+        fs::remove_dir_all(root).expect("test root cleanup");
+    }
+
+    #[test]
     fn centralized_provenance_recomputes_linked_resource_hashes() {
         let root = test_browser_root("linked-resource-hash");
         let config = Config::from_root(root.clone()).expect("test corpus config");
@@ -5814,6 +5885,67 @@ mod tests {
         let second = expected_linked_resource_provenance(&config, source_rel, &source)
             .expect("second linked-resource lineage");
         assert_ne!(first[0].sha256, second[0].sha256);
+        fs::remove_dir_all(root).expect("test root cleanup");
+    }
+
+    #[test]
+    fn centralized_provenance_unsupported_outputs_do_not_hash_missing_linked_resources() {
+        let root = test_browser_root("unsupported-missing-linked-resource");
+        let corpus = Config::from_root(root.clone()).expect("test corpus config");
+        let config = test_generation_config(corpus);
+        fs::create_dir_all(config.corpus.html_root.join("float")).expect("source directory");
+        let fixture = config.corpus.html_root.join("float/legacy.html");
+        fs::write(
+            &fixture,
+            "<link rel=\"stylesheet\" href=\"missing/test_base_style.css\">\n",
+        )
+        .expect("source fixture");
+        let unsupported = unsupported_node("Unsupported legacy float fixture");
+        let desc = json!({
+            "borderBoxLtrData": unsupported,
+            "contentBoxLtrData": unsupported,
+            "borderBoxRtlData": unsupported,
+            "contentBoxRtlData": unsupported,
+        });
+        let mut report = GenerationReport::default();
+
+        write_fixture_goldens(&config, &fixture, &desc, &mut report)
+            .expect("unsupported outputs have no generated-entry linked-resource hashes");
+
+        assert_eq!(report.summary.generated, 0);
+        assert_eq!(report.summary.unsupported, 4);
+        assert!(report.generated.is_empty());
+        fs::remove_dir_all(root).expect("test root cleanup");
+    }
+
+    #[test]
+    fn centralized_provenance_generated_outputs_reject_missing_linked_resources() {
+        let root = test_browser_root("generated-missing-linked-resource");
+        let corpus = Config::from_root(root.clone()).expect("test corpus config");
+        let config = test_generation_config(corpus);
+        fs::create_dir_all(config.corpus.html_root.join("block")).expect("source directory");
+        let fixture = config.corpus.html_root.join("block/example.html");
+        fs::write(
+            &fixture,
+            "<link rel=\"stylesheet\" href=\"missing/example.css\">\n",
+        )
+        .expect("source fixture");
+        let desc = json!({
+            "borderBoxLtrData": {},
+            "contentBoxLtrData": {},
+            "borderBoxRtlData": {},
+            "contentBoxRtlData": {},
+        });
+        let mut report = GenerationReport::default();
+
+        let error = write_fixture_goldens(&config, &fixture, &desc, &mut report)
+            .expect_err("generated outputs must hash every linked resource");
+
+        assert!(
+            error.contains("missing/example.css"),
+            "wrong missing linked-resource error: {error}"
+        );
+        assert!(report.generated.is_empty());
         fs::remove_dir_all(root).expect("test root cleanup");
     }
 
@@ -15169,7 +15301,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
 
         assert_eq!(
             sha256_bytes(production.as_bytes()),
-            "82813a20f472fece53495ee98977a3c2cff658c2e9aef399e40269bf1c3422c3",
+            "9894fad1c36a1563317f985cc56d012ebad35cb9e7daa70c62297d53649f6458",
             "generator production source must match the reviewed C08R correction"
         );
         for (path, expected) in [
