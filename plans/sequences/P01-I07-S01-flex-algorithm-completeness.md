@@ -152,13 +152,12 @@ does not accept normalized collapsed participation and the exact six-source,
 **Bounded outcome:** Add only the exact computed/layout-ready collapse
 serialization and finite adapter token, their independence and rejection
 controls, and the six specified four-variant browser sources. Settle every HTML,
-helper, parser, manifest, provenance-schema, and behavior input. First migrate
-the existing `all.json` report in place to the sole global/per-output provenance
-authority and prove generated XML is comment-free. Then perform the one full
-unfiltered existing-pinned regeneration, including the one-time removal of all
-legacy XML provenance comments, and adopt its exact XML/report/corpus lineage.
-Apply the known-Chrome-failure exception only when every certainty and
-synthetic-substitute predicate is independently proven.
+helper, parser, manifest, provenance-schema, and behavior input, with the
+existing `all.json` settled as the sole global/per-output provenance authority
+before the single full unfiltered existing-pinned regeneration. Adopt the exact
+comment-free XML/report/corpus lineage, including the one-time removal of all
+legacy XML provenance comments. Apply the known-Chrome-failure exception only
+when every certainty and synthetic-substitute predicate is independently proven.
 
 **Observable exit evidence:** Exactly 24 owned rows have honest input-derived
 layout facts, visible oracle accounting, and centralized provenance. `all.json`
