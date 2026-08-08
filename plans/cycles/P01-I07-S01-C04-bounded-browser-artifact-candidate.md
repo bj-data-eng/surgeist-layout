@@ -94,9 +94,10 @@ variants; the other 12 remain ordinary parity oracles. Revalidate on a Chrome
 pin/profile change, a CSS/WPT expectation change, or Chrome support for collapsed
 flex struts. Quarantine and oracle weakening remain forbidden.
 
-Out of scope: production layout changes; public API, model, errors, reexports,
-or docs; authored CSS parsing; root or sibling work; new fixture vocabulary
-beyond the one normalized token; general visibility, inline-flex, positioned
+Out of scope: production layout changes; public API, model, errors, reexports, or
+documentation beyond the two named provenance updates; authored CSS parsing;
+root or sibling work; new fixture vocabulary beyond the one normalized token;
+general visibility, inline-flex, positioned
 layout, or rendering behavior; new modules, helpers shared outside the existing
 fixture bridge, generator paths, commands, second reports or provenance
 authorities, scripts, lints, CI, dependencies, features, MSRV, browser
@@ -176,17 +177,14 @@ git diff --check
 **Files/area:**
 `tests/layout/browser_parity/scripts/gentest/test_helper.js`,
 `tests/bin/surgeist-layout-generate/generator.rs`,
-`tests/layout/browser_parity/support.rs`, and their existing focused test
-modules only.
+`tests/layout/browser_parity/support.rs`, and their focused test modules only.
 
-**Outcome:** carry one computed flex-item collapse fact through the existing
-helper JSON, generator serializer, and Rust fixture adapter without introducing
-a CSS parser or a second lowering path.
+**Outcome:** carry one computed flex-item collapse fact through the existing helper,
+serializer, and adapter; make it lower one-token `content-box`, `padding-box`, or `border-box` clip margin to that box and zero without a CSS parser.
 
-**RED evidence:** add `fri07_c04_collapse_helper_`,
-`fri07_c04_collapse_serializer_`, and `fri07_c04_collapse_parser_` tests first.
-They fail at the task base because the helper JSON and XML serializer omit the
-fact and the Rust adapter always leaves the public input at `Normal`.
+**RED evidence:** add `fri07_c04_collapse_helper_`, `fri07_c04_collapse_serializer_`, `fri07_c04_collapse_parser_`, and
+`fri07_c04_overflow_clip_margin_parser_` tests first. They fail because the fact is omitted, remains `Normal`, and a one-token
+clip box is misparsed as a length.
 
 **Acceptance:** helper evidence distinguishes an in-flow collapsed flex item
 from normal, hidden, absolute, display-none, and non-flex controls. The serializer
@@ -194,8 +192,9 @@ emits exactly one kebab-case attribute only for the collapsed state. The parser
 maps only `collapsed`, defaults absence to `Normal`, and rejects `normal`,
 `visible`, `hidden`, CSS-wide values, empty/malformed values, duplicates, and
 authored `visibility`. Renaming the fixture or changing only expectation geometry
-does not change normalized input. Existing style fields, helper assets, generator
-path, and XML remain otherwise untouched.
+does not change normalized input. The clip-margin parser maps only those three
+one-token boxes to zero, preserves supported length and box-plus-length forms, and rejects invalid tokens, negative/non-pixel values, and extra components. Its
+acceptance precedes composition-exception evidence. Other style fields remain untouched.
 
 **Commands:**
 
@@ -203,6 +202,7 @@ path, and XML remain otherwise untouched.
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri07_c04_collapse_helper_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri07_c04_collapse_serializer_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri07_c04_collapse_parser_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri07_c04_overflow_clip_margin_parser_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 cargo fmt --check
