@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-07 intrinsic flex bases with grow and shrink</title>
+</head>
+<body>
+
+<div id="test-root" style="display: flex; flex-direction: column; width: 260px; gap: 10px;">
+  <div style="display: flex; width: 260px;">
+    <div style="min-width: 0; flex-grow: 1; flex-shrink: 1; flex-basis: min-content;">alpha beta gamma</div>
+    <div style="min-width: 0; flex-grow: 1; flex-shrink: 1; flex-basis: max-content;">alpha beta gamma</div>
+  </div>
+  <div style="display: flex; width: 120px;">
+    <div style="min-width: 0; flex-grow: 1; flex-shrink: 1; flex-basis: min-content;">longword short tail</div>
+    <div style="min-width: 0; flex-grow: 1; flex-shrink: 1; flex-basis: max-content;">longword short tail</div>
+  </div>
+</div>
+
+</body>
+</html>

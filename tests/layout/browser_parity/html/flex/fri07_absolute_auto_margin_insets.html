@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-07 absolute auto margins and insets</title>
+</head>
+<body>
+
+<div id="test-root" style="display: flex; position: relative; width: 120px; height: 80px;">
+  <div style="position: absolute; inset: auto 10px 10px auto; width: 20px; height: 20px; margin: auto;"></div>
+  <div style="position: absolute; inset: 10px; width: 20px; height: 20px; margin: auto;"></div>
+  <div style="position: absolute; left: 10px; right: 10px; top: 45px; width: 130px; height: 20px; margin-inline: auto;"></div>
+  <div style="position: absolute; top: 10px; right: 10px; bottom: 10px; width: 20px; height: 90px; margin-block: auto;"></div>
+</div>
+
+</body>
+</html>

@@ -7120,6 +7120,164 @@ if (before !== "collapsed" || after !== before) {{
         }
     }
 
+    fn fri07_c04_fixture_source_contracts() -> [(&'static str, &'static [&'static str], usize); 6] {
+        [
+            (
+                "flex/fri07_cross_auto_margin_overflow.html",
+                &[
+                    "margin-block-start: auto",
+                    "margin-block-end: auto",
+                    "overflow: auto",
+                ],
+                0,
+            ),
+            (
+                "flex/fri07_absolute_auto_margin_insets.html",
+                &[
+                    "position: absolute",
+                    "inset:",
+                    "margin: auto",
+                    "margin-inline: auto",
+                    "margin-block: auto",
+                ],
+                0,
+            ),
+            (
+                "flex/fri07_intrinsic_flex_basis.html",
+                &[
+                    "flex-basis: min-content",
+                    "flex-basis: max-content",
+                    "flex-grow: 1; flex-shrink: 1",
+                ],
+                0,
+            ),
+            (
+                "flex/fri07_collapsed_strut_single_line.html",
+                &[
+                    "align-items: baseline",
+                    "visibility: collapse",
+                    "height: 40px",
+                    "height: 60px",
+                ],
+                2,
+            ),
+            (
+                "flex/fri07_collapsed_strut_wrapping.html",
+                &[
+                    "flex-wrap: wrap",
+                    "column-gap:",
+                    "row-gap:",
+                    "margin-inline-start:",
+                    "margin-inline-end: auto",
+                    "visibility: collapse",
+                ],
+                2,
+            ),
+            (
+                "flex/fri07_flex_composition.html",
+                &[
+                    "order:",
+                    "writing-mode: sideways-rl",
+                    "flex-flow:",
+                    "<img",
+                    "overflow: auto",
+                    "visibility: collapse",
+                ],
+                1,
+            ),
+        ]
+    }
+
+    #[test]
+    fn fri07_c04_fixture_sources_have_exact_owned_inventory_and_behavior_contract() {
+        let html_root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        let contracts = fri07_c04_fixture_source_contracts();
+        let expected = contracts
+            .iter()
+            .map(|(relative, _, _)| PathBuf::from(relative))
+            .collect::<BTreeSet<_>>();
+        let discovered = collect_html(&html_root, None)
+            .expect("HTML fixture inventory should be readable")
+            .into_iter()
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("fri07_"))
+            })
+            .map(|path| {
+                path.strip_prefix(&html_root)
+                    .expect("FRI-07 source should remain under the HTML root")
+                    .to_path_buf()
+            })
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            discovered, expected,
+            "exact bounded FRI-07 source inventory"
+        );
+        assert_eq!(
+            collect_html(&html_root, None)
+                .expect("HTML fixture inventory should be readable")
+                .len(),
+            1_438
+        );
+
+        for (relative, required_fragments, collapsed_items) in contracts {
+            let source = html_root.join(relative);
+            let raw = fs::read_to_string(&source)
+                .unwrap_or_else(|error| panic!("{} should read: {error}", source.display()));
+            assert_eq!(raw.matches("id=\"test-root\"").count(), 1, "{relative}");
+            assert_eq!(raw.matches("test_helper.js").count(), 1, "{relative}");
+            assert_eq!(raw.matches("test_base_style.css").count(), 1, "{relative}");
+            assert_eq!(
+                raw.matches("visibility: collapse").count(),
+                collapsed_items,
+                "{relative} collapse scope"
+            );
+            for fragment in required_fragments {
+                assert!(
+                    raw.contains(fragment),
+                    "{relative} must contain behavior fragment {fragment:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fri07_c04_fixture_sources_map_to_exact_standard_twenty_four_variant_paths() {
+        let html_root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        let xml_root = Path::new("xml");
+        let discovered = collect_html(&html_root, None)
+            .expect("HTML fixture inventory should be readable")
+            .into_iter()
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("fri07_"))
+            })
+            .collect::<Vec<_>>();
+        let actual = discovered
+            .iter()
+            .flat_map(|source| {
+                output_paths_for_fixture(&html_root, xml_root, source)
+                    .expect("standard FRI-07 output paths should resolve")
+            })
+            .collect::<BTreeSet<_>>();
+        let expected = fri07_c04_fixture_source_contracts()
+            .into_iter()
+            .flat_map(|(relative, _, _)| {
+                let source = html_root.join(relative);
+                output_paths_for_fixture(&html_root, xml_root, &source)
+                    .expect("standard FRI-07 output paths should resolve")
+            })
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(actual, expected);
+        assert_eq!(actual.len(), 24);
+    }
+
     fn keep_imported_browser_parity_support_reachable(golden: &browser_parity_support::Golden) {
         let parse_file = |path: &Path| browser_parity_support::Golden::parse_file(path);
         let _ = parse_file;

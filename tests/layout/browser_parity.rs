@@ -26,6 +26,95 @@ fn parses_browser_parity_xml() {
     assert_eq!(golden.expectations.children[1].y, Some(10.0));
 }
 
+fn fri07_c04_fixture_input_xml(name: &str, root_width: &str, first_width: &str) -> String {
+    format!(
+        concat!(
+            "<test name=\"{}\">",
+            "<viewport width=\"max-content\" height=\"max-content\"/>",
+            "<input><div display=\"flex\" width=\"20px\" height=\"10px\">",
+            "<div flex-item-collapse=\"collapsed\" width=\"10px\" height=\"10px\"/>",
+            "<div width=\"20px\" height=\"10px\"/>",
+            "</div></input>",
+            "<expectations><node width=\"{}\" height=\"10\">",
+            "<node x=\"0\" y=\"0\" width=\"{}\" height=\"0\"/>",
+            "<node x=\"0\" y=\"0\" width=\"20\" height=\"10\"/>",
+            "</node></expectations>",
+            "</test>"
+        ),
+        name, root_width, first_width
+    )
+}
+
+#[test]
+fn fri07_c04_fixture_input_normalized_collapse_is_name_expectation_and_sibling_independent() {
+    let original = support::Golden::parse(&fri07_c04_fixture_input_xml(
+        "fri07_collapsed_source",
+        "20",
+        "0",
+    ))
+    .expect("normalized collapsed input should parse");
+    let mutated = support::Golden::parse(&fri07_c04_fixture_input_xml(
+        "unrelated_renamed_source",
+        "999",
+        "777",
+    ))
+    .expect("renamed fixture with changed expectations should parse");
+
+    assert_eq!(original.root, mutated.root);
+    assert_eq!(
+        original.root.children[0].style.get("flex-item-collapse"),
+        Some("collapsed")
+    );
+    assert_eq!(
+        original.root.children[1].style.get("flex-item-collapse"),
+        None
+    );
+}
+
+#[test]
+fn fri07_c04_fixture_input_normalized_collapse_reaches_public_layout_behavior() {
+    let golden = support::Golden::parse(&fri07_c04_fixture_input_xml(
+        "fixture_input_public_layout",
+        "20",
+        "0",
+    ))
+    .expect("normalized collapsed input should parse");
+
+    support::assert_surgeist_matches(&golden)
+        .expect("normalized collapsed input should drive collapsed public layout");
+}
+
+#[test]
+fn fri07_c04_fixture_input_exact_six_source_four_variant_inventory_is_bounded() {
+    let html_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+    let expected = [
+        "flex/fri07_cross_auto_margin_overflow.html",
+        "flex/fri07_absolute_auto_margin_insets.html",
+        "flex/fri07_intrinsic_flex_basis.html",
+        "flex/fri07_collapsed_strut_single_line.html",
+        "flex/fri07_collapsed_strut_wrapping.html",
+        "flex/fri07_flex_composition.html",
+    ]
+    .into_iter()
+    .map(|relative| html_root.join(relative))
+    .collect::<BTreeSet<_>>();
+    let fixtures = support::fixture_files_in(&html_root, "html")
+        .expect("HTML parity fixtures should be readable");
+    let actual = fixtures
+        .iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("fri07_"))
+        })
+        .cloned()
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(actual, expected);
+    assert_eq!(actual.len() * 4, 24);
+    assert_eq!(fixtures.len(), 1_438);
+}
+
 #[test]
 fn runs_browser_parity_smoke_fixture_against_surgeist_layout() {
     let golden = support::Golden::parse(include_str!(
@@ -395,7 +484,7 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
         "grid/fri04_track_math_functions.html",
     ];
 
-    assert_eq!(html.len(), 1432);
+    assert_eq!(html.len(), 1438);
     for source in sources {
         assert!(
             html.contains(&html_root.join(source)),
@@ -2739,10 +2828,10 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .filter(|fixture| is_under_suite(fixture, "grid-lanes"))
         .count();
 
-    assert_eq!(taffy_plus_local_count, 1186);
+    assert_eq!(taffy_plus_local_count, 1192);
     assert_eq!(subgrid_count, 219);
     assert_eq!(grid_lanes_count, 27);
-    assert_eq!(fixtures.len(), 1432);
+    assert_eq!(fixtures.len(), 1438);
 
     for source in [
         "flex/fri03_order_modified_flex.html",

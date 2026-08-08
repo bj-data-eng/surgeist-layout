@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-07 signed cross auto margins and overflow</title>
+</head>
+<body>
+
+<div id="test-root" style="display: flex; width: 140px; height: 80px;">
+  <div style="flex: none; width: 40px; height: 20px; margin-block-start: auto; margin-block-end: auto;"></div>
+  <div style="flex: none; width: 40px; height: 100px; margin-block-start: auto; margin-block-end: 5px; overflow: auto;">
+    <div style="width: 20px; height: 120px;"></div>
+  </div>
+</div>
+
+</body>
+</html>

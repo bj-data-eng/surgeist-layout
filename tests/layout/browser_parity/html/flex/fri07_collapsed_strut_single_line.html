@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-07 single-line collapsed flex struts</title>
+</head>
+<body>
+
+<div id="test-root" style="display: flex; width: 180px; align-items: baseline;">
+  <div style="flex: none; width: 30px; height: 20px;">base</div>
+  <div style="flex: none; width: 40px; height: 40px; visibility: collapse;">small strut</div>
+  <div style="flex: none; width: 30px; height: 25px;">peer</div>
+  <div style="flex: none; width: 50px; height: 60px; visibility: collapse;">large strut</div>
+</div>
+
+</body>
+</html>

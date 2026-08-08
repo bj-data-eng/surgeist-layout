@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-07 wrapped collapsed flex struts and gaps</title>
+</head>
+<body>
+
+<div id="test-root" style="display: flex; flex-wrap: wrap; width: 130px; column-gap: 10px; row-gap: 8px;">
+  <div style="flex: none; width: 50px; height: 20px;"></div>
+  <div style="flex: none; width: 80px; height: 35px; margin-inline-start: 5px; margin-inline-end: auto; visibility: collapse;"></div>
+  <div style="flex: none; width: 50px; height: 30px;"></div>
+  <div style="flex: none; width: 100px; height: 25px; margin-inline-start: 7px; visibility: collapse;"></div>
+  <div style="flex: none; width: 50px; height: 15px;"></div>
+</div>
+
+</body>
+</html>
