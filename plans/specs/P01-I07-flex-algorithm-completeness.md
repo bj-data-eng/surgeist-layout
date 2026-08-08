@@ -466,13 +466,35 @@ Scoped existing-pinned generation is permitted during fixture/parser iteration
 as a diagnostic and does not count as verification evidence. After all HTML,
 helper, parser, manifest, and behavior inputs settle, run the existing-pinned
 unfiltered full generator exactly once. Verify the resulting 24-row delta,
-provenance, report inventory, XML inventory, corpus/Taffy checks, and clean
-generated tree. Do not rerun the full generator merely to repeat evidence.
+centralized provenance, report inventory, XML inventory, corpus/Taffy checks,
+and clean generated tree. The same run performs the one-time removal of legacy
+embedded provenance comments from every pre-existing XML file. After removing
+that leading comment, each of the 5,712 pre-existing XML bodies remains
+byte-for-byte identical. Do not rerun the full generator merely to repeat
+evidence.
 
 If the single full run reveals a genuine input or production defect, that run is
 diagnostic: correct the defect, settle all inputs again, and run one replacement
 full generation. Record why the prior run was invalid. Repeated runs over
 unchanged inputs are forbidden.
+
+### 10.4 Centralized Generated-Artifact Provenance
+
+`tests/layout/browser_parity/xml/generation-reports/all.json` is the sole
+provenance authority for generated browser-parity XML. Generated XML contains no
+provenance comment or other duplicated provenance field. The report uses one
+schema-versioned, deterministically ordered representation: global metadata owns
+generator, browser, launch-profile, helper, base-style, corpus-manifest, and
+Taffy provenance once; every generated entry owns its source path, output path,
+variant, source SHA-256, any linked-resource SHA-256 values, and generated XML
+SHA-256.
+
+Generation and `check-corpus` validate strict repository-relative paths,
+uniqueness, exact report/XML inventory equality, all global and per-entry hashes,
+and absence of embedded XML provenance. A report entry cannot validate a
+different XML body, stale source, or stale linked resource. The migration may
+extend the existing report schema and validator in place, but it must not add a
+second report, generator path, command, dependency, or provenance authority.
 
 ## 11 FRI-07.11 Module And Code Outline
 
@@ -486,9 +508,10 @@ unchanged inputs are forbidden.
 | `src/flex_tests.rs` and focused test support | Add RED-first public/front-door, scalar, oracle, property, cache, failure, and regression evidence; replace the wrong abspos expectation. |
 | `tests/layout/browser_parity/support.rs` | Parse only the exact normalized collapse attribute and test its independence and rejection surface. |
 | `tests/layout/browser_parity/scripts/gentest/test_helper.js` | Serialize computed collapse for the exact layout-ready field without parsing authored CSS. |
-| `tests/bin/surgeist-layout-generate/generator.rs` | Serialize the one new fixture attribute and verify exact report/inventory behavior; no architecture change. |
-| `tests/layout/browser_parity/html/flex`, `xml/flex`, `corpus.toml`, report | Add only the six sources, 24 generated variants, provenance, and exact accounting. |
-| `README.md` | Describe the new layout-ready collapse effect and root lowering boundary when the public surface changes. |
+| `tests/bin/surgeist-layout-generate/generator.rs` | Serialize the one new fixture attribute; migrate the existing report to the sole centralized provenance authority; verify exact hashes, inventory, and comment-free XML without a new generator path. |
+| `tests/layout/browser_parity/html/flex`, `xml/flex`, `corpus.toml`, report | Add only the six sources and 24 generated variants, remove legacy XML provenance comments once, and preserve exact centralized accounting. |
+| `README.md` | Describe the new layout-ready collapse effect, root lowering boundary, and centralized generated-artifact provenance. |
+| `tests/layout/browser_parity/README.md` | Replace the schema-2 XML-comment contract with report-only provenance and the corresponding `check-corpus` validation contract. |
 
 Private helper/type boundaries may differ from this table when they preserve the
 specified phases and reduce complexity. There is no authorization for a new
