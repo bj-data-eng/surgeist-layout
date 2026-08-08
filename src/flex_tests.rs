@@ -4098,7 +4098,23 @@ impl Fri07C03ComposedCase {
 struct Fri07C03ComposedTree<S: LayoutScalar> {
     tree: PublicLayoutTreeOf<S>,
     axes: FlexAxes,
+    measure_mode: Cell<Fri07C03ComposedMeasureMode>,
     requests: RefCell<Vec<(u32, LeafMeasureInputOf<S>)>>,
+    cache_queries: RefCell<Vec<(u32, bool)>>,
+    retained: Fri07C01CompositionRetained<S>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri07C03ComposedMeasureMode {
+    Values,
+    FailIntrinsic,
+    FailSecondRound,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri07C03ComposedMeasureError {
+    Intrinsic,
+    SecondRound,
 }
 
 impl<S: LayoutScalar> Traverse for Fri07C03ComposedTree<S> {
@@ -4123,7 +4139,7 @@ impl<S: LayoutScalar> Traverse for Fri07C03ComposedTree<S> {
 }
 
 impl<S: LayoutScalar> LayoutTree for Fri07C03ComposedTree<S> {
-    type MeasureError = core::convert::Infallible;
+    type MeasureError = Fri07C03ComposedMeasureError;
 
     fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
         self.tree.node_input(node)
@@ -4145,7 +4161,22 @@ impl<S: LayoutScalar> LayoutTree for Fri07C03ComposedTree<S> {
         if !matches!(node, 2 | 3) {
             return None;
         }
+        let node_request_index = self
+            .requests
+            .borrow()
+            .iter()
+            .filter(|(request_node, _)| *request_node == node)
+            .count();
         self.requests.borrow_mut().push((node, input));
+        match (self.measure_mode.get(), node, node_request_index) {
+            (Fri07C03ComposedMeasureMode::FailIntrinsic, 2, 0) => {
+                return Some(Err(Fri07C03ComposedMeasureError::Intrinsic));
+            }
+            (Fri07C03ComposedMeasureMode::FailSecondRound, 2, 1) => {
+                return Some(Err(Fri07C03ComposedMeasureError::SecondRound));
+            }
+            _ => {}
+        }
         let main = match (node, self.axes.main_size(input.available_content_size())) {
             (2, MeasurementAvailableOf::MinContent) => S::from_f64(20.0),
             (2, MeasurementAvailableOf::MaxContent) => S::from_f64(45.0),
@@ -4156,6 +4187,61 @@ impl<S: LayoutScalar> LayoutTree for Fri07C03ComposedTree<S> {
         };
         let cross = if node == 2 { 20.0 } else { 30.0 };
         Some(Ok(self.axes.size_from_main_cross(main, S::from_f64(cross))))
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<S>,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<S>> {
+        let output = self
+            .retained
+            .caches
+            .get(&node)
+            .and_then(|cache| cache.get_with_context(input, context));
+        self.cache_queries
+            .borrow_mut()
+            .push((node, output.is_some()));
+        output
+    }
+
+    fn unrounded_layout(&self, node: Self::Node) -> Option<NodeOutputOf<S>> {
+        self.retained.unrounded.get(&node).copied()
+    }
+}
+
+impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri07C03ComposedTree<S> {
+    type Error = core::convert::Infallible;
+    type Prepared = Fri07C01CompositionRetained<S>;
+
+    fn prepare_layout_batch(
+        &self,
+        batch: &CompletedLayoutBatchOf<u32, S>,
+    ) -> Result<Self::Prepared, Self::Error> {
+        let mut prepared = self.retained.clone();
+        for node in batch.invalidated_nodes() {
+            prepared.unrounded.remove(node);
+            prepared.final_outputs.remove(node);
+            prepared.caches.remove(node);
+        }
+        for entry in batch.unrounded_entries() {
+            prepared.unrounded.insert(entry.node(), entry.output());
+        }
+        for entry in batch.final_entries() {
+            prepared.final_outputs.insert(entry.node(), entry.output());
+        }
+        for entry in batch.cache_clear_entries() {
+            prepared.caches.remove(&entry.node());
+        }
+        for entry in batch.cache_store_entries() {
+            Fri07C01CompositionTree::apply_cache_entry(&mut prepared, entry);
+        }
+        Ok(prepared)
+    }
+
+    fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
+        self.retained = prepared;
     }
 }
 
@@ -4295,7 +4381,10 @@ fn fri07_c03_composed_layout_tree<S: LayoutScalar>(
     Fri07C03ComposedTree {
         tree,
         axes,
+        measure_mode: Cell::new(Fri07C03ComposedMeasureMode::Values),
         requests: RefCell::new(Vec::new()),
+        cache_queries: RefCell::new(Vec::new()),
+        retained: Fri07C01CompositionRetained::default(),
     }
 }
 
@@ -4901,6 +4990,438 @@ proptest! {
             f64_snapshot.output(2).source_index,
             source_control.output(2).source_index,
             "source rotation remains observable in stable source association"
+        );
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Fri07C03ComposedStateMeasurement<S: LayoutScalar> {
+    node: u32,
+    known_main: Option<S>,
+    known_cross: Option<S>,
+    available_main: MeasurementAvailableOf<S>,
+    available_cross: MeasurementAvailableOf<S>,
+}
+
+fn fri07_c03_composed_state_measurements<S: LayoutScalar>(
+    tree: &Fri07C03ComposedTree<S>,
+) -> Vec<Fri07C03ComposedStateMeasurement<S>> {
+    tree.requests
+        .borrow()
+        .iter()
+        .map(|(node, input)| Fri07C03ComposedStateMeasurement {
+            node: *node,
+            known_main: tree.axes.main_size(input.known_content_size()),
+            known_cross: tree.axes.cross_size(input.known_content_size()),
+            available_main: tree.axes.main_size(input.available_content_size()),
+            available_cross: tree.axes.cross_size(input.available_content_size()),
+        })
+        .collect()
+}
+
+fn fri07_c03_composed_state_definite<S: LayoutScalar>(value: f64) -> MeasurementAvailableOf<S> {
+    MeasurementAvailableOf::definite(S::from_f64(value))
+        .expect("composed state measurement target is finite and non-negative")
+}
+
+fn assert_fri07_c03_composed_state_exact_round_bounds<S: LayoutScalar>() {
+    let tree = fri07_c03_composed_layout_tree::<S>(Fri07C03ComposedCase::deterministic(), 70.0);
+    compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("bounded composed state layout succeeds");
+    let measurement = |node, available_main, available_cross| Fri07C03ComposedStateMeasurement {
+        node,
+        known_main: None,
+        known_cross: None,
+        available_main,
+        available_cross,
+    };
+    assert_eq!(
+        fri07_c03_composed_state_measurements(&tree),
+        [
+            measurement(
+                2,
+                MeasurementAvailableOf::MIN_CONTENT,
+                fri07_c03_composed_state_definite(300.0),
+            ),
+            measurement(
+                3,
+                MeasurementAvailableOf::MAX_CONTENT,
+                fri07_c03_composed_state_definite(300.0),
+            ),
+            measurement(
+                2,
+                MeasurementAvailableOf::MIN_CONTENT,
+                fri07_c03_composed_state_definite(20.0),
+            ),
+            measurement(
+                3,
+                MeasurementAvailableOf::MAX_CONTENT,
+                fri07_c03_composed_state_definite(30.0),
+            ),
+        ],
+        "the complete composed tree performs only the existing intrinsic pass and one finite collapsed replay"
+    );
+}
+
+#[test]
+fn fri07_c03_composed_state_measurement_trace_has_exact_finite_round_bound() {
+    assert_fri07_c03_composed_state_exact_round_bounds::<f32>();
+    assert_fri07_c03_composed_state_exact_round_bounds::<f64>();
+}
+
+fn fri07_c03_composed_state_geometry<S: LayoutScalar>(
+    unrounded: &[LayoutOutputEntryOf<u32, S>],
+    final_outputs: &[LayoutOutputEntryOf<u32, S>],
+) -> Vec<f64> {
+    let mut geometry = Vec::new();
+    for entries in [unrounded, final_outputs] {
+        for node in 1..=5 {
+            let output = fri07_c01_composition_output(entries, node);
+            geometry.extend([
+                output.location.x.to_f64(),
+                output.location.y.to_f64(),
+                output.size.width.to_f64(),
+                output.size.height.to_f64(),
+                output.margin.top.to_f64(),
+                output.margin.right.to_f64(),
+                output.margin.bottom.to_f64(),
+                output.margin.left.to_f64(),
+            ]);
+        }
+    }
+    geometry
+}
+
+fn assert_fri07_c03_composed_state_cache_rounding_and_scalar<S: LayoutScalar>() -> Vec<f64> {
+    let case = Fri07C03ComposedCase {
+        container_main: 120.5,
+        ..Fri07C03ComposedCase::deterministic()
+    };
+    let mut tree = fri07_c03_composed_layout_tree::<S>(case, 70.25);
+    let request = fri07_c02_collapse_round_request();
+    let cold = compute_layout(&tree, 1, request).expect("cold composed state layout succeeds");
+    let cold_unrounded = cold.unrounded_entries().to_vec();
+    let cold_final = cold.final_entries().to_vec();
+    let cold_unrounded_fragments = cold.unrounded_inline_fragments().to_vec();
+    let cold_final_fragments = cold.final_inline_fragments().to_vec();
+    let cold_measurements = fri07_c03_composed_state_measurements(&tree);
+    assert_eq!(cold_measurements.len(), 4);
+
+    for node in 1..=5 {
+        let unrounded = fri07_c01_composition_output(&cold_unrounded, node);
+        let rounded = fri07_c01_composition_output(&cold_final, node);
+        assert_eq!(unrounded.source_index, rounded.source_index);
+        for (unrounded_start, unrounded_size, rounded_start, rounded_size) in [
+            (
+                unrounded.location.x,
+                unrounded.size.width,
+                rounded.location.x,
+                rounded.size.width,
+            ),
+            (
+                unrounded.location.y,
+                unrounded.size.height,
+                rounded.location.y,
+                rounded.size.height,
+            ),
+        ] {
+            fri07_c01_composition_assert_near(
+                rounded_start,
+                unrounded_start.to_f64().round(),
+                "rounded composed source start",
+            );
+            fri07_c01_composition_assert_near(
+                rounded_start + rounded_size,
+                (unrounded_start + unrounded_size).to_f64().round(),
+                "rounded composed source end",
+            );
+        }
+    }
+    let unrounded_absolute = fri07_c01_composition_output(&cold_unrounded, 5);
+    let rounded_absolute = fri07_c01_composition_output(&cold_final, 5);
+    assert_ne!(unrounded_absolute.location.x, rounded_absolute.location.x);
+    assert_eq!(
+        fri07_c01_composition_output(&cold_unrounded, 4),
+        NodeOutputOf::with_source_index(case.source_index(4))
+    );
+    assert_eq!(
+        fri07_c01_composition_output(&cold_final, 4),
+        NodeOutputOf::with_source_index(case.source_index(4))
+    );
+
+    cold.apply_to(&mut tree)
+        .expect("cold composed state batch commit succeeds");
+    let cold_retained = tree.retained.clone();
+    assert!(!cold_retained.caches.is_empty());
+
+    tree.cache_queries.borrow_mut().clear();
+    tree.requests.borrow_mut().clear();
+    let warm = compute_layout(&tree, 1, request).expect("warm composed state layout succeeds");
+    assert_eq!(warm.unrounded_entries(), cold_unrounded);
+    assert_eq!(warm.final_entries(), cold_final);
+    assert_eq!(warm.unrounded_inline_fragments(), cold_unrounded_fragments);
+    assert_eq!(warm.final_inline_fragments(), cold_final_fragments);
+    assert!(
+        tree.cache_queries.borrow().iter().any(|(_, hit)| *hit),
+        "warm composed state layout reuses committed cache facts"
+    );
+    assert!(
+        fri07_c03_composed_state_measurements(&tree).len() <= cold_measurements.len(),
+        "warm cache use cannot introduce another flex or collapse round"
+    );
+    warm.apply_to(&mut tree)
+        .expect("warm composed state batch commit succeeds");
+    assert_eq!(tree.retained.unrounded, cold_retained.unrounded);
+    assert_eq!(tree.retained.final_outputs, cold_retained.final_outputs);
+    for entry in warm.cache_store_entries().iter().rev() {
+        let committed =
+            tree.retained.caches[&entry.node()].get_with_context(entry.input(), entry.context());
+        assert_eq!(
+            committed,
+            Some(entry.output()),
+            "every warm staged cache fact is committed through the existing cache owner"
+        );
+    }
+
+    fri07_c03_composed_state_geometry(&cold_unrounded, &cold_final)
+}
+
+#[test]
+fn fri07_c03_composed_state_cold_warm_rounding_and_scalar_lanes_agree() {
+    let f32_geometry = assert_fri07_c03_composed_state_cache_rounding_and_scalar::<f32>();
+    let f64_geometry = assert_fri07_c03_composed_state_cache_rounding_and_scalar::<f64>();
+    assert_eq!(f32_geometry.len(), f64_geometry.len());
+    for (field, (f32_value, f64_value)) in f32_geometry.into_iter().zip(f64_geometry).enumerate() {
+        assert!(
+            (f32_value - f64_value).abs() <= FRI07_C03_COMPOSED_SCALAR_TOLERANCE,
+            "composed state field {field} differs across scalar lanes: {f32_value} versus {f64_value}"
+        );
+    }
+}
+
+fn assert_fri07_c03_composed_state_failure_is_atomic<S: LayoutScalar>(
+    mode: Fri07C03ComposedMeasureMode,
+    expected_error: Fri07C03ComposedMeasureError,
+    expected_requests: usize,
+) {
+    let case = Fri07C03ComposedCase::deterministic();
+    let request = fri07_c02_collapse_round_request();
+    let mut tree = fri07_c03_composed_layout_tree::<S>(case, 70.0);
+    let initial =
+        compute_layout(&tree, 1, request).expect("initial composed state layout succeeds");
+    initial
+        .apply_to(&mut tree)
+        .expect("initial composed state batch commit succeeds");
+
+    tree.requests.borrow_mut().clear();
+    tree.measure_mode.set(mode);
+    let retained_before_failure = tree.retained.clone();
+    let error = compute_layout_invalidated(&tree, 1, request, &[1, 2])
+        .expect_err("composed provider failure returns no partial batch");
+    assert_eq!(error.site(), LayoutErrorSiteOf::Node(2));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKindOf::Measurement(error) if *error == expected_error
+    ));
+    assert_eq!(
+        tree.retained, retained_before_failure,
+        "failed composed layout commits neither partial output nor cache"
+    );
+    assert_eq!(
+        fri07_c03_composed_state_measurements(&tree).len(),
+        expected_requests,
+        "failure occurs at its exact bounded measurement phase"
+    );
+
+    tree.requests.borrow_mut().clear();
+    tree.measure_mode.set(Fri07C03ComposedMeasureMode::Values);
+    let recovery = compute_layout_invalidated(&tree, 1, request, &[1, 2])
+        .expect("composed state recovers after provider failure");
+    let mut fresh_tree = fri07_c03_composed_layout_tree::<S>(case, 70.0);
+    let fresh = compute_layout_invalidated(&fresh_tree, 1, request, &[1, 2])
+        .expect("fresh composed state layout succeeds");
+    assert_eq!(recovery.unrounded_entries(), fresh.unrounded_entries());
+    assert_eq!(recovery.final_entries(), fresh.final_entries());
+    assert_eq!(
+        recovery.unrounded_inline_fragments(),
+        fresh.unrounded_inline_fragments()
+    );
+    assert_eq!(
+        recovery.final_inline_fragments(),
+        fresh.final_inline_fragments()
+    );
+    recovery
+        .apply_to(&mut tree)
+        .expect("recovery batch commit succeeds");
+    fresh
+        .apply_to(&mut fresh_tree)
+        .expect("fresh batch commit succeeds");
+    assert_eq!(tree.retained.unrounded, fresh_tree.retained.unrounded);
+    assert_eq!(
+        tree.retained.final_outputs,
+        fresh_tree.retained.final_outputs
+    );
+    let recovered_warm = compute_layout(&tree, 1, request)
+        .expect("recovered composed cache serves a complete warm layout");
+    let fresh_warm = compute_layout(&fresh_tree, 1, request)
+        .expect("fresh composed cache serves a complete warm layout");
+    assert_eq!(
+        recovered_warm.unrounded_entries(),
+        fresh_warm.unrounded_entries(),
+        "recovery cache behavior matches a fresh tree"
+    );
+    assert_eq!(recovered_warm.final_entries(), fresh_warm.final_entries());
+}
+
+#[test]
+fn fri07_c03_composed_state_intrinsic_and_second_round_failures_are_atomic_and_recoverable() {
+    for (mode, expected_error, expected_requests) in [
+        (
+            Fri07C03ComposedMeasureMode::FailIntrinsic,
+            Fri07C03ComposedMeasureError::Intrinsic,
+            1,
+        ),
+        (
+            Fri07C03ComposedMeasureMode::FailSecondRound,
+            Fri07C03ComposedMeasureError::SecondRound,
+            3,
+        ),
+    ] {
+        assert_fri07_c03_composed_state_failure_is_atomic::<f32>(
+            mode,
+            expected_error,
+            expected_requests,
+        );
+        assert_fri07_c03_composed_state_failure_is_atomic::<f64>(
+            mode,
+            expected_error,
+            expected_requests,
+        );
+    }
+}
+
+fn fri07_c03_composed_state_batch<S: LayoutScalar>(
+    case: Fri07C03ComposedCase,
+    collapsed_main: f64,
+    absolute_collapse: FlexItemCollapse,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let mut tree = fri07_c03_composed_layout_tree::<S>(case, collapsed_main);
+    let mut absolute = tree.tree.node_input(5).clone();
+    absolute.flex_item_collapse = absolute_collapse;
+    tree.tree = core::mem::take(&mut tree.tree).style(5, absolute);
+    compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("composed state control layout succeeds")
+}
+
+fn assert_fri07_c03_composed_state_settlement_and_inert_absolute<S: LayoutScalar>() {
+    let case = Fri07C03ComposedCase {
+        overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
+        container_main: 120.5,
+        ..Fri07C03ComposedCase::deterministic()
+    };
+    let baseline = fri07_c03_composed_state_batch::<S>(case, 70.25, FlexItemCollapse::Normal);
+    let hostile = fri07_c03_composed_state_batch::<S>(case, 370.25, FlexItemCollapse::Normal);
+    assert_eq!(baseline.unrounded_entries(), hostile.unrounded_entries());
+    assert_eq!(baseline.final_entries(), hostile.final_entries());
+    let root = fri07_c01_composition_output(baseline.unrounded_entries(), 1);
+    let scroll = root
+        .scroll_geometry
+        .expect("composed overflow control publishes scroll geometry");
+    assert_eq!(scroll.used_overflow_x(), Overflow::Auto);
+    assert_eq!(scroll.used_overflow_y(), Overflow::Scroll);
+    assert_eq!(scroll.scrollbar_size().width, S::from_f64(3.0));
+    assert_eq!(
+        fri07_c01_composition_output(baseline.unrounded_entries(), 4),
+        NodeOutputOf::with_source_index(case.source_index(4))
+    );
+    assert_eq!(
+        fri07_c01_composition_output(baseline.final_entries(), 4),
+        NodeOutputOf::with_source_index(case.source_index(4))
+    );
+
+    let collapsed_absolute =
+        fri07_c03_composed_state_batch::<S>(case, 70.25, FlexItemCollapse::Collapsed);
+    assert_eq!(
+        baseline.unrounded_entries(),
+        collapsed_absolute.unrounded_entries(),
+        "collapse remains inert on the composed absolute child"
+    );
+    assert_eq!(baseline.final_entries(), collapsed_absolute.final_entries());
+}
+
+#[test]
+fn fri07_c03_composed_state_settlement_excludes_collapsed_facts_and_absolute_is_inert() {
+    assert_fri07_c03_composed_state_settlement_and_inert_absolute::<f32>();
+    assert_fri07_c03_composed_state_settlement_and_inert_absolute::<f64>();
+}
+
+fn fri07_c03_composed_state_assert_unsupported_basis(
+    flex_basis: FlexBasisOf<f64>,
+    behavior: SizingBehavior,
+) {
+    let case = Fri07C03ComposedCase::deterministic();
+    let mut tree = fri07_c03_composed_layout_tree::<f64>(case, 70.0);
+    let mut intrinsic = tree.tree.node_input(2).clone();
+    intrinsic.flex_basis = flex_basis;
+    tree.tree = core::mem::take(&mut tree.tree).style(2, intrinsic);
+    let error = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect_err("later-owned flex basis remains unsupported in the composed tree");
+    assert_eq!(error.site(), LayoutErrorSiteOf::Node(2));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    let LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+        unsupported,
+    )) = error.kind()
+    else {
+        panic!("expected exact sizing capability payload, got {error:?}");
+    };
+    assert_eq!(unsupported.property(), SizingProperty::FlexBasis);
+    assert_eq!(unsupported.behavior(), behavior);
+    assert_eq!(unsupported.algorithm(), SizingAlgorithm::Flex);
+    assert_eq!(unsupported.axis(), PhysicalAxis::Horizontal);
+}
+
+#[test]
+fn fri07_c03_composed_state_later_owned_flex_basis_payloads_remain_exact() {
+    let sizing = || {
+        SizingCalculationOf::value(
+            LengthPercentageOf::px(10.0).expect("finite composed sizing calculation"),
+        )
+    };
+    for (flex_basis, behavior) in [
+        (FlexBasisOf::STRETCH, SizingBehavior::Stretch),
+        (FlexBasisOf::FIT_CONTENT, SizingBehavior::FitContent),
+        (FlexBasisOf::CONTAIN, SizingBehavior::Contain),
+        (
+            FlexBasisOf::fit_content_function(sizing()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri07_c03_composed_state_assert_unsupported_basis(flex_basis, behavior);
+    }
+
+    let calc = CalcSizeCalculationOf::value(LengthPercentageOf::ZERO);
+    for (basis, payload) in [
+        (FlexBasisCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+        (FlexBasisCalcBasis::Content, CalcSizeBehaviorBasis::Content),
+        (
+            FlexBasisCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            FlexBasisCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (FlexBasisCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+        (
+            FlexBasisCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (FlexBasisCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+    ] {
+        fri07_c03_composed_state_assert_unsupported_basis(
+            FlexBasisOf::calc_size(basis, calc.clone()).expect("valid composed calc-size"),
+            SizingBehavior::CalcSize(payload),
         );
     }
 }
