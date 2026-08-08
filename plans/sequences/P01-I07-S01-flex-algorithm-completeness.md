@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/P01-I07-flex-algorithm-completeness.md`, normalized semantic-content
 SHA-256
-`9e2a899476d27e09133a05531cb4bb4dfab1479d949d66167548c26ee1972b57`,
-committed as `451954e6aab6529ce7464c299be7e2aff6ea3753`.
+`df69716865bf7f88bf89a7ecfea979cffa3b879b69a2cde16586d7598edb1332`,
+committed as `f86b0572863d8eb72da5c00364bf7020299c99b8`.
 
 The specification owns behavior, public API, compatibility, ownership,
 artifacts, errors, and acceptance. This sequence owns only durable dependency
@@ -152,17 +152,23 @@ does not accept normalized collapsed participation and the exact six-source,
 **Bounded outcome:** Add only the exact computed/layout-ready collapse
 serialization and finite adapter token, their independence and rejection
 controls, and the six specified four-variant browser sources. Settle every HTML,
-helper, parser, manifest, and behavior input, then perform the one full
-unfiltered existing-pinned regeneration and adopt its exact XML/report/corpus
-lineage. Apply the known-Chrome-failure exception only when every certainty and
+helper, parser, manifest, provenance-schema, and behavior input. First migrate
+the existing `all.json` report in place to the sole global/per-output provenance
+authority and prove generated XML is comment-free. Then perform the one full
+unfiltered existing-pinned regeneration, including the one-time removal of all
+legacy XML provenance comments, and adopt its exact XML/report/corpus lineage.
+Apply the known-Chrome-failure exception only when every certainty and
 synthetic-substitute predicate is independently proven.
 
 **Observable exit evidence:** Exactly 24 owned rows have honest input-derived
-layout facts, visible oracle accounting, provenance, and unchanged unrelated
-inventory. The single settled full regeneration is followed by read-only
-artifact, parity, corpus, and Taffy verification; every expected fail has the
-complete required evidence or the registry remains empty. Generator architecture
-and fixture-name/expected-geometry dispatch remain absent.
+layout facts, visible oracle accounting, and centralized provenance. `all.json`
+alone binds every source and generated XML hash; no XML contains embedded
+provenance; and every pre-existing XML body after removal of its legacy first
+comment is unchanged. The single settled full regeneration is followed by
+read-only artifact, parity, corpus, and Taffy verification; every expected fail
+has the complete required evidence or the registry remains empty. A second
+report/provenance authority, new generator path, and fixture-name/expected-
+geometry dispatch remain absent.
 
 **Handoff:** Publish and remotely verify the behavior/artifact candidate with its
 exact source inventory, report/helper/artifact hashes, browser provenance, and
