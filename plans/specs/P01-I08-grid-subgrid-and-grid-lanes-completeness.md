@@ -51,8 +51,8 @@ snapshot. It does not change the finding IDs or their sole closure owner.
    measurement at standalone-axis boundaries;
 6. consumption of canonical overflow and writing-mode facts in the grid
    algorithms; and
-7. focused, oracle, property, scalar, browser-parity, fixture, artifact,
-   documentation, and sprawl evidence for this initiative.
+7. focused, oracle, property, scalar, browser-parity, fixture, artifact, and
+   documentation evidence for this initiative.
 
 Root `surgeist` owns authored CSS, cascade and computed-style resolution, box
 generation, anonymous item construction, normalized display lowering, facade
@@ -216,7 +216,6 @@ The relevant normative anchors are explicit:
 | `D-19` | The FRI-06 inherited-axis baseline model remains authoritative. FRI-08 verifies it with new topology, sizing, overflow, order, and writing-mode cases. It does not recreate baseline groups or implement Level 3 stacking-axis baseline alignment, which the current Level 3 draft explicitly does not support. |
 | `D-20` | Grid and subgrid feed final placed physical border boxes and descendants into the canonical FRI-05 scroll-contribution owner. Track-local coordinates, area-relative offsets, and inherited-axis views never replace container-relative physical geometry. Scrollable overflow must not change intrinsic eligibility unless the normative automatic-minimum rule requires it. |
 | `D-21` | Existing `FlowAxes`, `ItemOrder`, normalized overflow, replaced state, cache identity, completed-batch transaction, and source-index contracts remain sole owners. FRI-08 adds no parallel axis switch, order sort, overflow rectangle, replaced heuristic, cache key, or partial publication path. |
-| `D-22` | The final initiative cycle assesses the complete FRI-08 implementation range for architecture sprawl and implements every confirmed in-initiative consolidation after the behavior/artifact candidate is published. It changes no behavior, public API, fixture membership, generated lineage, dependency, feature, or finding ownership unless review proves a genuine defect and reopens its owning contract. |
 
 Rejected alternatives:
 
@@ -700,12 +699,6 @@ The completed initiative must satisfy all of these structural invariants:
     lines, tracks, subgrid traversal, lanes, child layout, and tests do not
     duplicate one another's state machines.
 
-After the behavior/artifact candidate is published, a fresh holistic sprawl
-assessment reviews the complete FRI-08 implementation range. Every finding is
-source-validated. Confirmed in-initiative mechanical consolidation is
-implemented with characterization evidence; disproven or later-owned findings
-receive exact dispositions. A final fresh holistic review follows that cycle.
-
 ## 15 FRI-08.15 Verification And Error Contract
 
 Every implementation cycle uses RED/GREEN TDD for changed behavior. A RED test
@@ -792,25 +785,23 @@ forbids unrelated cleanup.
 Closure is public-front-door behavior plus architecture and artifact evidence.
 Changing a private helper test alone is insufficient.
 
-## 18 FRI-08.18 Publication And Root Handoff
+## 18 FRI-08.18 Candidate And Root Handoff
 
-Each completed cycle is committed, reviewed, accepted, published to authority
-remote `main` with an exact compare-and-swap lease, and read back before the
-next cycle. The artifact cycle publishes the sole full-regeneration candidate
-before the sprawl cycle begins. The final initiative candidate is published and
-remotely verified only after task review, coordinator acceptance, fresh
-holistic review, final verification, and clean status.
+The completed leaf candidate contains the source and public API state specified
+here, the exact generated artifact inventory from `FRI-08.13`, and verification
+evidence sufficient for separate root integration. This product contract does
+not prescribe Git landing, review ordering, cycle ordering, or publication
+mechanics; the governing Surgeist workflow owns those operations.
 
 The final leaf handoff records:
 
-- exact candidate SHA and remote readback;
+- exact leaf source revision identity;
 - the removal of the three public nested-indefinite unsupported symbols;
 - unchanged public normalized grid inputs and outputs otherwise;
 - closure evidence for all eight findings;
 - the exact eighteen-source/72-row inventory;
 - report, manifest, helper, and owned XML hashes and bucket counts;
 - later-owned baseline and positioned-layout negative controls;
-- validated sprawl dispositions; and
 - the no-unsafe, no-acquisition, no-dependency/feature/MSRV-change results.
 
 Root integration separately updates direct API use, facade artifacts, and the
@@ -843,9 +834,8 @@ FRI-08 is complete only when all of the following are true:
     `all.json` as the only provenance authority;
 11. later FRI-09 and FRI-10 rows remain visible and separately owned rather than
     being suppressed or claimed;
-12. every sprawl finding has a validated disposition and all `FRI-08.14`
-    invariants hold;
+12. all `FRI-08.14` architecture invariants hold;
 13. default/generator verification, corpus/Taffy checks, strict Clippy,
     formatting, diff, unsafe, scope, and clean-worktree gates pass; and
-14. the final leaf candidate is present on the authority remote with complete
-    readback and root handoff evidence.
+14. the final leaf candidate has complete revision, artifact, API-change, and
+    root-ownership handoff evidence.
