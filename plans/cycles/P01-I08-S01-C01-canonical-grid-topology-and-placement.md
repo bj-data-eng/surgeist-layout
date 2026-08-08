@@ -62,10 +62,13 @@ artifact, or compatibility shim.
 
 ## 3 Compatibility And Frozen Evidence
 
-Public API and documented error shape remain unchanged. C01 changes only valid
-ordinary-grid topology, placement, names, and their existing layout results.
-Invalid input remains an error, fallible mutations remain atomic, cache results
-remain equivalent, and f32/f64 behavior remains supported.
+Public API, documented error shape, dependencies, features, MSRV, and root
+follow-up remain unchanged. C01 changes only valid ordinary-grid topology,
+placement, names, and their existing layout results. It owns no documentation
+or example update; the initiative documentation and root handoff remain with
+their sequenced owners. Owned code remains free of `unsafe`. Invalid input
+remains an error, fallible mutations remain atomic, cache results remain
+equivalent, and f32/f64 behavior remains supported.
 
 Browser and generator inputs are frozen throughout C01. The published
 schema-3 report remains the sole provenance record with:
@@ -239,8 +242,8 @@ After T03 has a clean exact-range review, run the complete C01 acceptance gate:
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c01_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just verify-parity-corpus
-CARGO_NET_OFFLINE=true just verify-taffy
+CARGO_NET_OFFLINE=true just corpus-check
+CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check
 git diff --check
@@ -253,7 +256,7 @@ attribute, alternate topology/occupancy owner, stale child-count/`div_ceil`
 demand path, and valid zero-area fallback. Verify the frozen artifact counts and
 hashes in section 3 without invoking browser acquisition or generation.
 
-C01 is complete only when:
+The C01 candidate is publication-ready only when:
 
 1. all three task commits and exact-range task reviews are clean;
 2. one private canonical topology owns expanded track identity and origin;
@@ -263,8 +266,11 @@ C01 is complete only when:
 6. all focused and repository gates above pass with no protected-file drift;
 7. a fresh holistic cycle review returns no unresolved finding.
 
-Only after that review may the coordinator change this plan's status to
-`complete` in a separate commit and publish the C01 candidate with the required
-compare-and-swap lease and remote readback. C02 then receives the published C01
+Follow the canonical planning gate for the status-only `complete` transition
+after all task acceptance and task reviews are clean but before final checks and
+holistic review. Follow the canonical publication gate for landing, remote
+verification, and the handoff record; do not duplicate that choreography here.
+If a final check or holistic review fails, use the planning gate's required
+status transition and corrective-task path. C02 then receives the published C01
 tip, stable integer placements, canonical expanded topology, and retained track
 origin metadata. C02 alone owns ordinary track sizing and auto-fit collapse.
