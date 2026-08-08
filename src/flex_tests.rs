@@ -3,6 +3,8 @@ use std::{
     collections::HashMap,
 };
 
+use proptest::prelude::*;
+
 use crate::flex::FlexAxes;
 use crate::geometry::PhysicalProgression;
 use crate::test_support::layout_tree::{
@@ -4032,6 +4034,875 @@ fn fri07_c02_composition_rotated_dimensions_have_independent_layout_effects() {
     assert_fri07_c02_composition_rotated_dimensions_are_observable::<f64>();
     assert_fri07_c02_composition_replacedness_is_observable::<f32>();
     assert_fri07_c02_composition_replacedness_is_observable::<f64>();
+}
+
+const FRI07_C03_COMPOSED_SCALAR_TOLERANCE: f64 = 0.000_02;
+
+#[derive(Clone, Copy, Debug)]
+struct Fri07C03ComposedCase {
+    swap_intrinsic_bases: bool,
+    collapse_max_item: bool,
+    reverse_order: bool,
+    reverse_source: bool,
+    flow: FlowAxes,
+    direction: FlexDirection,
+    wrap: FlexWrap,
+    replaced: bool,
+    cross_auto_margin_pattern: usize,
+    absolute_pattern: usize,
+    overflow: ComputedOverflow,
+    container_main: f64,
+}
+
+impl Fri07C03ComposedCase {
+    fn deterministic() -> Self {
+        Self {
+            swap_intrinsic_bases: false,
+            collapse_max_item: false,
+            reverse_order: false,
+            reverse_source: false,
+            flow: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            direction: FlexDirection::Row,
+            wrap: FlexWrap::NoWrap,
+            replaced: false,
+            cross_auto_margin_pattern: 3,
+            absolute_pattern: 0,
+            overflow: computed_overflow(Overflow::Visible, Overflow::Clip),
+            container_main: 120.0,
+        }
+    }
+
+    fn axes(self) -> FlexAxes {
+        FlexAxes::new(self.flow, self.direction, self.wrap)
+    }
+
+    fn children(self) -> [u32; 4] {
+        if self.reverse_source {
+            [3, 4, 2, 5]
+        } else {
+            [2, 3, 4, 5]
+        }
+    }
+
+    fn source_index(self, node: u32) -> SourceIndex {
+        let index = self
+            .children()
+            .iter()
+            .position(|child| *child == node)
+            .expect("every composed child has a source position");
+        SourceIndex::new(index)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Fri07C03ComposedTree<S: LayoutScalar> {
+    tree: PublicLayoutTreeOf<S>,
+    axes: FlexAxes,
+    requests: RefCell<Vec<(u32, LeafMeasureInputOf<S>)>>,
+}
+
+impl<S: LayoutScalar> Traverse for Fri07C03ComposedTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = <PublicLayoutTreeOf<S> as Traverse>::Children<'a>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        Traverse::children(&self.tree, node)
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.tree.child_count(node)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.tree.child(node, index)
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri07C03ComposedTree<S> {
+    type MeasureError = core::convert::Infallible;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        self.tree.node_input(node)
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.tree.layout_input(node)
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        matches!(node, 2 | 3)
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        input: LeafMeasureInputOf<S>,
+    ) -> Option<Result<Size<S>, Self::MeasureError>> {
+        if !matches!(node, 2 | 3) {
+            return None;
+        }
+        self.requests.borrow_mut().push((node, input));
+        let main = match (node, self.axes.main_size(input.available_content_size())) {
+            (2, MeasurementAvailableOf::MinContent) => S::from_f64(20.0),
+            (2, MeasurementAvailableOf::MaxContent) => S::from_f64(45.0),
+            (3, MeasurementAvailableOf::MinContent) => S::from_f64(25.0),
+            (3, MeasurementAvailableOf::MaxContent) => S::from_f64(60.0),
+            (_, MeasurementAvailableOf::Definite(value)) => value.get(),
+            _ => unreachable!("only composed intrinsic leaves are measured"),
+        };
+        let cross = if node == 2 { 20.0 } else { 30.0 };
+        Some(Ok(self.axes.size_from_main_cross(main, S::from_f64(cross))))
+    }
+}
+
+fn fri07_c03_composed_layout_tree<S: LayoutScalar>(
+    case: Fri07C03ComposedCase,
+    collapsed_main: f64,
+) -> Fri07C03ComposedTree<S> {
+    let axes = case.axes();
+    let preferred = |value| PreferredSizeOf::px(S::from_f64(value));
+    let length = |value| LengthOf::px(S::from_f64(value));
+    let auto_length = |value| LengthAutoOf::px(S::from_f64(value));
+    let mut cross_margin = Edges::all(LengthAutoOf::ZERO);
+    if matches!(case.cross_auto_margin_pattern, 1 | 3) {
+        axes.set_normal_cross_start_edge(&mut cross_margin, LengthAutoOf::AUTO);
+    }
+    if matches!(case.cross_auto_margin_pattern, 2 | 3) {
+        axes.set_normal_cross_end_edge(&mut cross_margin, LengthAutoOf::AUTO);
+    }
+    let (min_basis, max_basis) = if case.swap_intrinsic_bases {
+        (FlexBasisOf::MAX_CONTENT, FlexBasisOf::MIN_CONTENT)
+    } else {
+        (FlexBasisOf::MIN_CONTENT, FlexBasisOf::MAX_CONTENT)
+    };
+    let (min_order, max_order) = if case.reverse_order {
+        (ItemOrder::new(3), ItemOrder::new(-3))
+    } else {
+        (ItemOrder::new(-3), ItemOrder::new(3))
+    };
+    let (inset, absolute_margin) = match case.absolute_pattern {
+        0 => (
+            Edges::new(
+                auto_length(5.0),
+                auto_length(20.0),
+                auto_length(15.0),
+                auto_length(10.0),
+            ),
+            Edges::all(LengthAutoOf::AUTO),
+        ),
+        1 => (
+            Edges {
+                top: auto_length(5.0),
+                left: auto_length(10.0),
+                ..Edges::all(LengthAutoOf::AUTO)
+            },
+            Edges::all(LengthAutoOf::AUTO),
+        ),
+        2 => (
+            Edges::all(auto_length(40.0)),
+            Edges::all(LengthAutoOf::AUTO),
+        ),
+        _ => unreachable!("the absolute pattern strategy is bounded"),
+    };
+    let intrinsic_item = |basis, order, collapse, margin, replaced| NodeInputOf {
+        item_order: order,
+        item_is_replaced: replaced,
+        flex_item_collapse: collapse,
+        size: axes.size_from_main_cross(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO),
+        min_size: axes.size_from_main_cross(MinSizeOf::ZERO, MinSizeOf::ZERO),
+        flex_basis: basis,
+        flex_grow: FlexGrowOf::ZERO,
+        flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink"),
+        margin,
+        ..NodeInputOf::default()
+    };
+    let collapsed = NodeInputOf {
+        item_order: ItemOrder::new(0),
+        flex_item_collapse: FlexItemCollapse::Collapsed,
+        size: axes.size_from_main_cross(preferred(collapsed_main), preferred(50.0)),
+        flex_grow: FlexGrowOf::ZERO,
+        flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink"),
+        overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+        scrollbar_width: ScrollbarWidthOf::try_new(S::from_f64(3.0))
+            .expect("collapsed scrollbar width is finite"),
+        ..NodeInputOf::default()
+    };
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, case.children())
+        .children(2, [])
+        .children(3, [])
+        .children(4, [])
+        .children(5, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: case.flow.writing_mode(),
+                direction: case.flow.direction(),
+                flex_direction: case.direction,
+                flex_wrap: case.wrap,
+                size: axes
+                    .size_from_main_cross(preferred(case.container_main), PreferredSizeOf::AUTO),
+                gap: axes.size_from_main_cross(length(5.0), length(4.0)),
+                align_content: Some(AlignContent::FlexStart),
+                align_items: Some(AlignItems::FlexStart),
+                overflow: case.overflow,
+                scrollbar_width: ScrollbarWidthOf::try_new(S::from_f64(3.0))
+                    .expect("composed scrollbar width is finite"),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            intrinsic_item(
+                min_basis,
+                min_order,
+                FlexItemCollapse::Normal,
+                cross_margin,
+                case.replaced,
+            ),
+        )
+        .style(
+            3,
+            intrinsic_item(
+                max_basis,
+                max_order,
+                if case.collapse_max_item {
+                    FlexItemCollapse::Collapsed
+                } else {
+                    FlexItemCollapse::Normal
+                },
+                Edges::all(LengthAutoOf::ZERO),
+                false,
+            ),
+        )
+        .style(4, collapsed)
+        .style(
+            5,
+            NodeInputOf {
+                position: Position::Absolute,
+                inset,
+                size: Size::new(preferred(20.0), preferred(10.0)),
+                margin: absolute_margin,
+                ..NodeInputOf::default()
+            },
+        );
+
+    Fri07C03ComposedTree {
+        tree,
+        axes,
+        requests: RefCell::new(Vec::new()),
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Fri07C03ComposedSnapshot<S: LayoutScalar> {
+    outputs: [NodeOutputOf<S>; 5],
+    requests: Vec<(u32, LeafMeasureInputOf<S>)>,
+}
+
+impl<S: LayoutScalar> Fri07C03ComposedSnapshot<S> {
+    fn output(&self, node: u32) -> NodeOutputOf<S> {
+        self.outputs[(node - 1) as usize]
+    }
+
+    fn geometry(&self) -> Vec<f64> {
+        let mut geometry = Vec::new();
+        for output in self.outputs {
+            geometry.extend([
+                output.location.x.to_f64(),
+                output.location.y.to_f64(),
+                output.size.width.to_f64(),
+                output.size.height.to_f64(),
+                output.margin.top.to_f64(),
+                output.margin.right.to_f64(),
+                output.margin.bottom.to_f64(),
+                output.margin.left.to_f64(),
+            ]);
+        }
+        let scroll = self
+            .output(1)
+            .scroll_geometry
+            .expect("composed root publishes scroll geometry");
+        geometry.extend([
+            scroll.physical_range().x().minimum().to_f64(),
+            scroll.physical_range().x().maximum().to_f64(),
+            scroll.physical_range().y().minimum().to_f64(),
+            scroll.physical_range().y().maximum().to_f64(),
+            scroll.scrollbar_size().width.to_f64(),
+            scroll.scrollbar_size().height.to_f64(),
+        ]);
+        geometry
+    }
+}
+
+fn fri07_c03_composed_layout_snapshot<S: LayoutScalar>(
+    case: Fri07C03ComposedCase,
+    collapsed_main: f64,
+) -> Fri07C03ComposedSnapshot<S> {
+    let tree = fri07_c03_composed_layout_tree::<S>(case, collapsed_main);
+    let batch = compute_layout(&tree, 1, fri07_c02_collapse_round_request())
+        .expect("all four completed flex capabilities compose");
+    let outputs = core::array::from_fn(|index| {
+        fri07_c01_composition_output(batch.unrounded_entries(), (index + 1) as u32)
+    });
+    for entries in [batch.unrounded_entries(), batch.final_entries()] {
+        for node in 1..=5 {
+            assert_fri07_c02_composition_finite_output(
+                fri07_c01_composition_output(entries, node),
+                &format!("C03 composed node {node}"),
+            );
+        }
+    }
+    Fri07C03ComposedSnapshot {
+        outputs,
+        requests: tree.requests.into_inner(),
+    }
+}
+
+fn fri07_c03_expected_intrinsic<S: LayoutScalar>(
+    case: Fri07C03ComposedCase,
+    node: u32,
+) -> MeasurementAvailableOf<S> {
+    match (case.swap_intrinsic_bases, node) {
+        (false, 2) | (true, 3) => MeasurementAvailableOf::MIN_CONTENT,
+        (false, 3) | (true, 2) => MeasurementAvailableOf::MAX_CONTENT,
+        _ => unreachable!("only the two intrinsic items have basis expectations"),
+    }
+}
+
+fn assert_fri07_c03_composed_layout_case<S: LayoutScalar>(
+    case: Fri07C03ComposedCase,
+) -> Fri07C03ComposedSnapshot<S> {
+    let axes = case.axes();
+    let snapshot = fri07_c03_composed_layout_snapshot::<S>(case, 70.0);
+    for node in 2..=5 {
+        assert_eq!(
+            snapshot.output(node).source_index,
+            case.source_index(node),
+            "node {node} remains associated with its raw source position for {case:?}"
+        );
+    }
+    assert_eq!(
+        snapshot.output(4),
+        NodeOutputOf::with_source_index(case.source_index(4)),
+        "the strut item publishes a zero box"
+    );
+    if case.collapse_max_item {
+        assert_eq!(
+            snapshot.output(3),
+            NodeOutputOf::with_source_index(case.source_index(3)),
+            "the rotated collapsed intrinsic item publishes no geometry"
+        );
+    }
+
+    for node in [2, 3] {
+        let expected = fri07_c03_expected_intrinsic::<S>(case, node);
+        let intrinsic_count = snapshot
+            .requests
+            .iter()
+            .filter(|(request_node, input)| {
+                *request_node == node && axes.main_size(input.available_content_size()) == expected
+            })
+            .count();
+        assert!(
+            intrinsic_count >= 1,
+            "node {node} must retain its selected intrinsic constraint for {case:?}; requests={:?}",
+            snapshot.requests
+        );
+        let collapse_round_markers = snapshot
+            .requests
+            .iter()
+            .filter(|(request_node, input)| {
+                *request_node == node
+                    && axes.main_size(input.available_content_size()) == expected
+                    && axes.main_size(input.known_content_size()).is_none()
+                    && match axes.cross_size(input.available_content_size()) {
+                        MeasurementAvailableOf::Definite(value) => value.get() > S::from_f64(50.0),
+                        MeasurementAvailableOf::MinContent | MeasurementAvailableOf::MaxContent => {
+                            false
+                        }
+                    }
+            })
+            .count();
+        assert!(
+            (1..=2).contains(&collapse_round_markers),
+            "node {node} observes no more than two complete collapsed-layout settlements for {case:?}; requests={:?}",
+            snapshot.requests
+        );
+    }
+
+    assert!(
+        axes.cross_size(snapshot.output(1).size) >= S::from_f64(50.0),
+        "the collapsed item's first-round 50px used cross size remains a line strut"
+    );
+    let min = snapshot.output(2);
+    let cross_start = axes.normal_cross_start_edge(min.margin);
+    let cross_end = axes.normal_cross_end_edge(min.margin);
+    match case.cross_auto_margin_pattern {
+        0 => assert_eq!((cross_start, cross_end), (S::ZERO, S::ZERO)),
+        1 => {
+            assert!(cross_start >= S::ZERO);
+            assert_eq!(cross_end, S::ZERO);
+        }
+        2 => {
+            assert_eq!(cross_start, S::ZERO);
+            assert!(cross_end >= S::ZERO);
+        }
+        3 => {
+            assert!(cross_start >= S::ZERO);
+            fri07_c01_composition_assert_near(
+                cross_start - cross_end,
+                0.0,
+                "paired ordinary cross auto margins",
+            );
+        }
+        _ => unreachable!("the cross auto-margin strategy is bounded"),
+    }
+
+    let absolute = snapshot.output(5);
+    let containing_scrollport = snapshot
+        .output(1)
+        .scroll_geometry
+        .expect("composed root publishes its inset containing geometry")
+        .scrollport();
+    let containing_size = containing_scrollport.size();
+    let containing_origin = containing_scrollport.origin();
+    match case.absolute_pattern {
+        0 => {
+            fri07_c01_composition_assert_near(
+                absolute.margin.left + absolute.margin.right,
+                containing_size.width.to_f64() - 50.0,
+                "definite horizontal inset-modified margin sum",
+            );
+            fri07_c01_composition_assert_near(
+                absolute.margin.top + absolute.margin.bottom,
+                containing_size.height.to_f64() - 30.0,
+                "definite vertical inset-modified margin sum",
+            );
+            fri07_c01_composition_assert_near(
+                absolute.location.x - absolute.margin.left,
+                containing_origin.x.to_f64() + 10.0,
+                "absolute definite left inset",
+            );
+            fri07_c01_composition_assert_near(
+                absolute.location.y - absolute.margin.top,
+                containing_origin.y.to_f64() + 5.0,
+                "absolute definite top inset",
+            );
+        }
+        1 => {
+            assert_eq!(absolute.margin, Edges::ZERO);
+            assert_eq!(
+                absolute.location,
+                Point::new(
+                    containing_origin.x + S::from_f64(10.0),
+                    containing_origin.y + S::from_f64(5.0),
+                )
+            );
+        }
+        2 => {
+            fri07_c01_composition_assert_near(
+                absolute.margin.left + absolute.margin.right,
+                containing_size.width.to_f64() - 100.0,
+                "negative horizontal inset-modified margin sum",
+            );
+            fri07_c01_composition_assert_near(
+                absolute.margin.top + absolute.margin.bottom,
+                containing_size.height.to_f64() - 90.0,
+                "negative vertical inset-modified margin sum",
+            );
+        }
+        _ => unreachable!("the absolute strategy is bounded"),
+    }
+
+    let root_scroll = snapshot
+        .output(1)
+        .scroll_geometry
+        .expect("composed root publishes settled scroll geometry");
+    assert_eq!(root_scroll.used_overflow_x(), case.overflow.x());
+    assert_eq!(root_scroll.used_overflow_y(), case.overflow.y());
+
+    let payload_control = fri07_c03_composed_layout_snapshot::<S>(case, 370.0);
+    for node in [1, 2, 3, 5] {
+        assert_eq!(
+            snapshot.output(node),
+            payload_control.output(node),
+            "the collapsed item's first-round main size and scroll state cannot contribute to committed node {node}"
+        );
+    }
+    snapshot
+}
+
+#[test]
+fn fri07_c03_composed_layout_exact_geometry_margins_strut_absolute_and_scroll() {
+    let case = Fri07C03ComposedCase::deterministic();
+    let snapshot = assert_fri07_c03_composed_layout_case::<f64>(case);
+    let root = snapshot.output(1);
+    let min = snapshot.output(2);
+    let max = snapshot.output(3);
+    let absolute = snapshot.output(5);
+
+    assert_eq!(root.size, Size::new(120.0, 50.0));
+    assert_eq!(root.content_size, Size::new(120.0, 50.0));
+    assert_eq!(min.location, Point::new(0.0, 15.0));
+    assert_eq!(min.size, Size::new(20.0, 20.0));
+    assert_eq!(min.margin, Edges::new(15.0, 0.0, 15.0, 0.0));
+    assert_eq!(max.location, Point::new(25.0, 0.0));
+    assert_eq!(max.size, Size::new(60.0, 30.0));
+    assert_eq!(absolute.location, Point::new(45.0, 15.0));
+    assert_eq!(absolute.margin, Edges::new(10.0, 35.0, 10.0, 35.0));
+    let scroll = root
+        .scroll_geometry
+        .expect("deterministic root publishes scroll geometry");
+    assert_eq!(scroll.used_overflow_x(), Overflow::Visible);
+    assert_eq!(scroll.used_overflow_y(), Overflow::Clip);
+    assert_eq!(scroll.scrollbar_size(), Size::ZERO);
+    assert_eq!(scroll.physical_range().x().minimum(), 0.0);
+    assert_eq!(scroll.physical_range().x().maximum(), 0.0);
+    assert_eq!(scroll.physical_range().y().minimum(), 0.0);
+    assert_eq!(scroll.physical_range().y().maximum(), 0.0);
+}
+
+fn fri07_c03_composed_layout_cases() -> Vec<Fri07C03ComposedCase> {
+    let mut cases = Vec::new();
+    let base = Fri07C03ComposedCase::deterministic();
+    for swap_intrinsic_bases in [false, true] {
+        cases.push(Fri07C03ComposedCase {
+            swap_intrinsic_bases,
+            ..base
+        });
+    }
+    for collapse_max_item in [false, true] {
+        cases.push(Fri07C03ComposedCase {
+            collapse_max_item,
+            ..base
+        });
+    }
+    for (reverse_order, reverse_source) in [(false, false), (true, false), (false, true)] {
+        cases.push(Fri07C03ComposedCase {
+            reverse_order,
+            reverse_source,
+            ..base
+        });
+    }
+    for flow in [
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl),
+    ] {
+        cases.push(Fri07C03ComposedCase { flow, ..base });
+    }
+    for direction in [
+        FlexDirection::Row,
+        FlexDirection::RowReverse,
+        FlexDirection::Column,
+        FlexDirection::ColumnReverse,
+    ] {
+        cases.push(Fri07C03ComposedCase { direction, ..base });
+    }
+    for wrap in [FlexWrap::NoWrap, FlexWrap::Wrap, FlexWrap::WrapReverse] {
+        cases.push(Fri07C03ComposedCase {
+            wrap,
+            container_main: if wrap == FlexWrap::NoWrap {
+                120.0
+            } else {
+                70.0
+            },
+            ..base
+        });
+    }
+    for replaced in [false, true] {
+        cases.push(Fri07C03ComposedCase { replaced, ..base });
+    }
+    for cross_auto_margin_pattern in 0..4 {
+        cases.push(Fri07C03ComposedCase {
+            cross_auto_margin_pattern,
+            ..base
+        });
+    }
+    for absolute_pattern in 0..3 {
+        cases.push(Fri07C03ComposedCase {
+            absolute_pattern,
+            ..base
+        });
+    }
+    for overflow in [
+        computed_overflow(Overflow::Visible, Overflow::Clip),
+        computed_overflow(Overflow::Hidden, Overflow::Auto),
+        computed_overflow(Overflow::Auto, Overflow::Scroll),
+        computed_overflow(Overflow::Scroll, Overflow::Hidden),
+    ] {
+        cases.push(Fri07C03ComposedCase { overflow, ..base });
+    }
+    cases
+}
+
+#[test]
+fn fri07_c03_composed_layout_paired_controls_rotate_every_owned_dimension() {
+    let cases = fri07_c03_composed_layout_cases();
+    assert_eq!(
+        cases.len(),
+        30,
+        "the deterministic control set stays bounded"
+    );
+    for (index, case) in cases.into_iter().enumerate() {
+        let f32_snapshot = assert_fri07_c03_composed_layout_case::<f32>(case);
+        let f64_snapshot = assert_fri07_c03_composed_layout_case::<f64>(case);
+        let f32_geometry = f32_snapshot.geometry();
+        let f64_geometry = f64_snapshot.geometry();
+        assert_eq!(f32_geometry.len(), f64_geometry.len());
+        for (field, (f32_value, f64_value)) in
+            f32_geometry.into_iter().zip(f64_geometry).enumerate()
+        {
+            assert!(
+                (f32_value - f64_value).abs() <= FRI07_C03_COMPOSED_SCALAR_TOLERANCE,
+                "deterministic control {index} field {field} differs across scalar lanes: {f32_value} versus {f64_value}; case={case:?}"
+            );
+        }
+    }
+
+    let normal = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        collapse_max_item: false,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    let collapsed = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        collapse_max_item: true,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_ne!(normal.output(3).size, Size::ZERO);
+    assert_eq!(collapsed.output(3).size, Size::ZERO);
+
+    let min_basis = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        swap_intrinsic_bases: false,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    let max_basis = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        swap_intrinsic_bases: true,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_eq!(min_basis.output(2).size.width, 20.0);
+    assert_eq!(max_basis.output(2).size.width, 45.0);
+
+    let source_forward =
+        assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase::deterministic());
+    let source_reverse = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        reverse_source: true,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_eq!(
+        source_forward.output(2).location,
+        source_reverse.output(2).location
+    );
+    assert_ne!(
+        source_forward.output(2).source_index,
+        source_reverse.output(2).source_index
+    );
+
+    let order_reverse = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        reverse_order: true,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_ne!(
+        source_forward.output(2).location,
+        order_reverse.output(2).location
+    );
+    assert_eq!(source_forward.output(2).size, order_reverse.output(2).size);
+
+    let vertical_flow = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        flow: FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_eq!(source_forward.output(1).size, Size::new(120.0, 50.0));
+    assert_eq!(vertical_flow.output(1).size, Size::new(50.0, 120.0));
+
+    let row_reverse = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        direction: FlexDirection::RowReverse,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_ne!(
+        source_forward.output(2).location,
+        row_reverse.output(2).location
+    );
+
+    let narrow_nowrap = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        container_main: 70.0,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    let narrow_wrap = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        wrap: FlexWrap::Wrap,
+        container_main: 70.0,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_ne!(narrow_nowrap.output(1).size, narrow_wrap.output(1).size);
+
+    let non_replaced = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        swap_intrinsic_bases: true,
+        replaced: false,
+        container_main: 40.0,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    let replaced = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        swap_intrinsic_bases: true,
+        replaced: true,
+        container_main: 40.0,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_eq!(
+        non_replaced.output(2).size,
+        replaced.output(2).size,
+        "direct intrinsic-basis geometry remains selected by the provider while replacedness rotates independently"
+    );
+
+    let no_cross_auto = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        cross_auto_margin_pattern: 0,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_ne!(
+        no_cross_auto.output(2).margin,
+        source_forward.output(2).margin
+    );
+
+    let auto_inset = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        absolute_pattern: 1,
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_ne!(source_forward.output(5).margin, auto_inset.output(5).margin);
+
+    let forced_scroll = assert_fri07_c03_composed_layout_case::<f64>(Fri07C03ComposedCase {
+        overflow: computed_overflow(Overflow::Scroll, Overflow::Hidden),
+        ..Fri07C03ComposedCase::deterministic()
+    });
+    assert_ne!(
+        source_forward
+            .output(1)
+            .scroll_geometry
+            .expect("visible control has scroll geometry")
+            .scrollbar_size(),
+        forced_scroll
+            .output(1)
+            .scroll_geometry
+            .expect("forced-scroll control has scroll geometry")
+            .scrollbar_size()
+    );
+}
+
+fn fri07_c03_flow(selector: usize) -> FlowAxes {
+    [
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl),
+    ][selector]
+}
+
+fn fri07_c03_direction(selector: usize) -> FlexDirection {
+    [
+        FlexDirection::Row,
+        FlexDirection::RowReverse,
+        FlexDirection::Column,
+        FlexDirection::ColumnReverse,
+    ][selector]
+}
+
+fn fri07_c03_wrap(selector: usize) -> FlexWrap {
+    [FlexWrap::NoWrap, FlexWrap::Wrap, FlexWrap::WrapReverse][selector]
+}
+
+fn fri07_c03_overflow(selector: usize) -> ComputedOverflow {
+    [
+        computed_overflow(Overflow::Visible, Overflow::Clip),
+        computed_overflow(Overflow::Hidden, Overflow::Auto),
+        computed_overflow(Overflow::Auto, Overflow::Scroll),
+        computed_overflow(Overflow::Scroll, Overflow::Hidden),
+    ][selector]
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(24))]
+
+    #[test]
+    fn fri07_c03_composed_layout_bounded_property_preserves_invariants(
+        swap_intrinsic_bases in any::<bool>(),
+        collapse_max_item in any::<bool>(),
+        reverse_order in any::<bool>(),
+        reverse_source in any::<bool>(),
+        flow_selector in 0usize..6,
+        direction_selector in 0usize..4,
+        wrap_selector in 0usize..3,
+        replaced in any::<bool>(),
+        cross_auto_margin_pattern in 0usize..4,
+        absolute_pattern in 0usize..3,
+        overflow_selector in 0usize..4,
+        container_main in 70u16..151,
+    ) {
+        let case = Fri07C03ComposedCase {
+            swap_intrinsic_bases,
+            collapse_max_item,
+            reverse_order,
+            reverse_source,
+            flow: fri07_c03_flow(flow_selector),
+            direction: fri07_c03_direction(direction_selector),
+            wrap: fri07_c03_wrap(wrap_selector),
+            replaced,
+            cross_auto_margin_pattern,
+            absolute_pattern,
+            overflow: fri07_c03_overflow(overflow_selector),
+            container_main: f64::from(container_main),
+        };
+        let f32_snapshot = assert_fri07_c03_composed_layout_case::<f32>(case);
+        let f64_snapshot = assert_fri07_c03_composed_layout_case::<f64>(case);
+        let f32_geometry = f32_snapshot.geometry();
+        let f64_geometry = f64_snapshot.geometry();
+        prop_assert_eq!(f32_geometry.len(), f64_geometry.len());
+        for (field, (f32_value, f64_value)) in
+            f32_geometry.into_iter().zip(f64_geometry).enumerate()
+        {
+            prop_assert!(
+                (f32_value - f64_value).abs() <= FRI07_C03_COMPOSED_SCALAR_TOLERANCE,
+                "property field {} differs across scalar lanes: {} versus {}; case={:?}",
+                field,
+                f32_value,
+                f64_value,
+                case,
+            );
+        }
+
+        let basis_control = assert_fri07_c03_composed_layout_case::<f64>(
+            Fri07C03ComposedCase {
+                swap_intrinsic_bases: !case.swap_intrinsic_bases,
+                ..case
+            },
+        );
+        prop_assert_ne!(
+            f64_snapshot.output(2).size,
+            basis_control.output(2).size,
+            "the paired basis control must change only the selected intrinsic geometry"
+        );
+
+        let source_control = assert_fri07_c03_composed_layout_case::<f64>(
+            Fri07C03ComposedCase {
+                reverse_source: !case.reverse_source,
+                ..case
+            },
+        );
+        prop_assert_eq!(
+            f64_snapshot.output(2).location,
+            source_control.output(2).location,
+            "source rotation cannot change order-modified physical geometry"
+        );
+        prop_assert_ne!(
+            f64_snapshot.output(2).source_index,
+            source_control.output(2).source_index,
+            "source rotation remains observable in stable source association"
+        );
+    }
 }
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
