@@ -19,8 +19,8 @@ artifact, browser, verification, root-handoff, and acceptance portions of
 Reviewed implementation sequence:
 `plans/sequences/P01-I07-S01-flex-algorithm-completeness.md`, normalized
 semantic-content SHA-256
-`3d19a8c3acd747284893da5267a78ac514cdc15ad826fa2d9b9015af6f839103`,
-commit `78dfcd2960e489c55ef32ddd7191362986f6b8a3`, entry
+`2774cf6c8ce74afdead6fe018d5d0f299f8d208af7a3a19107ffda7277550cea`,
+commit `9fe46f932b8538ee570af7d413a1be111078609f`, entry
 `P01/I07/S01/C04`.
 
 Bounded outcome: add only the normalized flex-item-collapse fixture lowering,
