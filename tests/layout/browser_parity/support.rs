@@ -3992,7 +3992,12 @@ fn parse_computed_overflow(attrs: &StyleAttrs) -> Result<layout::ComputedOverflo
 fn parse_overflow_clip_margin(raw: &str) -> Result<layout::OverflowClipMargin, Error> {
     let parts = raw.split_whitespace().collect::<Vec<_>>();
     let (clip_box, length) = match parts.as_slice() {
-        [length] => (layout::OverflowClipBox::PaddingBox, *length),
+        [length] => match *length {
+            "content-box" => (layout::OverflowClipBox::ContentBox, "0px"),
+            "padding-box" => (layout::OverflowClipBox::PaddingBox, "0px"),
+            "border-box" => (layout::OverflowClipBox::BorderBox, "0px"),
+            length => (layout::OverflowClipBox::PaddingBox, length),
+        },
         [clip_box, length] => {
             let clip_box = match *clip_box {
                 "content-box" => layout::OverflowClipBox::ContentBox,
@@ -5251,6 +5256,75 @@ mod tests {
                 .iter()
                 .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
                 .collect(),
+        }
+    }
+
+    fn fixture_overflow_clip_margin(value: &str) -> Result<layout::OverflowClipMargin, Error> {
+        let raw = format!(
+            concat!(
+                "<test name=\"overflow-clip-margin\">",
+                "<viewport width=\"max-content\" height=\"max-content\"/>",
+                "<input><div overflow-clip-margin=\"{}\"/></input>",
+                "<expectations><node/></expectations>",
+                "</test>"
+            ),
+            value
+        );
+        let golden = Golden::parse(&raw)?;
+        let tree = TestTree::from_golden(&golden.root)?;
+        Ok(tree.nodes[0].node_input.overflow_clip_margin)
+    }
+
+    #[test]
+    fn fri07_c04_overflow_clip_margin_parser_lowers_one_token_clip_boxes_with_zero_margin() {
+        let mut rejected = Vec::new();
+        for (value, expected_box) in [
+            ("content-box", layout::OverflowClipBox::ContentBox),
+            ("padding-box", layout::OverflowClipBox::PaddingBox),
+            ("border-box", layout::OverflowClipBox::BorderBox),
+        ] {
+            let Ok(actual) = fixture_overflow_clip_margin(value) else {
+                rejected.push(value);
+                continue;
+            };
+
+            assert_eq!(actual.clip_box(), expected_box);
+            assert_eq!(actual.margin(), 0.0);
+        }
+        assert!(
+            rejected.is_empty(),
+            "rejected one-token overflow clip boxes: {rejected:?}"
+        );
+    }
+
+    #[test]
+    fn fri07_c04_overflow_clip_margin_parser_preserves_length_forms_and_invalid_tokens() {
+        for (value, expected_box, expected_margin) in [
+            ("6px", layout::OverflowClipBox::PaddingBox, 6.0),
+            (
+                "content-box 3.5px",
+                layout::OverflowClipBox::ContentBox,
+                3.5,
+            ),
+        ] {
+            let actual = fixture_overflow_clip_margin(value)
+                .unwrap_or_else(|error| panic!("rejected overflow-clip-margin={value:?}: {error}"));
+            assert_eq!(actual.clip_box(), expected_box);
+            assert_eq!(actual.margin(), expected_margin);
+        }
+
+        for value in [
+            "",
+            "inherit",
+            "padding-box -1px",
+            "padding-box 1em",
+            "padding-box var(--clip)",
+            "content-box 0px extra",
+        ] {
+            assert!(
+                fixture_overflow_clip_margin(value).is_err(),
+                "accepted overflow-clip-margin={value:?}"
+            );
         }
     }
 
