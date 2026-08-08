@@ -7412,14 +7412,11 @@ if (before !== "collapsed" || after !== before) {{
     }
 
     fn fri07_c04_case_ids() -> [&'static str; 6] {
-        [
-            "flex/fri07_cross_auto_margin_overflow",
-            "flex/fri07_absolute_auto_margin_insets",
-            "flex/fri07_intrinsic_flex_basis",
-            "flex/fri07_collapsed_strut_single_line",
-            "flex/fri07_collapsed_strut_wrapping",
-            "flex/fri07_flex_composition",
-        ]
+        fri07_c04_fixture_source_contracts().map(|(source, _, _)| {
+            source
+                .strip_suffix(".html")
+                .expect("FRI-07 fixture source should have an HTML extension")
+        })
     }
 
     fn fri07_c04_expected_fail_reasons() -> BTreeMap<&'static str, &'static str> {

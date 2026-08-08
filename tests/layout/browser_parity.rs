@@ -87,17 +87,10 @@ fn fri07_c04_fixture_input_normalized_collapse_reaches_public_layout_behavior() 
 #[test]
 fn fri07_c04_fixture_input_exact_six_source_four_variant_inventory_is_bounded() {
     let html_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
-    let expected = [
-        "flex/fri07_cross_auto_margin_overflow.html",
-        "flex/fri07_absolute_auto_margin_insets.html",
-        "flex/fri07_intrinsic_flex_basis.html",
-        "flex/fri07_collapsed_strut_single_line.html",
-        "flex/fri07_collapsed_strut_wrapping.html",
-        "flex/fri07_flex_composition.html",
-    ]
-    .into_iter()
-    .map(|relative| html_root.join(relative))
-    .collect::<BTreeSet<_>>();
+    let expected = fri07_c04_fixture_sources()
+        .into_iter()
+        .map(|relative| html_root.join(relative))
+        .collect::<BTreeSet<_>>();
     let fixtures = support::fixture_files_in(&html_root, "html")
         .expect("HTML parity fixtures should be readable");
     let actual = fixtures
@@ -115,31 +108,38 @@ fn fri07_c04_fixture_input_exact_six_source_four_variant_inventory_is_bounded() 
     assert_eq!(fixtures.len(), 1_438);
 }
 
+fn fri07_c04_fixture_sources() -> [&'static str; 6] {
+    [
+        "flex/fri07_cross_auto_margin_overflow.html",
+        "flex/fri07_absolute_auto_margin_insets.html",
+        "flex/fri07_intrinsic_flex_basis.html",
+        "flex/fri07_collapsed_strut_single_line.html",
+        "flex/fri07_collapsed_strut_wrapping.html",
+        "flex/fri07_flex_composition.html",
+    ]
+}
+
 fn fri07_c04_browser_output_paths() -> Vec<PathBuf> {
     let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
-    [
-        "cross_auto_margin_overflow",
-        "absolute_auto_margin_insets",
-        "intrinsic_flex_basis",
-        "collapsed_strut_single_line",
-        "collapsed_strut_wrapping",
-        "flex_composition",
-    ]
-    .into_iter()
-    .flat_map(|name| {
-        [
-            "border_box_ltr",
-            "border_box_rtl",
-            "content_box_ltr",
-            "content_box_rtl",
-        ]
+    fri07_c04_fixture_sources()
         .into_iter()
-        .map({
-            let corpus = corpus.clone();
-            move |variant| corpus.join(format!("xml/flex/fri07_{name}__{variant}.xml"))
+        .flat_map(|source| {
+            let id = source
+                .strip_suffix(".html")
+                .expect("FRI-07 fixture source should have an HTML extension");
+            [
+                "border_box_ltr",
+                "border_box_rtl",
+                "content_box_ltr",
+                "content_box_rtl",
+            ]
+            .into_iter()
+            .map({
+                let corpus = corpus.clone();
+                move |variant| corpus.join(format!("xml/{id}__{variant}.xml"))
+            })
         })
-    })
-    .collect()
+        .collect()
 }
 
 #[test]
