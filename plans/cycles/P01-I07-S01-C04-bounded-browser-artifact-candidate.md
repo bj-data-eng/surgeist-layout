@@ -10,8 +10,8 @@ Cycle base: `5e1de7fe83326c4ec7c9b878fd39f4d3738fce5f`
 
 Reviewed specification:
 `plans/specs/P01-I07-flex-algorithm-completeness.md`, normalized semantic-content
-SHA-256 `9e2a899476d27e09133a05531cb4bb4dfab1479d949d66167548c26ee1972b57`,
-commit `451954e6aab6529ce7464c299be7e2aff6ea3753`: `FRI-07.4 D-15`
+SHA-256 `df69716865bf7f88bf89a7ecfea979cffa3b879b69a2cde16586d7598edb1332`,
+commit `f86b0572863d8eb72da5c00364bf7020299c99b8`: `FRI-07.4 D-15`
 through `D-17`; complete `FRI-07.10`; and the fixture, adapter, generator,
 artifact, browser, verification, root-handoff, and acceptance portions of
 `FRI-07.11`, `.12`, `.14`, and `.16`.
@@ -19,15 +19,17 @@ artifact, browser, verification, root-handoff, and acceptance portions of
 Reviewed implementation sequence:
 `plans/sequences/P01-I07-S01-flex-algorithm-completeness.md`, normalized
 semantic-content SHA-256
-`50f29d416df158ed8ceb799d4592fc2d53e36e6512a676bf498b05722a15b964`,
-commit `0f0c19e50d8f6c27e300a5bc652e21ee5145b7cc`, entry
+`3d19a8c3acd747284893da5267a78ac514cdc15ad826fa2d9b9015af6f839103`,
+commit `78dfcd2960e489c55ef32ddd7191362986f6b8a3`, entry
 `P01/I07/S01/C04`.
 
 Bounded outcome: add only the normalized flex-item-collapse fixture lowering,
 its exact rejection and independence evidence, and the six specified
-four-variant sources; freeze their active manifest records; then run one
-unfiltered ExistingPinned derivation and adopt its exact 24-row browser lineage
-without expanding generator architecture or changing production layout.
+four-variant sources. Migrate the existing `all.json` schema in place so it is
+the sole provenance authority and XML is comment-free, freeze the active
+manifest records, then run one unfiltered ExistingPinned derivation and adopt
+its exact 24-row browser lineage without adding a generator path or changing
+production layout.
 
 ## 1 Boundary
 
@@ -54,9 +56,10 @@ At the cycle base:
   `target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
   no browser or other software acquisition is authorized; and
 - no existing HTML source contains authored `visibility: collapse`, so the six
-  owned sources are the only expected semantic input additions. Existing XML
-  may receive generator-owned provenance updates after the helper hash changes,
-  but unrelated input attributes and geometry bodies must remain unchanged.
+  owned sources are the only expected semantic input additions; and
+- every existing XML carries a leading schema-2 provenance comment. C04 owns the
+  one-time removal of those comments and the in-place report schema migration;
+  each remaining pre-existing XML body must stay byte-for-byte unchanged.
 
 The fixture bridge is one-way and finite. The helper reads computed visibility
 only for an in-flow flex item and emits the normalized layout-ready fact; the
@@ -78,7 +81,7 @@ The exact sources are:
 Each source owns the existing border-box/content-box by LTR/RTL matrix, for
 exactly 24 XML outputs. No scoped generator run is required or authorized by
 this plan. After helper, parser, serializer, HTML, manifest, and focused behavior
-inputs are task-clean, T03 invokes the unfiltered ExistingPinned generator once.
+inputs are task-clean, T04 invokes the unfiltered ExistingPinned generator once.
 If that run reveals a confirmed input defect, it is diagnostic; correct the
 input through the owning task and record why the run is invalid before the one
 replacement allowed by `FRI-07.10.3`. Never rerun over unchanged inputs.
@@ -95,11 +98,12 @@ Out of scope: production layout changes; public API, model, errors, reexports,
 or docs; authored CSS parsing; root or sibling work; new fixture vocabulary
 beyond the one normalized token; general visibility, inline-flex, positioned
 layout, or rendering behavior; new modules, helpers shared outside the existing
-fixture bridge, generator paths, commands, schemas, reports, scripts, lints, CI,
-dependencies, features, MSRV, browser pin/profile, base style, Taffy import, WPT
-mirror, scoped report, quarantine, aggregate `just parity-all`, hand-edited XML
-or report data, suppressions, and unrelated cleanup. No new `allow`, `expect`,
-or Surgeist-owned `unsafe` is permitted.
+fixture bridge, generator paths, commands, second reports or provenance
+authorities, scripts, lints, CI, dependencies, features, MSRV, browser
+pin/profile, base style, Taffy import, WPT mirror, scoped report, quarantine,
+aggregate `just parity-all`, hand-edited XML or report data, suppressions, and
+unrelated cleanup. Only the bounded in-place `all.json` schema migration is
+authorized. No new `allow`, `expect`, or Surgeist-owned `unsafe` is permitted.
 
 ## 2 Impacts
 
@@ -113,18 +117,64 @@ API artifacts, and gitlink promotion remain root-owned and outside C04.
 
 Generated artifacts: six human-readable HTML inputs and six active manifest
 records derive exactly 24 new XML outputs. The single full run owns the updated
-sole `all.json` and current provenance throughout the generated XML corpus.
-Existing non-provenance input attributes and geometry must remain byte-equivalent
-unless an exact owned source explains the delta. Final expected inventory is
-1,438 HTML and 5,736 XML with 5,736 generated and 16 unsupported rows, and zero
-expected-fail, quarantine, and failure buckets under this reviewed revision.
+sole `all.json`, its global and per-output provenance, and comment-free XML.
+The report binds each output to its source, linked resources, and XML content by
+SHA-256. Existing XML after removal of its first legacy provenance comment must
+remain byte-equivalent unless an exact owned source explains the delta. Final
+expected inventory is 1,438 HTML and 5,736 XML with 5,736 generated and 16
+unsupported rows, and zero expected-fail, quarantine, and failure buckets under
+this reviewed revision.
 
-Docs/examples: unchanged. Unsafe: prohibited across all tracked and non-ignored
-owned Rust files.
+Docs: update the two existing browser-parity provenance descriptions only.
+Examples: unchanged. Unsafe: prohibited across all tracked and non-ignored owned
+Rust files.
 
 ## 3 Tasks
 
-### 3.1 `P01/I07/S01/C04/T01` Lower The Normalized Collapse Fixture Fact
+### 3.1 `P01/I07/S01/C04/T01` Centralize Generated Provenance
+
+**Files/area:** `tests/bin/surgeist-layout-generate/generator.rs`, focused
+generator and browser-parity tests, `README.md`, and
+`tests/layout/browser_parity/README.md`. Generated XML and `all.json` remain
+unchanged until T04.
+
+**Outcome:** replace schema-2 XML-comment provenance with a deterministic next
+schema in the existing `all.json`: global metadata records shared provenance
+once, and every generated entry records source SHA-256, linked-resource hashes,
+and XML SHA-256 alongside its existing identity. Generation emits comment-free
+XML, while `check-corpus` validates the sole report against all inputs and
+outputs and rejects embedded provenance.
+
+**RED evidence:** first add focused tests proving that the current report lacks
+per-output hashes, XML generation emits a provenance comment, stale source,
+linked-resource, and XML hashes are not centrally rejected, and embedded
+provenance is accepted. The tests fail at the task base for those exact reasons.
+
+**Acceptance:** report serialization is deterministic and strictly ordered;
+paths are repository-relative; output identities and paths are unique; global
+metadata remains current; per-entry source, linked-resource, and XML hashes are
+recomputed; report and XML inventories are exactly equal; missing, stale, or
+extra data is rejected; and XML emission contains no generated provenance
+comment. Existing report paths and commands are retained, no second authority or
+dependency is introduced, docs name `all.json` as the sole authority, and no
+generated artifact is changed or generator invoked in this task.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate centralized_provenance_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout centralized_provenance_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+cargo fmt --check
+git diff --check
+```
+
+**Dependency:** remotely verified C03 candidate only.
+
+**Intended commit:** `test(parity): centralize generated provenance`.
+
+### 3.2 `P01/I07/S01/C04/T02` Lower The Normalized Collapse Fixture Fact
 
 **Files/area:**
 `tests/layout/browser_parity/scripts/gentest/test_helper.js`,
@@ -162,11 +212,11 @@ cargo fmt --check
 git diff --check
 ```
 
-**Dependency:** remotely verified C03 candidate only.
+**Dependency:** T01 is task-clean.
 
 **Intended commit:** `test(parity): lower normalized flex collapse`.
 
-### 3.2 `P01/I07/S01/C04/T02` Add The Six Bounded Browser Sources
+### 3.3 `P01/I07/S01/C04/T03` Add The Six Bounded Browser Sources
 
 **Files/area:** exactly the six HTML paths named in the boundary,
 `tests/bin/surgeist-layout-generate/generator.rs`, and
@@ -204,13 +254,13 @@ git diff --check
 ```
 
 Corpus checking is intentionally deferred because the six sources are
-unmanifested until T03. No generator invocation occurs in T02.
+unmanifested until T04. No generator invocation occurs in T03.
 
-**Dependency:** T01 is task-clean.
+**Dependency:** T02 is task-clean.
 
 **Intended commit:** `test(parity): add FRI-07 browser sources`.
 
-### 3.3 `P01/I07/S01/C04/T03` Freeze Inputs And Derive The Corpus Once
+### 3.4 `P01/I07/S01/C04/T04` Freeze Inputs And Derive The Corpus Once
 
 **Files/area:** `tests/layout/browser_parity/corpus.toml`, final inventory and
 lineage tests in `tests/bin/surgeist-layout-generate/generator.rs` and
@@ -221,7 +271,7 @@ lineage tests in `tests/bin/surgeist-layout-generate/generator.rs` and
 **Outcome:** add one active Surgeist record for each settled source, prove the
 browser executable and final input inventory, invoke ExistingPinned once without
 a filter, and adopt the exact generator-owned 24-row lineage and full-corpus
-provenance.
+provenance in `all.json` while removing the legacy comments from XML once.
 
 **RED evidence:** add `fri07_c04_manifest_`, `fri07_c04_corpus_`, and
 `fri07_c04_browser_parity_` tests before derivation. At the task base they fail
@@ -248,12 +298,16 @@ env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_BRO
 standard four-variant matrix; all parse and match production layout. The corpus
 has 1,438 HTML and 5,736 XML. `all.json` and manifest accounting report 5,736
 generated, 16 unchanged unsupported, zero expected-fail, quarantine, and failure
-rows, and no scoped report. Every pre-existing XML delta is limited to
-generator-owned provenance caused by the helper revision; non-provenance input
-attributes and geometry remain unchanged. The report and every XML carry current
-manifest, helper, base-style, browser, and launch-profile provenance. Record the
-final manifest, helper, report, and owned-24-output hashes for the C04 handoff.
-After derivation all artifact commands are read-only; do not regenerate.
+rows, and no scoped report. Every pre-existing XML delta is limited to removal
+of its generator-owned provenance comment; input attributes and geometry remain
+unchanged. The deterministic XML comparison below compares every
+5,712 base XML body after its first generated comment byte-for-byte with the
+entire final comment-free file, rejects every deletion, and requires the only
+additions to be the exact six-name/four-variant matrix. `all.json` alone carries
+current manifest, helper, base-style, browser, launch-profile, per-source,
+linked-resource, and XML hashes; every XML rejects embedded provenance. Record
+the final manifest, helper, report, and owned-24-output hashes for the C04
+handoff. After derivation all artifact commands are read-only; do not regenerate.
 
 **Commands:**
 
@@ -266,12 +320,25 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
+bash -c '
+set -euo pipefail
+base=5e1de7fe83326c4ec7c9b878fd39f4d3738fce5f
+xml_root=tests/layout/browser_parity/xml
+added=$(git diff --diff-filter=A --name-only "$base..HEAD" -- "$xml_root/**/*.xml")
+test "$(printf "%s\n" "$added" | sed "/^$/d" | wc -l | tr -d " ")" -eq 24
+if printf "%s\n" "$added" | rg -v "^$xml_root/flex/fri07_(cross_auto_margin_overflow|absolute_auto_margin_insets|intrinsic_flex_basis|collapsed_strut_single_line|collapsed_strut_wrapping|flex_composition)__(border_box|content_box)_(ltr|rtl)\\.xml$"; then exit 1; fi
+test -z "$(git diff --diff-filter=D --name-only "$base..HEAD" -- "$xml_root/**/*.xml")"
+while IFS= read -r file; do
+  cmp -s <(git show "$base:$file" | tail -n +2) "$file"
+done < <(git ls-tree -r --name-only "$base" -- "$xml_root" | rg "\\.xml$")
+! rg -l '^<!-- generated-by: surgeist-layout-generate ' "$xml_root" --glob '*.xml'
+'
 cargo fmt --check
 git diff --check
 ```
 
-**Dependency:** T01 and T02 are task-clean; every input and manifest record is
-settled before the single derivation.
+**Dependency:** T01, T02, and T03 are task-clean; every schema, input, and
+manifest record is settled before the single derivation.
 
 **Intended commit:** `test(parity): derive FRI-07 flex corpus`.
 
@@ -285,8 +352,9 @@ publication, readback, and cleanup lifecycle applies. C04 acceptance is:
 2. the exact six sources and 24 variants cover `FRI-07.10.1`, and each active
    record and output is source-derived rather than expectation- or name-derived;
 3. one settled unfiltered ExistingPinned invocation owns all final XML/report
-   changes, with no redundant run, manual edit, stale output, scoped report, or
-   generator architecture expansion;
+   changes, including the one-time removal of legacy comments; `all.json` is the
+   sole provenance authority and binds every generated output, with no redundant
+   run, manual edit, stale output, scoped report, or new generator path;
 4. all 24 rows pass browser parity with an empty exception registry under this
    reviewed revision; any contrary evidence returns to the semantic plan-review
    gate required by `FRI-07.10.2` rather than weakening acceptance;
@@ -307,7 +375,20 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
-git diff --exit-code 5e1de7fe83326c4ec7c9b878fd39f4d3738fce5f..HEAD -- . ':(exclude)plans/cycles/P01-I07-S01-C04-bounded-browser-artifact-candidate.md' ':(exclude)tests/layout/browser_parity/scripts/gentest/test_helper.js' ':(exclude)tests/bin/surgeist-layout-generate/generator.rs' ':(exclude)tests/layout/browser_parity/support.rs' ':(exclude)tests/layout/browser_parity.rs' ':(exclude)tests/layout/browser_parity/corpus.toml' ':(exclude)tests/layout/browser_parity/html/flex/fri07_*.html' ':(exclude)tests/layout/browser_parity/xml/flex/fri07_*.xml' ':(exclude)tests/layout/browser_parity/xml/generation-reports/all.json' ':(exclude)tests/layout/browser_parity/xml/**/*.xml'
+bash -c '
+set -euo pipefail
+base=5e1de7fe83326c4ec7c9b878fd39f4d3738fce5f
+xml_root=tests/layout/browser_parity/xml
+added=$(git diff --diff-filter=A --name-only "$base..HEAD" -- "$xml_root/**/*.xml")
+test "$(printf "%s\n" "$added" | sed "/^$/d" | wc -l | tr -d " ")" -eq 24
+if printf "%s\n" "$added" | rg -v "^$xml_root/flex/fri07_(cross_auto_margin_overflow|absolute_auto_margin_insets|intrinsic_flex_basis|collapsed_strut_single_line|collapsed_strut_wrapping|flex_composition)__(border_box|content_box)_(ltr|rtl)\\.xml$"; then exit 1; fi
+test -z "$(git diff --diff-filter=D --name-only "$base..HEAD" -- "$xml_root/**/*.xml")"
+while IFS= read -r file; do
+  cmp -s <(git show "$base:$file" | tail -n +2) "$file"
+done < <(git ls-tree -r --name-only "$base" -- "$xml_root" | rg "\\.xml$")
+! rg -l '^<!-- generated-by: surgeist-layout-generate ' "$xml_root" --glob '*.xml'
+'
+git diff --exit-code 5e1de7fe83326c4ec7c9b878fd39f4d3738fce5f..HEAD -- . ':(exclude)plans/**' ':(exclude)README.md' ':(exclude)tests/layout/browser_parity/README.md' ':(exclude)tests/layout/browser_parity/scripts/gentest/test_helper.js' ':(exclude)tests/bin/surgeist-layout-generate/generator.rs' ':(exclude)tests/layout/browser_parity/support.rs' ':(exclude)tests/layout/browser_parity.rs' ':(exclude)tests/layout/browser_parity/corpus.toml' ':(exclude)tests/layout/browser_parity/html/flex/fri07_*.html' ':(exclude)tests/layout/browser_parity/xml/flex/fri07_*.xml' ':(exclude)tests/layout/browser_parity/xml/generation-reports/all.json' ':(exclude)tests/layout/browser_parity/xml/**/*.xml'
 ! git diff --unified=0 5e1de7fe83326c4ec7c9b878fd39f4d3738fce5f..HEAD -- '*.rs' | rg --pcre2 '^\+(?!\+\+).*#\s*\[.*\b(?:allow|expect)\s*\('
 ! rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' src tests
 git diff --check 5e1de7fe83326c4ec7c9b878fd39f4d3738fce5f..HEAD
