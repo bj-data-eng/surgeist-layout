@@ -45,14 +45,11 @@ At the cycle base:
 - the corpus contains 1,432 tracked HTML sources and 5,712 generated XML files;
   `all.json` reports 5,712 generated, 16 unsupported, and zero expected-fail,
   quarantined, and failed-to-generate rows;
-- `corpus.toml` SHA-256 is
+- base SHA-256 values are `corpus.toml`
   `99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701`,
-  `all.json` SHA-256 is
-  `8d59c87d1fcc185bda0372968ae81dbeff74f241c17335db98629ad49f1f463f`,
-  and `test_helper.js` SHA-256 is
-  `42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2`;
-- the manifest pins Chrome for Testing `149.0.7827.115`, and the one already
-  installed matching executable is
+  `all.json` `8d59c87d1fcc185bda0372968ae81dbeff74f241c17335db98629ad49f1f463f`,
+  and helper `42bf9ff77810b2e9fb5a184f525d9e22f74abae12a09f9486b3b49dc620188c2`;
+- the manifest pins Chrome `149.0.7827.115`; its installed executable is
   `target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
   no browser or other software acquisition is authorized; and
 - no existing HTML source contains authored `visibility: collapse`, so the six
@@ -69,30 +66,33 @@ and rejects every other explicit token. It does not parse authored visibility,
 infer state from fixture names or expected geometry, or create a general
 visibility model.
 
-The exact sources are:
+The exact `tests/layout/browser_parity/html/flex/` sources are
+`fri07_cross_auto_margin_overflow.html`, `fri07_absolute_auto_margin_insets.html`,
+`fri07_intrinsic_flex_basis.html`, `fri07_collapsed_strut_single_line.html`,
+`fri07_collapsed_strut_wrapping.html`, and `fri07_flex_composition.html`.
 
-- `tests/layout/browser_parity/html/flex/fri07_cross_auto_margin_overflow.html`;
-- `tests/layout/browser_parity/html/flex/fri07_absolute_auto_margin_insets.html`;
-- `tests/layout/browser_parity/html/flex/fri07_intrinsic_flex_basis.html`;
-- `tests/layout/browser_parity/html/flex/fri07_collapsed_strut_single_line.html`;
-- `tests/layout/browser_parity/html/flex/fri07_collapsed_strut_wrapping.html`;
-- `tests/layout/browser_parity/html/flex/fri07_flex_composition.html`.
+Each source owns the existing four-variant matrix, exactly 24 outputs. No scoped
+run is authorized. The recorded invalid initial run and sole reviewed replacement
+follow `FRI-07.10.3`; never rerun unchanged inputs.
 
-Each source owns the existing border-box/content-box by LTR/RTL matrix, for
-exactly 24 XML outputs. No scoped generator run is required or authorized by
-this plan. After helper, parser, serializer, HTML, manifest, and focused behavior
-inputs are task-clean, T04 invokes the unfiltered ExistingPinned generator once.
-If that run reveals a confirmed input defect, it is diagnostic; correct the
-input through the owning task and record why the run is invalid before the one
-replacement allowed by `FRI-07.10.3`. Never rerun over unchanged inputs.
-
-The expected-fail registry begins and is expected to remain empty. A browser
-disagreement is blocking evidence, not authority to weaken an oracle. No
-expected-fail entry or synthetic substitute may enter this reviewed range unless
-all predicates in `FRI-07.10.2` are first established and this cycle plan is
-semantically revised to record the exact source, variants, normative and
-independent evidence, minimized reproduction, synthetic test, disposition, and
-revalidation trigger, followed by a fresh plan review.
+Chrome 149 fails the qualified-collapse oracle for all four variants of
+`fri07_collapsed_strut_single_line`, `fri07_collapsed_strut_wrapping`, and
+`fri07_flex_composition`. The first family places the first visible item at
+`y=0` instead of the required `y=5`; the second reports height `157` instead of
+`68`; after valid zero clip-margin lowering, composition places child zero at
+`6` instead of `27` in LTR and `134` instead of `113` in RTL. CSS Flexbox §4.4
+requires removing the item from rendering while retaining its line strut:
+`https://www.w3.org/TR/css-flexbox-1/#visibility-collapse`. Independent WPT
+reference oracles `flexbox_visibility-collapse.html` and
+`flexbox_visibility-collapse-line-wrapping.html` remove the collapsed items.
+T02/T03 prove input correctness before comparison. Public-front-door substitutes
+are `fri07_c02_collapse_round_single_line_keeps_strut_and_suppresses_committed_gap`,
+`fri07_c02_collapse_round_zero_main_rewrap_keeps_collection_gaps_and_identity_strut`,
+and `fri07_c03_composed_layout_exact_geometry_margins_strut_absolute_and_scroll`.
+The three source-level manifest records are `expected-fail`, covering exactly 12
+variants; the other 12 remain ordinary parity oracles. Revalidate on a Chrome
+pin/profile change, a CSS/WPT expectation change, or Chrome support for collapsed
+flex struts. Quarantine and oracle weakening remain forbidden.
 
 Out of scope: production layout changes; public API, model, errors, reexports,
 or docs; authored CSS parsing; root or sibling work; new fixture vocabulary
@@ -115,19 +115,16 @@ Dependencies, features, manifest, lockfile, MSRV, browser pin, launch profile,
 task runner, and root: unchanged. Root facade wiring, computed-style lowering,
 API artifacts, and gitlink promotion remain root-owned and outside C04.
 
-Generated artifacts: six human-readable HTML inputs and six active manifest
-records derive exactly 24 new XML outputs. The single full run owns the updated
-sole `all.json`, its global and per-output provenance, and comment-free XML.
-The report binds each output to its source, linked resources, and XML content by
-SHA-256. Existing XML after removal of its first legacy provenance comment must
-remain byte-equivalent unless an exact owned source explains the delta. Final
+Generated artifacts: six HTML inputs/records derive 24 XML outputs. The reviewed
+replacement owns comment-free XML and sole `all.json`, binding every output to
+its source, linked resources, and XML content by SHA-256. Existing XML after its
+legacy first comment remains byte-equivalent. Final
 expected inventory is 1,438 HTML and 5,736 XML with 5,736 generated and 16
-unsupported rows, and zero expected-fail, quarantine, and failure buckets under
-this reviewed revision.
+unsupported rows, three expected-fail source rows covering 12 variants, and zero
+quarantine and failure buckets under this reviewed revision.
 
-Docs: update the two existing browser-parity provenance descriptions only.
-Examples: unchanged. Unsafe: prohibited across all tracked and non-ignored owned
-Rust files.
+Docs: update the two provenance descriptions only. Examples: unchanged. Unsafe:
+prohibited across all tracked and non-ignored owned Rust files.
 
 ## 3 Tasks
 
@@ -268,10 +265,9 @@ lineage tests in `tests/bin/surgeist-layout-generate/generator.rs` and
 `tests/layout/browser_parity/xml/`, and the sole
 `tests/layout/browser_parity/xml/generation-reports/all.json`.
 
-**Outcome:** add one active Surgeist record for each settled source, prove the
-browser executable and final input inventory, invoke ExistingPinned once without
-a filter, and adopt the exact generator-owned 24-row lineage and full-corpus
-provenance in `all.json` while removing the legacy comments from XML once.
+**Outcome:** add six settled Surgeist records, prove the browser executable and
+final inputs, perform the one reviewed replacement ExistingPinned invocation,
+and adopt the exact 24-row lineage and centralized provenance.
 
 **RED evidence:** add `fri07_c04_manifest_`, `fri07_c04_corpus_`, and
 `fri07_c04_browser_parity_` tests before derivation. At the task base they fail
@@ -279,26 +275,32 @@ because the six case records, 24 XML outputs, new report accounting, and current
 provenance do not exist. Artifact RED is authoritative and must not be replaced
 with hand-written XML.
 
-**Pre-derivation acceptance:** `corpus.toml` has exactly six new active records,
-each with `source_root = "surgeist"`, the exact source path,
-`generator = "constrained-html"`, and no expected-fail/quarantine entry. The
+**Pre-derivation acceptance:** `corpus.toml` has exactly six new records, each
+with `source_root = "surgeist"`, the exact source path, and
+`generator = "constrained-html"`; the three collapse-bearing sources have the
+reviewed expected-fail reason and the other three are active. The
 focused helper/parser/serializer/source tests and both default/generator suites
 pass. Exactly one executable matches the pinned path and reports
 `Google Chrome for Testing 149.0.7827.115`. No scoped report exists, no generation
-filter or browser override is inherited, and all input changes are reviewed
-before the full invocation.
+filter or browser override is inherited, and all input changes are reviewed.
+The initial derivation was diagnostic: it stopped before report publication on
+an invalid global-name uniqueness check and premature unsupported-resource
+hashing. T01 fixes at `c519299cf339a007806f8e70e95c3dbdeb2414e5` are
+task-clean; the replacement below is authorized exactly once.
 
-**Single derivation command:** run exactly once after pre-derivation acceptance:
+**Replacement derivation command:** run exactly once after pre-derivation acceptance:
 
 ```sh
 env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_LAYOUT_GENERATE_FILTER= SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
 **Final acceptance:** exactly 24 new `xml/flex/fri07_*.xml` outputs exist in the
-standard four-variant matrix; all parse and match production layout. The corpus
-has 1,438 HTML and 5,736 XML. `all.json` and manifest accounting report 5,736
-generated, 16 unchanged unsupported, zero expected-fail, quarantine, and failure
-rows, and no scoped report. Every pre-existing XML delta is limited to removal
+standard four-variant matrix and all parse. The 12 ordinary rows match production;
+the exact 12 collapse-bearing rows reproduce only the reviewed Chrome mismatches
+and pass their public-front-door substitutes. The corpus has 1,438 HTML and 5,736
+XML. `all.json` and manifest accounting report 5,736 generated, 16 unchanged
+unsupported, three expected-fail source rows, zero quarantine/failure, and no
+scoped report. Every pre-existing XML delta is limited to removal
 of its generator-owned provenance comment; input attributes and geometry remain
 unchanged. The deterministic XML comparison below compares every
 5,712 base XML body after its first generated comment byte-for-byte with the
@@ -338,7 +340,7 @@ git diff --check
 ```
 
 **Dependency:** T01, T02, and T03 are task-clean; every schema, input, and
-manifest record is settled before the single derivation.
+manifest record is settled before the replacement derivation.
 
 **Intended commit:** `test(parity): derive FRI-07 flex corpus`.
 
@@ -349,21 +351,19 @@ publication, readback, and cleanup lifecycle applies. C04 acceptance is:
 
 1. the helper, serializer, and Rust adapter carry exactly one normalized
    collapse fact with complete omission, rejection, and independence controls;
-2. the exact six sources and 24 variants cover `FRI-07.10.1`, and each active
+2. the exact six sources and 24 variants cover `FRI-07.10.1`, and each manifest
    record and output is source-derived rather than expectation- or name-derived;
-3. one settled unfiltered ExistingPinned invocation owns all final XML/report
-   changes, including the one-time removal of legacy comments; `all.json` is the
-   sole provenance authority and binds every generated output, with no redundant
-   run, manual edit, stale output, scoped report, or new generator path;
-4. all 24 rows pass browser parity with an empty exception registry under this
-   reviewed revision; any contrary evidence returns to the semantic plan-review
-   gate required by `FRI-07.10.2` rather than weakening acceptance;
+3. the one reviewed replacement invocation owns the final XML/report changes;
+   the earlier diagnostic run and reason are recorded, and `all.json` alone binds
+   every output with no manual edit, stale output, scoped report, or new path;
+4. 12 ordinary rows pass browser parity and the exact 12 qualified Chrome rows
+   reproduce their reviewed mismatch and pass public-front-door substitutes;
 5. unrelated inputs, geometry, report buckets, browser policy, dependencies,
    features, MSRV, production, public API, root, and finding ownership remain
    unchanged; and
 6. the remotely verified handoff records exact source/output inventory, final
-   provenance hashes, Chrome version/path, command/review evidence, and the
-   empty known-Chrome-failure registry for C05 sprawl assessment.
+   provenance hashes, Chrome version/path, command/review evidence, and the exact
+   three-source/12-variant Chrome registry for C05 sprawl assessment.
 
 At the complete-status head, run:
 
