@@ -53,9 +53,9 @@ pub use lanes::{
     LaneTrackSpanLength, grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing, place_lanes,
 };
 use lanes::{
-    GridLanesLayoutInput, LaneIntrinsicTrackSizeInput, column_flow_for_grid_lanes,
-    grid_axis_for_grid_lanes, lane_intrinsic_track_sizes, layout_grid_lanes_children,
-    resolve_grid_lanes_placement_with_resolved_tracks,
+    GridLanesLayoutInput, LaneIntrinsicTrackSizeInput, apply_grid_lanes_auto_fit_policy,
+    column_flow_for_grid_lanes, grid_axis_for_grid_lanes, lane_intrinsic_track_sizes,
+    layout_grid_lanes_children, resolve_grid_lanes_placement_with_resolved_tracks,
 };
 use named::{
     GridAreaNameFacts, NamedGridError, NamedGridLines, build_grid_named_context_with_report,
@@ -702,8 +702,13 @@ where
         row_intrinsic_sizes,
     } = track_resolution;
     let mut logical_content_size = LogicalSizeOf::new(
-        track_content_sum(&column_tracks, &columns, gap.inline),
-        track_content_sum(&row_tracks, &rows, gap.block),
+        track_content_sum_with_gutters(
+            &column_tracks,
+            &columns,
+            gap.inline,
+            Some(&context.column_gutters),
+        ),
+        track_content_sum_with_gutters(&row_tracks, &rows, gap.block, Some(&context.row_gutters)),
     );
     if let Ok(lane_report) = resolve_grid_lanes_placement_with_resolved_tracks(
         tree,
@@ -759,8 +764,8 @@ where
                 columns: &columns,
                 rows: &rows,
                 gap,
-                column_gutters: None,
-                row_gutters: None,
+                column_gutters: Some(&context.column_gutters),
+                row_gutters: Some(&context.row_gutters),
                 lines,
                 placements: &placements,
             },
@@ -832,7 +837,7 @@ where
                 definite_size: logical_node_inner_size.inline,
                 available_size: logical_available_inner_size.inline,
                 gap: layout_gap.inline,
-                gutters: None,
+                gutters: Some(&context.column_gutters),
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
                 stretch_empty_auto_to_available: false,
                 min_intrinsic_sizes: &column_min_intrinsic_sizes,
@@ -849,7 +854,7 @@ where
             gap: layout_gap.block,
             alignment: style.align_content.unwrap_or(AlignContent::Stretch),
             intrinsic_sizes: &row_intrinsic_sizes,
-            gutters: None,
+            gutters: Some(&context.row_gutters),
         });
         let mut child_layout = layout_grid_lanes_children(
             tree,
@@ -1263,14 +1268,20 @@ where
         // placement policies; ordinary grids never enter this pre-sizing path.
         let mut column_tracks = topology.column_tracks.clone();
         let mut row_tracks = topology.row_tracks.clone();
-        let visible_cell_count = placements
-            .checked_child_placements(&children)
-            .filter(|(child, _)| is_in_flow_grid_child(tree.node_input(*child)))
-            .map(|(_, placement)| {
-                placement_cell_span(placement.column, explicit_columns)
-                    * placement_cell_span(placement.row, explicit_rows)
-            })
-            .sum::<usize>();
+        let grid_lanes = style.display.establishes_grid_lanes_formatting_context();
+        let visible_cell_count = if grid_lanes {
+            0
+        } else {
+            placements
+                .checked_child_placements(&children)
+                .filter(|(child, _)| is_in_flow_grid_child(tree.node_input(*child)))
+                .map(|(_, placement)| {
+                    placement_cell_span(placement.column, explicit_columns)
+                        * placement_cell_span(placement.row, explicit_rows)
+                })
+                .sum::<usize>()
+        };
+        let auto_fit_limit = (!grid_lanes).then_some(visible_cell_count);
         let leading_columns = if inherited_columns {
             0
         } else {
@@ -1296,7 +1307,7 @@ where
                 percent_basis.inline,
                 gap.inline,
                 leading_columns,
-                Some(visible_cell_count),
+                auto_fit_limit,
             )
             .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
@@ -1307,17 +1318,39 @@ where
                 percent_basis.block,
                 gap.block,
                 leading_rows,
-                Some(visible_cell_count),
+                auto_fit_limit,
             )
             .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
         let track_requirement = grid_track_requirement_from_placements(&placements.items);
-        let column_flow = if style.display.establishes_grid_lanes_formatting_context() {
-            column_flow_for_grid_lanes(style)
-        } else {
-            style.grid_auto_flow.is_column()
-        };
-        if column_flow {
+        if grid_lanes {
+            if !inherited_columns {
+                let required_columns = (leading_columns + track_requirement.inline)
+                    .max(1)
+                    .max(column_tracks.len());
+                extend_auto_tracks(
+                    &mut column_tracks,
+                    &style.grid_auto_columns,
+                    percent_basis.inline,
+                    gap.inline,
+                    required_columns,
+                )
+                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            }
+            if !inherited_rows {
+                let required_rows = (leading_rows + track_requirement.block)
+                    .max(1)
+                    .max(row_tracks.len());
+                extend_auto_tracks(
+                    &mut row_tracks,
+                    &style.grid_auto_rows,
+                    percent_basis.block,
+                    gap.block,
+                    required_rows,
+                )
+                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            }
+        } else if style.grid_auto_flow.is_column() {
             if !inherited_rows {
                 extend_auto_tracks(
                     &mut row_tracks,
@@ -1377,6 +1410,31 @@ where
                     required_rows,
                 )
                 .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            }
+        }
+        if grid_lanes {
+            let grid_axis = grid_axis_for_grid_lanes(style);
+            let (track_count, explicit_start) = match grid_axis {
+                GridAxisKind::Column => (column_tracks.len(), leading_columns),
+                GridAxisKind::Row => (row_tracks.len(), leading_rows),
+            };
+            apply_grid_lanes_auto_fit_policy(
+                style,
+                &mut topology,
+                &placements,
+                track_count,
+                explicit_start,
+            )
+            .map_err(|error| grid_placement_demand_error(node, error))?;
+            for (track, collapsed) in column_tracks.iter_mut().zip(&topology.collapsed_columns) {
+                if *collapsed {
+                    *track = TrackSizingOf::px(Tree::Scalar::ZERO);
+                }
+            }
+            for (track, collapsed) in row_tracks.iter_mut().zip(&topology.collapsed_rows) {
+                if *collapsed {
+                    *track = TrackSizingOf::px(Tree::Scalar::ZERO);
+                }
             }
         }
         (column_tracks, row_tracks, leading_columns, leading_rows)
@@ -1660,9 +1718,14 @@ impl GridTrackSizingPhases {
             GridTrackSizingPolicy::Ordinary => {
                 resolve_tracks_with_gutters(tracks, basis, gap, alignment, intrinsic_sizes, gutters)
             }
-            GridTrackSizingPolicy::Lanes => {
-                resolve_lanes_tracks(tracks, basis, gap, alignment, intrinsic_sizes)
-            }
+            GridTrackSizingPolicy::Lanes => resolve_lanes_tracks_with_gutters(
+                tracks,
+                basis,
+                gap,
+                alignment,
+                intrinsic_sizes,
+                gutters,
+            ),
         }
     }
 }

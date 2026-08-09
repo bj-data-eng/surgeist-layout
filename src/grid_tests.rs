@@ -512,6 +512,322 @@ fn fri08_c03_containing_block_baseline_synthesis_survives_final_layout() {
     assert_eq!(output.last_baselines.y, Some(15.0));
 }
 
+fn fri08_c03_auto_fit_named_repeat<S: LayoutScalar>(kind: TrackRepeat) -> TrackComponentOf<S> {
+    let components = vec![
+        TrackComponentOf::line_names(["slot"]),
+        TrackComponentOf::px(S::from_f64(40.0)),
+    ];
+    let repetition = match kind {
+        TrackRepeat::AutoFit => TrackRepetitionOf::auto_fit_components(components),
+        TrackRepeat::AutoFill => TrackRepetitionOf::auto_fill_components(components),
+        TrackRepeat::Count(_) => unreachable!("auto-repeat test helper requires an auto kind"),
+    }
+    .expect("valid named auto-repeat");
+    TrackComponentOf::Repeat(repetition)
+}
+
+fn fri08_c03_auto_fit_batch<S: LayoutScalar>(
+    tree: &PublicLayoutTreeOf<S>,
+    viewport: Size<S>,
+) -> CompletedLayoutBatchOf<u32, S> {
+    compute_layout(
+        tree,
+        1,
+        LayoutRootRequestOf::viewport(viewport.map(AvailableOf::definite))
+            .expect("finite lanes auto-fit viewport"),
+    )
+    .expect("valid lanes auto-fit layout")
+}
+
+#[test]
+fn fri08_c03_auto_fit_explicit_overlap_retains_one_track_and_running_offsets() {
+    let tree = PublicLayoutTreeOf::<f32>::new().children(1, [2, 3]).style(
+        1,
+        NodeInput {
+            display: Display::GridLanes,
+            size: Size::new(PreferredSize::px(190.0), PreferredSize::px(40.0)),
+            grid_template_columns: vec![fri08_c03_auto_fit_named_repeat(TrackRepeat::AutoFit)],
+            grid_template_rows: vec![TrackComponent::px(40.0)],
+            gap: Size::new(Length::px(10.0), Length::px(5.0)),
+            justify_content: Some(AlignContent::Center),
+            align_content: Some(AlignContent::Start),
+            ..NodeInput::DEFAULT
+        },
+    );
+    let named_first = RawGridPlacement::new(
+        RawGridLine::NamedLine {
+            name: "slot".to_string(),
+            index: 1,
+        },
+        RawGridLine::Auto,
+    );
+    let tree = [2, 3].into_iter().fold(tree, |tree, node| {
+        tree.style(
+            node,
+            NodeInput {
+                raw_grid_column: named_first.clone(),
+                size: Size::new(PreferredSize::AUTO, PreferredSize::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+    });
+    let batch = fri08_c03_auto_fit_batch(&tree, Size::new(190.0, 40.0));
+    let first = fri08_c01_placement_output(&batch, 2);
+    let second = fri08_c01_placement_output(&batch, 3);
+
+    assert_eq!((first.location.x, first.size.width), (75.0, 40.0));
+    assert_eq!((second.location.x, second.size.width), (75.0, 40.0));
+    assert_eq!((first.location.y, second.location.y), (0.0, 15.0));
+}
+
+#[test]
+fn fri08_c03_auto_fit_automatic_span_sum_not_item_count_or_cell_area_sets_demand() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(40.0)),
+                grid_template_columns: vec![fri08_c03_auto_fit_named_repeat(TrackRepeat::AutoFit)],
+                grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(20.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                justify_content: Some(AlignContent::Center),
+                align_content: Some(AlignContent::Start),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_span(2).expect("two-track automatic span"),
+                grid_row: GridPlacement::try_span(2).expect("two-cell lane-axis span control"),
+                ..NodeInput::DEFAULT
+            },
+        );
+    let batch = fri08_c03_auto_fit_batch(&tree, Size::new(140.0, 40.0));
+    let automatic = fri08_c01_placement_output(&batch, 2);
+
+    assert_eq!((automatic.location.x, automatic.size.width), (25.0, 90.0));
+}
+
+#[test]
+fn fri08_c03_auto_fit_zero_automatic_demand_collapses_all_unused_tracks_and_gutters() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c03_auto_fit_named_repeat(TrackRepeat::AutoFit)],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                position: Position::Absolute,
+                grid_column: GridPlacement::try_lines(1, 4).expect("all retained line identities"),
+                grid_row: GridPlacement::try_lines(1, 2).expect("single row"),
+                inset: Edges::all(LengthAuto::ZERO),
+                ..NodeInput::DEFAULT
+            },
+        );
+    let batch = fri08_c03_auto_fit_batch(&tree, Size::new(140.0, 20.0));
+    let absolute = fri08_c01_placement_output(&batch, 2);
+
+    assert_eq!((absolute.location.x, absolute.size.width), (70.0, 0.0));
+
+    let rows_tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(140.0)),
+                grid_template_columns: vec![TrackComponent::px(20.0)],
+                grid_template_rows: vec![fri08_c03_auto_fit_named_repeat(TrackRepeat::AutoFit)],
+                grid_auto_flow: GridAutoFlow::Column,
+                gap: Size::new(Length::ZERO, Length::px(10.0)),
+                align_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                position: Position::Absolute,
+                grid_column: GridPlacement::try_lines(1, 2).expect("single column"),
+                grid_row: GridPlacement::try_lines(1, 4).expect("all retained line identities"),
+                inset: Edges::all(LengthAuto::ZERO),
+                ..NodeInput::DEFAULT
+            },
+        );
+    let rows_batch = fri08_c03_auto_fit_batch(&rows_tree, Size::new(20.0, 140.0));
+    let rows_absolute = fri08_c01_placement_output(&rows_batch, 2);
+    assert_eq!(
+        (rows_absolute.location.y, rows_absolute.size.height),
+        (70.0, 0.0)
+    );
+}
+
+fn assert_fri08_c03_auto_fit_candidates_across_flows<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+            let logical_container = LogicalSizeOf::new(scalar(120.0), scalar(120.0));
+            let physical_container = flow_axes.physical_size(logical_container);
+            for auto_flow in [
+                GridAutoFlow::Row,
+                GridAutoFlow::RowDense,
+                GridAutoFlow::Column,
+                GridAutoFlow::ColumnDense,
+            ] {
+                for tolerance in [
+                    GridFlowToleranceOf::Normal {
+                        font_size: scalar(16.0),
+                    },
+                    GridFlowToleranceOf::Infinite,
+                ] {
+                    let grid_axis = grid_axis_for_lanes(auto_flow);
+                    let repeated = fri08_c03_auto_fit_named_repeat(TrackRepeat::AutoFit);
+                    let (columns, rows) = match grid_axis {
+                        GridAxisKind::Column => {
+                            (vec![repeated], vec![TrackComponentOf::px(scalar(40.0))])
+                        }
+                        GridAxisKind::Row => {
+                            (vec![TrackComponentOf::px(scalar(40.0))], vec![repeated])
+                        }
+                    };
+                    let (explicit_style, automatic_style) = match grid_axis {
+                        GridAxisKind::Column => (
+                            NodeInputOf {
+                                grid_column: GridPlacement::try_line(2)
+                                    .expect("second retained identity"),
+                                grid_row: GridPlacement::try_line(1).expect("single lane row"),
+                                ..NodeInputOf::default()
+                            },
+                            NodeInputOf {
+                                grid_row: GridPlacement::try_line(1).expect("single lane row"),
+                                ..NodeInputOf::default()
+                            },
+                        ),
+                        GridAxisKind::Row => (
+                            NodeInputOf {
+                                grid_column: GridPlacement::try_line(1)
+                                    .expect("single lane column"),
+                                grid_row: GridPlacement::try_line(2)
+                                    .expect("second retained identity"),
+                                ..NodeInputOf::default()
+                            },
+                            NodeInputOf {
+                                grid_column: GridPlacement::try_line(1)
+                                    .expect("single lane column"),
+                                ..NodeInputOf::default()
+                            },
+                        ),
+                    };
+                    let tree = PublicLayoutTreeOf::new()
+                        .children(1, [2, 3])
+                        .style(
+                            1,
+                            NodeInputOf {
+                                display: Display::GridLanes,
+                                writing_mode,
+                                direction,
+                                size: physical_container.map(PreferredSizeOf::px),
+                                grid_template_columns: columns,
+                                grid_template_rows: rows,
+                                grid_auto_flow: auto_flow,
+                                grid_flow_tolerance: tolerance,
+                                justify_content: Some(AlignContent::Center),
+                                align_content: Some(AlignContent::Center),
+                                ..NodeInputOf::default()
+                            },
+                        )
+                        .style(2, explicit_style)
+                        .style(3, automatic_style);
+                    let batch = fri08_c03_auto_fit_batch(&tree, physical_container);
+                    let explicit = fri08_c01_placement_output(&batch, 2);
+                    let automatic = fri08_c01_placement_output(&batch, 3);
+                    let explicit_logical = flow_axes.logical_point(
+                        explicit.location,
+                        explicit.size,
+                        physical_container,
+                    );
+                    let automatic_logical = flow_axes.logical_point(
+                        automatic.location,
+                        automatic.size,
+                        physical_container,
+                    );
+                    let automatic_size = flow_axes.logical_size(automatic.size);
+                    match grid_axis {
+                        GridAxisKind::Column => {
+                            assert_eq!(explicit_logical.inline, scalar(60.0));
+                            assert_eq!(automatic_logical.inline, scalar(20.0));
+                            assert_eq!(automatic_size.inline, scalar(40.0));
+                        }
+                        GridAxisKind::Row => {
+                            assert_eq!(flow_axes.logical_size(explicit.size).block, scalar(40.0));
+                            assert_eq!(automatic_size.block, scalar(40.0));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn fri08_c03_auto_fit_automatic_placement_skips_collapsed_candidates_in_all_controls() {
+    assert_fri08_c03_auto_fit_candidates_across_flows::<f32>();
+    assert_fri08_c03_auto_fit_candidates_across_flows::<f64>();
+}
+
+#[test]
+fn fri08_c03_auto_fit_ordinary_grid_and_lanes_auto_fill_remain_separate_controls() {
+    for (display, repeat, expected_x) in [
+        (Display::Grid, TrackRepeat::AutoFit, 40.0),
+        (Display::GridLanes, TrackRepeat::AutoFill, 0.0),
+    ] {
+        let tree = PublicLayoutTreeOf::<f32>::new().children(1, [2, 3]).style(
+            1,
+            NodeInput {
+                display,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c03_auto_fit_named_repeat(repeat)],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        );
+        let tree = [2, 3].into_iter().fold(tree, |tree, node| {
+            tree.style(
+                node,
+                NodeInput {
+                    grid_column: GridPlacement::try_line(1).expect("first repeated track"),
+                    grid_row: GridPlacement::try_line(1).expect("single row"),
+                    ..NodeInput::DEFAULT
+                },
+            )
+        });
+        let batch = fri08_c03_auto_fit_batch(&tree, Size::new(120.0, 20.0));
+        let output = fri08_c01_placement_output(&batch, 2);
+        assert_eq!((output.location.x, output.size.width), (expected_x, 40.0));
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Fri08C02TrackAxis {
     Columns,
@@ -915,7 +1231,7 @@ fn fri08_c02_stretch_requires_normal_or_stretch_positive_definite_remainder() {
 }
 
 #[test]
-fn fri08_c02_stretch_lanes_policy_retains_fit_content_stretch_and_auto_fit() {
+fn fri08_c02_stretch_lanes_policy_retains_fit_content_and_accepts_c03_auto_fit() {
     assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Columns);
     assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Rows);
 
@@ -964,7 +1280,7 @@ fn fri08_c02_stretch_lanes_policy_retains_fit_content_stretch_and_auto_fit() {
             },
         );
     let output = fri08_c02_auto_fit_output(&tree, Size::new(120.0, 20.0), 2);
-    assert_eq!((output.location.x, output.size.width), (0.0, 40.0));
+    assert_eq!((output.location.x, output.size.width), (40.0, 40.0));
 }
 
 fn assert_fri08_c02_fit_content_flex_composes<S: LayoutScalar>(
@@ -1137,7 +1453,7 @@ fn fri08_c02_lanes_negative_rows_only_fit_content_retains_published_geometry() {
 }
 
 #[test]
-fn fri08_c02_lanes_negative_auto_fit_retains_pre_c02_expanded_geometry() {
+fn fri08_c02_lanes_negative_auto_fit_accepts_c03_preplacement_collapse() {
     let tree = PublicLayoutTreeOf::<f32>::new()
         .children(1, [2, 3])
         .style(
@@ -1166,7 +1482,7 @@ fn fri08_c02_lanes_negative_auto_fit_retains_pre_c02_expanded_geometry() {
             },
         );
     let output = fri08_c02_auto_fit_output(&tree, Size::new(120.0, 20.0), 2);
-    assert_eq!((output.location.x, output.size.width), (0.0, 40.0));
+    assert_eq!((output.location.x, output.size.width), (40.0, 40.0));
 }
 
 #[test]

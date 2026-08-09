@@ -268,6 +268,106 @@ impl<S: LayoutScalar> ExpandedGridTopology<S> {
             &mut self.collapsed_rows,
         );
     }
+
+    pub(super) fn apply_lanes_auto_fit_policy(
+        &mut self,
+        axis: super::GridAxisKind,
+        track_count: usize,
+        explicit_start: usize,
+        placements: &[LanesAutoFitPlacement],
+    ) -> Result<(), GridPlacementDemandError> {
+        if self.axis_is_inherited(axis) {
+            return Ok(());
+        }
+        let (origins, collapsed) = match axis {
+            super::GridAxisKind::Column => (&self.column_origins, &mut self.collapsed_columns),
+            super::GridAxisKind::Row => (&self.row_origins, &mut self.collapsed_rows),
+        };
+        collapse_lanes_auto_fit_axis(
+            origins,
+            track_count,
+            explicit_start,
+            placements,
+            axis,
+            collapsed,
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct LanesAutoFitPlacement {
+    pub(super) definite_start: Option<usize>,
+    pub(super) span: usize,
+}
+
+fn collapse_lanes_auto_fit_axis(
+    origins: &[ExplicitTrackOrigin],
+    track_count: usize,
+    explicit_start: usize,
+    placements: &[LanesAutoFitPlacement],
+    axis: super::GridAxisKind,
+    collapsed: &mut Vec<bool>,
+) -> Result<(), GridPlacementDemandError> {
+    collapsed.clear();
+    collapsed.resize(track_count, false);
+    let automatic_demand = placements
+        .iter()
+        .filter(|placement| placement.definite_start.is_none())
+        .try_fold(0usize, |sum, placement| sum.checked_add(placement.span))
+        .ok_or(GridPlacementDemandError::AxisCapacity {
+            axis,
+            requested_tracks: usize::MAX,
+        })?;
+    let mut explicitly_occupied = vec![false; track_count];
+    for placement in placements.iter().filter_map(|placement| {
+        placement
+            .definite_start
+            .map(|start| (start, placement.span))
+    }) {
+        let end =
+            placement
+                .0
+                .checked_add(placement.1)
+                .ok_or(GridPlacementDemandError::AxisCapacity {
+                    axis,
+                    requested_tracks: usize::MAX,
+                })?;
+        for occupied in explicitly_occupied
+            .get_mut(placement.0..end.min(track_count))
+            .into_iter()
+            .flatten()
+        {
+            *occupied = true;
+        }
+    }
+
+    let mut remaining_demand = automatic_demand;
+    for (origin_index, origin) in origins.iter().enumerate() {
+        if !origin
+            .auto_repeat
+            .is_some_and(|origin| origin.kind == crate::TrackRepeat::AutoFit)
+        {
+            continue;
+        }
+        let Some(index) = explicit_start.checked_add(origin_index) else {
+            return Err(GridPlacementDemandError::AxisCapacity {
+                axis,
+                requested_tracks: usize::MAX,
+            });
+        };
+        let Some(collapsed) = collapsed.get_mut(index) else {
+            continue;
+        };
+        if explicitly_occupied[index] {
+            continue;
+        }
+        if remaining_demand > 0 {
+            remaining_demand -= 1;
+        } else {
+            *collapsed = true;
+        }
+    }
+    Ok(())
 }
 
 fn collapse_auto_fit_axis(

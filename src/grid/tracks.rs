@@ -3538,14 +3538,18 @@ pub(super) fn intrinsic_contribution_margin<S: LayoutScalar>(
     ))
 }
 
-pub(super) fn resolve_lanes_tracks<S: LayoutScalar>(
+pub(super) fn resolve_lanes_tracks_with_gutters<S: LayoutScalar>(
     tracks: &[TrackSizingOf<S>],
     basis: Option<S>,
     gap: S,
     alignment: AlignContent,
     intrinsic_sizes: &[S],
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
 ) -> Vec<S> {
-    let gap_total = gap * S::from_usize(tracks.len().saturating_sub(1));
+    let gap_total = gutters.map_or_else(
+        || gap * S::from_usize(tracks.len().saturating_sub(1)),
+        OrdinaryGridAxisGuttersOf::active_gap_total,
+    );
     let base_sizes = tracks
         .iter()
         .enumerate()
@@ -3737,7 +3741,7 @@ pub(super) fn resolve_lanes_inline_tracks<S: LayoutScalar>(
         stretch_empty_auto_to_available,
         min_intrinsic_sizes,
         max_intrinsic_sizes,
-        ..
+        gutters,
     } = input;
 
     let max_tracks = resolve_lanes_tracks_with_intrinsics(
@@ -3747,18 +3751,32 @@ pub(super) fn resolve_lanes_inline_tracks<S: LayoutScalar>(
         AlignContent::Start,
         min_intrinsic_sizes,
         max_intrinsic_sizes,
+        gutters,
     );
-    let min_tracks =
+    let mut min_tracks =
         resolve_track_min_bounds(tracks, basis, min_intrinsic_sizes, max_intrinsic_sizes);
-    let max_content = track_sum(&max_tracks, gap);
-    let min_content = track_sum(&min_tracks, gap);
+    if let Some(gutters) = gutters {
+        for (size, collapsed) in min_tracks.iter_mut().zip(gutters.collapsed()) {
+            if *collapsed {
+                *size = S::ZERO;
+            }
+        }
+    }
+    let max_content = track_sum_with_gutters(&max_tracks, gap, gutters);
+    let min_content = track_sum_with_gutters(&min_tracks, gap, gutters);
 
     if let Some(available_size) = definite_size.or(available_size)
         && max_content > S::ZERO
         && available_size < max_content
     {
         let target = available_size.max(min_content).min(max_content);
-        return distribute_tracks_between_bounds(&min_tracks, &max_tracks, gap, target);
+        return distribute_tracks_between_bounds_with_gutters(
+            &min_tracks,
+            &max_tracks,
+            gap,
+            gutters,
+            target,
+        );
     }
 
     if tracks
@@ -3788,6 +3806,7 @@ pub(super) fn resolve_lanes_inline_tracks<S: LayoutScalar>(
         alignment,
         min_intrinsic_sizes,
         max_intrinsic_sizes,
+        gutters,
     )
 }
 
@@ -3852,8 +3871,12 @@ pub(super) fn resolve_lanes_tracks_with_intrinsics<S: LayoutScalar>(
     alignment: AlignContent,
     min_intrinsic_sizes: &[S],
     max_intrinsic_sizes: &[S],
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
 ) -> Vec<S> {
-    let gap_total = gap * S::from_usize(tracks.len().saturating_sub(1));
+    let gap_total = gutters.map_or_else(
+        || gap * S::from_usize(tracks.len().saturating_sub(1)),
+        OrdinaryGridAxisGuttersOf::active_gap_total,
+    );
     let base_sizes = tracks
         .iter()
         .enumerate()
@@ -4317,6 +4340,7 @@ pub(super) fn resolve_fit_content_tracks<S: LayoutScalar>(
         .collect()
 }
 
+#[cfg(test)]
 pub(super) fn distribute_tracks_between_bounds<S: LayoutScalar>(
     min_tracks: &[S],
     max_tracks: &[S],
@@ -4809,6 +4833,7 @@ fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Op
     }
 }
 
+#[cfg(test)]
 pub(super) fn track_sum<S: LayoutScalar>(sizes: &[S], gap: S) -> S {
     sizes
         .iter()
@@ -4866,6 +4891,7 @@ fn span_contribution_with_gutters<S: LayoutScalar>(
     (contribution - gutter_total).max(S::ZERO)
 }
 
+#[cfg(test)]
 pub(super) fn track_content_sum<S: LayoutScalar>(
     tracks: &[TrackSizingOf<S>],
     sizes: &[S],

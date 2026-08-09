@@ -376,6 +376,40 @@ pub(super) fn column_flow_for_grid_lanes<S: LayoutScalar>(style: &NodeInputOf<S>
     grid_axis_for_grid_lanes(style) == GridAxisKind::Row
 }
 
+pub(super) fn apply_grid_lanes_auto_fit_policy<Node, S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    topology: &mut ExpandedGridTopology<S>,
+    placements: &GridPlacementContext<Node>,
+    track_count: usize,
+    explicit_start: usize,
+) -> Result<(), GridPlacementDemandError> {
+    let axis = grid_axis_for_grid_lanes(style);
+    let lines = GridAxisLines {
+        explicit_start,
+        explicit_count: match axis {
+            GridAxisKind::Column => topology.explicit_columns,
+            GridAxisKind::Row => topology.explicit_rows,
+        },
+    };
+    let lanes_placements = placements
+        .items
+        .iter()
+        .filter(|placement| placement.in_flow)
+        .map(|placement| {
+            let placement = match axis {
+                GridAxisKind::Column => placement.column,
+                GridAxisKind::Row => placement.row,
+            };
+            let (definite_start, span) = lane_grid_axis_facts(placement, track_count, lines);
+            super::topology::LanesAutoFitPlacement {
+                definite_start: definite_start.map(|line| line - 1),
+                span,
+            }
+        })
+        .collect::<Vec<_>>();
+    topology.apply_lanes_auto_fit_policy(axis, track_count, explicit_start, &lanes_placements)
+}
+
 pub fn place_lanes<Item, S: LayoutScalar>(
     input: LanePlacementInputOf<Item, S>,
 ) -> Result<LanePlacementReportOf<Item, S>, LanePlacementError> {
@@ -395,6 +429,7 @@ fn place_lanes_with_trace<Item, S: LayoutScalar>(
     let mut cursor = 0usize;
     let tolerance = resolve_tolerance(input.tolerance, input.tolerance_basis)?;
     let mut content_size = S::ZERO;
+    let collapsed = vec![false; input.grid_axis_tracks];
 
     for item in input.items {
         let (start_zero, span) = match item.definite_grid_axis_start {
@@ -420,9 +455,16 @@ fn place_lanes_with_trace<Item, S: LayoutScalar>(
             None => {
                 let span = item.grid_axis_span.clamp(1, input.grid_axis_tracks);
                 let start_zero = if matches!(input.tolerance, GridFlowToleranceOf::Infinite) {
-                    infinite_candidate_start(cursor, span, input.grid_axis_tracks)
+                    infinite_candidate_start(cursor, span, &collapsed)
                 } else {
-                    finite_candidate_start(&running, cursor, span, tolerance)
+                    finite_candidate_start(&running, cursor, span, tolerance, &collapsed)
+                };
+                let Some(start_zero) = start_zero else {
+                    return Err(LanePlacementError::GridAxisSpanOutOfRange {
+                        start: 1,
+                        span,
+                        tracks: input.grid_axis_tracks,
+                    });
                 };
                 (start_zero, span)
             }
@@ -915,6 +957,10 @@ where
         GridAxisKind::Column => columns,
         GridAxisKind::Row => rows,
     };
+    let grid_axis_gutters = match grid_axis {
+        GridAxisKind::Column => &context.column_gutters,
+        GridAxisKind::Row => &context.row_gutters,
+    };
     if grid_axis_tracks.is_empty() {
         return Ok(Err(LanePlacementError::EmptyTrackList));
     }
@@ -934,6 +980,7 @@ where
         GridAxisKind::Row => context.gap.block,
     };
     let mut running = vec![Tree::Scalar::ZERO; grid_axis_tracks.len()];
+    let collapsed = grid_axis_gutters.collapsed();
     let mut item_offsets = Vec::new();
     let mut running_positions_after_each_item = Vec::new();
     let mut cursor = 0usize;
@@ -983,16 +1030,29 @@ where
             None => {
                 let span = grid_axis_span.clamp(1, grid_axis_tracks.len());
                 let start = if matches!(style.grid_flow_tolerance, GridFlowToleranceOf::Infinite) {
-                    infinite_candidate_start(cursor, span, grid_axis_tracks.len())
+                    infinite_candidate_start(cursor, span, collapsed)
                 } else {
-                    finite_candidate_start(&running, cursor, span, tolerance)
+                    finite_candidate_start(&running, cursor, span, tolerance, collapsed)
+                };
+                let Some(start) = start else {
+                    return Ok(Err(LanePlacementError::GridAxisSpanOutOfRange {
+                        start: 1,
+                        span,
+                        tracks: grid_axis_tracks.len(),
+                    }));
                 };
                 (start, span)
             }
         };
         let end = start + span;
         let grid_axis_size = if start < end {
-            track_sum(&grid_axis_tracks[start..end], grid_axis_gap)
+            track_span_sum_with_gutters(
+                grid_axis_tracks,
+                start,
+                end,
+                grid_axis_gap,
+                Some(grid_axis_gutters),
+            )
         } else {
             Tree::Scalar::ZERO
         };
@@ -1378,28 +1438,70 @@ where
     }
 
     let flow_axes = constants.flow_axes;
-    let track_content_size =
-        LogicalSizeOf::new(track_sum(columns, gap.inline), track_sum(rows, gap.block));
+    let track_content_size = LogicalSizeOf::new(
+        track_sum_with_gutters(columns, gap.inline, Some(&context.column_gutters)),
+        track_sum_with_gutters(rows, gap.block, Some(&context.row_gutters)),
+    );
     let content_box_size = flow_axes
         .logical_size(constants.node_inner_size)
         .unwrap_or(container_content_box_size);
     let alignment_free_space = content_box_size - track_content_size;
-    let column_alignment = grid_alignment(
+    let column_has_collapse = context
+        .column_gutters
+        .collapsed()
+        .iter()
+        .any(|value| *value);
+    let row_has_collapse = context.row_gutters.collapsed().iter().any(|value| *value);
+    let legacy_column_alignment = grid_alignment(
         alignment_free_space.inline,
         columns.len(),
         gap.inline,
         style.justify_content.unwrap_or(AlignContent::Stretch),
     );
-    let row_alignment = grid_alignment(
+    let legacy_row_alignment = grid_alignment(
         alignment_free_space.block,
         rows.len(),
         gap.block,
         style.align_content.unwrap_or(AlignContent::Stretch),
     );
+    let column_alignment = if column_has_collapse {
+        ordinary_grid_axis_alignment(
+            alignment_free_space.inline,
+            &context.column_gutters,
+            style.justify_content.unwrap_or(AlignContent::Stretch),
+        )
+    } else {
+        OrdinaryGridAxisAlignment {
+            start: legacy_column_alignment.start,
+            gutter_after: vec![legacy_column_alignment.gap; columns.len().saturating_sub(1)],
+        }
+    };
+    let row_alignment = if row_has_collapse {
+        ordinary_grid_axis_alignment(
+            alignment_free_space.block,
+            &context.row_gutters,
+            style.align_content.unwrap_or(AlignContent::Stretch),
+        )
+    } else {
+        OrdinaryGridAxisAlignment {
+            start: legacy_row_alignment.start,
+            gutter_after: vec![legacy_row_alignment.gap; rows.len().saturating_sub(1)],
+        }
+    };
+    context.column_gutters = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+        columns.len(),
+        context.column_gutters.collapsed(),
+        &column_alignment.gutter_after,
+    );
+    context.row_gutters = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+        rows.len(),
+        context.row_gutters.collapsed(),
+        &row_alignment.gutter_after,
+    );
     context.gap = gap;
     let grid_axis_gap = match grid_axis_for_grid_lanes(style) {
-        GridAxisKind::Column => column_alignment.gap,
-        GridAxisKind::Row => row_alignment.gap,
+        GridAxisKind::Column => gap.inline,
+        GridAxisKind::Row => gap.block,
     };
     let Ok(lane_report) = resolve_grid_lanes_placement_with_resolved_tracks(
         tree,
@@ -1425,18 +1527,32 @@ where
         });
     };
     let logical_content_box_inset = flow_axes.logical_edges(constants.content_box_inset);
-    let column_offsets = grid_axis_logical_offsets(
-        columns,
-        None,
-        logical_content_box_inset.inline_start,
-        column_alignment,
-    );
-    let row_offsets = grid_axis_logical_offsets(
-        rows,
-        None,
-        logical_content_box_inset.block_start,
-        row_alignment,
-    );
+    let column_geometry =
+        UsedGridAxisGeometryOf::from_sizing_gutters(columns.to_vec(), &context.column_gutters)
+            .translated(logical_content_box_inset.inline_start + column_alignment.start);
+    let row_geometry =
+        UsedGridAxisGeometryOf::from_sizing_gutters(rows.to_vec(), &context.row_gutters)
+            .translated(logical_content_box_inset.block_start + row_alignment.start);
+    let column_offsets = if column_has_collapse {
+        column_geometry.line_offsets().to_vec()
+    } else {
+        grid_axis_logical_offsets(
+            columns,
+            None,
+            logical_content_box_inset.inline_start,
+            legacy_column_alignment,
+        )
+    };
+    let row_offsets = if row_has_collapse {
+        row_geometry.line_offsets().to_vec()
+    } else {
+        grid_axis_logical_offsets(
+            rows,
+            None,
+            logical_content_box_inset.block_start,
+            legacy_row_alignment,
+        )
+    };
     let containing_size = constants.node_outer_size.unwrap_or(
         flow_axes.physical_size(container_content_box_size)
             + constants.content_box_inset.sum_axes(),
@@ -1473,11 +1589,25 @@ where
             continue;
         }
         if child_style.position == Position::Absolute {
-            child_contributions.push(layout_absolute_grid_child(
-                tree,
-                child,
-                source_index,
-                &child_style,
+            let absolute_context = if column_has_collapse || row_has_collapse {
+                AbsoluteGridContext::ordinary_with_geometry(
+                    OrdinaryAbsoluteGridGeometryContextInput {
+                        container_style: style,
+                        constants,
+                        containing_size,
+                        column: placement.absolute_column,
+                        row: placement.absolute_row,
+                        column_offsets: &column_offsets,
+                        row_offsets: &row_offsets,
+                        columns,
+                        rows,
+                        gap,
+                        column_geometry: &column_geometry,
+                        row_geometry: &row_geometry,
+                        lines: context.lines,
+                    },
+                )
+            } else {
                 AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
                     container_style: style,
                     constants,
@@ -1491,7 +1621,14 @@ where
                     gap,
                     lines: context.lines,
                 })
-                .with_containing_auto_scrollbar_pass(containing_auto_scrollbar_pass),
+            };
+            child_contributions.push(layout_absolute_grid_child(
+                tree,
+                child,
+                source_index,
+                &child_style,
+                absolute_context
+                    .with_containing_auto_scrollbar_pass(containing_auto_scrollbar_pass),
             )?);
             continue;
         }
@@ -1509,11 +1646,20 @@ where
         let start = item_offset.grid_axis_start - 1;
         let end = start + item_offset.grid_axis_span;
         let grid_axis_size = match lane_report.grid_axis {
-            GridAxisKind::Column => track_sum(
-                &columns[start..end.min(columns.len())],
-                column_alignment.gap,
+            GridAxisKind::Column => track_span_sum_with_gutters(
+                columns,
+                start,
+                end.min(columns.len()),
+                gap.inline,
+                Some(&context.column_gutters),
             ),
-            GridAxisKind::Row => track_sum(&rows[start..end.min(rows.len())], row_alignment.gap),
+            GridAxisKind::Row => track_span_sum_with_gutters(
+                rows,
+                start,
+                end.min(rows.len()),
+                gap.block,
+                Some(&context.row_gutters),
+            ),
         };
         let containing_block = GridLanesItemContainingBlockOf::new(
             flow_axes,
@@ -2230,12 +2376,18 @@ fn finite_tolerance<S: LayoutScalar>(value: S) -> Result<S, LanePlacementError> 
     }
 }
 
-fn infinite_candidate_start(cursor: usize, span: usize, track_count: usize) -> usize {
-    if cursor + span > track_count {
-        0
-    } else {
-        cursor
-    }
+fn infinite_candidate_start(cursor: usize, span: usize, collapsed: &[bool]) -> Option<usize> {
+    let max_start = collapsed.len().checked_add(1)?.checked_sub(span)?;
+    let shifted_cursor = if cursor >= max_start { 0 } else { cursor };
+    (0..max_start)
+        .map(|offset| (shifted_cursor + offset) % max_start)
+        .find(|start| lanes_candidate_is_retained(collapsed, *start, span))
+}
+
+fn lanes_candidate_is_retained(collapsed: &[bool], start: usize, span: usize) -> bool {
+    collapsed
+        .get(start..start.saturating_add(span))
+        .is_some_and(|candidate| candidate.iter().all(|track| !*track))
 }
 
 fn finite_candidate_start<S: LayoutScalar>(
@@ -2243,22 +2395,25 @@ fn finite_candidate_start<S: LayoutScalar>(
     cursor: usize,
     span: usize,
     tolerance: S,
-) -> usize {
+    collapsed: &[bool],
+) -> Option<usize> {
     let track_count = running.len();
-    let max_start = track_count + 1 - span;
+    let max_start = track_count.checked_add(1)?.checked_sub(span)?;
     let shifted_cursor = if cursor >= max_start { 0 } else { cursor };
     let absolute_shortest = (0..max_start)
+        .filter(|start| lanes_candidate_is_retained(collapsed, *start, span))
         .map(|start| max_running_position(running, start, span))
         .fold(S::INFINITY, S::min);
 
     for offset in 0..max_start {
         let start = (shifted_cursor + offset) % max_start;
-        if max_running_position(running, start, span) <= absolute_shortest + tolerance {
-            return start;
+        if lanes_candidate_is_retained(collapsed, start, span)
+            && max_running_position(running, start, span) <= absolute_shortest + tolerance
+        {
+            return Some(start);
         }
     }
-
-    0
+    None
 }
 
 fn max_running_position<S: LayoutScalar>(running: &[S], start: usize, span: usize) -> S {
