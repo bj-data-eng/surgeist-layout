@@ -718,6 +718,7 @@ where
             GridAxisKind::Column => gap.inline,
             GridAxisKind::Row => gap.block,
         },
+        sizing_flow_axes.logical_size(constants.node_inner_size),
     )? {
         let has_explicit_lane_tracks = match lane_report.lane_axis {
             GridAxisKind::Column => !style.grid_template_columns.is_empty(),

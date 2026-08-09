@@ -62,6 +62,59 @@ pub(super) struct LanePlacementTraceOf<Item, S: LayoutScalar = DefaultScalar> {
     pub(super) final_cursor: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct GridLanesItemContainingBlockOf<S: LayoutScalar = DefaultScalar> {
+    grid_axis: GridAxisKind,
+    logical_size: LogicalSizeOf<Option<S>>,
+    physical_size: Size<Option<S>>,
+}
+
+impl<S: LayoutScalar> GridLanesItemContainingBlockOf<S> {
+    pub(super) fn new(
+        flow_axes: crate::geometry::FlowAxes,
+        grid_axis: GridAxisKind,
+        grid_axis_size: S,
+        container_content_box_size: LogicalSizeOf<Option<S>>,
+    ) -> Self {
+        let logical_size = match grid_axis.logical_axis() {
+            LogicalAxis::Inline => {
+                LogicalSizeOf::new(Some(grid_axis_size), container_content_box_size.block)
+            }
+            LogicalAxis::Block => {
+                LogicalSizeOf::new(container_content_box_size.inline, Some(grid_axis_size))
+            }
+        };
+        Self {
+            grid_axis,
+            logical_size,
+            physical_size: flow_axes.physical_size(logical_size),
+        }
+    }
+
+    const fn grid_axis(self) -> GridAxisKind {
+        self.grid_axis
+    }
+
+    const fn logical_size(self) -> LogicalSizeOf<Option<S>> {
+        self.logical_size
+    }
+
+    const fn physical_size(self) -> Size<Option<S>> {
+        self.physical_size
+    }
+
+    fn definite_logical_size(self) -> LogicalSizeOf<S> {
+        LogicalSizeOf::new(
+            self.logical_size
+                .inline
+                .expect("final grid-lanes inline containing extent is definite"),
+            self.logical_size
+                .block
+                .expect("final grid-lanes block containing extent is definite"),
+        )
+    }
+}
+
 impl<Item, S: LayoutScalar> LanePlacementTraceOf<Item, S> {
     fn into_report(self) -> LanePlacementReportOf<Item, S> {
         self.report
@@ -846,6 +899,7 @@ pub(super) fn resolve_grid_lanes_placement_with_resolved_tracks<Tree, M>(
     rows: &[Tree::Scalar],
     placements: &GridPlacementContext<<Tree as Traverse>::Node>,
     grid_axis_gap: Tree::Scalar,
+    container_content_box_size: LogicalSizeOf<Option<Tree::Scalar>>,
 ) -> LayoutResultOf<
     <Tree as Traverse>::Node,
     Result<LanePlacementReportOf<<Tree as Traverse>::Node, Tree::Scalar>, LanePlacementError>,
@@ -942,6 +996,12 @@ where
         } else {
             Tree::Scalar::ZERO
         };
+        let containing_block = GridLanesItemContainingBlockOf::new(
+            constants.flow_axes,
+            grid_axis,
+            grid_axis_size,
+            container_content_box_size,
+        );
         let lane_axis_margin_box = measure_lane_axis_margin_box_with_grid_axis(
             tree,
             child,
@@ -950,8 +1010,7 @@ where
                 container_style: style,
                 constants,
                 lane_axis,
-                grid_axis,
-                grid_axis_size,
+                containing_block,
             },
         )?;
         let previous = running[start..end]
@@ -1352,6 +1411,7 @@ where
         rows,
         placements,
         grid_axis_gap,
+        content_box_size.map(Some),
     )?
     else {
         return Ok(GridChildrenLayout {
@@ -1448,34 +1508,41 @@ where
 
         let start = item_offset.grid_axis_start - 1;
         let end = start + item_offset.grid_axis_span;
+        let grid_axis_size = match lane_report.grid_axis {
+            GridAxisKind::Column => track_sum(
+                &columns[start..end.min(columns.len())],
+                column_alignment.gap,
+            ),
+            GridAxisKind::Row => track_sum(&rows[start..end.min(rows.len())], row_alignment.gap),
+        };
+        let containing_block = GridLanesItemContainingBlockOf::new(
+            flow_axes,
+            lane_report.grid_axis,
+            grid_axis_size,
+            content_box_size.map(Some),
+        );
+        let containing_logical_size = containing_block.definite_logical_size();
         let area = match lane_report.grid_axis {
-            GridAxisKind::Column => {
-                let inline = track_sum(
-                    &columns[start..end.min(columns.len())],
-                    column_alignment.gap,
-                );
-                GridArea {
-                    column: start,
-                    row: 0,
-                    column_end: end,
-                    row_end: 1,
-                    size: LogicalSizeOf::new(inline, item_offset.lane_axis_margin_box),
-                }
-            }
-            GridAxisKind::Row => {
-                let block = track_sum(&rows[start..end.min(rows.len())], row_alignment.gap);
-                GridArea {
-                    column: 0,
-                    row: start,
-                    column_end: 1,
-                    row_end: end,
-                    size: LogicalSizeOf::new(item_offset.lane_axis_margin_box, block),
-                }
-            }
+            GridAxisKind::Column => GridArea {
+                column: start,
+                row: 0,
+                column_end: end,
+                row_end: 1,
+                size: containing_logical_size,
+            },
+            GridAxisKind::Row => GridArea {
+                column: 0,
+                row: start,
+                column_end: 1,
+                row_end: end,
+                size: containing_logical_size,
+            },
         };
 
-        let physical_area_size = flow_axes.physical_size(area.size);
-        let item = grid_item_sizing_for_grid_flow::<Tree, M>(
+        let physical_area_size = containing_block
+            .physical_size()
+            .map(|extent| extent.expect("final grid-lanes containing extent is definite"));
+        let mut item = grid_item_sizing_for_grid_flow::<Tree, M>(
             tree,
             child,
             &child_style,
@@ -1484,6 +1551,14 @@ where
             physical_area_size.map(Some),
             flow_axes,
         )?;
+        normalize_grid_lanes_stacking_axis_sizing(
+            &child_style,
+            style,
+            lane_axis,
+            flow_axes,
+            item_offset.lane_axis_margin_box,
+            &mut item,
+        );
         let area_parent = physical_area_size.map(Some);
         let padding = constants
             .flow_axes
@@ -1797,14 +1872,60 @@ where
     })
 }
 
+fn normalize_grid_lanes_stacking_axis_sizing<S: LayoutScalar>(
+    child_style: &NodeInputOf<S>,
+    container_style: &NodeInputOf<S>,
+    lane_axis: GridAxisKind,
+    flow_axes: crate::geometry::FlowAxes,
+    lane_axis_margin_box: S,
+    item: &mut GridItemSizing<S>,
+) {
+    let logical_style_size = flow_axes.logical_size(child_style.size.clone());
+    let mut logical_known = flow_axes.logical_size(item.known);
+    let logical_margin = flow_axes.logical_edges(
+        item.unresolved_margin
+            .map(|margin| margin.unwrap_or(S::ZERO)),
+    );
+    match lane_axis.logical_axis() {
+        LogicalAxis::Inline => {
+            let alignment = resolve_grid_item_normal_alignment(
+                child_style.justify_self,
+                container_style.justify_items,
+                child_style.item_is_replaced,
+                logical_style_size.inline.is_auto(),
+                AlignItems::Start,
+            );
+            if alignment != AlignItems::Stretch && logical_style_size.inline.is_auto() {
+                logical_known.inline =
+                    Some((lane_axis_margin_box - logical_margin.inline_sum()).max(S::ZERO));
+            }
+            item.justify_self = alignment;
+        }
+        LogicalAxis::Block => {
+            let alignment = resolve_grid_item_normal_alignment(
+                child_style.align_self,
+                container_style.align_items,
+                child_style.item_is_replaced,
+                logical_style_size.block.is_auto(),
+                AlignItems::Start,
+            );
+            if alignment != AlignItems::Stretch && logical_style_size.block.is_auto() {
+                logical_known.block =
+                    Some((lane_axis_margin_box - logical_margin.block_sum()).max(S::ZERO));
+            }
+            item.align_self = alignment;
+        }
+    }
+    item.known = flow_axes.physical_size(logical_known);
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct LaneAxisMarginBoxMeasureInput<'a, S: LayoutScalar = Scalar> {
     pub(super) child_style: &'a NodeInputOf<S>,
     pub(super) container_style: &'a NodeInputOf<S>,
     pub(super) constants: &'a Constants<S>,
     pub(super) lane_axis: GridAxisKind,
-    pub(super) grid_axis: GridAxisKind,
-    pub(super) grid_axis_size: S,
+    pub(super) containing_block: GridLanesItemContainingBlockOf<S>,
 }
 
 pub(super) fn measure_lane_axis_margin_box_with_grid_axis<Tree, M>(
@@ -1820,15 +1941,10 @@ where
         container_style,
         constants,
         lane_axis,
-        grid_axis,
-        grid_axis_size,
+        containing_block,
     } = input;
     let flow_axes = constants.flow_axes;
-    let logical_parent = match grid_axis.logical_axis() {
-        LogicalAxis::Inline => LogicalSizeOf::new(Some(grid_axis_size), None),
-        LogicalAxis::Block => LogicalSizeOf::new(None, Some(grid_axis_size)),
-    };
-    let containing_physical_size = flow_axes.physical_size(logical_parent);
+    let containing_physical_size = containing_block.physical_size();
     let preferred_size = grid_lanes_child_sizing_preflight(child_style, containing_physical_size)
         .map_err(|error| sizing_resolution_error(child, error))?;
     let logical_preferred_size = flow_axes.logical_size(preferred_size);
@@ -1845,7 +1961,7 @@ where
         let logical_margin = flow_axes.logical_edges(margin);
         let logical_style_size = flow_axes.logical_size(child_style.size.clone());
         let mut logical_known = LogicalSizeOf::new(None, None);
-        let mut logical_parent = LogicalSizeOf::new(None, None);
+        let logical_parent = containing_block.logical_size();
         let mut logical_available =
             LogicalSizeOf::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT);
         match lane_axis.logical_axis() {
@@ -1862,8 +1978,11 @@ where
                 );
             }
         }
-        match grid_axis.logical_axis() {
+        match containing_block.grid_axis().logical_axis() {
             LogicalAxis::Inline => {
+                let grid_axis_size = logical_parent
+                    .inline
+                    .expect("grid-lanes grid-axis containing extent is definite");
                 let available_inline =
                     (grid_axis_size - logical_margin.inline_sum()).max(Tree::Scalar::ZERO);
                 let justify_self = resolve_grid_item_normal_alignment(
@@ -1875,10 +1994,12 @@ where
                 );
                 logical_known.inline = definite_preferred_size(logical_preferred_size.inline)
                     .or_else(|| (justify_self == AlignItems::Stretch).then_some(available_inline));
-                logical_parent.inline = Some(grid_axis_size);
                 logical_available.inline = AvailableOf::Definite(available_inline);
             }
             LogicalAxis::Block => {
+                let grid_axis_size = logical_parent
+                    .block
+                    .expect("grid-lanes grid-axis containing extent is definite");
                 let available_block =
                     (grid_axis_size - logical_margin.block_sum()).max(Tree::Scalar::ZERO);
                 let align_self = resolve_grid_item_normal_alignment(
@@ -1893,7 +2014,6 @@ where
                         (align_self == AlignItems::Stretch && child_style.aspect_ratio.is_none())
                             .then_some(available_block)
                     });
-                logical_parent.block = Some(grid_axis_size);
                 logical_available.block = AvailableOf::Definite(available_block);
             }
         }

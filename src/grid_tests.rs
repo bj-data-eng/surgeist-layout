@@ -47,6 +47,471 @@ fn fri08_c01_placement_compute<S: LayoutScalar>(
     compute_layout(tree, 1, fri08_c01_placement_request()).expect("valid grid placement")
 }
 
+#[derive(Clone, Copy, Debug)]
+enum Fri08C03LanesTracks {
+    Rows,
+    Columns,
+}
+
+fn fri08_c03_containing_block_percentage_child<S: LayoutScalar>(
+    tracks: Fri08C03LanesTracks,
+    writing_mode: WritingMode,
+    direction: Direction,
+    box_sizing: BoxSizing,
+) -> (NodeOutputOf<S>, NodeOutputOf<S>) {
+    let scalar = S::from_f64;
+    let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+    let logical_container_size = LogicalSizeOf::new(scalar(100.0), scalar(80.0));
+    let physical_container_size = flow_axes.physical_size(logical_container_size);
+    let percentage = PreferredSizeOf::percent(S::ONE);
+    let fixed = PreferredSizeOf::px(scalar(40.0));
+    let logical_child_size = match tracks {
+        Fri08C03LanesTracks::Rows => LogicalSizeOf::new(percentage, fixed),
+        Fri08C03LanesTracks::Columns => LogicalSizeOf::new(fixed, percentage),
+    };
+    let physical_child_size = flow_axes.physical_size(logical_child_size);
+    let (columns, rows) = match tracks {
+        Fri08C03LanesTracks::Rows => (Vec::new(), vec![TrackComponentOf::px(scalar(40.0))]),
+        Fri08C03LanesTracks::Columns => (vec![TrackComponentOf::px(scalar(40.0))], Vec::new()),
+    };
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::GridLanes,
+                writing_mode,
+                direction,
+                box_sizing,
+                size: physical_container_size.map(PreferredSizeOf::px),
+                grid_template_columns: columns,
+                grid_template_rows: rows,
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode,
+                direction,
+                box_sizing,
+                size: physical_child_size,
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(2, Size::ZERO);
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::MAX_CONTENT,
+            AvailableOf::MAX_CONTENT,
+        ))
+        .expect("max-content lanes viewport is valid"),
+    );
+    assert!(
+        batch.is_ok(),
+        "hybrid lanes containing block must resolve percentage child sizing: {batch:?}"
+    );
+    let batch = batch.expect("asserted successful lanes layout");
+    (
+        fri08_c01_placement_output(&batch, 1),
+        fri08_c01_placement_output(&batch, 2),
+    )
+}
+
+fn fri08_c03_containing_block_rows_child<S: LayoutScalar>(
+    child_style: NodeInputOf<S>,
+    measured_size: Size<S>,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::GridLanes,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(80.0)),
+                ),
+                grid_template_rows: vec![TrackComponentOf::px(scalar(80.0))],
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(2, child_style)
+        .measure(2, measured_size);
+    compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::MAX_CONTENT,
+            AvailableOf::MAX_CONTENT,
+        ))
+        .expect("max-content lanes viewport is valid"),
+    )
+    .expect("hybrid containing-block control layout succeeds")
+}
+
+fn assert_fri08_c03_containing_block_percentage_children<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let (container, child) = fri08_c03_containing_block_percentage_child::<S>(
+                Fri08C03LanesTracks::Rows,
+                WritingMode::HorizontalTb,
+                direction,
+                box_sizing,
+            );
+            assert_eq!(container.size, Size::new(scalar(100.0), scalar(80.0)));
+            assert_eq!(
+                child.size,
+                Size::new(scalar(100.0), scalar(40.0)),
+                "rows-only {box_sizing:?} {direction:?} child must use the 100px content width"
+            );
+            assert_eq!(
+                child.location,
+                Point::ZERO,
+                "rows-only {box_sizing:?} {direction:?} child must start at the content origin"
+            );
+        }
+    }
+
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            for tracks in [Fri08C03LanesTracks::Rows, Fri08C03LanesTracks::Columns] {
+                let (container, child) = fri08_c03_containing_block_percentage_child::<S>(
+                    tracks,
+                    writing_mode,
+                    direction,
+                    BoxSizing::BorderBox,
+                );
+                let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+                assert_eq!(
+                    flow_axes.logical_size(container.size),
+                    LogicalSizeOf::new(scalar(100.0), scalar(80.0))
+                );
+                let expected_child = match tracks {
+                    Fri08C03LanesTracks::Rows => LogicalSizeOf::new(scalar(100.0), scalar(40.0)),
+                    Fri08C03LanesTracks::Columns => LogicalSizeOf::new(scalar(40.0), scalar(80.0)),
+                };
+                assert_eq!(
+                    flow_axes.logical_size(child.size),
+                    expected_child,
+                    "{writing_mode:?} {direction:?} {tracks:?} must preserve the hybrid logical axes"
+                );
+            }
+        }
+    }
+}
+
+fn assert_fri08_c03_containing_block_percentage_controls<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let percent = |fraction| {
+        LengthPercentageOf::from_percent_fraction(scalar(fraction))
+            .expect("finite percentage control")
+    };
+
+    let edges = fri08_c03_containing_block_rows_child(
+        NodeInputOf {
+            display: Display::Block,
+            box_sizing: BoxSizing::ContentBox,
+            size: Size::new(
+                PreferredSizeOf::value(percent(0.5)),
+                PreferredSizeOf::px(scalar(20.0)),
+            ),
+            min_size: Size::new(MinSizeOf::value(percent(0.4)), MinSizeOf::AUTO),
+            max_size: Size::new(MaxSizeOf::value(percent(0.6)), MaxSizeOf::NONE),
+            margin: Edges::new(
+                LengthAutoOf::ZERO,
+                LengthAutoOf::value(percent(0.05)),
+                LengthAutoOf::ZERO,
+                LengthAutoOf::value(percent(0.05)),
+            ),
+            padding: Edges::new(
+                LengthOf::ZERO,
+                LengthOf::value(percent(0.1)),
+                LengthOf::ZERO,
+                LengthOf::value(percent(0.1)),
+            ),
+            border: Edges::new(
+                LengthOf::ZERO,
+                LengthOf::px(scalar(2.0)),
+                LengthOf::ZERO,
+                LengthOf::px(scalar(2.0)),
+            ),
+            justify_self: Some(AlignItems::Start),
+            align_self: Some(AlignItems::Start),
+            ..NodeInputOf::default()
+        },
+        Size::ZERO,
+    );
+    let edges = fri08_c01_placement_output(&edges, 2);
+    assert_eq!(edges.size, Size::new(scalar(74.0), scalar(20.0)));
+    assert_eq!(edges.location, Point::new(scalar(5.0), S::ZERO));
+    assert_eq!(
+        edges.padding,
+        Edges::new(S::ZERO, scalar(10.0), S::ZERO, scalar(10.0),)
+    );
+    assert_eq!(
+        edges.margin,
+        Edges::new(S::ZERO, scalar(5.0), S::ZERO, scalar(5.0))
+    );
+
+    for (preferred, minimum, maximum, expected) in [(0.1, 0.4, 0.9, 40.0), (1.0, 0.2, 0.6, 60.0)] {
+        let batch = fri08_c03_containing_block_rows_child(
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSizeOf::value(percent(preferred)),
+                    PreferredSizeOf::px(scalar(20.0)),
+                ),
+                min_size: Size::new(MinSizeOf::value(percent(minimum)), MinSizeOf::AUTO),
+                max_size: Size::new(MaxSizeOf::value(percent(maximum)), MaxSizeOf::NONE),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+            Size::ZERO,
+        );
+        assert_eq!(
+            fri08_c01_placement_output(&batch, 2).size.width,
+            scalar(expected),
+            "percentage min/max must share the 100px hybrid width basis"
+        );
+    }
+
+    for (item_is_replaced, align_self, expected_height) in [
+        (false, None, 80.0),
+        (true, None, 20.0),
+        (true, Some(AlignItems::Stretch), 80.0),
+    ] {
+        let batch = fri08_c03_containing_block_rows_child(
+            NodeInputOf {
+                display: Display::Block,
+                item_is_replaced,
+                size: Size::new(PreferredSizeOf::px(scalar(20.0)), PreferredSizeOf::AUTO),
+                justify_self: Some(AlignItems::Start),
+                align_self,
+                ..NodeInputOf::default()
+            },
+            Size::new(scalar(20.0), scalar(20.0)),
+        );
+        assert_eq!(
+            fri08_c01_placement_output(&batch, 2).size.height,
+            scalar(expected_height),
+            "replaced={item_is_replaced} align-self={align_self:?} stretch height"
+        );
+    }
+
+    let aspect = fri08_c03_containing_block_rows_child(
+        NodeInputOf {
+            display: Display::Block,
+            size: Size::new(PreferredSizeOf::value(percent(0.5)), PreferredSizeOf::AUTO),
+            aspect_ratio: AspectRatioOf::new(scalar(2.0)),
+            justify_self: Some(AlignItems::Start),
+            align_self: Some(AlignItems::Start),
+            ..NodeInputOf::default()
+        },
+        Size::ZERO,
+    );
+    assert_eq!(
+        fri08_c01_placement_output(&aspect, 2).size,
+        Size::new(scalar(50.0), scalar(25.0)),
+        "aspect-ratio preflight must use the same resolved percentage width"
+    );
+}
+
+#[test]
+fn fri08_c03_containing_block_percentage_children_f32() {
+    assert_fri08_c03_containing_block_percentage_children::<f32>();
+}
+
+#[test]
+fn fri08_c03_containing_block_percentage_children_f64() {
+    assert_fri08_c03_containing_block_percentage_children::<f64>();
+}
+
+#[test]
+fn fri08_c03_containing_block_percentage_controls_f32() {
+    assert_fri08_c03_containing_block_percentage_controls::<f32>();
+}
+
+#[test]
+fn fri08_c03_containing_block_percentage_controls_f64() {
+    assert_fri08_c03_containing_block_percentage_controls::<f64>();
+}
+
+#[test]
+fn fri08_c03_containing_block_subgrid_child_receives_hybrid_context() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .children(2, [3])
+        .children(3, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
+                grid_template_rows: vec![TrackComponent::px(40.0)],
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::percent(1.0), PreferredSize::AUTO),
+                grid_template_columns: vec![TrackComponent::percent(1.0)],
+                grid_template_rows: vec![TrackComponent::Subgrid(SubgridTrack::new(vec![]))],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                size: Size::new(PreferredSize::percent(1.0), PreferredSize::px(10.0)),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .measure(3, Size::ZERO);
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequest::viewport(Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT))
+            .expect("subgrid containing-block viewport"),
+    )
+    .expect("grid-lanes subgrid layout succeeds");
+
+    let subgrid = fri08_c01_placement_output(&batch, 2);
+    let descendant = fri08_c01_placement_output(&batch, 3);
+    assert_eq!(subgrid.size, Size::new(100.0, 40.0));
+    assert_eq!(descendant.size, Size::new(100.0, 10.0));
+    assert_eq!(descendant.location, Point::ZERO);
+}
+
+#[test]
+fn fri08_c03_containing_block_rtl_overflow_keeps_negative_physical_range() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::GridLanes,
+                direction: Direction::Rtl,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
+                grid_template_rows: vec![TrackComponent::px(40.0)],
+                overflow: ComputedOverflow::try_new(Overflow::Auto, Overflow::Auto)
+                    .expect("auto overflow pair is canonical"),
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                direction: Direction::Rtl,
+                size: Size::new(PreferredSize::percent(1.2), PreferredSize::px(40.0)),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .measure(2, Size::ZERO);
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequest::viewport(Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT))
+            .expect("RTL overflow containing-block viewport"),
+    )
+    .expect("RTL overflow lanes layout succeeds");
+    let container = fri08_c01_placement_output(&batch, 1);
+    let child = fri08_c01_placement_output(&batch, 2);
+    assert_eq!(child.location, Point::new(-20.0, 0.0));
+    assert_eq!(child.size, Size::new(120.0, 40.0));
+    let range = container
+        .scroll_geometry
+        .expect("grid-lanes container publishes scroll geometry")
+        .physical_range()
+        .x();
+    assert_eq!((range.minimum(), range.maximum()), (-20.0, 0.0));
+}
+
+#[test]
+fn fri08_c03_containing_block_baseline_synthesis_survives_final_layout() {
+    let child_output = ComputeOutput::from_sizes_and_baselines(
+        Size::new(100.0, 20.0),
+        Size::new(100.0, 20.0),
+        Baselines {
+            first: Point::new(None, Some(7.0)),
+            last: Point::new(None, Some(15.0)),
+        },
+    );
+    let mut tree = OracleTree::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
+                grid_template_rows: vec![TrackComponent::px(40.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                size: Size::new(PreferredSize::percent(1.0), PreferredSize::px(20.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .measure(2, child_output);
+    let output = crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(40.0)),
+            ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
+    )
+    .expect("baseline lanes layout succeeds");
+
+    assert_eq!(
+        tree.layout(2).expect("baseline child layout").size.width,
+        100.0
+    );
+    assert_eq!(output.first_baselines.y, Some(7.0));
+    assert_eq!(output.last_baselines.y, Some(15.0));
+}
+
 #[derive(Clone, Copy)]
 enum Fri08C02TrackAxis {
     Columns,
@@ -6149,8 +6614,12 @@ where
                         GridAxisKind::Column => GridAxisKind::Row,
                         GridAxisKind::Row => GridAxisKind::Column,
                     },
-                    grid_axis,
-                    grid_axis_size,
+                    containing_block: GridLanesItemContainingBlockOf::new(
+                        constants.flow_axes,
+                        grid_axis,
+                        grid_axis_size,
+                        LogicalSizeOf::new(None, None),
+                    ),
                 },
             )
             .expect("grid-lanes pre-placement measurement succeeds");
@@ -7215,6 +7684,7 @@ fn grid_lanes_layout_rejects_overflowed_affine_tolerance_resolution() {
         &[10.0],
         &placements,
         0.0,
+        LogicalSizeOf::new(Some(10.0), Some(10.0)),
     )
     .expect("layout resolution should not fail")
     .expect_err("invalid layout tolerance should not produce a placement report");
@@ -7835,6 +8305,24 @@ fn grid_lanes_lane_measurement_honors_min_content_width() {
         .measure_when(
             2,
             OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(54.0, 30.0)))
+                .known(Size::new(None, Some(30.0)))
+                .parent(Size::new(Some(72.0), Some(30.0)))
+                .available(Size::new(Available::MIN_CONTENT, Available::definite(30.0))),
+        )
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(54.0, 30.0)))
+                .run_mode(RunMode::PerformLayout)
+                .known(Size::new(None, Some(30.0)))
+                .parent(Size::new(Some(72.0), Some(30.0)))
+                .available(Size::new(
+                    Available::definite(72.0),
+                    Available::definite(30.0),
+                )),
+        )
+        .measure_when(
+            2,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(54.0, 30.0)))
                 .run_mode(RunMode::PerformLayout)
                 .known(Size::new(None, Some(30.0)))
                 .parent(Size::new(Some(54.0), Some(30.0)))
@@ -7890,6 +8378,13 @@ fn grid_lanes_lane_measurement_honors_min_content_width() {
             OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(72.0, 15.0)))
                 .known(Size::new(None, Some(30.0)))
                 .parent(Size::new(None, Some(30.0)))
+                .available(Size::new(Available::MAX_CONTENT, Available::definite(30.0))),
+        )
+        .measure_when(
+            3,
+            OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(72.0, 15.0)))
+                .known(Size::new(None, Some(30.0)))
+                .parent(Size::new(Some(72.0), Some(30.0)))
                 .available(Size::new(Available::MAX_CONTENT, Available::definite(30.0))),
         )
         .measure_when(
@@ -21416,8 +21911,12 @@ fn lane_axis_margin_box_measurement_resolves_affine_margins_against_grid_axis() 
             container_style: &container_style,
             constants: &constants,
             lane_axis: GridAxisKind::Column,
-            grid_axis: GridAxisKind::Column,
-            grid_axis_size: 200.0,
+            containing_block: GridLanesItemContainingBlockOf::new(
+                constants.flow_axes,
+                GridAxisKind::Column,
+                200.0,
+                LogicalSizeOf::new(Some(200.0), Some(80.0)),
+            ),
         },
     );
 
@@ -34608,7 +35107,7 @@ mod root_layout_oracle {
                 ))
                 .run_mode(RunMode::ComputeSize)
                 .known(Size::new(Some(100.0), None))
-                .parent(Size::new(Some(100.0), None))
+                .parent(Size::new(Some(100.0), Some(100.0)))
                 .available(Size::new(
                     Available::Definite(100.0),
                     Available::MAX_CONTENT,
@@ -34636,10 +35135,10 @@ mod root_layout_oracle {
                 ))
                 .run_mode(RunMode::PerformLayout)
                 .known(Size::new(Some(100.0), Some(60.0)))
-                .parent(Size::new(Some(100.0), Some(60.0)))
+                .parent(Size::new(Some(100.0), Some(100.0)))
                 .available(Size::new(
                     Available::Definite(100.0),
-                    Available::Definite(60.0),
+                    Available::Definite(100.0),
                 )),
             );
 
@@ -34676,7 +35175,7 @@ mod root_layout_oracle {
         assert!(
             compute_size_inputs.iter().any(|input| {
                 input.known() == Size::new(Some(100.0), None)
-                    && input.parent() == Size::new(Some(100.0), None)
+                    && input.parent() == Size::new(Some(100.0), Some(100.0))
                     && input.available()
                         == Size::new(Available::Definite(100.0), Available::MAX_CONTENT)
             }),
@@ -34795,7 +35294,7 @@ mod root_layout_oracle {
                 .run_mode(RunMode::PerformLayout)
                 .available(Size::new(
                     Available::Definite(40.0),
-                    Available::Definite(100.0),
+                    Available::Definite(140.0),
                 )),
             )
             .measure_when(
@@ -34807,7 +35306,7 @@ mod root_layout_oracle {
                 .run_mode(RunMode::PerformLayout)
                 .available(Size::new(
                     Available::Definite(100.0),
-                    Available::Definite(10.0),
+                    Available::Definite(140.0),
                 )),
             )
             .measure_when(
@@ -34819,7 +35318,7 @@ mod root_layout_oracle {
                 .run_mode(RunMode::PerformLayout)
                 .available(Size::new(
                     Available::Definite(100.0),
-                    Available::Definite(10.0),
+                    Available::Definite(140.0),
                 )),
             );
 
@@ -34920,7 +35419,7 @@ mod root_layout_oracle {
                 .run_mode(RunMode::PerformLayout)
                 .available(Size::new(
                     Available::Definite(120.0),
-                    Available::Definite(40.0),
+                    Available::Definite(120.0),
                 )),
             );
 
