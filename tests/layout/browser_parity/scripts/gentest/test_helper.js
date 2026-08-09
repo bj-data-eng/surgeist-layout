@@ -1132,6 +1132,8 @@ function describeElement(e, expectedElement = null) {
   };
 }
 
+window.__surgeistGridTemplateAreaCaptureInstalled = true;
+
 function normalizedFlexItemCollapse(e, computedStyle) {
   if (computedStyle.visibility !== 'collapse' ||
       computedStyle.display === 'none' ||

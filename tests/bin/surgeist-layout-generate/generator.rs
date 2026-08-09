@@ -12313,13 +12313,29 @@ if (actual !== expected) {{
     }
 
     #[test]
-    fn fri08_c05_adapter_bundled_helper_serializes_finite_grid_template_areas() {
+    fn fri08_c05_adapter_missing_helper_runtime_injection_keeps_finite_area_lowering_active() {
         let script = format!(
             r#"
 const window = {{ innerWidth: 800 }};
 const document = {{ styleSheets: [] }};
 
 {TEST_HELPER_SOURCE}
+
+const helperDescribeElement = describeElement;
+const helperClaimedGridTemplateAreaCapture =
+  window.__surgeistGridTemplateAreaCaptureInstalled === true;
+
+{GRID_TEMPLATE_AREA_CAPTURE_SCRIPT}
+
+if (
+  typeof getTestData !== "function" ||
+  !helperClaimedGridTemplateAreaCapture ||
+  describeElement !== helperDescribeElement
+) {{
+  throw new Error(
+    `runtime injection did not keep current finite helper lowering: loaded=${{typeof getTestData === "function"}} claimed=${{helperClaimedGridTemplateAreaCapture}} wrapped=${{describeElement !== helperDescribeElement}}`
+  );
+}}
 
 describeChildNodes = () => [];
 brInlineMetricsForElement = () => undefined;
@@ -12397,6 +12413,20 @@ const mutated = describeElement(element).style.gridTemplateAreas;
 if (JSON.stringify(mutated) !== JSON.stringify(computed)) {{
   throw new Error(`source, variant, or geometry changed serialized input: ${{JSON.stringify(mutated)}}`);
 }}
+computedStyle.gridTemplateAreas = "none";
+for (const [kind, value] of [
+  ["malformed", 'head head'],
+  ["unequal-row", '"head head" "main"'],
+  ["invalid-ident", '"head @" "nav main"'],
+  ["non-rectangular", '"head head" "head main"'],
+]) {{
+  inlineStyle.gridTemplateAreas = value;
+  let rejected = false;
+  try {{ describeElement(element); }} catch (_) {{ rejected = true; }}
+  if (!rejected) {{
+    throw new Error(`active runtime describeElement accepted ${{kind}} grid-template-areas: ${{value}}`);
+  }}
+}}
 console.log(JSON.stringify(mutated));
 "#
         );
@@ -12436,7 +12466,7 @@ console.log(JSON.stringify(mutated));
     }
 
     #[test]
-    fn fri08_c05_adapter_bundled_helper_rejects_malformed_grid_template_areas() {
+    fn fri08_c05_adapter_runtime_injection_rejects_non_finite_grid_template_areas() {
         let script = format!(
             r#"
 const window = {{}};
@@ -12444,20 +12474,20 @@ const document = {{ styleSheets: [] }};
 
 {TEST_HELPER_SOURCE}
 
+{GRID_TEMPLATE_AREA_CAPTURE_SCRIPT}
+
 if (typeof parseGridTemplateAreas !== "function") {{
   throw new Error("bundled helper is missing parseGridTemplateAreas");
 }}
-for (const value of [
-  'head head',
-  '""',
-  '"head head" trailing',
-  '"head head" "main"',
-  '"head head" "head main"',
-  '"head @" "nav main"',
+for (const [kind, value] of [
+  ["malformed", 'head head'],
+  ["unequal-row", '"head head" "main"'],
+  ["invalid-ident", '"head @" "nav main"'],
+  ["non-rectangular", '"head head" "head main"'],
 ]) {{
   let rejected = false;
   try {{ parseGridTemplateAreas(value); }} catch (_) {{ rejected = true; }}
-  if (!rejected) throw new Error(`malformed grid-template-areas accepted: ${{value}}`);
+  if (!rejected) throw new Error(`${{kind}} grid-template-areas accepted: ${{value}}`);
 }}
 "#
         );
@@ -14744,7 +14774,7 @@ status = "active"
     const FRI07_C04_T02_HELPER_SHA256: &str =
         "caafa5a48787c9b80a45d8b2c8ac6f91b8ad7ab14a85e5bcdf3a3e922ebce019";
     const FRI08_C05_T02_HELPER_SHA256: &str =
-        "98b6d0b3cecad6b56de5c0cf10c3e8cb02d0bcd119542a0420ede325181038dd";
+        "c684c7f167d95997a4a9f0250467bbaf72c1b73e69e0f707a2ef32f4d25f7f36";
     const FRI08_C05_T02_GRID_TEMPLATE_AREAS_PARSER_SHA256: &str =
         "7dbaef329e76bcbf9e5ed47c74def8d324112810d424f498b01acdf1f880cb4d";
     const FRI07_C04_T04_REPORT_SHA256: &str =
