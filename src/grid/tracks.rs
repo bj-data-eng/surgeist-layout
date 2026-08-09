@@ -23,6 +23,28 @@ impl<S: LayoutScalar> OrdinaryGridAxisGuttersOf<S> {
         }
     }
 
+    pub(super) fn new_zero_adjacent_to_collapsed_tracks(
+        track_count: usize,
+        collapsed: &[bool],
+        gap: S,
+    ) -> Self {
+        let mut collapsed = collapsed.to_vec();
+        collapsed.resize(track_count, false);
+        let active_boundary_after = collapsed
+            .windows(2)
+            .map(|pair| !pair[0] && !pair[1])
+            .collect::<Vec<_>>();
+        let gutter_after = active_boundary_after
+            .iter()
+            .map(|active| if *active { gap } else { S::ZERO })
+            .collect();
+        Self {
+            collapsed,
+            active_boundary_after,
+            gutter_after,
+        }
+    }
+
     pub(super) fn from_boundary_gutters(
         track_count: usize,
         collapsed: &[bool],

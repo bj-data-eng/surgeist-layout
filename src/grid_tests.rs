@@ -5124,6 +5124,57 @@ fn fri08_c02_lanes_negative_auto_fit_accepts_c03_preplacement_collapse() {
     assert_eq!((output.location.x, output.size.width), (40.0, 40.0));
 }
 
+fn assert_fri08_c06_collapsed_gutter_grid_lanes_interior_collapse<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::<S>::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInputOf::<S> {
+                display: Display::GridLanes,
+                size: Size::new(
+                    PreferredSizeOf::<S>::px(scalar(190.0)),
+                    PreferredSizeOf::<S>::px(scalar(20.0)),
+                ),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponentOf::<S>::px(scalar(20.0))],
+                gap: Size::new(LengthOf::<S>::px(scalar(10.0)), LengthOf::<S>::ZERO),
+                justify_content: Some(AlignContent::Start),
+                ..NodeInputOf::<S>::default()
+            },
+        )
+        .style(2, NodeInputOf::<S>::default())
+        .style(
+            3,
+            NodeInputOf::<S> {
+                grid_column: GridPlacement::try_line(4).expect("fourth lane track"),
+                ..NodeInputOf::<S>::default()
+            },
+        );
+
+    let automatic = fri08_c02_auto_fit_output(&tree, Size::new(scalar(190.0), scalar(20.0)), 2);
+    let definite = fri08_c02_auto_fit_output(&tree, Size::new(scalar(190.0), scalar(20.0)), 3);
+    assert_eq!(
+        (automatic.location.x, automatic.size.width),
+        (S::ZERO, scalar(40.0))
+    );
+    assert_eq!(
+        (definite.location.x, definite.size.width),
+        (scalar(40.0), scalar(40.0))
+    );
+    assert_eq!(
+        definite.location.x - automatic.location.x - automatic.size.width,
+        S::ZERO,
+        "grid-lanes retains zero active-gap total when the two interior tracks collapse",
+    );
+}
+
+#[test]
+fn fri08_c06_collapsed_gutter_grid_lanes_interior_collapse_keeps_zero_active_gap_total() {
+    assert_fri08_c06_collapsed_gutter_grid_lanes_interior_collapse::<f32>();
+    assert_fri08_c06_collapsed_gutter_grid_lanes_interior_collapse::<f64>();
+}
+
 #[test]
 fn fri08_c02_lanes_negative_stretch_retains_pre_c02_auto_track_geometry() {
     let tree = PublicLayoutTreeOf::<f32>::new()

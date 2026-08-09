@@ -1260,6 +1260,23 @@ struct InitializedGridTracks<Node, S: LayoutScalar = Scalar> {
     report: GridComputationReport,
 }
 
+fn local_grid_axis_gutters<S: LayoutScalar>(
+    display: Display,
+    track_count: usize,
+    collapsed: &[bool],
+    gap: S,
+) -> OrdinaryGridAxisGuttersOf<S> {
+    if display.establishes_grid_lanes_formatting_context() {
+        OrdinaryGridAxisGuttersOf::new_zero_adjacent_to_collapsed_tracks(
+            track_count,
+            collapsed,
+            gap,
+        )
+    } else {
+        OrdinaryGridAxisGuttersOf::new(track_count, collapsed, gap)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct ResolvedGridItemPlacement {
     pub(super) column: GridPlacement,
@@ -1699,7 +1716,8 @@ where
 
     let column_gutters = parent_context.columns.as_ref().map_or_else(
         || {
-            OrdinaryGridAxisGuttersOf::new(
+            local_grid_axis_gutters(
+                style.display,
                 column_tracks.len(),
                 &topology.collapsed_columns,
                 gap.inline,
@@ -1708,7 +1726,14 @@ where
         |axis| axis.geometry.sizing_gutters(),
     );
     let row_gutters = parent_context.rows.as_ref().map_or_else(
-        || OrdinaryGridAxisGuttersOf::new(row_tracks.len(), &topology.collapsed_rows, gap.block),
+        || {
+            local_grid_axis_gutters(
+                style.display,
+                row_tracks.len(),
+                &topology.collapsed_rows,
+                gap.block,
+            )
+        },
         |axis| axis.geometry.sizing_gutters(),
     );
 
@@ -2442,12 +2467,22 @@ where
     let layout_column_gutters = if parent_context.columns.is_some() {
         column_gutters
     } else {
-        OrdinaryGridAxisGuttersOf::new(column_tracks.len(), &collapsed_columns, layout_gap.inline)
+        local_grid_axis_gutters(
+            style.display,
+            column_tracks.len(),
+            &collapsed_columns,
+            layout_gap.inline,
+        )
     };
     let layout_row_gutters = if parent_context.rows.is_some() {
         row_gutters
     } else {
-        OrdinaryGridAxisGuttersOf::new(row_tracks.len(), &collapsed_rows, layout_gap.block)
+        local_grid_axis_gutters(
+            style.display,
+            row_tracks.len(),
+            &collapsed_rows,
+            layout_gap.block,
+        )
     };
     let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
     let logical_available_inner_size =
