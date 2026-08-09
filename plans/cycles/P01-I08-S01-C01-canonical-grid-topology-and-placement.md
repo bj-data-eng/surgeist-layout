@@ -71,6 +71,18 @@ their sequenced owners. Owned code remains free of `unsafe`. Invalid input
 remains an error, fallible mutations remain atomic, cache results remain
 equivalent, and f32/f64 behavior remains supported.
 
+Placement arithmetic or allocation that cannot represent a completed grid uses
+a private `GridPlacementDemandError` with `AxisCapacity { axis,
+requested_tracks }` for checked line/span or per-axis reserve failure and
+`OccupancyCapacity { columns, rows }` for checked dimension-product or occupancy
+reserve failure. `src/grid/mod.rs` maps either variant exactly to
+`LayoutErrorSiteOf::Node(container)`, `LayoutOperation::ChildLayout`, and the
+existing `LayoutErrorKindOf::InternalInvariant(
+LayoutInternalInvariant::InvalidBlockScrollGeometry)` envelope. It publishes no
+new error variant or signature, no completed batch, and no tree or cache change.
+Such a request is not a valid representable request under specification section
+15; ordinary invalid names and values retain their existing categories.
+
 Browser and generator inputs are frozen throughout C01. The published
 schema-3 report remains the sole provenance record with:
 
@@ -176,12 +188,11 @@ nor create implicit tracks. Definite overlap remains legal and creates no demand
 beyond its definite endpoints. A valid placement never becomes a zero-area
 sentinel merely because it exceeds pre-placement topology.
 
-Every capacity calculation and allocation is fallible before mutation. Invalid
-lines, arithmetic overflow, capacity overflow, and allocation failure return a
-typed placement-demand error that maps through the existing public layout
-error surface without partially changing topology or cached layout state. No
-dimension product or per-track extension may panic or abort for a constructible
-placement span.
+Every capacity calculation and allocation is fallible before mutation. Checked
+line/span arithmetic, capacity overflow, and allocation failure return the
+private error and exact existing public mapping in section 3 without partially
+changing topology or cached layout state. No dimension product or per-track
+extension may panic or abort for a constructible placement span.
 
 **Required behavioral RED prefix:** `fri08_c01_placement_` runs against the T01
 base through existing public layout entry points and proves at least:
@@ -195,8 +206,8 @@ base through existing public layout entry points and proves at least:
 - leading negative implicit demand retains correct line translation and auto
   pattern phase;
 - absolute and display-none controls do not affect occupancy;
-- constructible automatic-span and definite-line capacity boundaries return a
-  typed public error and leave layout state retryable.
+- a constructible definite-line-plus-span arithmetic boundary returns the exact
+  typed public error and leaves layout state retryable rather than panicking.
 
 The worker must apply and run the focused tests alone on exact T01 base
 `e5964ff7a8ace892f241b27f0eea92a7da8343c4`, record assertion-level failures for
@@ -210,6 +221,8 @@ cursor monotonicity, negative lines, named spans, leading/trailing implicit
 growth, spans larger than explicit topology, empty topology, percentage,
 writing mode, invalid input, direct allocation boundaries, and f32/f64 have
 behavioral tests. Every successful in-flow child has an in-range nonempty area.
+Post-implementation tests cover automatic-span capacity and occupancy-product
+capacity without forcing an unbounded allocation on the T01 RED base.
 The old demand heuristic and valid zero-area fallback are absent. No parallel
 topology or final occupancy owner remains. Existing child, subgrid contribution,
 baseline, overflow, cache, rollback, and named-grid suites remain green. C02
@@ -243,12 +256,18 @@ CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets --
 cargo fmt --check
 git diff --check
 git diff --exit-code 238df34a713db4f90d7f194f6fdf89a994d34fa2..HEAD -- Cargo.toml Cargo.lock README.md tests/layout/browser_parity tests/layout/browser_parity.rs tests/bin scripts
+surgeist_c01_owned_rust_manifest=$(mktemp /tmp/surgeist-layout-c01-owned-rust.XXXXXX)
+git ls-files --cached --others --exclude-standard '*.rs' > "$surgeist_c01_owned_rust_manifest"
+! xargs rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' < "$surgeist_c01_owned_rust_manifest"
+rm "$surgeist_c01_owned_rust_manifest"
 git status --short --branch
 ```
 
-Also inspect every C01-owned Rust diff for any `unsafe`, new allow/expect
-attribute, alternate topology/occupancy owner, stale child-count/`div_ceil`
-demand path, and valid zero-area fallback. Verify the frozen artifact counts and
+The owned-Rust manifest includes every tracked and non-ignored Rust source; the
+scan passes only with no match, and every unexpected textual match is classified
+before advancing. Also inspect every C01-owned Rust diff for new allow/expect
+attributes, an alternate topology/occupancy owner, stale child-count/`div_ceil`
+demand, and a valid zero-area fallback. Verify the frozen artifact counts and
 hashes in section 3 without invoking browser acquisition or generation.
 
 The C01 candidate is publication-ready only when:
