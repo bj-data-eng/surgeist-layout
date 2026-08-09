@@ -26,7 +26,8 @@ use crate::compute::{
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::layout_math::{
     MaxBeforeMinOptionalSizeClampExt, MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt,
-    OptionalSizeExt, resolution_optional, resolution_or_zero, resolve_containing_padding_border,
+    OptionalSizeExt, OptionalSizeMaxExt, resolution_optional, resolution_or_zero,
+    resolve_containing_padding_border,
 };
 use crate::scroll::{
     CanonicalRetainedScrollSourceOf, CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf,
@@ -3837,12 +3838,11 @@ fn resolve_length_or_zero<S: LayoutScalar>(
     resolution_or_zero(length.resolve_with_status(basis))
 }
 
-trait BlockOptionalSizeExt<S: LayoutScalar> {
+trait BlockOptionalSizeSubExt<S: LayoutScalar> {
     fn sub_optional_clamped_to_zero(self, amount: Size<S>) -> Self;
-    fn max_optional(self, min: Self) -> Self;
 }
 
-impl<S: LayoutScalar> BlockOptionalSizeExt<S> for Size<Option<S>> {
+impl<S: LayoutScalar> BlockOptionalSizeSubExt<S> for Size<Option<S>> {
     fn sub_optional_clamped_to_zero(self, amount: Size<S>) -> Self {
         Size::new(
             self.width.map(|width| (width - amount.width).max(S::ZERO)),
@@ -3850,18 +3850,34 @@ impl<S: LayoutScalar> BlockOptionalSizeExt<S> for Size<Option<S>> {
                 .map(|height| (height - amount.height).max(S::ZERO)),
         )
     }
+}
 
-    fn max_optional(self, min: Self) -> Self {
-        Size::new(
-            self.width
-                .zip(min.width)
-                .map(|(value, min)| value.max(min))
-                .or(self.width),
-            self.height
-                .zip(min.height)
-                .map(|(value, min)| value.max(min))
-                .or(self.height),
-        )
+#[cfg(test)]
+mod fri08_c07_t03_optional_math_characterization_tests {
+    use super::*;
+
+    fn characterize<S: LayoutScalar>() {
+        let scalar = S::from_f64;
+
+        assert_eq!(
+            Size::new(None, Some(scalar(12.0))).max_optional(Size::new(Some(scalar(9.0)), None)),
+            Size::new(None, Some(scalar(12.0)))
+        );
+        assert_eq!(
+            Size::new(Some(scalar(4.0)), Some(scalar(12.0)))
+                .max_optional(Size::new(Some(scalar(9.0)), Some(scalar(3.0)))),
+            Size::new(Some(scalar(9.0)), Some(scalar(12.0)))
+        );
+    }
+
+    #[test]
+    fn fri08_c07_t03_optional_math_block_componentwise_max_preserves_f32() {
+        characterize::<f32>();
+    }
+
+    #[test]
+    fn fri08_c07_t03_optional_math_block_componentwise_max_preserves_f64() {
+        characterize::<f64>();
     }
 }
 

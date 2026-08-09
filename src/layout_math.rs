@@ -88,6 +88,54 @@ impl<S: LayoutScalar> OptionalSizeExt for Size<Option<S>> {
     }
 }
 
+mod sealed {
+    use crate::{LayoutScalar, Size};
+
+    pub(crate) trait OptionalSizeMax {}
+
+    impl<S: LayoutScalar> OptionalSizeMax for Size<Option<S>> {}
+
+    pub(crate) trait OptionalMinimumSizeFloor {}
+
+    impl<S: LayoutScalar> OptionalMinimumSizeFloor for Size<S> {}
+}
+
+pub(crate) trait OptionalSizeMaxExt: sealed::OptionalSizeMax {
+    fn max_optional(self, min: Self) -> Self;
+}
+
+impl<S: LayoutScalar> OptionalSizeMaxExt for Size<Option<S>> {
+    fn max_optional(self, min: Self) -> Self {
+        Size::new(
+            self.width
+                .zip(min.width)
+                .map(|(value, min)| value.max(min))
+                .or(self.width),
+            self.height
+                .zip(min.height)
+                .map(|(value, min)| value.max(min))
+                .or(self.height),
+        )
+    }
+}
+
+pub(crate) trait OptionalMinimumSizeFloorExt: sealed::OptionalMinimumSizeFloor {
+    type Scalar: LayoutScalar;
+
+    fn max_optional(self, min: Size<Option<Self::Scalar>>) -> Self;
+}
+
+impl<S: LayoutScalar> OptionalMinimumSizeFloorExt for Size<S> {
+    type Scalar = S;
+
+    fn max_optional(self, min: Size<Option<S>>) -> Self {
+        Size::new(
+            min.width.map_or(self.width, |min| self.width.max(min)),
+            min.height.map_or(self.height, |min| self.height.max(min)),
+        )
+    }
+}
+
 pub(crate) trait UncheckedOptionalSizeSubExt {
     type Scalar: LayoutScalar;
 
@@ -228,4 +276,38 @@ pub(crate) fn assert_fri06_c13_t06_resolution_policy<S: LayoutScalar>(
         resolution_optional(LengthResolutionOf::invalid_numeric(S::INFINITY, true)),
         Err(invalid)
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OptionalMinimumSizeFloorExt, OptionalSizeMaxExt};
+    use crate::{LayoutScalar, Size};
+
+    fn assert_optional_size_operations<S: LayoutScalar>() {
+        let scalar = S::from_f64;
+
+        assert_eq!(
+            Size::new(None, Some(scalar(12.0))).max_optional(Size::new(None, None)),
+            Size::new(None, Some(scalar(12.0)))
+        );
+        assert_eq!(
+            Size::new(Some(scalar(4.0)), Some(scalar(12.0)))
+                .max_optional(Size::new(Some(scalar(9.0)), Some(scalar(3.0)))),
+            Size::new(Some(scalar(9.0)), Some(scalar(12.0)))
+        );
+        assert_eq!(
+            Size::new(scalar(4.0), scalar(12.0)).max_optional(Size::new(None, Some(scalar(15.0)))),
+            Size::new(scalar(4.0), scalar(15.0))
+        );
+    }
+
+    #[test]
+    fn optional_size_operations_preserve_f32() {
+        assert_optional_size_operations::<f32>();
+    }
+
+    #[test]
+    fn optional_size_operations_preserve_f64() {
+        assert_optional_size_operations::<f64>();
+    }
 }

@@ -18008,3 +18008,71 @@ fn fri05_c04_flex_contribution_root_content_size_unions_anchor_and_overflow_per_
         Size::new(maximum.x - minimum.x, maximum.y - minimum.y)
     );
 }
+
+fn assert_fri08_c07_t03_optional_math_leaf_results<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let style = NodeInputOf::<S> {
+        box_sizing: BoxSizing::BorderBox,
+        size: Size::new(PreferredSizeOf::px(scalar(4.0)), PreferredSizeOf::AUTO),
+        padding: Edges::new(
+            LengthOf::px(scalar(7.0)),
+            LengthOf::px(scalar(5.0)),
+            LengthOf::px(scalar(4.0)),
+            LengthOf::px(scalar(3.0)),
+        ),
+        ..NodeInputOf::default()
+    };
+    let input = ComputeInputOf::leaf_layout(
+        Size::NONE,
+        Size::splat(Some(scalar(100.0))),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::splat(AvailableOf::MAX_CONTENT),
+    )
+    .unwrap_or_else(|_| panic!("finite leaf layout input must be valid"));
+    let output = compute_leaf(input, &style, |_measurement| {
+        Ok::<_, core::convert::Infallible>(Size::new(scalar(2.0), scalar(6.0)))
+    })
+    .unwrap_or_else(|_| panic!("finite leaf sizing must succeed"));
+
+    assert_eq!(output.size, Size::new(scalar(8.0), scalar(17.0)));
+
+    let largest = fri06_mr02_geometry_error_largest_finite::<S>();
+    let overflowing = LengthPercentageOf::from_coefficients(largest, S::ONE)
+        .unwrap_or_else(|_| panic!("finite coefficients must be accepted"));
+    let failing_style = NodeInputOf::<S> {
+        size: Size::new(PreferredSizeOf::value(overflowing), PreferredSizeOf::AUTO),
+        ..NodeInputOf::default()
+    };
+    let failing_input = ComputeInputOf::leaf_layout(
+        Size::NONE,
+        Size::new(Some(largest), Some(scalar(100.0))),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::new(AvailableOf::definite(largest), AvailableOf::MAX_CONTENT),
+    )
+    .unwrap_or_else(|_| panic!("finite leaf layout input must be valid"));
+    let error = compute_leaf(failing_input, &failing_style, |_measurement| {
+        Ok::<_, core::convert::Infallible>(Size::ZERO)
+    })
+    .expect_err("non-finite leaf sizing must preserve its error");
+
+    assert_eq!(error.site(), LayoutErrorSiteOf::Standalone);
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric {
+            value: S::INFINITY,
+        })
+    );
+}
+
+#[test]
+fn fri08_c07_t03_optional_math_leaf_results_preserve_both_scalar_lanes() {
+    assert_fri08_c07_t03_optional_math_leaf_results::<f32>();
+    assert_fri08_c07_t03_optional_math_leaf_results::<f64>();
+}

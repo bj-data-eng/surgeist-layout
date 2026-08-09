@@ -8,7 +8,10 @@ use super::{
     Size, SizingMode, Traverse,
 };
 use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
-use crate::layout_math::{MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt, OptionalSizeExt};
+use crate::layout_math::{
+    MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt, OptionalMinimumSizeFloorExt,
+    OptionalSizeExt,
+};
 use crate::scalar::round_layout_coordinate;
 use crate::scroll::{
     CanonicalRetainedScrollSourceOf, CanonicalScrollGeometryErrorOf,
@@ -2903,20 +2906,32 @@ impl<S: LayoutScalar> EdgesResultExt<S>
     }
 }
 
-trait SizeExt {
-    type Scalar: LayoutScalar;
+#[cfg(test)]
+mod fri08_c07_t03_optional_math_characterization_tests {
+    use super::*;
 
-    fn max_optional(self, min: Size<Option<Self::Scalar>>) -> Self;
-}
+    fn characterize<S: LayoutScalar>() {
+        let scalar = S::from_f64;
 
-impl<S: LayoutScalar> SizeExt for Size<S> {
-    type Scalar = S;
+        assert_eq!(
+            Size::new(scalar(4.0), scalar(12.0)).max_optional(Size::new(None, Some(scalar(15.0)))),
+            Size::new(scalar(4.0), scalar(15.0))
+        );
+        assert_eq!(
+            Size::new(scalar(4.0), scalar(12.0))
+                .max_optional(Size::new(Some(scalar(9.0)), Some(scalar(3.0)),)),
+            Size::new(scalar(9.0), scalar(12.0))
+        );
+    }
 
-    fn max_optional(self, min: Size<Option<S>>) -> Self {
-        Size::new(
-            min.width.map_or(self.width, |min| self.width.max(min)),
-            min.height.map_or(self.height, |min| self.height.max(min)),
-        )
+    #[test]
+    fn fri08_c07_t03_optional_math_compute_minimum_floor_preserves_f32() {
+        characterize::<f32>();
+    }
+
+    #[test]
+    fn fri08_c07_t03_optional_math_compute_minimum_floor_preserves_f64() {
+        characterize::<f64>();
     }
 }
 

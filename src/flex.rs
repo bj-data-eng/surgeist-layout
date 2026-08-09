@@ -15,8 +15,8 @@ use crate::geometry::{
 };
 use crate::layout_math::{
     MaxBeforeMinOptionalSizeClampExt, MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt,
-    OptionalSizeExt, UncheckedOptionalSizeSubExt, resolution_optional, resolution_or_zero,
-    resolve_containing_padding_border,
+    OptionalMinimumSizeFloorExt, OptionalSizeExt, OptionalSizeMaxExt, UncheckedOptionalSizeSubExt,
+    resolution_optional, resolution_or_zero, resolve_containing_padding_border,
 };
 use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
@@ -4453,41 +4453,36 @@ fn resolve_auto_optional<S: LayoutScalar>(
     resolution_optional(length.resolve_with_status(basis))
 }
 
-trait SizeOptionExt {
-    type Scalar: LayoutScalar;
-    fn max_optional(self, min: Self) -> Self;
-}
+#[cfg(test)]
+mod fri08_c07_t03_optional_math_characterization_tests {
+    use super::*;
 
-impl<S: LayoutScalar> SizeOptionExt for Size<Option<S>> {
-    type Scalar = S;
+    fn characterize<S: LayoutScalar>() {
+        let scalar = S::from_f64;
 
-    fn max_optional(self, min: Self) -> Self {
-        Size::new(
-            self.width
-                .zip(min.width)
-                .map(|(value, min)| value.max(min))
-                .or(self.width),
-            self.height
-                .zip(min.height)
-                .map(|(value, min)| value.max(min))
-                .or(self.height),
-        )
+        assert_eq!(
+            Size::new(None, Some(scalar(12.0))).max_optional(Size::new(Some(scalar(9.0)), None)),
+            Size::new(None, Some(scalar(12.0)))
+        );
+        assert_eq!(
+            Size::new(Some(scalar(4.0)), Some(scalar(12.0)))
+                .max_optional(Size::new(Some(scalar(9.0)), Some(scalar(3.0)))),
+            Size::new(Some(scalar(9.0)), Some(scalar(12.0)))
+        );
+        assert_eq!(
+            Size::new(scalar(4.0), scalar(12.0)).max_optional(Size::new(None, Some(scalar(15.0)))),
+            Size::new(scalar(4.0), scalar(15.0))
+        );
     }
-}
 
-trait SizeConcreteExt {
-    type Scalar: LayoutScalar;
-    fn max_optional(self, min: Size<Option<Self::Scalar>>) -> Self;
-}
+    #[test]
+    fn fri08_c07_t03_optional_math_flex_componentwise_floors_preserve_f32() {
+        characterize::<f32>();
+    }
 
-impl<S: LayoutScalar> SizeConcreteExt for Size<S> {
-    type Scalar = S;
-
-    fn max_optional(self, min: Size<Option<S>>) -> Self {
-        Size::new(
-            min.width.map_or(self.width, |min| self.width.max(min)),
-            min.height.map_or(self.height, |min| self.height.max(min)),
-        )
+    #[test]
+    fn fri08_c07_t03_optional_math_flex_componentwise_floors_preserve_f64() {
+        characterize::<f64>();
     }
 }
 

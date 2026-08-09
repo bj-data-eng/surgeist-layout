@@ -14667,3 +14667,90 @@ fn fri05_c04_flex_tiny_induced_reservations_saturate_without_extra_evaluations()
     assert!(measurement.scroll_geometry.is_none());
     assert!(measurement_tree.child_inputs.is_empty());
 }
+
+fn assert_fri08_c07_t03_optional_math_flex_results<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let scalar = S::from_f64;
+    let style = NodeInputOf::<S> {
+        display: Display::Flex,
+        box_sizing: BoxSizing::BorderBox,
+        size: Size::new(PreferredSizeOf::px(scalar(4.0)), PreferredSizeOf::AUTO),
+        padding: Edges::new(
+            LengthOf::px(scalar(7.0)),
+            LengthOf::px(scalar(5.0)),
+            LengthOf::px(scalar(4.0)),
+            LengthOf::px(scalar(3.0)),
+        ),
+        ..NodeInputOf::default()
+    };
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(0, [])
+        .style(0, style);
+    let output = crate::compute_flex(
+        &mut tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::splat(Some(scalar(100.0))),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(AvailableOf::MAX_CONTENT),
+        ),
+    )
+    .unwrap_or_else(|_| panic!("finite flex sizing must succeed"));
+
+    assert_eq!(output.size, Size::new(scalar(8.0), scalar(11.0)));
+
+    let largest = fri06_mr02_geometry_error_largest_finite::<S>();
+    let overflowing = LengthPercentageOf::from_coefficients(largest, S::ONE)
+        .unwrap_or_else(|_| panic!("finite coefficients must be accepted"));
+    let mut failing_tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(0, [])
+        .style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::new(PreferredSizeOf::value(overflowing), PreferredSizeOf::AUTO),
+                ..NodeInputOf::default()
+            },
+        );
+    let error = crate::compute_flex(
+        &mut failing_tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(largest), Some(scalar(100.0))),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::new(AvailableOf::definite(largest), AvailableOf::MAX_CONTENT),
+        ),
+    )
+    .expect_err("non-finite flex sizing must preserve its error");
+
+    assert_eq!(error.site(), LayoutErrorSiteOf::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric {
+            value: S::INFINITY,
+        })
+    );
+}
+
+#[test]
+fn fri08_c07_t03_optional_math_flex_results_preserve_both_scalar_lanes() {
+    assert_fri08_c07_t03_optional_math_flex_results::<f32>();
+    assert_fri08_c07_t03_optional_math_flex_results::<f64>();
+}
