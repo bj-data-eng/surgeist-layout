@@ -4962,13 +4962,15 @@ fn grid_lanes_layout_rejects_overflowed_affine_tolerance_resolution() {
         row_explicit_count: 1,
     };
     let context = GridContainerContext {
+        topology: topology::ExpandedGridTopology::from_test_parts(
+            vec![TrackSizingOf::AUTO],
+            vec![TrackSizingOf::AUTO],
+            named::NamedGridLines::new(GridAxisKind::Column, 1),
+            named::NamedGridLines::new(GridAxisKind::Row, 1),
+            None,
+        ),
         gap: LogicalSizeOf::new(0.0, 0.0),
         percent_basis: LogicalSizeOf::new(Some(f32::MAX), Some(f32::MAX)),
-        explicit_columns: 1,
-        explicit_rows: 1,
-        named_columns: named::NamedGridLines::new(GridAxisKind::Column, 1),
-        named_rows: named::NamedGridLines::new(GridAxisKind::Row, 1),
-        area_facts: None,
         leading_columns: 0,
         leading_rows: 0,
         lines,
@@ -18514,6 +18516,130 @@ fn named_grid_template_area_bare_name_uses_generated_start_and_end_lines() {
 }
 
 #[test]
+fn fri08_c01_topology_empty_area_only_grid_uses_authored_auto_track_patterns() {
+    let mut tree = OracleTree::new().children(1, []).style(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            grid_auto_columns: vec![TrackComponent::px(40.0)],
+            grid_auto_rows: vec![TrackComponent::px(20.0)],
+            grid_template_areas: GridTemplateAreas {
+                rows: vec![GridTemplateAreaRow {
+                    cells: vec![
+                        Some("main".to_string()),
+                        Some("main".to_string()),
+                        Some("main".to_string()),
+                    ],
+                }],
+            },
+            ..NodeInput::DEFAULT
+        },
+    );
+
+    let output = compute_oracle_grid_output(&mut tree);
+
+    assert_eq!(output.size, Size::new(120.0, 20.0));
+}
+
+#[test]
+fn fri08_c01_topology_populated_area_only_grid_uses_the_same_explicit_edges() {
+    let mut tree = OracleTree::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_auto_columns: vec![TrackComponent::px(40.0)],
+                grid_auto_rows: vec![TrackComponent::px(20.0)],
+                grid_template_areas: GridTemplateAreas {
+                    rows: vec![GridTemplateAreaRow {
+                        cells: vec![
+                            Some("main".to_string()),
+                            Some("main".to_string()),
+                            Some("main".to_string()),
+                        ],
+                    }],
+                },
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                raw_grid_column: RawGridPlacement::new(
+                    RawGridLine::BareIdent("main".to_string()),
+                    RawGridLine::BareIdent("main".to_string()),
+                ),
+                raw_grid_row: RawGridPlacement::new(
+                    RawGridLine::BareIdent("main".to_string()),
+                    RawGridLine::BareIdent("main".to_string()),
+                ),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        1,
+        Size::new(Available::Definite(120.0), Available::Definite(20.0)),
+    )
+    .unwrap();
+    round_layout(&mut tree, 1).unwrap();
+
+    let root = tree.final_layout(1).expect("area-only root layout");
+    let child = tree.final_layout(2).expect("area-named child layout");
+    assert_eq!(root.size, Size::new(120.0, 20.0));
+    assert_eq!(child.location, Point::ZERO);
+    assert_eq!(child.size, Size::new(120.0, 20.0));
+}
+
+#[test]
+fn fri08_c01_topology_uses_larger_area_or_sized_list_dimension_without_losing_names() {
+    let style = NodeInput {
+        display: Display::Grid,
+        grid_template_columns: vec![
+            TrackComponent::line_names(["column-authored-start"]),
+            TrackComponent::px(30.0),
+        ],
+        grid_template_rows: vec![
+            TrackComponent::line_names(["row-authored-start"]),
+            TrackComponent::px(5.0),
+            TrackComponent::px(7.0),
+            TrackComponent::px(9.0),
+            TrackComponent::line_names(["row-authored-end"]),
+        ],
+        grid_auto_columns: vec![TrackComponent::px(10.0), TrackComponent::px(20.0)],
+        grid_auto_rows: vec![TrackComponent::px(11.0)],
+        grid_template_areas: GridTemplateAreas {
+            rows: vec![GridTemplateAreaRow {
+                cells: vec![
+                    Some("main".to_string()),
+                    Some("main".to_string()),
+                    Some("main".to_string()),
+                ],
+            }],
+        },
+        ..NodeInput::DEFAULT
+    };
+    let named = named::build_grid_named_context(&style, 1, 3, &GridParentContext::none())
+        .expect("valid mixed topology inputs");
+    assert_eq!(named.columns.explicit_track_count, 3);
+    assert_eq!(named.rows.explicit_track_count, 3);
+    assert_eq!(
+        named.columns.named_occurrences("column-authored-start"),
+        vec![1]
+    );
+    assert_eq!(named.columns.named_occurrences("main-end"), vec![4]);
+    assert_eq!(named.rows.named_occurrences("row-authored-start"), vec![1]);
+    assert_eq!(named.rows.named_occurrences("row-authored-end"), vec![4]);
+    assert_eq!(named.rows.named_occurrences("main-end"), vec![2]);
+
+    let mut tree = OracleTree::new().children(1, []).style(1, style);
+    let output = compute_oracle_grid_output(&mut tree);
+    assert_eq!(output.size, Size::new(60.0, 21.0));
+}
+
+#[test]
 fn named_grid_invalid_template_areas_keep_explicit_line_names() {
     let mut tree = OracleTree::new()
         .children(1, [2])
@@ -19577,13 +19703,15 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         row_explicit_count: 1,
     };
     let container_context = GridContainerContext::<f64> {
+        topology: topology::ExpandedGridTopology::from_test_parts(
+            vec![TrackSizingOf::AUTO],
+            vec![TrackSizingOf::AUTO],
+            named_lines.clone(),
+            named::NamedGridLines::new(GridAxisKind::Row, 1),
+            None,
+        ),
         gap: LogicalSizeOf::new(1.0, 2.0),
         percent_basis: LogicalSizeOf::new(Some(100.0), None),
-        explicit_columns: 1,
-        explicit_rows: 1,
-        named_columns: named_lines.clone(),
-        named_rows: named::NamedGridLines::new(GridAxisKind::Row, 1),
-        area_facts: None,
         leading_columns: 0,
         leading_rows: 0,
         lines,
@@ -20023,7 +20151,7 @@ fn named_lines_preserve_explicit_names_and_fixed_repeats() {
 }
 
 #[test]
-fn named_lines_preserve_duplicate_source_order_names() {
+fn fri08_c01_topology_duplicate_tokens_preserve_origins_but_count_one_physical_line() {
     let lines = named::named_lines_from_track_components(
         GridAxisKind::Column,
         &[
@@ -20034,7 +20162,7 @@ fn named_lines_preserve_duplicate_source_order_names() {
     )
     .unwrap();
 
-    assert_eq!(lines.named_occurrences("a"), vec![1, 1]);
+    assert_eq!(lines.named_occurrences("a"), vec![1]);
     assert_eq!(
         lines
             .entries_on_line(1)
@@ -20046,7 +20174,7 @@ fn named_lines_preserve_duplicate_source_order_names() {
 }
 
 #[test]
-fn named_lines_reject_reserved_explicit_line_names() {
+fn fri08_c01_topology_invalid_names_retain_typed_diagnostics() {
     let error = named::named_lines_from_track_components(
         GridAxisKind::Column,
         &[
@@ -20085,6 +20213,328 @@ fn named_lines_reject_reserved_explicit_line_names() {
         named::NamedGridError::ReservedLineName {
             name: "span".to_string(),
         }
+    );
+}
+
+#[test]
+fn fri08_c01_topology_second_named_occurrence_uses_the_second_physical_line() {
+    let lines = named::named_lines_from_track_components(
+        GridAxisKind::Column,
+        &[
+            TrackComponent::line_names(["a", "a"]),
+            TrackComponent::px(40.0),
+            TrackComponent::line_names(["a"]),
+            TrackComponent::px(40.0),
+        ],
+        2,
+    )
+    .unwrap();
+
+    let placement = named::resolve_grid_placement(
+        &lines,
+        &RawGridPlacement::new(
+            RawGridLine::NamedLine {
+                name: "a".to_string(),
+                index: 2,
+            },
+            RawGridLine::Auto,
+        ),
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(lines.named_occurrences("a"), vec![1, 2]);
+    assert_eq!(
+        placement,
+        GridPlacement::try_line(2).expect("second physical named line is valid")
+    );
+}
+
+#[test]
+fn fri08_c01_topology_authored_and_area_name_collision_is_one_lookup_occurrence() {
+    let style = NodeInput {
+        grid_template_columns: vec![
+            TrackComponent::line_names(["zone-start"]),
+            TrackComponent::px(40.0),
+            TrackComponent::line_names(["zone-start"]),
+            TrackComponent::px(40.0),
+        ],
+        grid_template_rows: vec![TrackComponent::px(20.0)],
+        grid_template_areas: GridTemplateAreas {
+            rows: vec![GridTemplateAreaRow {
+                cells: vec![Some("zone".to_string()), Some("zone".to_string())],
+            }],
+        },
+        ..NodeInput::DEFAULT
+    };
+    let context = named::build_grid_named_context(&style, 2, 1, &GridParentContext::none())
+        .expect("valid authored names and rectangular areas");
+
+    let positive = named::resolve_grid_placement(
+        &context.columns,
+        &RawGridPlacement::new(
+            RawGridLine::NamedLine {
+                name: "zone-start".to_string(),
+                index: 2,
+            },
+            RawGridLine::Auto,
+        ),
+        None,
+    )
+    .unwrap();
+    let negative = named::resolve_grid_placement(
+        &context.columns,
+        &RawGridPlacement::new(
+            RawGridLine::NamedLine {
+                name: "zone-start".to_string(),
+                index: -1,
+            },
+            RawGridLine::Auto,
+        ),
+        None,
+    )
+    .unwrap();
+    let span = named::resolve_grid_placement(
+        &context.columns,
+        &RawGridPlacement::new(
+            RawGridLine::Line(1),
+            RawGridLine::NamedSpan {
+                name: "zone-start".to_string(),
+                index: 1,
+            },
+        ),
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(context.columns.named_occurrences("zone-start"), vec![1, 2]);
+    assert_eq!(positive, GridPlacement::try_line(2).unwrap());
+    assert_eq!(negative, GridPlacement::try_line(2).unwrap());
+    assert_eq!(span, GridPlacement::try_lines(1, 2).unwrap());
+    assert_eq!(
+        context
+            .columns
+            .entries_on_line(1)
+            .iter()
+            .filter(|entry| entry.name == "zone-start")
+            .map(|entry| entry.origin)
+            .collect::<Vec<_>>(),
+        vec![
+            named::LineNameOrigin::Explicit,
+            named::LineNameOrigin::AreaGenerated,
+        ]
+    );
+}
+
+fn fri08_c01_topology_for_style<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    column_basis: Option<S>,
+    row_basis: Option<S>,
+) -> topology::ExpandedGridTopology<S> {
+    let columns = expand_track_components_with_origins(
+        &style.grid_template_columns,
+        column_basis,
+        S::ZERO,
+        None,
+    )
+    .expect("valid column topology input");
+    let rows =
+        expand_track_components_with_origins(&style.grid_template_rows, row_basis, S::ZERO, None)
+            .expect("valid row topology input");
+    let named = named::build_grid_named_context(
+        style,
+        columns.tracks.len(),
+        rows.tracks.len(),
+        &GridParentContext::none(),
+    )
+    .expect("valid named topology input");
+    topology::ExpandedGridTopology::new(topology::ExpandedGridTopologyInput {
+        columns,
+        rows,
+        named,
+        auto_columns: &style.grid_auto_columns,
+        auto_rows: &style.grid_auto_rows,
+        column_basis,
+        row_basis,
+        column_gap: S::ZERO,
+        row_gap: S::ZERO,
+        inherited_columns: false,
+        inherited_rows: false,
+    })
+    .expect("valid canonical topology")
+}
+
+fn assert_fri08_c01_area_only_pattern_topology<S: LayoutScalar>() {
+    let px = |value| TrackComponentOf::Track(TrackSizingOf::px(S::from_f64(value)));
+    let style = NodeInputOf::<S> {
+        grid_auto_columns: vec![px(40.0), px(20.0)],
+        grid_auto_rows: vec![px(5.0), px(7.0)],
+        grid_template_areas: GridTemplateAreas {
+            rows: vec![
+                GridTemplateAreaRow {
+                    cells: vec![
+                        Some("main".to_string()),
+                        Some("main".to_string()),
+                        Some("main".to_string()),
+                    ],
+                },
+                GridTemplateAreaRow {
+                    cells: vec![
+                        Some("main".to_string()),
+                        Some("main".to_string()),
+                        Some("main".to_string()),
+                    ],
+                },
+                GridTemplateAreaRow {
+                    cells: vec![
+                        Some("main".to_string()),
+                        Some("main".to_string()),
+                        Some("main".to_string()),
+                    ],
+                },
+            ],
+        },
+        ..NodeInputOf::default()
+    };
+
+    let topology = fri08_c01_topology_for_style(&style, None, None);
+
+    assert_eq!(topology.explicit_columns, 3);
+    assert_eq!(topology.explicit_rows, 3);
+    assert_eq!(
+        topology.column_tracks,
+        vec![
+            TrackSizingOf::px(S::from_f64(40.0)),
+            TrackSizingOf::px(S::from_f64(20.0)),
+            TrackSizingOf::px(S::from_f64(40.0)),
+        ]
+    );
+    assert_eq!(
+        topology.row_tracks,
+        vec![
+            TrackSizingOf::px(S::from_f64(5.0)),
+            TrackSizingOf::px(S::from_f64(7.0)),
+            TrackSizingOf::px(S::from_f64(5.0)),
+        ]
+    );
+    assert_eq!(
+        topology
+            .column_origins
+            .iter()
+            .map(|origin| origin.sizing)
+            .collect::<Vec<_>>(),
+        vec![
+            topology::ExplicitTrackSizingOrigin::TemplateAreaAutoPattern { pattern_index: 0 },
+            topology::ExplicitTrackSizingOrigin::TemplateAreaAutoPattern { pattern_index: 1 },
+            topology::ExplicitTrackSizingOrigin::TemplateAreaAutoPattern { pattern_index: 0 },
+        ]
+    );
+    assert_eq!(
+        topology
+            .row_origins
+            .iter()
+            .map(|origin| origin.sizing)
+            .collect::<Vec<_>>(),
+        vec![
+            topology::ExplicitTrackSizingOrigin::TemplateAreaAutoPattern { pattern_index: 0 },
+            topology::ExplicitTrackSizingOrigin::TemplateAreaAutoPattern { pattern_index: 1 },
+            topology::ExplicitTrackSizingOrigin::TemplateAreaAutoPattern { pattern_index: 0 },
+        ]
+    );
+    assert_eq!(
+        topology.named_columns.named_occurrences("main-start"),
+        vec![1]
+    );
+    assert_eq!(
+        topology.named_columns.named_occurrences("main-end"),
+        vec![4]
+    );
+    assert_eq!(topology.named_rows.named_occurrences("main-start"), vec![1]);
+    assert_eq!(topology.named_rows.named_occurrences("main-end"), vec![4]);
+    assert!(topology.has_complete_origin_evidence());
+}
+
+#[test]
+fn fri08_c01_topology_area_only_pattern_phase_is_axis_symmetric_in_both_scalar_lanes() {
+    assert_fri08_c01_area_only_pattern_topology::<f32>();
+    assert_fri08_c01_area_only_pattern_topology::<f64>();
+}
+
+#[test]
+fn fri08_c01_topology_retains_auto_repeat_identity_and_boundary_names() {
+    let style = NodeInput {
+        grid_template_columns: vec![
+            TrackComponent::line_names(["leading"]),
+            TrackComponent::Repeat(
+                TrackRepetition::auto_fit_components(vec![
+                    TrackComponent::line_names(["repeat-start"]),
+                    TrackComponent::px(40.0),
+                    TrackComponent::line_names(["repeat-end"]),
+                ])
+                .expect("valid auto-fit repetition"),
+            ),
+            TrackComponent::line_names(["trailing"]),
+        ],
+        grid_template_rows: vec![TrackComponent::px(20.0)],
+        ..NodeInput::DEFAULT
+    };
+
+    let topology = fri08_c01_topology_for_style(&style, Some(120.0), Some(20.0));
+
+    assert_eq!(topology.explicit_columns, 3);
+    assert_eq!(topology.named_columns.named_occurrences("leading"), vec![1]);
+    assert_eq!(
+        topology.named_columns.named_occurrences("trailing"),
+        vec![4]
+    );
+    assert_eq!(
+        topology
+            .column_origins
+            .iter()
+            .map(|origin| origin.auto_repeat)
+            .collect::<Vec<_>>(),
+        vec![
+            Some(AutoRepeatTrackOrigin {
+                kind: TrackRepeat::AutoFit,
+                repeat_group: 0,
+                repetition_index: 0,
+                track_index: 0,
+            }),
+            Some(AutoRepeatTrackOrigin {
+                kind: TrackRepeat::AutoFit,
+                repeat_group: 0,
+                repetition_index: 1,
+                track_index: 0,
+            }),
+            Some(AutoRepeatTrackOrigin {
+                kind: TrackRepeat::AutoFit,
+                repeat_group: 0,
+                repetition_index: 2,
+                track_index: 0,
+            }),
+        ]
+    );
+}
+
+#[test]
+fn fri08_c01_topology_inherited_and_local_names_collide_as_one_membership() {
+    let parent = named_parent_lines(1, &[&["a"], &[]]);
+    let local = local_subgrid_entries(&[&["a"], &[]]);
+
+    let lines = named::inherit_subgrid_named_lines(&parent, 1, 2, false, &local, None)
+        .expect("valid inherited named span");
+
+    assert_eq!(lines.named_occurrences("a"), vec![1]);
+    assert_eq!(
+        lines
+            .entries_on_line(1)
+            .iter()
+            .map(|entry| entry.origin)
+            .collect::<Vec<_>>(),
+        vec![
+            named::LineNameOrigin::Inherited,
+            named::LineNameOrigin::LocalSubgrid,
+        ]
     );
 }
 

@@ -35,6 +35,7 @@ mod subgrid;
 #[cfg(test)]
 #[path = "../grid_tests.rs"]
 mod tests;
+mod topology;
 mod tracks;
 
 use alignment::*;
@@ -56,13 +57,14 @@ use lanes::{
     resolve_grid_lanes_placement_with_resolved_tracks,
 };
 use named::{
-    GridAreaNameFacts, GridNamedContext, NamedGridError, NamedGridLines,
-    build_grid_named_context_with_report, empty_grid_named_context,
-    resolve_grid_placement_or_auto_with_report, resolve_subgrid_placement,
+    GridAreaNameFacts, NamedGridError, NamedGridLines, build_grid_named_context_with_report,
+    empty_grid_named_context, resolve_grid_placement_or_auto_with_report,
+    resolve_subgrid_placement,
 };
 pub use named::{NamedGridErrorReport, NamedGridReport};
 use placement::*;
 use subgrid::*;
+use topology::{ExpandedGridTopology, ExpandedGridTopologyInput};
 use tracks::*;
 
 pub struct GridComputationOf<S: LayoutScalar = DefaultScalar> {
@@ -957,18 +959,22 @@ struct InheritedGridOwnerBaselineTargets<Node, S: LayoutScalar = Scalar> {
 
 #[derive(Clone)]
 struct GridContainerContext<S: LayoutScalar = Scalar> {
+    topology: ExpandedGridTopology<S>,
     gap: LogicalSizeOf<S>,
     percent_basis: LogicalSizeOf<Option<S>>,
-    explicit_columns: usize,
-    explicit_rows: usize,
-    named_columns: NamedGridLines,
-    named_rows: NamedGridLines,
-    area_facts: Option<GridAreaNameFacts>,
     leading_columns: usize,
     leading_rows: usize,
     lines: GridLines,
     inherited_column_offset: Option<S>,
     inherited_row_offset: Option<S>,
+}
+
+impl<S: LayoutScalar> core::ops::Deref for GridContainerContext<S> {
+    type Target = ExpandedGridTopology<S>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.topology
+    }
 }
 
 struct InitializedGridTracks<Node, S: LayoutScalar = Scalar> {
@@ -1086,69 +1092,81 @@ where
         .copied()
         .filter(|child| is_in_flow_grid_child(tree.node_input(*child)))
         .count();
-    let mut column_tracks = if let Some(columns) = &parent_context.columns {
-        columns
-            .tracks
-            .iter()
-            .copied()
-            .map(TrackSizingOf::px)
-            .collect()
+    let column_expansion_basis = track_expansion_basis(
+        &style.grid_template_columns,
+        sizing_flow_axes
+            .logical_size(constants.node_inner_size)
+            .inline,
+        sizing_flow_axes
+            .logical_size(constants.available_inner_size)
+            .inline,
+    );
+    let row_expansion_basis = track_expansion_basis(
+        &style.grid_template_rows,
+        sizing_flow_axes
+            .logical_size(constants.node_inner_size)
+            .block,
+        sizing_flow_axes
+            .logical_size(constants.available_inner_size)
+            .block,
+    );
+    let column_expansion = if let Some(columns) = &parent_context.columns {
+        TrackExpansionOf::inherited(
+            columns
+                .tracks
+                .iter()
+                .copied()
+                .map(TrackSizingOf::px)
+                .collect(),
+        )
     } else {
-        let column_expansion_basis = track_expansion_basis(
-            &style.grid_template_columns,
-            sizing_flow_axes
-                .logical_size(constants.node_inner_size)
-                .inline,
-            sizing_flow_axes
-                .logical_size(constants.available_inner_size)
-                .inline,
-        );
-        expand_track_components(
+        expand_track_components_with_origins(
             &style.grid_template_columns,
             column_expansion_basis,
             gap.inline,
-            Some(visible_child_count),
+            None,
         )
         .map_err(|status| crate::compute::value_resolution_error(node, status))?
     };
-    let mut row_tracks = if let Some(rows) = &parent_context.rows {
-        rows.tracks.iter().copied().map(TrackSizingOf::px).collect()
+    let row_expansion = if let Some(rows) = &parent_context.rows {
+        TrackExpansionOf::inherited(rows.tracks.iter().copied().map(TrackSizingOf::px).collect())
     } else {
-        let row_expansion_basis = track_expansion_basis(
-            &style.grid_template_rows,
-            sizing_flow_axes
-                .logical_size(constants.node_inner_size)
-                .block,
-            sizing_flow_axes
-                .logical_size(constants.available_inner_size)
-                .block,
-        );
-        expand_track_components(
+        expand_track_components_with_origins(
             &style.grid_template_rows,
             row_expansion_basis,
             gap.block,
-            Some(visible_child_count),
+            None,
         )
         .map_err(|status| crate::compute::value_resolution_error(node, status))?
     };
-    if percent_basis.inline.is_none() && tracks_need_available_basis(&column_tracks) {
+    let sized_column_tracks = column_expansion
+        .tracks
+        .iter()
+        .map(|track| track.sizing.clone())
+        .collect::<Vec<_>>();
+    let sized_row_tracks = row_expansion
+        .tracks
+        .iter()
+        .map(|track| track.sizing.clone())
+        .collect::<Vec<_>>();
+    if percent_basis.inline.is_none() && tracks_need_available_basis(&sized_column_tracks) {
         percent_basis.inline = sizing_flow_axes
             .logical_size(constants.available_inner_size)
             .inline;
     }
-    if percent_basis.block.is_none() && tracks_need_available_basis(&row_tracks) {
+    if percent_basis.block.is_none() && tracks_need_available_basis(&sized_row_tracks) {
         percent_basis.block = sizing_flow_axes
             .logical_size(constants.available_inner_size)
             .block;
     }
-    let explicit_columns = column_tracks.len();
-    let explicit_rows = row_tracks.len();
+    let sized_explicit_columns = sized_column_tracks.len();
+    let sized_explicit_rows = sized_row_tracks.len();
     let mut report = GridComputationReport::default();
     let geometry_parent_context = parent_context.geometry_only();
     let named_context = match build_grid_named_context_with_report(
         style,
-        explicit_columns,
-        explicit_rows,
+        sized_explicit_columns,
+        sized_explicit_rows,
         &geometry_parent_context,
     ) {
         Ok((context, named_report)) => {
@@ -1158,13 +1176,31 @@ where
         Err(error) => {
             debug_invalid_named_grid_context(&error);
             report.merge_named_grid(NamedGridReport::from_error(error));
-            empty_grid_named_context(explicit_columns, explicit_rows)
+            empty_grid_named_context(sized_explicit_columns, sized_explicit_rows)
         }
     };
+    let topology = ExpandedGridTopology::new(ExpandedGridTopologyInput {
+        columns: column_expansion,
+        rows: row_expansion,
+        named: named_context,
+        auto_columns: &style.grid_auto_columns,
+        auto_rows: &style.grid_auto_rows,
+        column_basis: percent_basis.inline,
+        row_basis: percent_basis.block,
+        column_gap: gap.inline,
+        row_gap: gap.block,
+        inherited_columns: parent_context.columns.is_some(),
+        inherited_rows: parent_context.rows.is_some(),
+    })
+    .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+    let explicit_columns = topology.explicit_columns;
+    let explicit_rows = topology.explicit_rows;
+    let mut column_tracks = topology.column_tracks.clone();
+    let mut row_tracks = topology.row_tracks.clone();
     let (placements, placement_report) = resolve_grid_child_placements(
         &children,
         tree,
-        &named_context,
+        &topology,
         parent_context.columns.is_some(),
         parent_context.rows.is_some(),
     );
@@ -1299,13 +1335,9 @@ where
         column_tracks,
         row_tracks,
         context: GridContainerContext {
+            topology,
             gap,
             percent_basis,
-            explicit_columns,
-            explicit_rows,
-            named_columns: named_context.columns.clone(),
-            named_rows: named_context.rows.clone(),
-            area_facts: named_context.area_facts.clone(),
             leading_columns,
             leading_rows,
             lines,
@@ -1323,7 +1355,7 @@ fn debug_invalid_named_grid_context(_error: &NamedGridError) {}
 fn resolve_grid_child_placements<Tree, M>(
     children: &[<Tree as Traverse>::Node],
     tree: &Tree,
-    named_context: &GridNamedContext,
+    topology: &ExpandedGridTopology<Tree::Scalar>,
     subgrid_columns: bool,
     subgrid_rows: bool,
 ) -> (
@@ -1350,14 +1382,14 @@ where
 
         let (column, absolute_column, column_report) =
             resolve_grid_item_axis_placements_with_report(
-                &named_context.columns,
+                &topology.named_columns,
                 &style.raw_grid_column,
                 style.grid_column,
                 subgrid_columns,
             );
         report.extend(column_report);
         let (row, absolute_row, row_report) = resolve_grid_item_axis_placements_with_report(
-            &named_context.rows,
+            &topology.named_rows,
             &style.raw_grid_row,
             style.grid_row,
             subgrid_rows,
@@ -1531,14 +1563,18 @@ where
         placements,
     } = input;
     let GridContainerContext {
+        topology,
         gap,
         percent_basis,
         lines,
+        ..
+    } = context;
+    let ExpandedGridTopology {
         named_columns,
         named_rows,
         area_facts,
         ..
-    } = context;
+    } = topology;
     let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
     let logical_available_inner_size =
         sizing_flow_axes.logical_size(constants.available_inner_size);
@@ -1888,16 +1924,20 @@ where
         containing_auto_scrollbar_pass,
     } = input;
     let GridContainerContext {
+        topology,
         gap,
         percent_basis: container_percent_basis,
         lines,
-        named_columns,
-        named_rows,
-        area_facts,
         inherited_column_offset,
         inherited_row_offset,
         ..
     } = context;
+    let ExpandedGridTopology {
+        named_columns,
+        named_rows,
+        area_facts,
+        ..
+    } = topology;
     let column_basis = container_percent_basis.inline;
     let sizing_flow_axes = constants.flow_axes;
     let layout_content_box_size =

@@ -3813,22 +3813,59 @@ pub(super) fn prepend_auto_tracks<S: LayoutScalar>(
     Ok(())
 }
 
-pub(super) fn expand_track_components<S: LayoutScalar>(
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct AutoRepeatTrackOrigin {
+    pub(super) kind: TrackRepeat,
+    pub(super) repeat_group: usize,
+    pub(super) repetition_index: usize,
+    pub(super) track_index: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ExpandedTrackOf<S: LayoutScalar = Scalar> {
+    pub(super) sizing: TrackSizingOf<S>,
+    pub(super) auto_repeat: Option<AutoRepeatTrackOrigin>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct TrackExpansionOf<S: LayoutScalar = Scalar> {
+    pub(super) tracks: Vec<ExpandedTrackOf<S>>,
+}
+
+impl<S: LayoutScalar> TrackExpansionOf<S> {
+    pub(super) fn inherited(tracks: Vec<TrackSizingOf<S>>) -> Self {
+        Self {
+            tracks: tracks
+                .into_iter()
+                .map(|sizing| ExpandedTrackOf {
+                    sizing,
+                    auto_repeat: None,
+                })
+                .collect(),
+        }
+    }
+}
+
+pub(super) fn expand_track_components_with_origins<S: LayoutScalar>(
     components: &[TrackComponentOf<S>],
     basis: Option<S>,
     gap: S,
     auto_fit_limit: Option<usize>,
-) -> Result<Vec<TrackSizingOf<S>>, LengthResolutionStatus<S>> {
+) -> Result<TrackExpansionOf<S>, LengthResolutionStatus<S>> {
     if subgrid_components(components) {
-        return Ok(Vec::new());
+        return Ok(TrackExpansionOf { tracks: Vec::new() });
     }
 
     validate_track_components(components, basis)?;
     let mut tracks = Vec::new();
+    let mut auto_repeat_group = 0;
     let reserved = reserved_track_space(components, basis, gap);
     for component in components {
         match component {
-            TrackComponentOf::Track(track) => tracks.push(track.clone()),
+            TrackComponentOf::Track(sizing) => tracks.push(ExpandedTrackOf {
+                sizing: sizing.clone(),
+                auto_repeat: None,
+            }),
             TrackComponentOf::Repeat(repetition) => {
                 let repeated_tracks = repetition.sizing_tracks();
                 let count = match repetition.repeat() {
@@ -3842,8 +3879,26 @@ pub(super) fn expand_track_components<S: LayoutScalar>(
                             .max(1)
                     }
                 };
-                for _ in 0..count {
-                    tracks.extend(repeated_tracks.iter().cloned());
+                let repeat_group = auto_repeat_group;
+                let auto_repeat_kind = match repetition.repeat() {
+                    TrackRepeat::AutoFill | TrackRepeat::AutoFit => {
+                        auto_repeat_group += 1;
+                        Some(repetition.repeat())
+                    }
+                    TrackRepeat::Count(_) => None,
+                };
+                for repetition_index in 0..count {
+                    tracks.extend(repeated_tracks.iter().cloned().enumerate().map(
+                        |(track_index, sizing)| ExpandedTrackOf {
+                            sizing,
+                            auto_repeat: auto_repeat_kind.map(|kind| AutoRepeatTrackOrigin {
+                                kind,
+                                repeat_group,
+                                repetition_index,
+                                track_index,
+                            }),
+                        },
+                    ));
                 }
             }
             TrackComponentOf::LineNames(_) => {}
@@ -3852,7 +3907,22 @@ pub(super) fn expand_track_components<S: LayoutScalar>(
             }
         }
     }
-    Ok(tracks)
+    Ok(TrackExpansionOf { tracks })
+}
+
+pub(super) fn expand_track_components<S: LayoutScalar>(
+    components: &[TrackComponentOf<S>],
+    basis: Option<S>,
+    gap: S,
+    auto_fit_limit: Option<usize>,
+) -> Result<Vec<TrackSizingOf<S>>, LengthResolutionStatus<S>> {
+    Ok(
+        expand_track_components_with_origins(components, basis, gap, auto_fit_limit)?
+            .tracks
+            .into_iter()
+            .map(|track| track.sizing)
+            .collect(),
+    )
 }
 
 fn validate_track_components<S: LayoutScalar>(

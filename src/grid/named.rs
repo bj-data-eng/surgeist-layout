@@ -52,11 +52,11 @@ impl NamedGridLines {
         self.line_names
             .iter()
             .enumerate()
-            .flat_map(|(line_index, entries)| {
+            .filter_map(|(line_index, entries)| {
                 entries
                     .iter()
-                    .filter(move |entry| entry.name == name)
-                    .map(move |_| line_index + 1)
+                    .any(|entry| entry.name == name)
+                    .then_some(line_index + 1)
             })
             .collect()
     }
@@ -83,6 +83,7 @@ pub(super) struct LineNameEntry {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum LineNameOrigin {
     Explicit,
+    Inherited,
     AreaGenerated,
     LocalSubgrid,
 }
@@ -734,11 +735,11 @@ fn explicit_matches(lines: &NamedGridLines, name: &str) -> Vec<isize> {
         .line_names
         .iter()
         .enumerate()
-        .flat_map(|(line_index, entries)| {
+        .filter_map(|(line_index, entries)| {
             entries
                 .iter()
-                .filter(move |entry| entry.name == name)
-                .map(move |_| line_index as isize + 1)
+                .any(|entry| entry.name == name)
+                .then_some(line_index as isize + 1)
         })
         .collect()
 }
@@ -1215,7 +1216,10 @@ pub(super) fn inherit_subgrid_named_lines(
             parent.line_names[parent_line - 1]
                 .iter()
                 .filter(|entry| entry.origin != LineNameOrigin::AreaGenerated)
-                .cloned(),
+                .map(|entry| LineNameEntry {
+                    name: entry.name.clone(),
+                    origin: LineNameOrigin::Inherited,
+                }),
         );
     }
 
