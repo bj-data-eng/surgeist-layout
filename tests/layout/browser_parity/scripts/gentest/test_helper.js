@@ -867,6 +867,81 @@ function layoutReadyShapeBands(e) {
   });
 }
 
+const GRID_TEMPLATE_AREA_IDENT = /^-?(?:[A-Za-z_]|-[A-Za-z_])[A-Za-z0-9_-]*$/;
+const GRID_TEMPLATE_AREA_RESERVED_IDENTS = new Set([
+  'auto',
+  'default',
+  'inherit',
+  'initial',
+  'none',
+  'revert',
+  'revert-layer',
+  'span',
+  'unset',
+]);
+
+function parseGridTemplateAreas(input) {
+  if (input === undefined || input === null) return undefined;
+  if (typeof input !== 'string') throw new Error('grid-template-areas must be a string');
+  const value = input.trim();
+  if (value === '' || value === 'none') return undefined;
+
+  const rows = [];
+  const rowPattern = /"([^"\\]*)"/g;
+  let cursor = 0;
+  for (const match of value.matchAll(rowPattern)) {
+    if (value.slice(cursor, match.index).trim() !== '') {
+      throw new Error(`Unsupported grid-template-areas syntax ${input}`);
+    }
+    const row = match[1].trim();
+    if (row === '') throw new Error('grid-template-areas rows must not be empty');
+    const cells = row.split(/\s+/).map((cell) => {
+      if (/^\.+$/.test(cell)) return null;
+      if (!GRID_TEMPLATE_AREA_IDENT.test(cell) || GRID_TEMPLATE_AREA_RESERVED_IDENTS.has(cell)) {
+        throw new Error(`Unsupported grid-template-areas cell ${cell}`);
+      }
+      return cell;
+    });
+    rows.push(cells);
+    cursor = match.index + match[0].length;
+  }
+  if (rows.length === 0 || value.slice(cursor).trim() !== '') {
+    throw new Error(`Unsupported grid-template-areas syntax ${input}`);
+  }
+
+  const columnCount = rows[0].length;
+  if (rows.some((row) => row.length !== columnCount)) {
+    throw new Error('grid-template-areas rows must have equal lengths');
+  }
+
+  const areas = new Map();
+  rows.forEach((row, rowIndex) => row.forEach((cell, columnIndex) => {
+    if (cell === null) return;
+    const area = areas.get(cell) ?? {
+      rowStart: rowIndex,
+      rowEnd: rowIndex,
+      columnStart: columnIndex,
+      columnEnd: columnIndex,
+      count: 0,
+    };
+    area.rowStart = Math.min(area.rowStart, rowIndex);
+    area.rowEnd = Math.max(area.rowEnd, rowIndex);
+    area.columnStart = Math.min(area.columnStart, columnIndex);
+    area.columnEnd = Math.max(area.columnEnd, columnIndex);
+    area.count++;
+    areas.set(cell, area);
+  }));
+  for (const [name, area] of areas) {
+    const rectangleCells = (area.rowEnd - area.rowStart + 1) *
+      (area.columnEnd - area.columnStart + 1);
+    if (rectangleCells !== area.count) {
+      throw new Error(`grid-template-areas area ${name} must form one rectangle`);
+    }
+  }
+
+  return rows;
+}
+
 function describeElement(e, expectedElement = null) {
 
   // Get precise, unrounded dimensions for the current element and it's parent
@@ -952,6 +1027,9 @@ function describeElement(e, expectedElement = null) {
 
       gridTemplateRows: parseGridTrackDefinitions(lengthStyleValue("gridTemplateRows")),
       gridTemplateColumns: parseGridTrackDefinitions(lengthStyleValue("gridTemplateColumns")),
+      gridTemplateAreas: parseGridTemplateAreas(
+        styleValue("gridTemplateAreas") || computedStyle.gridTemplateAreas
+      ),
       gridAutoRows: parseGridTrackDefinitions(lengthStyleValue("gridAutoRows")),
       gridAutoColumns: parseGridTrackDefinitions(lengthStyleValue("gridAutoColumns")),
       gridAutoFlow: parseGridAutoFlow(styleValue("gridAutoFlow")),

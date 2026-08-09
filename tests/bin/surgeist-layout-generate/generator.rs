@@ -8315,10 +8315,6 @@ if (expectedReason === undefined) {{
             "daec9ba4532cb9e5223459c60e8af7511ade417f468e596060bce39402724f41"
         );
         assert_eq!(
-            sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            FRI07_C04_T02_HELPER_SHA256
-        );
-        assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
             "4419c4aab9429d1f81ac46426095719e19cf92cfbf51caf66d4f737c07c452cc"
         );
@@ -12317,6 +12313,159 @@ if (actual !== expected) {{
     }
 
     #[test]
+    fn fri08_c05_adapter_bundled_helper_serializes_finite_grid_template_areas() {
+        let script = format!(
+            r#"
+const window = {{ innerWidth: 800 }};
+const document = {{ styleSheets: [] }};
+
+{TEST_HELPER_SOURCE}
+
+describeChildNodes = () => [];
+brInlineMetricsForElement = () => undefined;
+layoutReadyLineControlParticipation = () => undefined;
+layoutReadyAnonymousGridTextWrapper = () => undefined;
+unsupportedElementReason = () => undefined;
+unsupportedChildNodesReason = () => undefined;
+getScrollBarWidth = () => 0;
+parseEffectiveMargin = () => ({{}});
+parseViewportConstraint = () => ({{ width: {{ unit: "max-content" }}, height: {{ unit: "max-content" }}, rootContext: "root" }});
+layoutReadyShapeBands = () => undefined;
+normalizedFlexItemCollapse = () => undefined;
+
+const parent = {{
+  clientLeft: 0,
+  clientTop: 0,
+  classList: {{ contains() {{ return false; }} }},
+  getBoundingClientRect() {{ return {{ x: 0, y: 0, left: 0, right: 80, top: 0, bottom: 40, width: 80, height: 40 }}; }},
+}};
+const inlineStyle = new Proxy({{
+  gridTemplateAreas: '"head head" "nav main"',
+}}, {{ get(target, property) {{ return target[property] ?? ""; }} }});
+const computedStyle = new Proxy({{
+  display: "grid",
+  boxSizing: "border-box",
+  direction: "ltr",
+  writingMode: "horizontal-tb",
+  fontFamily: "monospace",
+  fontSize: "10px",
+  lineHeight: "10px",
+  minWidth: "0px",
+  minHeight: "0px",
+  maxWidth: "none",
+  maxHeight: "none",
+  gridTemplateAreas: '"computed computed"',
+}}, {{ get(target, property) {{ return target[property] ?? ""; }} }});
+function getComputedStyle() {{ return computedStyle; }}
+const element = {{
+  id: "original-source__border_box_ltr",
+  tagName: "DIV",
+  style: inlineStyle,
+  parentNode: parent,
+  parentElement: parent,
+  classList: {{ contains() {{ return false; }} }},
+  childNodes: [],
+  childElementCount: 0,
+  textContent: "",
+  scrollWidth: 80,
+  scrollHeight: 40,
+  clientWidth: 80,
+  clientHeight: 40,
+  offsetWidth: 80,
+  offsetHeight: 40,
+  offsetLeft: 0,
+  offsetTop: 0,
+  getAttribute() {{ return null; }},
+  getBoundingClientRect() {{ return {{ x: 0, y: 0, left: 0, right: 80, top: 0, bottom: 40, width: 80, height: 40 }}; }},
+}};
+
+const authored = describeElement(element).style.gridTemplateAreas;
+const expectedAuthored = [["head", "head"], ["nav", "main"]];
+if (JSON.stringify(authored) !== JSON.stringify(expectedAuthored)) {{
+  throw new Error(`missing authored gridTemplateAreas serialization: ${{JSON.stringify(authored)}}`);
+}}
+
+inlineStyle.gridTemplateAreas = "";
+const computed = describeElement(element).style.gridTemplateAreas;
+if (JSON.stringify(computed) !== JSON.stringify([["computed", "computed"]])) {{
+  throw new Error(`missing computed gridTemplateAreas serialization: ${{JSON.stringify(computed)}}`);
+}}
+
+element.id = "renamed-source__content_box_rtl";
+element.getBoundingClientRect = () => ({{ x: 99, y: 88, left: 99, right: 876, top: 88, bottom: 754, width: 777, height: 666 }});
+const mutated = describeElement(element).style.gridTemplateAreas;
+if (JSON.stringify(mutated) !== JSON.stringify(computed)) {{
+  throw new Error(`source, variant, or geometry changed serialized input: ${{JSON.stringify(mutated)}}`);
+}}
+console.log(JSON.stringify(mutated));
+"#
+        );
+
+        let helper_areas = run_bundled_helper_json("fri08-c05-grid-template-areas", script);
+        assert_eq!(helper_areas, json!([["computed", "computed"]]));
+
+        let node = json!({
+            "useRounding": true,
+            "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+            "style": {
+                "display": "grid",
+                "gridTemplateRows": [
+                    {"kind": "scalar", "unit": "px", "value": 20}
+                ],
+                "gridTemplateColumns": [
+                    {"kind": "scalar", "unit": "px", "value": 30},
+                    {"kind": "scalar", "unit": "px", "value": 50}
+                ],
+                "gridTemplateAreas": helper_areas
+            },
+            "smartRoundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
+            "naivelyRoundedLayout": {"clientWidth": 80, "clientHeight": 20},
+            "children": []
+        });
+        let xml = generate_xml("renamed_source__content_box_rtl", &node);
+        assert!(xml.contains("grid-template-areas=\"computed computed\""));
+        let golden = browser_parity_support::Golden::parse(&xml)
+            .expect("helper-generated template areas should survive XML parsing");
+        assert_eq!(
+            golden.root.style.get("grid-template-areas"),
+            Some("computed computed")
+        );
+        browser_parity_support::assert_surgeist_matches(&golden)
+            .expect("helper-generated XML should reach public layout");
+    }
+
+    #[test]
+    fn fri08_c05_adapter_bundled_helper_rejects_malformed_grid_template_areas() {
+        let script = format!(
+            r#"
+const window = {{}};
+const document = {{ styleSheets: [] }};
+
+{TEST_HELPER_SOURCE}
+
+if (typeof parseGridTemplateAreas !== "function") {{
+  throw new Error("bundled helper is missing parseGridTemplateAreas");
+}}
+for (const value of [
+  'head head',
+  '""',
+  '"head head" trailing',
+  '"head head" "main"',
+  '"head head" "head main"',
+  '"head @" "nav main"',
+]) {{
+  let rejected = false;
+  try {{ parseGridTemplateAreas(value); }} catch (_) {{ rejected = true; }}
+  if (!rejected) throw new Error(`malformed grid-template-areas accepted: ${{value}}`);
+}}
+"#
+        );
+
+        run_bundled_helper_script("fri08-c05-invalid-grid-template-areas", script);
+    }
+
+    #[test]
     fn bundled_helper_records_default_root_viewport_as_max_content() {
         assert!(TEST_HELPER_SOURCE.contains("width: rootFillsBrowserViewport"));
         assert!(TEST_HELPER_SOURCE.contains(": { unit: 'max-content' }"));
@@ -14594,6 +14743,10 @@ status = "active"
 
     const FRI07_C04_T02_HELPER_SHA256: &str =
         "caafa5a48787c9b80a45d8b2c8ac6f91b8ad7ab14a85e5bcdf3a3e922ebce019";
+    const FRI08_C05_T02_HELPER_SHA256: &str =
+        "98b6d0b3cecad6b56de5c0cf10c3e8cb02d0bcd119542a0420ede325181038dd";
+    const FRI08_C05_T02_GRID_TEMPLATE_AREAS_PARSER_SHA256: &str =
+        "7dbaef329e76bcbf9e5ed47c74def8d324112810d424f498b01acdf1f880cb4d";
     const FRI07_C04_T04_REPORT_SHA256: &str =
         "5c560f240d27ad28d00023156b0bf2744aa8392d34fe916d800e02894e10353f";
     const FRI07_C04_T04_COMPLETE_XML_SHA256: &str =
@@ -14644,10 +14797,6 @@ status = "active"
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
         let corpus = repository.join("tests/layout/browser_parity");
         assert_eq!(
-            sha256_file(&corpus.join("scripts/gentest/test_helper.js")).expect("browser helper"),
-            FRI07_C04_T02_HELPER_SHA256
-        );
-        assert_eq!(
             sha256_file(&corpus.join("xml/generation-reports/all.json"))
                 .expect("full generation report"),
             FRI07_C04_T04_REPORT_SHA256
@@ -14658,6 +14807,11 @@ status = "active"
         assert_eq!(inventory, FRI07_C04_T04_INVENTORY_SHA256);
 
         let report = fri06_c08r_final_report(&corpus);
+        assert_eq!(
+            report["metadata"]["helper_sha256"].as_str(),
+            Some(FRI07_C04_T02_HELPER_SHA256),
+            "the C04 report must retain its historical helper lineage"
+        );
         let generated = report["generated"]
             .as_array()
             .expect("generated report bucket")
@@ -14846,13 +15000,9 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
     }
 
     #[test]
-    fn fri06_c08r_lineage_helper_and_nine_html_inputs_are_byte_frozen() {
+    fn fri06_c08r_lineage_nine_html_inputs_are_byte_frozen() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
         for (path, expected) in [
-            (
-                "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                FRI07_C04_T02_HELPER_SHA256,
-            ),
             (
                 "tests/layout/browser_parity/html/subgrid/subgrid_baseline_auto_columns_first_item.html",
                 "e61a089de19d3366b1b1c0fd4fd15232d0f302fafacdecb0bc5e1b85fee9c428",
@@ -14914,6 +15064,30 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         assert_eq!(
             sha256_bytes(serializer.as_bytes()),
             "e027bda7a58ab7a7f06a8256e26648ef3379494c44b9d4661a30a3a057b72269"
+        );
+    }
+
+    #[test]
+    fn fri08_c05_adapter_current_helper_and_template_area_parser_are_byte_frozen() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert_eq!(
+            sha256_file(
+                &repository.join("tests/layout/browser_parity/scripts/gentest/test_helper.js")
+            )
+            .expect("C05 browser helper"),
+            FRI08_C05_T02_HELPER_SHA256
+        );
+
+        let support = fs::read_to_string(repository.join("tests/layout/browser_parity/support.rs"))
+            .expect("C05 adapter source");
+        let parser = fri06_c08r_source_slice(
+            &support,
+            "fn parse_grid_template_areas(",
+            "fn is_grid_template_area_null_cell(",
+        );
+        assert_eq!(
+            sha256_bytes(parser.as_bytes()),
+            FRI08_C05_T02_GRID_TEMPLATE_AREAS_PARSER_SHA256
         );
     }
 
@@ -15474,10 +15648,6 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
             (
                 "Justfile",
                 "faa63c73973a3d2d8629eca5688bf7b09269bf0a6545ef44fbaf61c50c22ae80",
-            ),
-            (
-                "tests/layout/browser_parity/scripts/gentest/test_helper.js",
-                FRI07_C04_T02_HELPER_SHA256,
             ),
             (
                 "tests/layout/browser_parity/scripts/gentest/test_base_style.css",

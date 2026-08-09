@@ -26,6 +26,92 @@ fn parses_browser_parity_xml() {
     assert_eq!(golden.expectations.children[1].y, Some(10.0));
 }
 
+fn fri08_c05_adapter_template_areas_xml(name: &str, root_width: &str, head_width: &str) -> String {
+    format!(
+        concat!(
+            "<test name=\"{}\">",
+            "<viewport width=\"max-content\" height=\"max-content\"/>",
+            "<input><div display=\"grid\" grid-template-areas=\"head head / nav main\" ",
+            "grid-auto-columns=\"30px 50px\" grid-auto-rows=\"20px\">",
+            "<div grid-column-start=\"head-start\" grid-column-end=\"head-end\" ",
+            "grid-row-start=\"head-start\" grid-row-end=\"head-end\"/>",
+            "<div grid-column-start=\"main-start\" grid-column-end=\"main-end\" ",
+            "grid-row-start=\"main-start\" grid-row-end=\"main-end\"/>",
+            "</div></input>",
+            "<expectations><node width=\"{}\" height=\"40\">",
+            "<node x=\"0\" y=\"0\" width=\"{}\" height=\"20\"/>",
+            "<node x=\"30\" y=\"20\" width=\"50\" height=\"20\"/>",
+            "</node></expectations>",
+            "</test>"
+        ),
+        name, root_width, head_width
+    )
+}
+
+#[test]
+fn fri08_c05_adapter_template_areas_parse_is_name_variant_and_expectation_independent() {
+    let original = support::Golden::parse(&fri08_c05_adapter_template_areas_xml(
+        "grid/fri08_template_areas__border_box_ltr",
+        "80",
+        "80",
+    ))
+    .expect("finite serialized template areas should parse");
+    let mutated = support::Golden::parse(&fri08_c05_adapter_template_areas_xml(
+        "renamed/source__content_box_rtl",
+        "999",
+        "777",
+    ))
+    .expect("renamed fixture with changed variant and expectations should parse");
+
+    assert_eq!(original.root, mutated.root);
+    assert_eq!(
+        original.root.style.get("grid-template-areas"),
+        Some("head head / nav main")
+    );
+}
+
+#[test]
+fn fri08_c05_adapter_template_areas_reach_public_layout() {
+    let golden = support::Golden::parse(&fri08_c05_adapter_template_areas_xml(
+        "finite_template_areas_public_layout",
+        "80",
+        "80",
+    ))
+    .expect("finite serialized template areas should parse");
+
+    support::assert_surgeist_matches(&golden)
+        .expect("serialized template areas should drive area-generated public placement");
+}
+
+#[test]
+fn fri08_c05_adapter_template_areas_reject_malformed_unknown_and_contradictory_values() {
+    for value in [
+        "",
+        "none",
+        "auto",
+        "head head / main",
+        "head head / head main",
+        "head @ / nav main",
+    ] {
+        let xml = format!(
+            concat!(
+                "<test name=\"invalid-template-areas\">",
+                "<viewport width=\"max-content\" height=\"max-content\"/>",
+                "<input><div display=\"grid\" grid-template-areas=\"{}\"/></input>",
+                "<expectations><node/></expectations>",
+                "</test>"
+            ),
+            value
+        );
+        let golden = support::Golden::parse(&xml)
+            .expect("well-formed XML should reach the existing adapter consumer");
+        assert!(
+            support::assert_surgeist_matches(&golden).is_err(),
+            "explicit grid-template-areas value {value:?} must fail closed"
+        );
+    }
+}
+
 fn fri07_c04_fixture_input_xml(name: &str, root_width: &str, first_width: &str) -> String {
     format!(
         concat!(

@@ -3782,27 +3782,113 @@ fn parse_grid_placement(
 }
 
 fn parse_grid_template_areas(raw: &str) -> Result<layout::GridTemplateAreas, Error> {
+    if raw.trim().is_empty() || raw.trim() == "none" {
+        return Err(Error::new(format!(
+            "unsupported explicit grid template areas `{raw}`"
+        )));
+    }
     let rows = raw
         .split('/')
         .map(str::trim)
-        .filter(|row| !row.is_empty())
         .map(parse_grid_template_area_row)
         .collect::<Result<Vec<_>, _>>()?;
+    let column_count = rows
+        .first()
+        .map(|row| row.cells.len())
+        .filter(|count| *count > 0)
+        .ok_or_else(|| Error::new("grid template areas require at least one non-empty row"))?;
+    if rows.iter().any(|row| row.cells.len() != column_count) {
+        return Err(Error::new(
+            "grid template area rows must have equal column counts",
+        ));
+    }
+    validate_grid_template_area_rectangles(&rows)?;
     Ok(layout::GridTemplateAreas { rows })
 }
 
 fn parse_grid_template_area_row(raw: &str) -> Result<layout::GridTemplateAreaRow, Error> {
+    if raw.is_empty() {
+        return Err(Error::new("grid template area rows must not be empty"));
+    }
     let cells = split_top_level_whitespace(raw)
         .into_iter()
         .map(|cell| {
             if is_grid_template_area_null_cell(&cell) {
                 Ok(None)
             } else {
-                parse_custom_ident(&cell).map(|name| Some(name.to_owned()))
+                parse_grid_template_area_ident(&cell).map(|name| Some(name.to_owned()))
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(layout::GridTemplateAreaRow { cells })
+}
+
+fn parse_grid_template_area_ident(raw: &str) -> Result<&str, Error> {
+    if matches!(
+        raw,
+        "auto"
+            | "default"
+            | "inherit"
+            | "initial"
+            | "none"
+            | "revert"
+            | "revert-layer"
+            | "span"
+            | "unset"
+    ) {
+        return Err(Error::new(format!(
+            "invalid grid template area name `{raw}`"
+        )));
+    }
+    let mut bytes = raw.bytes();
+    let valid_start = match (bytes.next(), bytes.next()) {
+        (Some(first), second) if first.is_ascii_alphabetic() || first == b'_' => {
+            second.is_none_or(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        }
+        (Some(b'-'), Some(second)) => second.is_ascii_alphabetic() || matches!(second, b'_' | b'-'),
+        _ => false,
+    };
+    if !valid_start
+        || !raw
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+    {
+        return Err(Error::new(format!(
+            "invalid grid template area name `{raw}`"
+        )));
+    }
+    Ok(raw)
+}
+
+fn validate_grid_template_area_rectangles(
+    rows: &[layout::GridTemplateAreaRow],
+) -> Result<(), Error> {
+    let mut areas = BTreeMap::<&str, (usize, usize, usize, usize, usize)>::new();
+    for (row_index, row) in rows.iter().enumerate() {
+        for (column_index, cell) in row.cells.iter().enumerate() {
+            let Some(name) = cell.as_deref() else {
+                continue;
+            };
+            let area =
+                areas
+                    .entry(name)
+                    .or_insert((row_index, row_index, column_index, column_index, 0));
+            area.0 = area.0.min(row_index);
+            area.1 = area.1.max(row_index);
+            area.2 = area.2.min(column_index);
+            area.3 = area.3.max(column_index);
+            area.4 += 1;
+        }
+    }
+    for (name, (row_start, row_end, column_start, column_end, count)) in areas {
+        let rectangle_cells = (row_end - row_start + 1) * (column_end - column_start + 1);
+        if rectangle_cells != count {
+            return Err(Error::new(format!(
+                "grid template area `{name}` must form one rectangle"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn is_grid_template_area_null_cell(cell: &str) -> bool {
