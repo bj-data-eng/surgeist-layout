@@ -3,9 +3,9 @@ use super::{
     ComputeOutputOf, DefaultScalar, Direction, Display, Edges, GridAutoFlow, GridPlacement,
     LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInternalInvariant, LayoutOperation,
     LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionStatus, MaxTrackSizingOf,
-    MinTrackSizingOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position, PreferredSizeOf,
-    RequestedAxis, RunMode, Scalar, Size, SizingAlgorithm, SizingMode, TrackComponentOf,
-    TrackRepeat, TrackSizingOf, Traverse,
+    MinSizeOf, MinTrackSizingOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position,
+    PreferredSizeOf, RequestedAxis, RunMode, Scalar, Size, SizingAlgorithm, SizingMode,
+    TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
 use crate::compute::{
     EdgesResultExt, ResolvedPreferredSize, SizeResultExt, layout_own_geometry_error,
@@ -133,8 +133,13 @@ where
 {
     let mut pass_input = input;
     loop {
-        let result =
-            compute_grid_with_context_result(tree, node, pass_input, GridParentContext::none())?;
+        let result = compute_grid_with_context_result(
+            tree,
+            node,
+            pass_input,
+            GridParentContext::none(),
+            GridMeasurementBoundary::Ordinary,
+        )?;
         if !input.run_mode().is_perform_layout() {
             return Ok(GridComputationOf {
                 output: result.output,
@@ -188,6 +193,33 @@ fn sizing_algorithm_for_grid_display(display: Display) -> SizingAlgorithm {
     } else {
         SizingAlgorithm::Grid
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum GridMeasurementBoundary {
+    Ordinary,
+    Standalone,
+}
+
+fn standalone_intrinsic_minimum_axes<S: LayoutScalar, Node>(
+    style: &NodeInputOf<S>,
+    parent_context: &GridParentContext<S, Node>,
+    measurement_boundary: GridMeasurementBoundary,
+) -> Size<bool> {
+    let style_flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
+    let standalone_physical_axes = style_flow_axes.physical_size(LogicalSizeOf::new(
+        parent_context.columns.is_none(),
+        parent_context.rows.is_none(),
+    ));
+    let has_inherited_axis = parent_context.has_inherited_axis();
+    Size::new(
+        (style.min_size.width.is_min_content() || style.min_size.width.is_max_content())
+            && standalone_physical_axes.width
+            && (measurement_boundary == GridMeasurementBoundary::Standalone || has_inherited_axis),
+        (style.min_size.height.is_min_content() || style.min_size.height.is_max_content())
+            && standalone_physical_axes.height
+            && (measurement_boundary == GridMeasurementBoundary::Standalone || has_inherited_axis),
+    )
 }
 
 fn intrinsic_container_available<S: LayoutScalar>(
@@ -286,7 +318,33 @@ fn compute_grid_with_context<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    Ok(compute_grid_with_context_settled(tree, node, input, parent_context)?.output)
+    Ok(compute_grid_with_context_settled(
+        tree,
+        node,
+        input,
+        parent_context,
+        GridMeasurementBoundary::Ordinary,
+    )?
+    .output)
+}
+
+fn compute_standalone_grid_with_context<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<Tree::Scalar>,
+    parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    Ok(compute_grid_with_context_settled(
+        tree,
+        node,
+        input,
+        parent_context,
+        GridMeasurementBoundary::Standalone,
+    )?
+    .output)
 }
 
 fn compute_grid_with_context_settled<Tree, M>(
@@ -294,6 +352,7 @@ fn compute_grid_with_context_settled<Tree, M>(
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
     parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
+    measurement_boundary: GridMeasurementBoundary,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -301,8 +360,13 @@ where
     let mut pass_input =
         input.with_settled_auto_scrollbars(crate::scroll::SettledAutoScrollbarState::INITIAL);
     loop {
-        let result =
-            compute_grid_with_context_result(tree, node, pass_input, parent_context.clone())?;
+        let result = compute_grid_with_context_result(
+            tree,
+            node,
+            pass_input,
+            parent_context.clone(),
+            measurement_boundary,
+        )?;
         if !input.run_mode().is_perform_layout() {
             return Ok(result);
         }
@@ -327,16 +391,22 @@ fn compute_grid_with_context_result<Tree, M>(
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
     parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
+    measurement_boundary: GridMeasurementBoundary,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
 {
     let style = tree.node_input(node).clone();
-    let constants = if input.run_mode().is_perform_layout() {
-        Constants::new_ordinary_scroll::<Tree, M>(tree, node, &style, input)?
-    } else {
-        Constants::new::<Tree, M>(tree, node, &style, input)?
-    };
+    let standalone_intrinsic_minimum =
+        standalone_intrinsic_minimum_axes(&style, &parent_context, measurement_boundary);
+    let constants = Constants::new_with_reservation::<Tree, M>(
+        tree,
+        node,
+        &style,
+        input,
+        input.run_mode().is_perform_layout(),
+        standalone_intrinsic_minimum,
+    )?;
 
     if input.run_mode() == RunMode::ComputeSize
         && let Size {
@@ -2543,6 +2613,7 @@ struct Constants<S: LayoutScalar = Scalar> {
 }
 
 impl<S: LayoutScalar> Constants<S> {
+    #[cfg(test)]
     fn new<Tree, M>(
         tree: &Tree,
         node: <Tree as Traverse>::Node,
@@ -2552,19 +2623,14 @@ impl<S: LayoutScalar> Constants<S> {
     where
         Tree: Compute<M, Scalar = S>,
     {
-        Self::new_with_reservation::<Tree, M>(tree, node, style, input, false)
-    }
-
-    fn new_ordinary_scroll<Tree, M>(
-        tree: &Tree,
-        node: <Tree as Traverse>::Node,
-        style: &NodeInputOf<S>,
-        input: ComputeInputOf<S>,
-    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
-    where
-        Tree: Compute<M, Scalar = S>,
-    {
-        Self::new_with_reservation::<Tree, M>(tree, node, style, input, true)
+        Self::new_with_reservation::<Tree, M>(
+            tree,
+            node,
+            style,
+            input,
+            false,
+            Size::new(false, false),
+        )
     }
 
     fn new_with_reservation<Tree, M>(
@@ -2573,6 +2639,7 @@ impl<S: LayoutScalar> Constants<S> {
         style: &NodeInputOf<S>,
         input: ComputeInputOf<S>,
         canonical_ordinary_reservation: bool,
+        standalone_intrinsic_minimum: Size<bool>,
     ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
     where
         Tree: Compute<M, Scalar = S>,
@@ -2629,21 +2696,29 @@ impl<S: LayoutScalar> Constants<S> {
             Size::NONE
         };
         let min_size = Size::new(
-            resolve_minimum_optional(
-                &style.min_size.width,
-                algorithm,
-                PhysicalAxis::Horizontal,
-                input.parent().width,
-                true,
-            )
+            if standalone_intrinsic_minimum.width {
+                Ok(None)
+            } else {
+                resolve_minimum_optional(
+                    &style.min_size.width,
+                    algorithm,
+                    PhysicalAxis::Horizontal,
+                    input.parent().width,
+                    true,
+                )
+            }
             .map_err(|error| sizing_resolution_error(node, error))?,
-            resolve_minimum_optional(
-                &style.min_size.height,
-                algorithm,
-                PhysicalAxis::Vertical,
-                input.parent().height,
-                true,
-            )
+            if standalone_intrinsic_minimum.height {
+                Ok(None)
+            } else {
+                resolve_minimum_optional(
+                    &style.min_size.height,
+                    algorithm,
+                    PhysicalAxis::Vertical,
+                    input.parent().height,
+                    true,
+                )
+            }
             .map_err(|error| sizing_resolution_error(node, error))?,
         )
         .apply_aspect_ratio(style.aspect_ratio)

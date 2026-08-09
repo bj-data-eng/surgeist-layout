@@ -925,6 +925,304 @@ fn fri08_c03_intrinsic_checked_in_min_max_container_variants_use_candidate_proje
     }
 }
 
+#[test]
+fn fri08_c04_standalone_column_autoflow_measures_the_local_grid_container() {
+    for variant in [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/layout/browser_parity/xml/subgrid")
+            .join(format!(
+                "subgrid_standalone_axis_column_autoflow__{variant}.xml"
+            ));
+        let golden = fri06_c12_t08_browser_front_door::Golden::parse_file(&path)
+            .unwrap_or_else(|error| panic!("{} must parse: {error}", path.display()));
+        fri06_c12_t08_browser_front_door::assert_surgeist_matches(&golden)
+            .unwrap_or_else(|error| panic!("{} must match: {error}", path.display()));
+    }
+}
+
+fn fri08_c04_standalone_nested_tree<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    root_direction: Direction,
+    child_direction: Direction,
+    standalone_minimum: MinSizeOf<S>,
+    inherit_other_axis: bool,
+) -> PublicLayoutTreeOf<S> {
+    let scalar = S::from_f64;
+    let flow_axes = FlowAxes::new(writing_mode, child_direction);
+    let inherited_span = GridPlacement::try_line_span(1, 2).expect("two inherited rows");
+    let single_column = GridPlacement::try_line(1).expect("single inherited column");
+    let leaf_size = flow_axes.physical_size(LogicalSizeOf::new(scalar(100.0), scalar(50.0)));
+    PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [3])
+        .children(3, [4, 5])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::InlineGrid,
+                writing_mode,
+                direction: root_direction,
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO],
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode,
+                direction: child_direction,
+                grid_template_columns: subgrid_track_of(),
+                grid_template_rows: if inherit_other_axis {
+                    subgrid_track_of()
+                } else {
+                    vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO]
+                },
+                grid_column: single_column,
+                grid_row: inherited_span,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode,
+                direction: child_direction,
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: subgrid_track_of(),
+                grid_template_areas: GridTemplateAreas {
+                    rows: vec![
+                        GridTemplateAreaRow {
+                            cells: vec![Some("first".to_string())],
+                        },
+                        GridTemplateAreaRow {
+                            cells: vec![Some("second".to_string())],
+                        },
+                    ],
+                },
+                grid_column: single_column,
+                grid_row: inherited_span,
+                grid_auto_flow: GridAutoFlow::Column,
+                min_size: flow_axes
+                    .physical_size(LogicalSizeOf::new(standalone_minimum, MinSizeOf::AUTO)),
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                writing_mode,
+                direction: child_direction,
+                item_order: ItemOrder::new(7),
+                item_is_replaced: true,
+                grid_column: GridPlacement::try_line(1).expect("standalone local column"),
+                raw_grid_row: RawGridPlacement::new(
+                    RawGridLine::BareIdent("first".to_string()),
+                    RawGridLine::BareIdent("first".to_string()),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            5,
+            NodeInputOf {
+                writing_mode,
+                direction: child_direction,
+                item_order: ItemOrder::new(-7),
+                item_is_replaced: true,
+                grid_column: GridPlacement::try_line(1).expect("standalone local column"),
+                raw_grid_row: RawGridPlacement::new(
+                    RawGridLine::BareIdent("second".to_string()),
+                    RawGridLine::BareIdent("second".to_string()),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(4, leaf_size)
+        .measure(5, leaf_size)
+}
+
+fn assert_fri08_c04_standalone_nested_flows<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for root_direction in [Direction::Ltr, Direction::Rtl] {
+            let child_direction = match root_direction {
+                Direction::Ltr => Direction::Rtl,
+                Direction::Rtl => Direction::Ltr,
+            };
+            for inherit_other_axis in [false, true] {
+                for standalone_minimum in [
+                    MinSizeOf::AUTO,
+                    MinSizeOf::px(scalar(20.0)),
+                    MinSizeOf::MIN_CONTENT,
+                    MinSizeOf::MAX_CONTENT,
+                ] {
+                    let tree = fri08_c04_standalone_nested_tree::<S>(
+                        writing_mode,
+                        root_direction,
+                        child_direction,
+                        standalone_minimum.clone(),
+                        inherit_other_axis,
+                    );
+                    for available in [
+                        AvailableOf::MIN_CONTENT,
+                        AvailableOf::MAX_CONTENT,
+                        AvailableOf::Definite(scalar(240.0)),
+                    ] {
+                        let batch = compute_layout(
+                            &tree,
+                            1,
+                            LayoutRootRequestOf::viewport(Size::splat(available))
+                                .expect("finite standalone viewport"),
+                        )
+                        .expect("nested standalone boundary is supported");
+                        let root = fri08_c01_placement_output(&batch, 1);
+                        let logical =
+                            FlowAxes::new(writing_mode, root_direction).logical_size(root.size);
+                        assert_eq!(
+                            logical,
+                            LogicalSizeOf::new(scalar(100.0), scalar(100.0)),
+                            "{writing_mode:?} {root_direction:?} {inherit_other_axis:?} {standalone_minimum:?} {available:?}: {:?}",
+                            batch.final_entries()
+                        );
+                        assert_eq!(
+                            batch
+                                .final_entries()
+                                .iter()
+                                .map(LayoutOutputEntryOf::node)
+                                .collect::<Vec<_>>(),
+                            [1, 2, 3, 4, 5],
+                            "standalone local descendants remain source-associated and publish once"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn fri08_c04_standalone_nested_one_and_both_axis_inheritance_maps_all_flows_and_scalars() {
+    assert_fri08_c04_standalone_nested_flows::<f32>();
+    assert_fri08_c04_standalone_nested_flows::<f64>();
+}
+
+fn assert_fri08_c04_standalone_edges_gaps_and_percentage<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [3, 4])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::InlineGrid,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(200.0)),
+                    PreferredSizeOf::px(scalar(110.0)),
+                ),
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO],
+                gap: Size::new(LengthOf::ZERO, LengthOf::px(scalar(10.0))),
+                justify_content: Some(AlignContent::Stretch),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: subgrid_track_of(),
+                grid_column: GridPlacement::try_line(1).expect("standalone parent column"),
+                grid_row: GridPlacement::try_line_span(1, 2).expect("inherited row span"),
+                gap: Size::new(LengthOf::ZERO, LengthOf::px(scalar(20.0))),
+                margin: Edges::new(
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(13.0)),
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(11.0)),
+                ),
+                border: Edges::new(
+                    LengthOf::ZERO,
+                    LengthOf::px(scalar(5.0)),
+                    LengthOf::ZERO,
+                    LengthOf::px(scalar(3.0)),
+                ),
+                padding: Edges::new(
+                    LengthOf::ZERO,
+                    LengthOf::px(scalar(9.0)),
+                    LengthOf::ZERO,
+                    LengthOf::px(scalar(7.0)),
+                ),
+                justify_content: Some(AlignContent::Stretch),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                size: Size::new(
+                    PreferredSizeOf::percent(scalar(0.5)),
+                    PreferredSizeOf::px(scalar(50.0)),
+                ),
+                grid_column: GridPlacement::try_line(1).expect("local percentage column"),
+                grid_row: GridPlacement::try_line(1).expect("first inherited row"),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                size: Size::new(
+                    PreferredSizeOf::percent(scalar(0.5)),
+                    PreferredSizeOf::px(scalar(50.0)),
+                ),
+                grid_column: GridPlacement::try_line(1).expect("local percentage column"),
+                grid_row: GridPlacement::try_line(2).expect("second inherited row"),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("standalone definite percentage viewport"),
+    )
+    .expect("standalone percentage and unequal-gap layout succeeds");
+    let wrapper = fri08_c01_placement_output(&batch, 2);
+    let first = fri08_c01_placement_output(&batch, 3);
+    let second = fri08_c01_placement_output(&batch, 4);
+    assert_eq!(wrapper.size.width, scalar(176.0));
+    assert_eq!(first.size.width, scalar(76.0));
+    assert_eq!(second.size.width, scalar(76.0));
+    assert_eq!(second.location.y - first.location.y, scalar(70.0));
+}
+
+#[test]
+fn fri08_c04_standalone_context_applies_percentage_unequal_gaps_and_mbp_once() {
+    assert_fri08_c04_standalone_edges_gaps_and_percentage::<f32>();
+    assert_fri08_c04_standalone_edges_gaps_and_percentage::<f64>();
+}
+
 fn fri08_c03_intrinsic_facts<S: LayoutScalar>(
     minimum: f64,
     min_content: f64,
@@ -1487,19 +1785,23 @@ struct Fri08C03NestedAtomicTree<S: LayoutScalar> {
 
 impl<S: LayoutScalar> Fri08C03NestedAtomicTree<S> {
     fn new() -> Self {
+        Self::with_tree(fri08_c03_nested_projection_tree(
+            Fri08C03NestedFlowCase {
+                root_direction: Direction::Ltr,
+                first_wrapper_mode: WritingMode::HorizontalTb,
+                first_wrapper_direction: Direction::Ltr,
+                second_wrapper_mode: WritingMode::HorizontalTb,
+                second_wrapper_direction: Direction::Ltr,
+                inherited_axis: GridAxisKind::Column,
+            },
+            GridFlowToleranceOf::Length(LengthOf::ZERO),
+            false,
+        ))
+    }
+
+    fn with_tree(tree: PublicLayoutTreeOf<S>) -> Self {
         Self {
-            tree: fri08_c03_nested_projection_tree(
-                Fri08C03NestedFlowCase {
-                    root_direction: Direction::Ltr,
-                    first_wrapper_mode: WritingMode::HorizontalTb,
-                    first_wrapper_direction: Direction::Ltr,
-                    second_wrapper_mode: WritingMode::HorizontalTb,
-                    second_wrapper_direction: Direction::Ltr,
-                    inherited_axis: GridAxisKind::Column,
-                },
-                GridFlowToleranceOf::Length(LengthOf::ZERO),
-                false,
-            ),
+            tree,
             measure_mode: std::cell::Cell::new(Fri08C03NestedMeasureMode::Values),
             measurement_requests: std::cell::RefCell::new(Vec::new()),
             cache_queries: std::cell::RefCell::new(Vec::new()),
@@ -1724,6 +2026,85 @@ fn assert_fri08_c03_nested_cache_and_failures_are_atomic<S: LayoutScalar>() {
 fn fri08_c03_nested_cache_cold_warm_provider_non_finite_and_rollback_are_scalar_stable() {
     assert_fri08_c03_nested_cache_and_failures_are_atomic::<f32>();
     assert_fri08_c03_nested_cache_and_failures_are_atomic::<f64>();
+}
+
+fn assert_fri08_c04_standalone_cache_and_failures_are_atomic<S: LayoutScalar>() {
+    let mut tree = Fri08C03NestedAtomicTree::with_tree(fri08_c04_standalone_nested_tree(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        Direction::Rtl,
+        MinSizeOf::MIN_CONTENT,
+        true,
+    ));
+    let request = Fri08C03NestedAtomicTree::<S>::request();
+    let cold = compute_layout(&tree, 1, request).expect("cold standalone layout succeeds");
+    assert_eq!(
+        fri08_c01_placement_output(&cold, 1).size,
+        Size::new(S::from_f64(40.0), S::from_f64(20.0))
+    );
+    assert_eq!(
+        cold.final_entries()
+            .iter()
+            .map(LayoutOutputEntryOf::node)
+            .collect::<Vec<_>>(),
+        [1, 2, 3, 4, 5]
+    );
+    let cold_final = cold.final_entries().to_vec();
+    cold.apply_to(&mut tree)
+        .expect("standalone cold batch commits atomically");
+
+    tree.cache_queries.borrow_mut().clear();
+    let warm = compute_layout(&tree, 1, request).expect("warm standalone layout succeeds");
+    assert_eq!(warm.final_entries(), cold_final);
+    assert!(
+        tree.cache_queries
+            .borrow()
+            .iter()
+            .any(|(node, hit)| matches!(node, 4 | 5) && *hit),
+        "warm standalone layout reuses the ordinary descendant cache"
+    );
+
+    for mode in [
+        Fri08C03NestedMeasureMode::ProviderError,
+        Fri08C03NestedMeasureMode::NonFinite,
+    ] {
+        tree.measure_mode.set(mode);
+        tree.measurement_requests.borrow_mut().clear();
+        let retained_before_failure = tree.retained.clone();
+        let error = compute_layout_invalidated(&tree, 1, request, &[4])
+            .expect_err("standalone descendant failure publishes no partial batch");
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(4));
+        assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+        match mode {
+            Fri08C03NestedMeasureMode::ProviderError => assert!(matches!(
+                error.kind(),
+                LayoutErrorKindOf::Measurement(Fri08C03NestedMeasureError::Provider)
+            )),
+            Fri08C03NestedMeasureMode::NonFinite => assert!(matches!(
+                error.kind(),
+                LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::MeasurementOutput(_))
+            )),
+            Fri08C03NestedMeasureMode::Values => unreachable!("failure cases are explicit"),
+        }
+        assert_eq!(tree.retained, retained_before_failure);
+        assert!(
+            tree.measurement_requests
+                .borrow()
+                .iter()
+                .any(|(node, _)| *node == 4)
+        );
+    }
+
+    tree.measure_mode.set(Fri08C03NestedMeasureMode::Values);
+    let retry = compute_layout_invalidated(&tree, 1, request, &[4])
+        .expect("standalone layout retries after provider failures");
+    assert_eq!(retry.final_entries(), cold_final);
+}
+
+#[test]
+fn fri08_c04_standalone_cache_retry_order_provider_nonfinite_and_rollback_are_scalar_stable() {
+    assert_fri08_c04_standalone_cache_and_failures_are_atomic::<f32>();
+    assert_fri08_c04_standalone_cache_and_failures_are_atomic::<f64>();
 }
 
 fn assert_fri08_c03_intrinsic_fixed_content_gap_distribution<S: LayoutScalar>() {
@@ -28293,6 +28674,8 @@ fn traversal_subgrid(
         span_in_parent: GridTrackSpan::new(start, end),
         available_inline_size: None,
         available_inline_size_is_known: false,
+        align_self: AlignItems::Stretch,
+        standalone_parent_context: None,
         queried_axis_fully_inherited: true,
         margins: SubgridAxisEdges::default(),
         border: SubgridAxisEdges::default(),
@@ -28314,6 +28697,8 @@ fn subgrid_traversal_keeps_edge_lower_bounds_off_non_intrinsic_tracks() {
             span_in_parent: GridTrackSpan::new(1, 3),
             available_inline_size: None,
             available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
             queried_axis_fully_inherited: true,
             margins: SubgridAxisEdges {
                 start: 10.0,
@@ -28344,6 +28729,8 @@ fn subgrid_traversal_places_edge_lower_bounds_in_ancestor_track_space() {
             span_in_parent: GridTrackSpan::new(2, 5),
             available_inline_size: None,
             available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
             queried_axis_fully_inherited: true,
             margins: SubgridAxisEdges::default(),
             border: SubgridAxisEdges::default(),
@@ -28385,6 +28772,8 @@ fn subgrid_traversal_accumulates_edge_adjustment_in_nested_translated_span() {
             span_in_parent: GridTrackSpan::new(1, 4),
             available_inline_size: None,
             available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
             queried_axis_fully_inherited: true,
             margins: SubgridAxisEdges {
                 start: 2.0,
@@ -28401,6 +28790,8 @@ fn subgrid_traversal_accumulates_edge_adjustment_in_nested_translated_span() {
                 span_in_parent: GridTrackSpan::new(2, 3),
                 available_inline_size: None,
                 available_inline_size_is_known: false,
+                align_self: AlignItems::Stretch,
+                standalone_parent_context: None,
                 queried_axis_fully_inherited: true,
                 margins: SubgridAxisEdges {
                     start: 3.0,
@@ -28436,6 +28827,8 @@ fn subgrid_traversal_accumulates_gap_adjustment_through_nested_subgrids() {
             span_in_parent: GridTrackSpan::new(1, 4),
             available_inline_size: None,
             available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
             queried_axis_fully_inherited: true,
             margins: SubgridAxisEdges::default(),
             border: SubgridAxisEdges::default(),
@@ -28449,6 +28842,8 @@ fn subgrid_traversal_accumulates_gap_adjustment_through_nested_subgrids() {
                 span_in_parent: GridTrackSpan::new(2, 3),
                 available_inline_size: None,
                 available_inline_size_is_known: false,
+                align_self: AlignItems::Stretch,
+                standalone_parent_context: None,
                 queried_axis_fully_inherited: true,
                 margins: SubgridAxisEdges::default(),
                 border: SubgridAxisEdges::default(),
@@ -28480,6 +28875,8 @@ fn subgrid_traversal_applies_gap_adjustment_to_internal_edges() {
             span_in_parent: GridTrackSpan::new(1, 4),
             available_inline_size: None,
             available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
             queried_axis_fully_inherited: true,
             margins: SubgridAxisEdges::default(),
             border: SubgridAxisEdges::default(),
@@ -28511,6 +28908,8 @@ fn subgrid_traversal_uses_positive_gap_adjustments_as_empty_track_lower_bounds()
             span_in_parent: GridTrackSpan::new(1, 5),
             available_inline_size: None,
             available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
             queried_axis_fully_inherited: true,
             margins: SubgridAxisEdges::default(),
             border: SubgridAxisEdges::default(),
@@ -28538,6 +28937,8 @@ fn subgrid_traversal_combines_empty_edge_and_gap_lower_bounds() {
             span_in_parent: GridTrackSpan::new(1, 5),
             available_inline_size: None,
             available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
             queried_axis_fully_inherited: true,
             margins: SubgridAxisEdges::default(),
             border: SubgridAxisEdges::default(),
@@ -28566,6 +28967,8 @@ fn subgrid_traversal_ignores_gap_adjustment_for_single_track_subgrid() {
             span_in_parent: GridTrackSpan::new(1, 2),
             available_inline_size: None,
             available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
             queried_axis_fully_inherited: true,
             margins: SubgridAxisEdges::default(),
             border: SubgridAxisEdges::default(),
@@ -28581,8 +28984,8 @@ fn subgrid_traversal_ignores_gap_adjustment_for_single_track_subgrid() {
 }
 
 #[test]
-fn subgrid_traversal_rejects_standalone_subgrid_explicitly() {
-    let err = traverse_subgrid_intrinsic(SubgridTraversalInput {
+fn subgrid_traversal_keeps_standalone_as_one_boundary_leaf() {
+    let report = traverse_subgrid_intrinsic(SubgridTraversalInput {
         ancestor_track_intrinsic_min_eligibility: IntrinsicMinTrackFacts::Known(&[true]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
@@ -28591,6 +28994,8 @@ fn subgrid_traversal_rejects_standalone_subgrid_explicitly() {
             span_in_parent: GridTrackSpan::new(1, 2),
             available_inline_size: None,
             available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
             queried_axis_fully_inherited: true,
             margins: SubgridAxisEdges::default(),
             border: SubgridAxisEdges::default(),
@@ -28600,12 +29005,12 @@ fn subgrid_traversal_rejects_standalone_subgrid_explicitly() {
             children: vec![traversal_leaf(2, 1, 2)],
         })],
     })
-    .unwrap_err();
+    .unwrap();
 
-    assert_eq!(
-        err,
-        SubgridTraversalError::StandaloneSubgridTraversalUnsupported
-    );
+    assert_eq!(report.leaves.len(), 1);
+    assert_eq!(report.leaves[0].node, 1);
+    assert_eq!(report.leaves[0].ancestor_span, GridTrackSpan::new(1, 2));
+    assert!(report.leaves[0].standalone_parent_context.is_none());
 }
 
 #[test]
@@ -32941,12 +33346,13 @@ mod root_oracle {
     }
 
     #[test]
-    fn oracle_subgrid_traversal_rejects_standalone_axis() {
-        let err = grid::traverse_subgrid_intrinsic(grid::SubgridTraversalInput {
+    fn oracle_subgrid_traversal_keeps_standalone_as_one_boundary_leaf() {
+        let contribution = oracle_lane_facts(30.0, 70.0);
+        let report = grid::traverse_subgrid_intrinsic(grid::SubgridTraversalInput {
             ancestor_track_intrinsic_min_eligibility: vec![true],
             root_children: vec![grid::SubgridChild::Subgrid(grid::SubgridNode {
                 id: "root",
-                axis: grid::SubgridAxisKind::Standalone,
+                axis: grid::SubgridAxisKind::Standalone(contribution),
                 reversed: false,
                 span_in_parent: grid::TrackSpan::new(1, 2),
                 margins: grid::AxisEdges::default(),
@@ -32957,12 +33363,11 @@ mod root_oracle {
                 children: Vec::new(),
             })],
         })
-        .unwrap_err();
+        .unwrap();
 
-        assert_eq!(
-            err,
-            grid::OracleGridError::StandaloneSubgridTraversalUnsupported
-        );
+        assert_eq!(report.leaves.len(), 1);
+        assert_eq!(report.leaves[0].id, "root");
+        assert_eq!(report.leaves[0].contribution, contribution);
     }
 
     #[test]

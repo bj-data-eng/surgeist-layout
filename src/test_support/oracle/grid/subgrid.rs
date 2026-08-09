@@ -5,7 +5,6 @@ pub enum OracleGridError {
     NamedLineInheritanceUnsupported,
     BaselineInferenceUnsupported,
     MissingIntrinsicMinTrackFacts,
-    StandaloneSubgridTraversalUnsupported,
     EmptyTrackList,
     SpanOutOfRange,
 }
@@ -230,10 +229,10 @@ pub enum SubgridChild {
     Leaf(SubgridLeaf),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SubgridAxisKind {
     Inherited,
-    Standalone,
+    Standalone(ItemContributionFacts),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -339,8 +338,10 @@ fn apply_subgrid_edge_placeholders(
     subgrid: SubgridNode,
     mut context: TraversalContext,
 ) -> Result<(), OracleGridError> {
-    if subgrid.axis == SubgridAxisKind::Standalone {
-        return Err(OracleGridError::StandaloneSubgridTraversalUnsupported);
+    if let SubgridAxisKind::Standalone(contribution) = subgrid.axis {
+        subgrid.span_in_parent.checked_len()?;
+        leaves_push_standalone(stack, subgrid, context, contribution);
+        return Ok(());
     }
 
     subgrid.span_in_parent.checked_len()?;
@@ -392,6 +393,22 @@ fn apply_subgrid_edge_placeholders(
     }
 
     Ok(())
+}
+
+fn leaves_push_standalone(
+    stack: &mut Vec<(SubgridChild, TraversalContext)>,
+    subgrid: SubgridNode,
+    context: TraversalContext,
+    contribution: ItemContributionFacts,
+) {
+    stack.push((
+        SubgridChild::Leaf(SubgridLeaf {
+            id: subgrid.id,
+            span_in_parent: subgrid.span_in_parent,
+            contribution,
+        }),
+        context,
+    ));
 }
 
 fn child_line_transform(

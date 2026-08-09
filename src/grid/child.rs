@@ -1524,8 +1524,13 @@ where
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         )
         .with_containing_auto_scrollbar_pass(input.containing_auto_scrollbar_pass);
-        let result =
-            compute_grid_with_context_settled(tree, item.node, child_input, child_context)?;
+        let result = compute_grid_with_context_settled(
+            tree,
+            item.node,
+            child_input,
+            child_context,
+            GridMeasurementBoundary::Ordinary,
+        )?;
         let GridComputeResult {
             mut output,
             baseline_groups: _ordinary_baseline_groups,
@@ -3289,15 +3294,17 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
     .apply_aspect_ratio(child_style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
     let min_size = Size::new(
-        resolve_minimum_optional(
+        resolve_standalone_subgrid_item_minimum_optional(
             &child_style.min_size.width,
+            child_style,
             algorithm,
             PhysicalAxis::Horizontal,
             area_parent.width,
             true,
         )?,
-        resolve_minimum_optional(
+        resolve_standalone_subgrid_item_minimum_optional(
             &child_style.min_size.height,
+            child_style,
             algorithm,
             PhysicalAxis::Vertical,
             area_parent.height,
@@ -3398,6 +3405,40 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
         justify_self,
         align_self,
     })
+}
+
+fn resolve_standalone_subgrid_item_minimum_optional<S: LayoutScalar>(
+    value: &MinSizeOf<S>,
+    child_style: &NodeInputOf<S>,
+    algorithm: SizingAlgorithm,
+    physical_axis: PhysicalAxis,
+    basis: Option<S>,
+    missing_basis_is_indefinite: bool,
+) -> Result<Option<S>, SizingResolutionError<S>> {
+    let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
+    let queried_axis =
+        if grid_axis_physical_axis(child_flow_axes, GridAxisKind::Column) == physical_axis {
+            GridAxisKind::Column
+        } else {
+            GridAxisKind::Row
+        };
+    let other_axis = match queried_axis {
+        GridAxisKind::Column => GridAxisKind::Row,
+        GridAxisKind::Row => GridAxisKind::Column,
+    };
+    if (value.is_min_content() || value.is_max_content())
+        && !subgrid_requested(child_style, queried_axis)
+        && subgrid_requested(child_style, other_axis)
+    {
+        return Ok(None);
+    }
+    resolve_minimum_optional(
+        value,
+        algorithm,
+        physical_axis,
+        basis,
+        missing_basis_is_indefinite,
+    )
 }
 
 pub(crate) fn resolve_grid_item_normal_alignment(

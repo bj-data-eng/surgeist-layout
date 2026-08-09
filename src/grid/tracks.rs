@@ -1507,21 +1507,30 @@ where
         } else {
             input.available
         };
-        let output = tree.compute_child(
-            leaf.node,
-            ComputeInputOf::for_child(
-                RunMode::PerformLayout,
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                Size::new(known_inline, None),
-                input.constants.node_inner_size,
-                crate::ContainingLayoutContext::new(
-                    input.constants.flow_axes,
-                    crate::ParentFormattingContext::Grid,
-                ),
-                available,
+        let child_input = ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(known_inline, None),
+            input.constants.node_inner_size,
+            crate::ContainingLayoutContext::new(
+                input.constants.flow_axes,
+                crate::ParentFormattingContext::Grid,
             ),
-        )?;
+            available,
+        );
+        let output = if let Some(parent_context) = &leaf.standalone_parent_context
+            && tree.child_count(leaf.node) > 0
+        {
+            compute_standalone_grid_with_context(
+                tree,
+                leaf.node,
+                child_input,
+                parent_context.as_ref().clone(),
+            )?
+        } else {
+            tree.compute_child(leaf.node, child_input)?
+        };
         let margin = intrinsic_contribution_margin(
             &child_style,
             input.constants.flow_axes,
@@ -1812,7 +1821,14 @@ where
         return tree.compute_child(child, input);
     }
 
-    Ok(compute_grid_with_context_result(tree, child, input, child_context)?.output)
+    Ok(compute_grid_with_context_result(
+        tree,
+        child,
+        input,
+        child_context,
+        GridMeasurementBoundary::Ordinary,
+    )?
+    .output)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2173,33 +2189,42 @@ where
         } else {
             input.available
         };
-        let output = tree.compute_child(
-            leaf.node,
-            ComputeInputOf::for_child(
-                if input.axis == GridAxisKind::Row
-                    && matches!(
-                        leaf.align_self,
-                        AlignItems::Baseline | AlignItems::LastBaseline
-                    )
-                {
-                    RunMode::PerformLayout
-                } else {
-                    RunMode::ComputeSize
-                },
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                Size::new(row_known_inline_size, None),
-                Size::new(
-                    input.constants.node_inner_size.width,
-                    input.constants.node_inner_size.height,
-                ),
-                crate::ContainingLayoutContext::new(
-                    input.constants.flow_axes,
-                    crate::ParentFormattingContext::Grid,
-                ),
-                available,
+        let child_input = ComputeInputOf::for_child(
+            if input.axis == GridAxisKind::Row
+                && matches!(
+                    leaf.align_self,
+                    AlignItems::Baseline | AlignItems::LastBaseline
+                )
+            {
+                RunMode::PerformLayout
+            } else {
+                RunMode::ComputeSize
+            },
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(row_known_inline_size, None),
+            Size::new(
+                input.constants.node_inner_size.width,
+                input.constants.node_inner_size.height,
             ),
-        )?;
+            crate::ContainingLayoutContext::new(
+                input.constants.flow_axes,
+                crate::ParentFormattingContext::Grid,
+            ),
+            available,
+        );
+        let output = if let Some(parent_context) = &leaf.standalone_parent_context
+            && tree.child_count(leaf.node) > 0
+        {
+            compute_standalone_grid_with_context(
+                tree,
+                leaf.node,
+                child_input,
+                parent_context.as_ref().clone(),
+            )?
+        } else {
+            tree.compute_child(leaf.node, child_input)?
+        };
         let margin = intrinsic_contribution_margin(
             &child_style,
             input.constants.flow_axes,
