@@ -5530,6 +5530,77 @@ mod tests {
         entry
     }
 
+    fn fri08_c05_inputs_synthetic_grid_node() -> Value {
+        json!({
+            "useRounding": true,
+            "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+            "style": {
+                "display": "grid",
+                "gridTemplateRows": [
+                    {"kind": "scalar", "unit": "px", "value": 20},
+                    {"kind": "scalar", "unit": "px", "value": 20}
+                ],
+                "gridTemplateColumns": [
+                    {"kind": "scalar", "unit": "px", "value": 30},
+                    {"kind": "scalar", "unit": "px", "value": 50}
+                ],
+                "gridTemplateAreas": [["head", "head"], ["nav", "main"]]
+            },
+            "smartRoundedLayout": {"x": 0, "y": 0, "width": 80, "height": 40, "scrollWidth": 80, "scrollHeight": 40},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 80, "height": 40, "scrollWidth": 80, "scrollHeight": 40},
+            "naivelyRoundedLayout": {"clientWidth": 80, "clientHeight": 40},
+            "children": [
+                {
+                    "style": {
+                        "display": "block",
+                        "gridColumnStart": {"kind": "named-line", "name": "head-start", "value": 0},
+                        "gridColumnEnd": {"kind": "named-line", "name": "head-end", "value": 0},
+                        "gridRowStart": {"kind": "named-line", "name": "head-start", "value": 0},
+                        "gridRowEnd": {"kind": "named-line", "name": "head-end", "value": 0}
+                    },
+                    "smartRoundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
+                    "unroundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
+                    "naivelyRoundedLayout": {"clientWidth": 80, "clientHeight": 20},
+                    "children": []
+                },
+                {
+                    "style": {
+                        "display": "block",
+                        "gridColumnStart": {"kind": "named-line", "name": "main-start", "value": 0},
+                        "gridColumnEnd": {"kind": "named-line", "name": "main-end", "value": 0},
+                        "gridRowStart": {"kind": "named-line", "name": "main-start", "value": 0},
+                        "gridRowEnd": {"kind": "named-line", "name": "main-end", "value": 0}
+                    },
+                    "smartRoundedLayout": {"x": 30, "y": 20, "width": 50, "height": 20, "scrollWidth": 50, "scrollHeight": 20},
+                    "unroundedLayout": {"x": 30, "y": 20, "width": 50, "height": 20, "scrollWidth": 50, "scrollHeight": 20},
+                    "naivelyRoundedLayout": {"clientWidth": 50, "clientHeight": 20},
+                    "children": []
+                }
+            ]
+        })
+    }
+
+    #[test]
+    fn fri08_c05_inputs_synthetic_generator_values_reach_public_layout_independent_of_identity() {
+        let node = fri08_c05_inputs_synthetic_grid_node();
+        let original_xml = generate_xml("original/source__border_box_ltr", &node);
+        let renamed_xml = generate_xml("renamed/source__content_box_rtl", &node);
+        let original = browser_parity_support::Golden::parse(&original_xml)
+            .expect("synthetic finite generator output should parse");
+        let renamed = browser_parity_support::Golden::parse(&renamed_xml)
+            .expect("renamed synthetic finite generator output should parse");
+
+        assert_eq!(original.root, renamed.root);
+        assert_eq!(
+            original.root.style.get("grid-template-areas"),
+            Some("head head / nav main")
+        );
+        browser_parity_support::assert_surgeist_matches(&original)
+            .expect("synthetic generator values should reach finite public layout");
+        browser_parity_support::assert_surgeist_matches(&renamed)
+            .expect("fixture identity must not affect finite public layout");
+    }
+
     fn attach_test_report_metadata(report: &mut GenerationReport, config: &GenerationConfig) {
         report.metadata = Some(
             generation_report_metadata(
@@ -7353,7 +7424,7 @@ if (before !== "collapsed" || after !== before) {{
             collect_html(&html_root, None)
                 .expect("HTML fixture inventory should be readable")
                 .len(),
-            1_438
+            1_448
         );
 
         for (relative, required_fragments, collapsed_items) in contracts {
@@ -8313,10 +8384,6 @@ if (expectedReason === undefined) {{
                     .collect()
             ),
             "daec9ba4532cb9e5223459c60e8af7511ade417f468e596060bce39402724f41"
-        );
-        assert_eq!(
-            sha256_file(&root.join("corpus.toml")).expect("manifest"),
-            "4419c4aab9429d1f81ac46426095719e19cf92cfbf51caf66d4f737c07c452cc"
         );
     }
 
@@ -14896,9 +14963,11 @@ status = "active"
             xml_root: corpus.join("xml"),
         })
         .expect("frozen corpus manifest");
+        let report = fri06_c08r_final_report(&corpus);
         assert_eq!(
-            sha256_file(&corpus.join("corpus.toml")).expect("manifest hash"),
-            "4419c4aab9429d1f81ac46426095719e19cf92cfbf51caf66d4f737c07c452cc"
+            report["metadata"]["corpus_manifest_sha256"].as_str(),
+            Some("4419c4aab9429d1f81ac46426095719e19cf92cfbf51caf66d4f737c07c452cc"),
+            "the final-lineage report must retain its historical manifest input"
         );
         assert_eq!(
             sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()),
@@ -15118,6 +15187,77 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
         assert_eq!(
             sha256_bytes(parser.as_bytes()),
             FRI08_C05_T02_GRID_TEMPLATE_AREAS_PARSER_SHA256
+        );
+    }
+
+    #[test]
+    fn fri08_c05_inputs_current_sources_manifest_helper_and_production_are_byte_frozen() {
+        const GENERATOR_TEST_MODULE_MARKER: &str = "#[cfg(test)]\nmod tests {";
+        const NEW_SOURCES: [&str; 10] = [
+            "html/grid/fri08_auto_placement_span_after_occupied.html",
+            "html/grid/fri08_explicit_overlap_no_implicit_growth.html",
+            "html/grid/fri08_fit_content_flex_composition.html",
+            "html/grid/fri08_template_areas_explicit_tracks.html",
+            "html/grid/fri08_auto_fit_occupied_track_collapse.html",
+            "html/grid/fri08_stretch_minmax_auto.html",
+            "html/grid/fri08_duplicate_line_name_token.html",
+            "html/grid/fri08_grid_composition.html",
+            "html/grid-lanes/fri08_nested_indefinite_subgrid.html",
+            "html/subgrid/fri08_standalone_intrinsic_composition.html",
+        ];
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let corpus = repository.join("tests/layout/browser_parity");
+        let config = Config {
+            root: corpus.clone(),
+            html_root: corpus.join("html"),
+            xml_root: corpus.join("xml"),
+        };
+        let manifest = read_corpus_manifest(&config).expect("current C05 corpus manifest");
+
+        for source in NEW_SOURCES {
+            let source = source.strip_prefix("html/").expect("HTML source prefix");
+            let id = source.strip_suffix(".html").expect("HTML source suffix");
+            let records = manifest
+                .cases
+                .iter()
+                .filter(|case| case.id == id && case.source == source)
+                .collect::<Vec<_>>();
+            assert_eq!(records.len(), 1, "current manifest record for {source}");
+            assert_eq!(records[0].source_root, CorpusSourceRoot::Surgeist);
+            assert_eq!(records[0].generator, CorpusGenerator::ConstrainedHtml);
+            assert_eq!(records[0].status, CorpusStatus::Active);
+            assert_eq!(records[0].reason, None);
+        }
+        assert_eq!(manifest.generation_reports.full.generated, 5_736);
+        assert_eq!(manifest.generation_reports.full.unsupported, 16);
+        assert_eq!(manifest.generation_reports.full.expected_fail, 3);
+        assert_eq!(manifest.generation_reports.full.quarantined, 0);
+        assert_eq!(manifest.generation_reports.full.failed_to_generate, 0);
+        assert_eq!(
+            sha256_file(&corpus.join("corpus.toml")).expect("current C05 manifest hash"),
+            "f104b274bb561ef601348a101159cd839f8e0704d633697eea0d1b56a6a4beb6"
+        );
+        assert_eq!(
+            sha256_file(&corpus.join("scripts/gentest/test_helper.js"))
+                .expect("current C05 helper hash"),
+            FRI08_C05_T02_HELPER_SHA256
+        );
+        assert_eq!(
+            fri06_c08_source_set_digest(
+                &corpus,
+                &NEW_SOURCES.into_iter().map(str::to_string).collect()
+            ),
+            "92efde2a02192f18b86bf807edc16eb4df6b1c106b3a559434fdd9ddf8efb5c1"
+        );
+
+        let generator = fs::read_to_string(file!()).expect("generator source");
+        let production = generator
+            .split_once(GENERATOR_TEST_MODULE_MARKER)
+            .expect("generator test module boundary")
+            .0;
+        assert_eq!(
+            sha256_bytes(production.as_bytes()),
+            "9894fad1c36a1563317f985cc56d012ebad35cb9e7daa70c62297d53649f6458"
         );
     }
 
@@ -15682,10 +15822,6 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
             (
                 "tests/layout/browser_parity/scripts/gentest/test_base_style.css",
                 "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
-            ),
-            (
-                "tests/layout/browser_parity/corpus.toml",
-                "4419c4aab9429d1f81ac46426095719e19cf92cfbf51caf66d4f737c07c452cc",
             ),
         ] {
             assert_eq!(

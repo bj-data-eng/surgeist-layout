@@ -112,6 +112,251 @@ fn fri08_c05_adapter_template_areas_reject_malformed_unknown_and_contradictory_v
     }
 }
 
+fn fri08_c05_inputs_new_sources() -> [&'static str; 10] {
+    [
+        "grid/fri08_auto_placement_span_after_occupied.html",
+        "grid/fri08_explicit_overlap_no_implicit_growth.html",
+        "grid/fri08_fit_content_flex_composition.html",
+        "grid/fri08_template_areas_explicit_tracks.html",
+        "grid/fri08_auto_fit_occupied_track_collapse.html",
+        "grid/fri08_stretch_minmax_auto.html",
+        "grid/fri08_duplicate_line_name_token.html",
+        "grid/fri08_grid_composition.html",
+        "grid-lanes/fri08_nested_indefinite_subgrid.html",
+        "subgrid/fri08_standalone_intrinsic_composition.html",
+    ]
+}
+
+fn fri08_c05_inputs_control_sources() -> [&'static str; 8] {
+    [
+        "grid/grid_overflow_inline_axis_scroll.html",
+        "grid-lanes/grid_lanes_item_containing_block_content_width.html",
+        "grid-lanes/grid_lanes_min_content_container_sizing.html",
+        "grid-lanes/grid_lanes_max_content_container_sizing.html",
+        "subgrid/subgrid_overflow_hidden_does_not_prohibit.html",
+        "subgrid/subgrid_sibling_overflow_footer_second_matches_first.html",
+        "subgrid/subgrid_sibling_overflow_footer_third_matches_first.html",
+        "subgrid/subgrid_standalone_axis_column_autoflow.html",
+    ]
+}
+
+fn fri08_c05_inputs_source_contracts() -> [(&'static str, &'static [&'static str]); 10] {
+    [
+        (
+            "grid/fri08_auto_placement_span_after_occupied.html",
+            &[
+                "grid-template-columns: 40px 40px 40px",
+                "grid-auto-rows: 20px",
+                "grid-column: 2; grid-row: 1",
+                "grid-column: span 2",
+            ],
+        ),
+        (
+            "grid/fri08_explicit_overlap_no_implicit_growth.html",
+            &[
+                "grid-template-columns: 40px 40px 40px",
+                "grid-template-rows: 20px",
+                "grid-column: 2; grid-row: 1",
+            ],
+        ),
+        (
+            "grid/fri08_fit_content_flex_composition.html",
+            &[
+                "grid-template-columns: fit-content(50px) 0.5fr minmax(0px, auto)",
+                "justify-content: stretch",
+                "width: 200px",
+            ],
+        ),
+        (
+            "grid/fri08_template_areas_explicit_tracks.html",
+            &[
+                "grid-template-areas: &quot;head head&quot; &quot;nav main&quot;",
+                "grid-template-columns: 30px 50px",
+                "grid-template-rows: 20px 20px",
+                "grid-area: head",
+            ],
+        ),
+        (
+            "grid/fri08_auto_fit_occupied_track_collapse.html",
+            &[
+                "grid-template-columns: repeat(auto-fit, [slot] 40px)",
+                "column-gap: 10px",
+                "grid-column: 3; grid-row: 1",
+                "grid-column: span 2; grid-row: 1",
+            ],
+        ),
+        (
+            "grid/fri08_stretch_minmax_auto.html",
+            &[
+                "grid-template-columns: minmax(30px, auto) minmax(min-content, auto)",
+                "justify-content: stretch",
+                "width: 200px",
+            ],
+        ),
+        (
+            "grid/fri08_duplicate_line_name_token.html",
+            &[
+                "[zone-start zone-start] 40px [zone-start] 40px",
+                "grid-template-areas: &quot;zone zone&quot;",
+                "grid-column: zone-start 2",
+            ],
+        ),
+        (
+            "grid/fri08_grid_composition.html",
+            &[
+                "grid-auto-flow: row dense",
+                "grid-template-areas: &quot;head head side&quot;",
+                "overflow: hidden",
+                "order: -1",
+            ],
+        ),
+        (
+            "grid-lanes/fri08_nested_indefinite_subgrid.html",
+            &[
+                "display: grid-lanes",
+                "grid-template-columns: subgrid",
+                "grid-column: 1 / span 3",
+                "width: 40px",
+            ],
+        ),
+        (
+            "subgrid/fri08_standalone_intrinsic_composition.html",
+            &[
+                "display: inline-grid",
+                "grid-template-rows: subgrid",
+                "grid-auto-flow: column",
+                "min-width: min-content",
+            ],
+        ),
+    ]
+}
+
+fn fri08_c05_inputs_active_new_manifest_sources(raw: &str) -> BTreeSet<String> {
+    let new_sources = fri08_c05_inputs_new_sources()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    raw.split("[[cases]]")
+        .filter_map(|record| {
+            let source = record.lines().find_map(|line| {
+                line.strip_prefix("source = \"")
+                    .and_then(|value| value.strip_suffix('"'))
+            })?;
+            (record.lines().any(|line| line == "status = \"active\"")
+                && new_sources.contains(source))
+            .then(|| source.to_string())
+        })
+        .collect()
+}
+
+fn fri08_c05_inputs_prospective_paths<'a>(
+    corpus: &'a Path,
+    sources: impl IntoIterator<Item = &'a str>,
+) -> BTreeSet<PathBuf> {
+    sources
+        .into_iter()
+        .flat_map(|source| {
+            let id = source
+                .strip_suffix(".html")
+                .expect("FRI-08 source should have an HTML extension");
+            [
+                "border_box_ltr",
+                "border_box_rtl",
+                "content_box_ltr",
+                "content_box_rtl",
+            ]
+            .into_iter()
+            .map(move |variant| corpus.join(format!("xml/{id}__{variant}.xml")))
+        })
+        .collect()
+}
+
+#[test]
+fn fri08_c05_inputs_exact_new_source_inventory_and_finite_structure_are_settled() {
+    let html_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+    let fixtures = support::fixture_files_in(&html_root, "html")
+        .expect("HTML parity fixtures should be readable");
+    let expected = fri08_c05_inputs_new_sources()
+        .into_iter()
+        .map(|source| html_root.join(source))
+        .collect::<BTreeSet<_>>();
+    let actual = fixtures
+        .iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("fri08_"))
+        })
+        .cloned()
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(actual, expected);
+    assert_eq!(fixtures.len(), 1_448);
+    for (relative, fragments) in fri08_c05_inputs_source_contracts() {
+        let raw = std::fs::read_to_string(html_root.join(relative))
+            .unwrap_or_else(|error| panic!("{relative} should read: {error}"));
+        assert_eq!(raw.matches("test_helper.js").count(), 1, "{relative}");
+        assert_eq!(raw.matches("test_base_style.css").count(), 1, "{relative}");
+        assert_eq!(raw.matches("id=\"test-root\"").count(), 1, "{relative}");
+        assert!(!raw.contains("NaN"), "{relative}");
+        assert!(!raw.contains("Infinity"), "{relative}");
+        for variant in [
+            "border_box_ltr",
+            "border_box_rtl",
+            "content_box_ltr",
+            "content_box_rtl",
+        ] {
+            assert!(!raw.contains(variant), "{relative} dispatches on {variant}");
+        }
+        for fragment in fragments {
+            assert!(
+                raw.contains(fragment),
+                "{relative} is missing finite behavior fragment {fragment:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn fri08_c05_inputs_manifest_has_exact_active_rows_without_suppression() {
+    let manifest =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/corpus.toml");
+    let raw = std::fs::read_to_string(&manifest)
+        .unwrap_or_else(|error| panic!("{} should read: {error}", manifest.display()));
+    let active = fri08_c05_inputs_active_new_manifest_sources(&raw);
+    let expected = fri08_c05_inputs_new_sources()
+        .into_iter()
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(active, expected);
+    for source in fri08_c05_inputs_new_sources() {
+        let id = source.strip_suffix(".html").expect("FRI-08 HTML source");
+        let record = format!(
+            "id = \"{id}\"\nsource_root = \"surgeist\"\nsource = \"{source}\"\ngenerator = \"constrained-html\"\nstatus = \"active\""
+        );
+        assert_eq!(raw.matches(&record).count(), 1, "manifest row for {source}");
+    }
+    assert!(raw.contains("generated = 5736"));
+}
+
+#[test]
+fn fri08_c05_inputs_prospective_rows_are_unique_with_only_control_xml_present() {
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+    let raw = std::fs::read_to_string(corpus.join("corpus.toml")).expect("corpus manifest");
+    let active_new = fri08_c05_inputs_active_new_manifest_sources(&raw);
+    let owned = fri08_c05_inputs_control_sources()
+        .into_iter()
+        .map(str::to_string)
+        .chain(active_new)
+        .collect::<BTreeSet<_>>();
+    let paths = fri08_c05_inputs_prospective_paths(&corpus, owned.iter().map(String::as_str));
+
+    assert_eq!(owned.len(), 18);
+    assert_eq!(paths.len(), 72);
+    assert_eq!(paths.iter().filter(|path| path.is_file()).count(), 32);
+    assert_eq!(paths.iter().filter(|path| !path.exists()).count(), 40);
+}
+
 fn fri07_c04_fixture_input_xml(name: &str, root_width: &str, first_width: &str) -> String {
     format!(
         concat!(
@@ -191,7 +436,7 @@ fn fri07_c04_fixture_input_exact_six_source_four_variant_inventory_is_bounded() 
 
     assert_eq!(actual, expected);
     assert_eq!(actual.len() * 4, 24);
-    assert_eq!(fixtures.len(), 1_438);
+    assert_eq!(fixtures.len(), 1_448);
 }
 
 fn fri07_c04_fixture_sources() -> [&'static str; 6] {
@@ -311,7 +556,7 @@ fn fri07_c04_browser_parity_final_inventory_and_report_are_closed() {
         support::fixture_files_in(&corpus.join("html"), "html")
             .expect("HTML corpus inventory")
             .len(),
-        1_438
+        1_448
     );
     assert_eq!(
         support::fixture_files_in(&corpus.join("xml"), "xml")
@@ -722,7 +967,7 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
         "grid/fri04_track_math_functions.html",
     ];
 
-    assert_eq!(html.len(), 1438);
+    assert_eq!(html.len(), 1448);
     for source in sources {
         assert!(
             html.contains(&html_root.join(source)),
@@ -3074,10 +3319,10 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .filter(|fixture| is_under_suite(fixture, "grid-lanes"))
         .count();
 
-    assert_eq!(taffy_plus_local_count, 1192);
-    assert_eq!(subgrid_count, 219);
-    assert_eq!(grid_lanes_count, 27);
-    assert_eq!(fixtures.len(), 1438);
+    assert_eq!(taffy_plus_local_count, 1200);
+    assert_eq!(subgrid_count, 220);
+    assert_eq!(grid_lanes_count, 28);
+    assert_eq!(fixtures.len(), 1448);
 
     for source in [
         "flex/fri03_order_modified_flex.html",

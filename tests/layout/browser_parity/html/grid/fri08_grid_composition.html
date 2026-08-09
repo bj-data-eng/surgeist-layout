@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-08 grid composition</title>
+</head>
+<body>
+
+<!-- Dense placement, named topology, order, spanning, and canonical overflow compose without a second owner. -->
+<div id="test-root" style="display: grid; grid-auto-flow: row dense; grid-template-areas: &quot;head head side&quot;; grid-template-columns: 40px 40px 40px; grid-template-rows: 20px; grid-auto-rows: 20px; gap: 5px; width: 130px; height: 45px; overflow: hidden; justify-content: start; align-content: start;">
+  <div style="grid-area: side; width: 40px; height: 20px;"></div>
+  <div style="order: -1; grid-column: span 2; width: 85px; height: 20px;"></div>
+  <div style="width: 40px; height: 20px;"></div>
+  <div style="position: absolute; width: 7px; height: 5px;"></div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-08 fit-content flex composition</title>
+</head>
+<body>
+
+<!-- Fit-content, a sub-one flex factor, and an auto maximum share the ordinary sizing and stretch phases. -->
+<div id="test-root" style="display: grid; grid-template-columns: fit-content(50px) 0.5fr minmax(0px, auto); grid-template-rows: 20px; justify-content: stretch; align-content: start; width: 200px; height: 20px;">
+  <div style="width: 20px; height: 20px;"></div>
+  <div style="min-width: 0; height: 20px;"></div>
+  <div style="min-width: 0; height: 20px;"></div>
+</div>
+
+</body>
+</html>

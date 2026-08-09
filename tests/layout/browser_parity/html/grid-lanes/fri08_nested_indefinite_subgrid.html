@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-08 nested indefinite grid-lanes subgrid</title>
+</head>
+<body>
+
+<!-- Descendant contributions cross two indefinite grid-lanes subgrids and size every candidate parent track. -->
+<div id="test-root" style="display: grid-lanes; grid-template-columns: auto auto auto; grid-template-rows: 10px; width: max-content; height: 10px; justify-content: start; align-content: start;">
+  <div style="display: grid-lanes; grid-template-columns: subgrid; grid-template-rows: 10px; grid-column: 1 / span 3; grid-row: 1;">
+    <div style="display: grid-lanes; grid-template-columns: subgrid; grid-template-rows: 10px; grid-column: 1 / span 3; grid-row: 1;">
+      <div style="grid-column: 1; grid-row: 1; width: 20px; height: 10px;"></div>
+      <div style="grid-column: 3; grid-row: 1; width: 40px; height: 10px;"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

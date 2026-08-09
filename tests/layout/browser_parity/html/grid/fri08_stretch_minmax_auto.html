@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-08 minmax auto stretch</title>
+</head>
+<body>
+
+<!-- Both tracks have auto maxima, so positive remaining space stretches them while each minimum remains a floor. -->
+<div id="test-root" style="display: grid; grid-template-columns: minmax(30px, auto) minmax(min-content, auto); grid-template-rows: 20px; justify-content: stretch; align-content: start; width: 200px; height: 20px;">
+  <div style="width: 30px; height: 20px;"></div>
+  <div style="width: 50px; height: 20px;"></div>
+</div>
+
+</body>
+</html>

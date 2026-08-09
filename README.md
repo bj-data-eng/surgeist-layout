@@ -114,6 +114,36 @@ replacedness, invalidation, consumer migration and renames, facade composition,
 integration, and generated API artifacts; this crate carries no root adapters or
 API artifact copies.
 
+## Normalized Grid Boundary
+
+The grid front door consumes normalized layout facts. Layout owns finite track
+components and repetitions, explicit and implicit topology, integer placement,
+named lines and validated template-area cells, auto flow, gaps, alignment,
+layout-ready order and replacedness, flow axes, and canonical physical box and
+scroll output. Lengths, percentages, intrinsic keywords, fit-content limits,
+and flex factors enter through their existing validated property domains; this
+boundary is not an authored-CSS grammar.
+
+The implemented CSS Grid Level 2 subset is deliberately narrower than broad
+conformance: ordinary grids and inherited-axis subgrids compose through shared
+topology, placement-before-sizing, auto-fit occupancy, fit-content/flex sizing,
+auto-maximum stretch, named occurrences, template areas, standalone-axis
+measurement boundaries, inherited baseline data, and canonical overflow
+contribution. Baseline grouping remains the existing inherited-axis model.
+Grid-aligned positioned layout, additional baseline distribution, and
+fragmentation remain separately owned work.
+
+The experimental CSS Grid Level 3 subset is limited to `grid-lanes` single-axis
+packing: hybrid item containing blocks, intrinsic candidate projection,
+lanes-specific auto-fit collapse, and nested indefinite subgrid contribution
+projection. It does not claim stacking-axis grid-lanes baseline alignment or
+complete Level 3 behavior.
+
+Root `surgeist` owns authored CSS parsing, cascade and computed-value
+normalization, lowering into these finite inputs, cross-crate integration,
+retained identity, and generated API artifacts. The browser fixture adapter is
+only a constrained layout-ready test bridge and is not a second CSS front door.
+
 ## Geometry, Flow, And Scroll Contracts
 
 The public physical geometry contract uses x/y points, width/height sizes, and

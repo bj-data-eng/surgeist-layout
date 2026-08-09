@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-08 template areas and explicit tracks</title>
+</head>
+<body>
+
+<!-- Valid template areas and explicit track lists establish the same named topology. -->
+<div id="test-root" style="display: grid; grid-template-areas: &quot;head head&quot; &quot;nav main&quot;; grid-template-columns: 30px 50px; grid-template-rows: 20px 20px; justify-content: start; align-content: start;">
+  <div style="grid-area: head;"></div>
+  <div style="grid-area: nav;"></div>
+  <div style="grid-area: main;"></div>
+</div>
+
+</body>
+</html>

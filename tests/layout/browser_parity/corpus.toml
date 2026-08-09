@@ -139,6 +139,76 @@ status = "expected-fail"
 reason = "Chrome 149.0.7827.115 places child zero at y=6 instead of 27 in LTR and y=134 instead of 113 in RTL for both box modes after valid zero clip-box lowering; CSS Flexbox section 4.4 and WPT collapse oracles require collapsed-item removal with a retained strut; revalidate on a Chrome pin/profile change, CSS/WPT expectation change, or Chrome collapsed-flex-strut support"
 
 [[cases]]
+id = "grid/fri08_auto_placement_span_after_occupied"
+source_root = "surgeist"
+source = "grid/fri08_auto_placement_span_after_occupied.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri08_explicit_overlap_no_implicit_growth"
+source_root = "surgeist"
+source = "grid/fri08_explicit_overlap_no_implicit_growth.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri08_fit_content_flex_composition"
+source_root = "surgeist"
+source = "grid/fri08_fit_content_flex_composition.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri08_template_areas_explicit_tracks"
+source_root = "surgeist"
+source = "grid/fri08_template_areas_explicit_tracks.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri08_auto_fit_occupied_track_collapse"
+source_root = "surgeist"
+source = "grid/fri08_auto_fit_occupied_track_collapse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri08_stretch_minmax_auto"
+source_root = "surgeist"
+source = "grid/fri08_stretch_minmax_auto.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri08_duplicate_line_name_token"
+source_root = "surgeist"
+source = "grid/fri08_duplicate_line_name_token.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri08_grid_composition"
+source_root = "surgeist"
+source = "grid/fri08_grid_composition.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/fri08_nested_indefinite_subgrid"
+source_root = "surgeist"
+source = "grid-lanes/fri08_nested_indefinite_subgrid.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/fri08_standalone_intrinsic_composition"
+source_root = "surgeist"
+source = "subgrid/fri08_standalone_intrinsic_composition.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
 id = "grid/fri03_order_modified_grid"
 source_root = "surgeist"
 source = "grid/fri03_order_modified_grid.html"

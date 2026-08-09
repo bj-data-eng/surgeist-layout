@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-08 explicit overlap has no implicit growth</title>
+</head>
+<body>
+
+<!-- Definite overlapping items occupy one explicit cell without creating another track. -->
+<div id="test-root" style="display: grid; grid-template-columns: 40px 40px 40px; grid-template-rows: 20px; grid-auto-rows: 30px; width: 120px; justify-content: start; align-content: start;">
+  <div style="grid-column: 2; grid-row: 1; width: 40px; height: 20px;"></div>
+  <div style="grid-column: 2; grid-row: 1; width: 25px; height: 10px;"></div>
+</div>
+
+</body>
+</html>

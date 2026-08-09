@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-08 standalone intrinsic subgrid composition</title>
+</head>
+<body>
+
+<!-- A nested one-axis subgrid terminates at a standalone min-content column measurement boundary. -->
+<div id="test-root" style="display: inline-grid; grid-template-columns: auto; grid-template-rows: auto auto; justify-content: start; align-content: start;">
+  <div style="display: grid; grid-template-columns: auto; grid-template-rows: subgrid; grid-row: 1 / span 2;">
+    <div style="display: grid; grid-template-columns: min-content; grid-template-rows: subgrid; grid-row: 1 / span 2; grid-auto-flow: column; min-width: min-content;">
+      <div style="width: 100px; height: 50px;"></div>
+      <div style="width: 100px; height: 50px;"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

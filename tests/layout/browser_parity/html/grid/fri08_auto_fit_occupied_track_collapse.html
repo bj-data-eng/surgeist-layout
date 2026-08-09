@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-08 occupied auto-fit track collapse</title>
+</head>
+<body>
+
+<!-- Explicit overlap and an automatic span keep only occupied auto-fit tracks and their active gaps open. -->
+<div id="test-root" style="display: grid; grid-template-columns: repeat(auto-fit, [slot] 40px); grid-template-rows: 20px; column-gap: 10px; width: 240px; height: 20px; justify-content: start; align-content: start;">
+  <div style="grid-column: 3; grid-row: 1; height: 10px;"></div>
+  <div style="grid-column: 3; grid-row: 1; height: 10px;"></div>
+  <div style="grid-column: 1; grid-row: 1; height: 10px;"></div>
+  <div style="grid-column: span 2; grid-row: 1; height: 10px;"></div>
+</div>
+
+</body>
+</html>
