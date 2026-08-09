@@ -11,57 +11,60 @@ Cycle base: `7c761f618a9779b947864272126ee791d441d168`
 Reviewed specification:
 `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`, normalized
 semantic-content SHA-256
-`150c26e6c5b5fa703f090e861261ea2f03a7662caf4f83dfa52f49e40accb0ba`,
-commit `c7d10c23c0cdfebfba6a6606d9ea5b89352572f5`: complete `FRI-08.13` and
-the artifact, verification, architecture, finding, handoff, and acceptance
-portions of `FRI-08.14` through `FRI-08.19`.
+`a636dd9c9b896e2986fd13ab303f8506fba7eec6b0ba909e542eee9dc39770e6`,
+commit `09bab4edc2bbff4aad42469937a328d0724989c0`: corrected
+`FRI-08.3.2`, `D-07`, and `FRI-08.8.1`; complete `FRI-08.13`; and the
+artifact, verification, architecture, finding, handoff, and acceptance portions
+of `FRI-08.14` through `FRI-08.19`.
 
 Reviewed implementation sequence:
 `plans/sequences/P01-I08-S01-grid-subgrid-and-grid-lanes-completeness.md`,
 normalized semantic-content SHA-256
-`62e6b43402a038e7df5bc22e5c28ee40b7e7ae1a1ac6fc28224c12626cc9ca7c`,
-commit `75801ea77e37af28c0dda32a28fd1647123e1293`, entry
+`5c0cadc59d5aea8863c1038a7f131b2549f527fd0e74a18f2bac468974b20324`,
+commit `dfb7768c68def72b19e08199b91ef65914e12a9a`, entry
 `P01/I08/S01/C06`.
 
-Bounded outcome: perform the sole unfiltered full ExistingPinned derivation of
-the settled C05 browser inputs, adopt exactly 40 new XML outputs and the updated
-sole schema-3 `all.json`, and publish a remotely verified behavior/artifact
-candidate. The run is authoritative; every post-run check is read-only.
+Bounded outcome: adopt the exact 40 outputs and sole schema-3 report from the
+already-completed authoritative ExistingPinned run, correct the one
+browser-exposed ordinary auto-fit gutter defect without another generation, and
+publish a remotely verified behavior/artifact candidate whose 72 owned rows
+pass.
 
 ## 1 Boundary And Entry Evidence
 
-The remotely verified C05 candidate at the cycle base is immutable. Production
-behavior, public API state, helper, adapter, generator production, ten new HTML
-sources and case records, expected geometry, browser pin/profile, and all other
-corpus inputs are settled.
+The remotely verified C05 candidate at the cycle base is immutable. Public API,
+helper, adapter, generator production, ten new HTML sources and case records,
+expected geometry, browser pin/profile, and all other corpus inputs are settled.
 
-At the cycle base:
+The first reviewed C06 plan authorized one unfiltered ExistingPinned invocation.
+The worker proved RED on stale report lineage and 40 missing owned outputs,
+changed only the derived full-report expectation from 5,736 to 5,776 plus
+focused tests, verified Chrome for Testing `149.0.7827.115` at the manifest-owned
+path, and invoked the exact authoritative command once. It exited zero. No
+filtered or managed run, acquisition, retry, cleanup, manual artifact edit, or
+commit occurred.
 
-- the worktree is clean on `main`, local and remote `main` are the cycle base;
-- the corpus contains 1,448 HTML and 5,736 comment-free XML files;
-- the exact ten new sources exist as active Surgeist constrained-HTML records,
-  but their 40 standard four-variant XML paths are absent;
-- the eight adopted control sources already own 32 XML paths, making the exact
-  FRI-08 inventory 18 sources and 72 unique rows;
-- `all.json` reports 5,736 generated, 16 unsupported, three FRI-07
-  expected-fail source records, zero quarantined, and zero failed-to-generate;
-- SHA-256 values are `corpus.toml`
-  `f104b274bb561ef601348a101159cd839f8e0704d633697eea0d1b56a6a4beb6`,
-  helper
-  `c684c7f167d95997a4a9f0250467bbaf72c1b73e69e0f707a2ef32f4d25f7f36`,
-  and `all.json`
-  `5c560f240d27ad28d00023156b0bf2744aa8392d34fe916d800e02894e10353f`;
-- `just corpus-check` has the reviewed C06-entry failure because `all.json`
-  still binds the prior helper/manifest lineage; other C05 gates are green;
-- the manifest pins Chrome for Testing `149.0.7827.115` and the exact installed,
-  executable path exists at
-  `target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
-  no acquisition is authorized; and
-- `corpus.toml` necessarily changes its derived full-report expectation from
-  5,736 to 5,776 before generation. This is C06 artifact accounting, not a case,
-  source, helper, adapter, browser, or geometry input change. The generator
-  hashes the manifest into `all.json`, so changing this field after derivation
-  would create stale lineage and editing the report by hand is forbidden.
+The preserved post-run state is:
+
+- 1,448 HTML and 5,776 comment-free XML files;
+- exactly 40 untracked XML additions at the ten new source/four-variant paths,
+  no XML deletion, and no tracked base-XML body rewrite;
+- one modified sole `all.json`, schema 3 with a null filter and buckets 5,776
+  generated, 16 unsupported, three FRI-07 expected-fail, zero quarantined, and
+  zero failed-to-generate;
+- modified C06 tests and the sole manifest count, with helper, adapter,
+  generator production, HTML, browser input, and expected geometry unchanged;
+- seven focused generator tests green; and
+- exact owned layout parity RED only at the first checked new row:
+  `fri08_auto_fit_occupied_track_collapse__border_box_ltr/0` expects x `50`
+  while production returns x `40`.
+
+The generated XML is correct. Corrected `D-07` and CSS Grid Level 2 require the
+two gutters adjacent to an interior collapsed track to coincide, leaving one
+shared `10px` gap between the nearest active tracks. Current
+`OrdinaryGridAxisGuttersOf::new` independently zeros both boundaries, erasing
+that shared gap. C06 must retain the valid artifacts and correct production
+browser-free; a second generation is neither necessary nor authorized.
 
 The exact new sources are:
 
@@ -79,99 +82,124 @@ The exact new sources are:
 The exact adopted controls remain the eight sources in `FRI-08.13.1`. They are
 acceptance evidence, not regenerated additions.
 
-Out of scope: production, public API, model, errors, reexports, docs, helper,
-adapter, serializer, generator production, HTML, expected geometry, case
-identity/status/reason, browser pin/profile, launch arguments, base style,
-dependencies, features, lockfile, MSRV, task runner, root/sibling work, Taffy
-import, WPT mirror, new generator path or command, filtered/scoped generation,
-managed-browser generation, acquisition, second report/provenance authority,
-new expected-fail/quarantine/failure record, manual XML/report edits, a second
-generation invocation, suppression, unsafe, and unrelated cleanup.
+Out of scope: public API/model/errors/reexports, docs, helper, adapter,
+serializer, generator production, HTML, expected geometry, case
+identity/status/reason, browser pin/profile/arguments, base style, dependencies,
+features, lockfile, MSRV, task runner, root/sibling work, Taffy import, WPT
+mirror, new generator path or command, any further generation, acquisition,
+second report/provenance authority, FRI-08 exception bucket, manual XML/report
+edit, lanes auto-fit policy redesign, suppression, unsafe, and unrelated cleanup.
 
 ## 2 Impacts
 
-Public API, production behavior, dependencies, features, lockfile, MSRV, docs,
-root integration, and browser policy: unchanged.
+Public API, dependencies, features, lockfile, MSRV, docs, root integration, and
+browser policy: unchanged. Production behavior changes only for corrected
+ordinary collapsed-gutter geometry under `D-07`; lanes policy remains separate.
 
 Manifest: only `[generation_reports.full].generated = 5736` becomes `5776`
-before derivation. All other bytes and semantic records remain unchanged.
+in the preserved pre-run state. All other semantic records remain unchanged.
 
 Generated artifacts: exactly 40 new FRI-08 XML files join the 5,736 existing
-comment-free XML files. The authoritative generator may rewrite existing XML
-only when settled current inputs require it. `all.json` is replaced in place and
-remains the sole provenance authority, binding global manifest/helper/base-style/
-browser/profile facts and every source/resource/XML hash.
+comment-free XML files; no existing body changed. `all.json` is replaced in
+place and remains the sole provenance authority, binding global manifest/helper/
+base-style/browser/profile facts and every source/resource/XML hash.
 
-## 3 Task
+## 3 Tasks
 
-### 3.1 `P01/I08/S01/C06/T01` Derive And Validate The Full Corpus Once
+### 3.1 `P01/I08/S01/C06/T01` Adopt The Sole Derived Corpus Lineage
 
-**Files/area:** the one report-count field in
-`tests/layout/browser_parity/corpus.toml`; C06-only inventory, lineage, and
-parity tests in `tests/bin/surgeist-layout-generate/generator.rs` and
-`tests/layout/browser_parity.rs`; generator-derived
-`tests/layout/browser_parity/xml/**/*.xml`; and the sole
+**Files/area:** the preserved changes in the one report-count field of
+`tests/layout/browser_parity/corpus.toml`; C06 artifact/inventory/lineage tests
+in `tests/bin/surgeist-layout-generate/generator.rs` and
+`tests/layout/browser_parity.rs`; exactly 40 generator-derived
+`tests/layout/browser_parity/xml/**/*.xml` additions; and the sole
 `tests/layout/browser_parity/xml/generation-reports/all.json`.
 
-**Outcome:** prove the final accounting and immutable inputs, invoke the
-authoritative ExistingPinned generator exactly once, then adopt and validate its
-complete 5,776-output lineage without a manual artifact edit.
+**Outcome:** curate and commit the already-derived artifact state as complete,
+current centralized provenance. This task does not invoke a browser or require
+production parity green; it preserves the exact generated `x=50` row as T02's
+authoritative behavioral RED.
 
-**RED evidence before invocation:** add focused `fri08_c06_` tests that freeze
-the exact 18-source/72-row inventory, require the manifest full-report count
-5,776, require exactly 40 absent new outputs at the task base, require the final
-report metadata/counts/hash coverage and final exact parity set, and reject any
-FRI-08 exception bucket. Before derivation, artifact assertions fail because the
-40 new XML paths and current report lineage do not exist. Do not substitute
-hand-written XML or report data for this RED.
+**Authoritative refresh evidence:** the prior worker recorded the exact
+pre-run RED, browser path/version, one invocation, zero exit, 40 additions, no
+base rewrite/deletion, and final buckets. Do not manufacture a second RED or
+rerun generation. Remove or defer only a test whose name/acceptance incorrectly
+requires production parity within T01; preserve inventory, parser, provenance,
+hash, source, exception, and no-comment tests.
 
-**Pre-derivation acceptance:** the diff is limited to the one manifest count and
-focused tests; all ten case records remain exact active Surgeist records; the
-ten new HTML files, helper, adapter/parser, generator production prefix, base
-style, browser manifest/profile, expected geometry, existing 5,736 XML bodies,
-and existing report are byte-frozen against C05. The prospective output matrix
-is exactly 40 missing paths with no collision. The report directory contains
-only `all.json`. No generation lease is active; generation-filter, alternate
-root, cache, and version overrides are absent or explicitly cleared. The exact
-browser path is executable and its version probe reports
-`Google Chrome for Testing 149.0.7827.115`. The version probe and generation
-must use the already-present executable and may not fetch or install software.
-
-**Sole derivation command:** after all pre-derivation acceptance evidence, run
-this exact command once:
-
-```sh
-env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_LAYOUT_GENERATE_FILTER= SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
-```
-
-If this invocation exits nonzero or yields an invalid corpus, stop and report
-the exact state. Do not correct inputs, manually edit artifacts, or invoke any
-generation command again. A replacement would require a reviewed plan amendment
-that accounts for the failed invocation and grants exact replacement authority.
-
-**Final acceptance:** exactly 40 added XML files exist at the ten named
-source/four-standard-variant paths; total XML is 5,776; there are no XML
-deletions or embedded provenance comments. `all.json` is the only JSON report
-and has schema 3, a null filter, 5,776 generated entries, the same 16 unrelated
-unsupported rows, the same three FRI-07 expected-fail records, zero quarantined,
-and zero failed-to-generate. No generated entry for an FRI-08 source appears in
-any exception bucket. Global metadata matches the final manifest, helper, base
-style, browser, and launch profile. Source, linked-resource, and XML hashes are
-complete, unique, repository-relative, and current; report outputs exactly equal
-the XML inventory.
-
-All 72 owned rows pass focused parity. The later-owned FRI-09 baseline and
-FRI-10 positioned-layout mismatch controls remain separately visible and
-unchanged. Existing XML changes, if any, are enumerated and justified solely by
-settled input hashes; otherwise all 5,736 base XML files are byte-identical.
-Record final manifest, helper, report, all-XML, new-40-XML, owned-72 inventory,
-browser, bucket, and negative-control evidence. After generation every command
-is read-only.
+**Acceptance:** the diff contains only the preserved artifact/test/count files.
+Exactly 40 new XML paths form the ten-source/four-variant matrix; total XML is
+5,776; all parse; no XML contains a comment; no base XML changed or was deleted.
+`all.json` is the only report, schema 3 with null filter, and its exact buckets
+are 5,776/16/3/0/0. No FRI-08 source enters an exception. All global,
+source/resource/XML hashes and report/XML inventory identity validate against
+the final manifest/helper/base-style/browser/profile. Case rows, inputs,
+generator production, and expected geometry remain frozen. The known x
+`50`/`40` production mismatch is recorded, not suppressed or converted into an
+expected fail.
 
 **Commands:**
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri08_c06_
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just corpus-check
+CARGO_NET_OFFLINE=true just taffy-check
+cargo fmt --check
+git diff --check
+```
+
+Run deterministic scripts proving exact additions/deletions/base-body identity,
+5,776 comment-free XML, sole report and buckets, all centralized hashes, frozen
+inputs/generator production, exact scope, no new `allow`/`expect`, and zero
+unsafe matches in every owned Rust file. No command invokes generation.
+
+**Dependency:** the preserved successful one-shot state and the corrected spec,
+sequence, and plan reviews.
+
+**Intended commit:** `test(parity): derive FRI-08 grid corpus`.
+
+### 3.2 `P01/I08/S01/C06/T02` Preserve One Coincident Interior Auto-Fit Gutter
+
+**Files/area:** ordinary boundary-gutter ownership in `src/grid/tracks.rs`;
+`src/grid/alignment.rs`, `src/grid/child.rs`, `src/grid/placement.rs`,
+`src/grid/subgrid.rs`, and `src/grid/mod.rs` only where necessary to consume or
+transport the same carrier; focused tests in `src/grid_tests.rs`; and final
+owned-row parity evidence in `tests/layout/browser_parity.rs`. `src/grid/lanes.rs`
+and lanes policy are frozen. Stop before widening the production envelope.
+
+**Outcome:** represent collapsed gutters as coincident boundaries: each
+contiguous interior collapsed run retains exactly one base gap between its
+nearest non-collapsed tracks, while leading, trailing, and all-collapsed runs
+create no outer gap. Every ordinary sizing/alignment/span/absolute/subgrid/
+baseline/overflow consumer uses that one carrier without reconstructing a
+uniform gap or independently zeroing boundaries.
+
+**RED evidence:** first retain the generated
+`fri08_auto_fit_occupied_track_collapse__border_box_ltr` failure x `50` versus
+x `40`. Add or correct direct `fri08_c06_collapsed_gutter_` tests before
+production changes for one and multiple interior collapsed tracks, leading,
+trailing, and all-collapsed runs, both axes, f32/f64, start/center/distributed
+alignment, spans and absolute areas, and forward/reversed inherited subgrid
+geometry. The current carrier fails the interior cases because it zeros both
+adjacent boundaries. Existing C02 tests with the incorrect no-gap expectation
+must become corrected RED evidence, not be deleted or weakened.
+
+**Acceptance:** the generated row and all four variants match exact browser
+geometry: occupied track three starts at x `50`, and the automatic span-two item
+starts at x `100` with width `90`. Interior runs retain one shared gap regardless
+of run length; outer/all-collapsed cases retain none. Active-gap totals,
+intrinsic/flex/stretch free space, content distribution, line offsets, spans,
+absolute areas, inherited/reversed carriers, baselines, and overflow agree.
+Auto-fill, lanes auto-fit, named/negative lines, occupancy, public API, errors,
+artifacts, and inputs remain unchanged. All 72 owned rows pass; FRI-09/F10
+controls remain separately visible. No browser or generator runs.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_c06_collapsed_gutter_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_c02_auto_fit_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri08_c06_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri08_c0
 CARGO_NET_OFFLINE=true just verify
@@ -184,36 +212,30 @@ cargo fmt --check
 git diff --check
 ```
 
-Also run deterministic read-only scripts that prove the exact 40-path addition,
-zero deletion, 5,776 total XML, no embedded provenance, only `all.json`, exact
-report/XML identity, unchanged non-report manifest bytes except the count,
-unchanged helper/base-style/browser/profile/generator-production hashes, exact
-bucket projections, exact 18-source/72-row pass set, unchanged FRI-09/F10
-controls, no out-of-scope file, no new `allow`/`expect`, and zero unsafe matches
-across every tracked and non-ignored owned Rust file.
+Also prove exact T02 scope, no artifact/input/hash delta from T01, no new
+`allow`/`expect`, and zero unsafe matches in every owned Rust file.
 
-**Dependency:** remotely verified C05 candidate only.
+**Dependency:** T01 is task-clean.
 
-**Intended commit:** `test(parity): derive FRI-08 grid corpus`.
+**Intended commit:** `fix(grid): preserve coincident auto-fit gutter`.
 
 ## 4 Completion
 
 The canonical implementation, task-review, status, holistic-review, landing,
 publication, readback, and cleanup lifecycle applies. C06 acceptance is:
 
-1. the reviewed pre-run state differs from C05 only by the derived report-count
-   expectation and C06 tests;
-2. one and only one unfiltered ExistingPinned invocation through the existing
-   authoritative command produces the candidate without acquisition;
-3. the exact 40 new outputs complete the 18-source/72-row owned set, all pass,
-   and no FRI-08 exception bucket exists;
+1. one and only one unfiltered ExistingPinned invocation produced the preserved
+   artifacts without acquisition, retry, cleanup, or manual edit;
+2. the exact 40 new outputs complete the 18-source/72-row owned set and no
+   FRI-08 exception bucket exists;
+3. the corrected ordinary gutter carrier retains one coincident interior gap,
+   no outer gap, and every ordinary consumer and all 72 owned rows pass;
 4. 5,776 comment-free XML outputs and sole schema-3 `all.json` have complete,
    current, exact centralized provenance and inventory identity;
 5. the 16 unrelated unsupported variants, three FRI-07 expected-fail records,
-   later-owned FRI-09/F10 controls, settled inputs, production/public behavior,
-   dependencies/features/MSRV, and repository boundaries remain unchanged; and
+   later-owned FRI-09/F10 controls, settled inputs, public behavior outside the
+   D-07 correction, dependencies/features/MSRV, and boundaries remain unchanged;
 6. the clean immutable candidate is published to authority `main`, fetched, and
    read back by exact SHA before C07's fresh holistic sprawl assessment begins.
 
-No final or review command invokes generation. A genuine failure follows the
-explicit stop boundary above; no blocker is currently known.
+No final or review command invokes generation. No blocker is currently known.
