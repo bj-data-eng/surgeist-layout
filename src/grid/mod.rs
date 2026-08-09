@@ -407,6 +407,7 @@ where
         tree,
         node,
         GridTrackResolutionInput {
+            sizing_policy: GridTrackSizingPolicy::Ordinary,
             style: &style,
             constants: &constants,
             column_tracks: &column_tracks,
@@ -424,6 +425,7 @@ where
         },
     )?;
     let GridTrackResolution {
+        sizing_phases,
         columns,
         rows,
         column_min_intrinsic_sizes,
@@ -524,6 +526,7 @@ where
             tree,
             node,
             GridChildLayoutInput {
+                sizing_phases,
                 style: &style,
                 constants: &constants,
                 column_tracks: &column_tracks,
@@ -669,6 +672,7 @@ where
         tree,
         node,
         GridTrackResolutionInput {
+            sizing_policy: GridTrackSizingPolicy::Lanes,
             style: &style,
             constants: &constants,
             column_tracks: &column_tracks,
@@ -686,6 +690,7 @@ where
         },
     )?;
     let GridTrackResolution {
+        sizing_phases,
         columns,
         rows,
         column_min_intrinsic_sizes,
@@ -809,6 +814,7 @@ where
         let logical_available_inner_size =
             sizing_flow_axes.logical_size(constants.available_inner_size);
         let layout_columns = resolved_logical_layout_columns(
+            sizing_phases,
             &constants,
             sizing_flow_axes,
             &columns,
@@ -826,6 +832,7 @@ where
             },
         );
         let layout_rows = resolved_logical_layout_rows(ResolvedLogicalLayoutRowsInput {
+            sizing_phases,
             tracks: &row_tracks,
             constants: &constants,
             sizing_flow_axes,
@@ -1555,6 +1562,7 @@ fn raw_grid_line_is_numeric(line: &super::RawGridLine) -> bool {
 }
 
 struct GridTrackResolutionInput<'a, Node, S: LayoutScalar = Scalar> {
+    sizing_policy: GridTrackSizingPolicy,
     style: &'a NodeInputOf<S>,
     constants: &'a Constants<S>,
     column_tracks: &'a [TrackSizingOf<S>],
@@ -1567,7 +1575,40 @@ struct GridTrackResolutionInput<'a, Node, S: LayoutScalar = Scalar> {
     placements: &'a GridPlacementContext<Node>,
 }
 
+#[derive(Clone, Copy)]
+enum GridTrackSizingPolicy {
+    Ordinary,
+    Lanes,
+}
+
+type InlineTrackResolver<S> = for<'a> fn(InlineTrackInput<'a, S>) -> Vec<S>;
+type BlockTrackResolver<S> = fn(&[TrackSizingOf<S>], Option<S>, S, AlignContent, &[S]) -> Vec<S>;
+
+#[derive(Clone, Copy)]
+struct GridTrackSizingPhases<S: LayoutScalar> {
+    inline: InlineTrackResolver<S>,
+    block: BlockTrackResolver<S>,
+}
+
+impl<S: LayoutScalar> GridTrackSizingPhases<S> {
+    fn resolve_inline(self, input: InlineTrackInput<'_, S>) -> Vec<S> {
+        (self.inline)(input)
+    }
+
+    fn resolve_block(
+        self,
+        tracks: &[TrackSizingOf<S>],
+        basis: Option<S>,
+        gap: S,
+        alignment: AlignContent,
+        intrinsic_sizes: &[S],
+    ) -> Vec<S> {
+        (self.block)(tracks, basis, gap, alignment, intrinsic_sizes)
+    }
+}
+
 struct GridTrackResolution<S: LayoutScalar = Scalar> {
+    sizing_phases: GridTrackSizingPhases<S>,
     columns: Vec<S>,
     rows: Vec<S>,
     column_min_intrinsic_sizes: Vec<S>,
@@ -1584,6 +1625,7 @@ where
     Tree: Compute<M>,
 {
     let GridTrackResolutionInput {
+        sizing_policy,
         style,
         constants,
         column_tracks,
@@ -1595,6 +1637,16 @@ where
         intrinsic_max_available,
         placements,
     } = input;
+    let sizing_phases = match sizing_policy {
+        GridTrackSizingPolicy::Ordinary => GridTrackSizingPhases {
+            inline: resolve_inline_tracks::<Tree::Scalar>,
+            block: resolve_tracks::<Tree::Scalar>,
+        },
+        GridTrackSizingPolicy::Lanes => GridTrackSizingPhases {
+            inline: resolve_lanes_inline_tracks::<Tree::Scalar>,
+            block: resolve_lanes_tracks::<Tree::Scalar>,
+        },
+    };
     let GridContainerContext {
         topology,
         gap,
@@ -1732,7 +1784,7 @@ where
         mixed_column_intrinsic_sizes.as_slice()
     };
     let mut columns = {
-        resolve_inline_tracks(InlineTrackInput {
+        sizing_phases.resolve_inline(InlineTrackInput {
             tracks: column_tracks,
             basis: column_basis,
             definite_size: logical_node_inner_size.inline,
@@ -1753,7 +1805,7 @@ where
             (max_inline - logical_content_box_inset_size.inline).max(Tree::Scalar::ZERO);
         if track_sum(&columns, gap.inline) > max_inner_inline {
             columns = {
-                resolve_inline_tracks(InlineTrackInput {
+                sizing_phases.resolve_inline(InlineTrackInput {
                     tracks: column_tracks,
                     basis: column_basis,
                     definite_size: logical_node_inner_size.inline,
@@ -1798,7 +1850,7 @@ where
         merge_lane_intrinsic_lower_bounds(&mut row_intrinsic_sizes, lane_rows);
     }
     let mut rows = {
-        resolve_tracks(
+        sizing_phases.resolve_block(
             row_tracks,
             row_basis,
             gap.block,
@@ -1838,7 +1890,7 @@ where
             mixed_column_intrinsic_sizes.as_slice()
         };
         columns = {
-            resolve_inline_tracks(InlineTrackInput {
+            sizing_phases.resolve_inline(InlineTrackInput {
                 tracks: column_tracks,
                 basis: column_basis,
                 definite_size: logical_node_inner_size.inline,
@@ -1861,7 +1913,7 @@ where
             .map(|(unconstrained, constrained)| unconstrained.max(constrained))
             .collect::<Vec<_>>();
         rows = {
-            resolve_tracks(
+            sizing_phases.resolve_block(
                 row_tracks,
                 row_basis,
                 gap.block,
@@ -1872,6 +1924,7 @@ where
     }
 
     Ok(GridTrackResolution {
+        sizing_phases,
         columns,
         rows,
         column_min_intrinsic_sizes,
@@ -1914,6 +1967,7 @@ fn merge_lane_intrinsic_lower_bounds<S: LayoutScalar>(
 }
 
 struct GridChildLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
+    sizing_phases: GridTrackSizingPhases<S>,
     style: &'a NodeInputOf<S>,
     constants: &'a Constants<S>,
     column_tracks: &'a [TrackSizingOf<S>],
@@ -1940,6 +1994,7 @@ where
     Tree: Compute<M>,
 {
     let GridChildLayoutInput {
+        sizing_phases,
         style,
         constants,
         column_tracks,
@@ -2043,7 +2098,7 @@ where
             )
         };
     let layout_intrinsic_columns = if layout_gap != gap || rerun_percent_columns {
-        resolve_inline_tracks(InlineTrackInput {
+        sizing_phases.resolve_inline(InlineTrackInput {
             tracks: column_tracks,
             basis: column_basis,
             definite_size: logical_node_inner_size.inline,
@@ -2058,6 +2113,7 @@ where
         columns.to_vec()
     };
     let layout_columns = resolved_logical_layout_columns(
+        sizing_phases,
         constants,
         sizing_flow_axes,
         &layout_intrinsic_columns,
@@ -2114,6 +2170,7 @@ where
         row_intrinsic_sizes.to_vec()
     };
     let layout_rows = resolved_logical_layout_rows(ResolvedLogicalLayoutRowsInput {
+        sizing_phases,
         tracks: row_tracks,
         constants,
         sizing_flow_axes,
@@ -2211,6 +2268,7 @@ where
 }
 
 fn resolved_logical_layout_columns<S: LayoutScalar>(
+    sizing_phases: GridTrackSizingPhases<S>,
     constants: &Constants<S>,
     sizing_flow_axes: crate::geometry::FlowAxes,
     intrinsic_columns: &[S],
@@ -2236,7 +2294,7 @@ fn resolved_logical_layout_columns<S: LayoutScalar>(
                 <= S::from_f64(0.001)
     });
     let resolution_inline = percent_floor_basis.unwrap_or(content_inline);
-    resolve_inline_tracks(InlineTrackInput {
+    sizing_phases.resolve_inline(InlineTrackInput {
         basis: Some(resolution_inline),
         definite_size: Some(resolution_inline),
         available_size: logical_available_inner_size.inline,
@@ -2245,6 +2303,7 @@ fn resolved_logical_layout_columns<S: LayoutScalar>(
 }
 
 struct ResolvedLogicalLayoutRowsInput<'a, S: LayoutScalar = Scalar> {
+    sizing_phases: GridTrackSizingPhases<S>,
     tracks: &'a [TrackSizingOf<S>],
     constants: &'a Constants<S>,
     sizing_flow_axes: crate::geometry::FlowAxes,
@@ -2259,6 +2318,7 @@ fn resolved_logical_layout_rows<S: LayoutScalar>(
     input: ResolvedLogicalLayoutRowsInput<'_, S>,
 ) -> Vec<S> {
     let ResolvedLogicalLayoutRowsInput {
+        sizing_phases,
         tracks,
         constants,
         sizing_flow_axes,
@@ -2277,7 +2337,7 @@ fn resolved_logical_layout_rows<S: LayoutScalar>(
     let logical_content_box_inset_size =
         sizing_flow_axes.logical_size(constants.content_box_inset.sum_axes());
     let content_block = (output_block - logical_content_box_inset_size.block).max(S::ZERO);
-    resolve_tracks(tracks, Some(content_block), gap, alignment, intrinsic_sizes)
+    sizing_phases.resolve_block(tracks, Some(content_block), gap, alignment, intrinsic_sizes)
 }
 
 fn track_needs_layout_resolution<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {

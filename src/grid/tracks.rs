@@ -3232,7 +3232,7 @@ pub(super) fn intrinsic_contribution_margin<S: LayoutScalar>(
     ))
 }
 
-pub(super) fn resolve_tracks<S: LayoutScalar>(
+pub(super) fn resolve_lanes_tracks<S: LayoutScalar>(
     tracks: &[TrackSizingOf<S>],
     basis: Option<S>,
     gap: S,
@@ -3414,7 +3414,9 @@ pub(super) fn track_flex_factor<S: LayoutScalar>(track: &TrackSizingOf<S>) -> Op
     }
 }
 
-pub(super) fn resolve_inline_tracks<S: LayoutScalar>(input: InlineTrackInput<'_, S>) -> Vec<S> {
+pub(super) fn resolve_lanes_inline_tracks<S: LayoutScalar>(
+    input: InlineTrackInput<'_, S>,
+) -> Vec<S> {
     let InlineTrackInput {
         tracks,
         basis,
@@ -3427,7 +3429,7 @@ pub(super) fn resolve_inline_tracks<S: LayoutScalar>(input: InlineTrackInput<'_,
         max_intrinsic_sizes,
     } = input;
 
-    let max_tracks = resolve_tracks_with_intrinsics(
+    let max_tracks = resolve_lanes_tracks_with_intrinsics(
         tracks,
         basis,
         gap,
@@ -3460,7 +3462,7 @@ pub(super) fn resolve_inline_tracks<S: LayoutScalar>(input: InlineTrackInput<'_,
         );
     }
 
-    resolve_tracks_with_intrinsics(
+    resolve_lanes_tracks_with_intrinsics(
         tracks,
         basis.or_else(|| {
             stretch_empty_auto_track_basis(
@@ -3532,7 +3534,7 @@ pub(super) fn resolve_track_min_bounds<S: LayoutScalar>(
         .collect()
 }
 
-pub(super) fn resolve_tracks_with_intrinsics<S: LayoutScalar>(
+pub(super) fn resolve_lanes_tracks_with_intrinsics<S: LayoutScalar>(
     tracks: &[TrackSizingOf<S>],
     basis: Option<S>,
     gap: S,
@@ -3625,6 +3627,245 @@ pub(super) fn resolve_tracks_with_intrinsics<S: LayoutScalar>(
             }
         })
         .collect()
+}
+
+#[derive(Clone)]
+struct OrdinaryTrackState<'a, S: LayoutScalar> {
+    sizing_functions: &'a TrackSizingOf<S>,
+    base_size: S,
+    growth_limit: Option<S>,
+    fit_content_limit: Option<S>,
+    flex_factor: Option<S>,
+    auto_max_stretch_eligible: bool,
+    collapsed: bool,
+}
+
+impl<'a, S: LayoutScalar> OrdinaryTrackState<'a, S> {
+    fn new(sizing_functions: &'a TrackSizingOf<S>, collapsed: bool) -> Self {
+        Self {
+            sizing_functions,
+            base_size: S::ZERO,
+            growth_limit: None,
+            fit_content_limit: None,
+            flex_factor: track_flex_factor(sizing_functions),
+            auto_max_stretch_eligible: matches!(
+                sizing_functions,
+                TrackSizingOf {
+                    min: MinTrackSizingOf::Auto,
+                    max: MaxTrackSizingOf::Auto
+                }
+            ),
+            collapsed,
+        }
+    }
+
+    fn apply_intrinsic_contributions(
+        &mut self,
+        basis: Option<S>,
+        min_intrinsic: S,
+        max_intrinsic: S,
+    ) {
+        if self.collapsed {
+            self.base_size = S::ZERO;
+            self.growth_limit = Some(S::ZERO);
+            self.fit_content_limit = None;
+            self.flex_factor = None;
+            self.auto_max_stretch_eligible = false;
+            return;
+        }
+
+        self.fit_content_limit = match &self.sizing_functions.max {
+            MaxTrackSizingOf::FitContent(limit) => Some(resolution_or_fallback(
+                resolve_track_calculation(limit, basis),
+                max_intrinsic,
+            )),
+            _ => None,
+        };
+        self.base_size = match self.fit_content_limit {
+            Some(limit) => max_intrinsic.min(min_intrinsic.max(limit)),
+            None => match self.sizing_functions.max {
+                MaxTrackSizingOf::Flex(_) => max_intrinsic.max(track_min_size_for_intrinsics(
+                    &self.sizing_functions.min,
+                    basis,
+                    min_intrinsic,
+                    max_intrinsic,
+                )),
+                _ => track_base_size_for_intrinsics(
+                    self.sizing_functions,
+                    basis,
+                    min_intrinsic,
+                    max_intrinsic,
+                ),
+            },
+        };
+        self.growth_limit = self
+            .fit_content_limit
+            .map(|limit| max_intrinsic.min(min_intrinsic.max(limit)))
+            .or_else(|| {
+                track_growth_limit_for_intrinsics(
+                    self.sizing_functions,
+                    basis,
+                    min_intrinsic,
+                    max_intrinsic,
+                )
+            });
+        let floor = track_growth_floor_for_intrinsics(
+            self.sizing_functions,
+            basis,
+            min_intrinsic,
+            max_intrinsic,
+        );
+        if let Some(growth_limit) = self.growth_limit {
+            self.base_size = self.base_size.min(growth_limit.max(floor));
+        }
+    }
+}
+
+fn ordinary_track_states<'a, S: LayoutScalar>(
+    tracks: &'a [TrackSizingOf<S>],
+    basis: Option<S>,
+    min_intrinsic_sizes: &[S],
+    max_intrinsic_sizes: &[S],
+) -> Vec<OrdinaryTrackState<'a, S>> {
+    tracks
+        .iter()
+        .enumerate()
+        .map(|(index, track)| {
+            let mut state = OrdinaryTrackState::new(track, false);
+            state.apply_intrinsic_contributions(
+                basis,
+                intrinsic_at(min_intrinsic_sizes, index),
+                intrinsic_at(max_intrinsic_sizes, index),
+            );
+            state
+        })
+        .collect()
+}
+
+fn resolve_ordinary_track_phases<S: LayoutScalar>(
+    tracks: &[TrackSizingOf<S>],
+    basis: Option<S>,
+    gap: S,
+    alignment: AlignContent,
+    min_intrinsic_sizes: &[S],
+    max_intrinsic_sizes: &[S],
+) -> Vec<S> {
+    let gap_total = gap * S::from_usize(tracks.len().saturating_sub(1));
+    let mut states = ordinary_track_states(tracks, basis, min_intrinsic_sizes, max_intrinsic_sizes);
+    let base_sizes = states
+        .iter()
+        .map(|state| state.base_size)
+        .collect::<Vec<_>>();
+    let fr_size = resolve_flex_fraction(tracks, &base_sizes, basis.map(|size| size - gap_total));
+    for state in &mut states {
+        if let Some(flex_factor) = state.flex_factor {
+            state.base_size = state.base_size.max(flex_factor * fr_size);
+        }
+    }
+
+    let flex_used = states
+        .iter()
+        .filter(|state| state.flex_factor.is_some())
+        .map(|state| state.base_size)
+        .fold(S::ZERO, |sum, value| sum + value);
+    let fixed_sum = states
+        .iter()
+        .filter(|state| state.flex_factor.is_none())
+        .map(|state| state.base_size)
+        .fold(S::ZERO, |sum, value| sum + value);
+    let auto_count = states
+        .iter()
+        .filter(|state| state.auto_max_stretch_eligible && !state.collapsed)
+        .count();
+    let auto_size = if alignment == AlignContent::Stretch && auto_count > 0 {
+        basis
+            .map(|size| {
+                ((size - gap_total - fixed_sum - flex_used).max(S::ZERO))
+                    / S::from_usize(auto_count)
+            })
+            .unwrap_or(S::ZERO)
+    } else {
+        S::ZERO
+    };
+    states
+        .into_iter()
+        .map(|state| {
+            if state.auto_max_stretch_eligible {
+                state.base_size + auto_size
+            } else {
+                state.base_size
+            }
+        })
+        .collect()
+}
+
+pub(super) fn resolve_tracks<S: LayoutScalar>(
+    tracks: &[TrackSizingOf<S>],
+    basis: Option<S>,
+    gap: S,
+    alignment: AlignContent,
+    intrinsic_sizes: &[S],
+) -> Vec<S> {
+    resolve_ordinary_track_phases(
+        tracks,
+        basis,
+        gap,
+        alignment,
+        intrinsic_sizes,
+        intrinsic_sizes,
+    )
+}
+
+pub(super) fn resolve_inline_tracks<S: LayoutScalar>(input: InlineTrackInput<'_, S>) -> Vec<S> {
+    let InlineTrackInput {
+        tracks,
+        basis,
+        definite_size,
+        available_size,
+        gap,
+        alignment,
+        stretch_empty_auto_to_available,
+        min_intrinsic_sizes,
+        max_intrinsic_sizes,
+    } = input;
+
+    let max_tracks = resolve_ordinary_track_phases(
+        tracks,
+        basis,
+        gap,
+        AlignContent::Start,
+        min_intrinsic_sizes,
+        max_intrinsic_sizes,
+    );
+    let min_tracks =
+        resolve_track_min_bounds(tracks, basis, min_intrinsic_sizes, max_intrinsic_sizes);
+    let max_content = track_sum(&max_tracks, gap);
+    let min_content = track_sum(&min_tracks, gap);
+    if let Some(available_size) = definite_size.or(available_size)
+        && max_content > S::ZERO
+        && available_size < max_content
+    {
+        let target = available_size.max(min_content).min(max_content);
+        return distribute_tracks_between_bounds(&min_tracks, &max_tracks, gap, target);
+    }
+
+    let phase_basis = basis.or_else(|| {
+        stretch_empty_auto_track_basis(
+            tracks,
+            available_size,
+            alignment,
+            stretch_empty_auto_to_available,
+            max_intrinsic_sizes,
+        )
+    });
+    resolve_ordinary_track_phases(
+        tracks,
+        phase_basis,
+        gap,
+        alignment,
+        min_intrinsic_sizes,
+        max_intrinsic_sizes,
+    )
 }
 
 pub(super) fn track_base_size_for_intrinsics<S: LayoutScalar>(

@@ -47,6 +47,314 @@ fn fri08_c01_placement_compute<S: LayoutScalar>(
     compute_layout(tree, 1, fri08_c01_placement_request()).expect("valid grid placement")
 }
 
+#[derive(Clone, Copy)]
+enum Fri08C02TrackAxis {
+    Columns,
+    Rows,
+}
+
+fn fri08_c02_fit_content_track<S: LayoutScalar>(
+    absolute_px: f64,
+    percent_fraction: f64,
+) -> TrackComponentOf<S> {
+    TrackComponentOf::fit_content(SizingCalculationOf::value(
+        LengthPercentageOf::from_coefficients(
+            S::from_f64(absolute_px),
+            S::from_f64(percent_fraction),
+        )
+        .expect("finite fit-content test limit"),
+    ))
+}
+
+fn fri08_c02_flex_track<S: LayoutScalar>(factor: f64) -> TrackComponentOf<S> {
+    TrackComponentOf::flex(
+        TrackFlexFactorOf::try_new(S::from_f64(factor)).expect("finite flex test factor"),
+    )
+}
+
+fn fri08_c02_track_mix_tree<S: LayoutScalar>(
+    display: Display,
+    axis: Fri08C02TrackAxis,
+    writing_mode: WritingMode,
+    fit_limit: (f64, f64),
+    definite_axis_size: Option<f64>,
+    companion_tracks: Vec<TrackComponentOf<S>>,
+    measurements: &[f64],
+) -> (PublicLayoutTreeOf<S>, crate::geometry::FlowAxes, Size<S>) {
+    let scalar = S::from_f64;
+    let flow_axes = crate::geometry::FlowAxes::new(writing_mode, Direction::Ltr);
+    let track_axis_size = definite_axis_size.unwrap_or_else(|| {
+        measurements
+            .iter()
+            .copied()
+            .fold(0.0_f64, |sum, value| sum + value)
+    });
+    let logical_container_size = match axis {
+        Fri08C02TrackAxis::Columns => LogicalSizeOf::new(scalar(track_axis_size), scalar(10.0)),
+        Fri08C02TrackAxis::Rows => LogicalSizeOf::new(scalar(10.0), scalar(track_axis_size)),
+    };
+    let physical_container_size = flow_axes.physical_size(logical_container_size);
+    let mut sizing_tracks = vec![fri08_c02_fit_content_track(fit_limit.0, fit_limit.1)];
+    sizing_tracks.extend(companion_tracks);
+    let (columns, rows) = match axis {
+        Fri08C02TrackAxis::Columns => (sizing_tracks, vec![TrackComponentOf::px(scalar(10.0))]),
+        Fri08C02TrackAxis::Rows => (vec![TrackComponentOf::px(scalar(10.0))], sizing_tracks),
+    };
+    let logical_root_size = match axis {
+        Fri08C02TrackAxis::Columns => LogicalSizeOf::new(
+            definite_axis_size.map_or(PreferredSizeOf::AUTO, |value| {
+                PreferredSizeOf::px(scalar(value))
+            }),
+            PreferredSizeOf::px(scalar(10.0)),
+        ),
+        Fri08C02TrackAxis::Rows => LogicalSizeOf::new(
+            PreferredSizeOf::px(scalar(10.0)),
+            definite_axis_size.map_or(PreferredSizeOf::AUTO, |value| {
+                PreferredSizeOf::px(scalar(value))
+            }),
+        ),
+    };
+    let physical_root_size = flow_axes.physical_size(logical_root_size);
+    let children = (0..measurements.len())
+        .map(|index| index as u32 + 2)
+        .collect::<Vec<_>>();
+    let mut tree = PublicLayoutTreeOf::new()
+        .children(1, children.iter().copied())
+        .style(
+            1,
+            NodeInputOf {
+                display,
+                writing_mode,
+                size: physical_root_size,
+                grid_template_columns: columns,
+                grid_template_rows: rows,
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        );
+    for (index, measurement) in measurements.iter().copied().enumerate() {
+        let node = index as u32 + 2;
+        let line = isize::try_from(index + 1).expect("small test track index");
+        let placement = GridPlacement::try_line(line).expect("valid test grid line");
+        let style = match axis {
+            Fri08C02TrackAxis::Columns => NodeInputOf {
+                grid_column: placement,
+                grid_row: GridPlacement::try_line(1).expect("first test row"),
+                ..NodeInputOf::default()
+            },
+            Fri08C02TrackAxis::Rows => NodeInputOf {
+                grid_column: GridPlacement::try_line(1).expect("first test column"),
+                grid_row: placement,
+                ..NodeInputOf::default()
+            },
+        };
+        let logical_measurement = match axis {
+            Fri08C02TrackAxis::Columns => LogicalSizeOf::new(scalar(measurement), scalar(10.0)),
+            Fri08C02TrackAxis::Rows => LogicalSizeOf::new(scalar(10.0), scalar(measurement)),
+        };
+        tree = tree
+            .style(node, style)
+            .measure(node, flow_axes.physical_size(logical_measurement));
+    }
+    (tree, flow_axes, physical_container_size)
+}
+
+fn fri08_c02_track_sizes<S: LayoutScalar>(
+    tree: &PublicLayoutTreeOf<S>,
+    flow_axes: crate::geometry::FlowAxes,
+    viewport: Size<S>,
+    axis: Fri08C02TrackAxis,
+    count: usize,
+) -> Vec<S> {
+    let batch = compute_layout(
+        tree,
+        1,
+        LayoutRootRequestOf::viewport(viewport.map(AvailableOf::definite))
+            .expect("finite track sizing viewport"),
+    )
+    .expect("valid public grid track sizing");
+    (0..count)
+        .map(|index| {
+            let logical_size =
+                flow_axes.logical_size(fri08_c01_placement_output(&batch, index as u32 + 2).size);
+            match axis {
+                Fri08C02TrackAxis::Columns => logical_size.inline,
+                Fri08C02TrackAxis::Rows => logical_size.block,
+            }
+        })
+        .collect()
+}
+
+fn assert_fri08_c02_fit_content_flex_composes<S: LayoutScalar>(
+    axis: Fri08C02TrackAxis,
+    writing_mode: WritingMode,
+) {
+    let (tree, flow_axes, viewport) = fri08_c02_track_mix_tree(
+        Display::Grid,
+        axis,
+        writing_mode,
+        (50.0, 0.0),
+        Some(200.0),
+        vec![fri08_c02_flex_track::<S>(1.0)],
+        &[20.0, 0.0],
+    );
+    let sizes = fri08_c02_track_sizes(&tree, flow_axes, viewport, axis, 2);
+    assert_eq!(sizes, [S::from_f64(20.0), S::from_f64(180.0)]);
+}
+
+#[test]
+fn fri08_c02_fit_content_columns_continue_into_flexible_expansion() {
+    assert_fri08_c02_fit_content_flex_composes::<f32>(
+        Fri08C02TrackAxis::Columns,
+        WritingMode::HorizontalTb,
+    );
+}
+
+#[test]
+fn fri08_c02_fit_content_rows_continue_into_flexible_expansion() {
+    assert_fri08_c02_fit_content_flex_composes::<f32>(
+        Fri08C02TrackAxis::Rows,
+        WritingMode::HorizontalTb,
+    );
+}
+
+#[test]
+fn fri08_c02_fit_content_vertical_sideways_and_scalar_lanes_project_the_same_sizes() {
+    for writing_mode in [
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        assert_fri08_c02_fit_content_flex_composes::<f32>(Fri08C02TrackAxis::Columns, writing_mode);
+        assert_fri08_c02_fit_content_flex_composes::<f32>(Fri08C02TrackAxis::Rows, writing_mode);
+        assert_fri08_c02_fit_content_flex_composes::<f64>(Fri08C02TrackAxis::Columns, writing_mode);
+        assert_fri08_c02_fit_content_flex_composes::<f64>(Fri08C02TrackAxis::Rows, writing_mode);
+    }
+}
+
+#[test]
+fn fri08_c02_fit_content_percentage_intrinsic_companions_and_sub_one_flex_retain_semantics() {
+    for definite_axis_size in [Some(200.0), None] {
+        let (tree, flow_axes, viewport) = fri08_c02_track_mix_tree::<f32>(
+            Display::Grid,
+            Fri08C02TrackAxis::Columns,
+            WritingMode::HorizontalTb,
+            (0.0, 0.25),
+            definite_axis_size,
+            vec![
+                TrackComponentOf::MIN_CONTENT,
+                TrackComponentOf::MAX_CONTENT,
+                fri08_c02_flex_track::<f32>(0.25),
+                fri08_c02_flex_track::<f32>(0.25),
+            ],
+            &[20.0, 10.0, 30.0, 8.0, 12.0],
+        );
+        let sizes =
+            fri08_c02_track_sizes(&tree, flow_axes, viewport, Fri08C02TrackAxis::Columns, 5);
+        let expected = if definite_axis_size.is_some() {
+            [20.0, 10.0, 30.0, 35.0, 35.0]
+        } else {
+            [20.0, 10.0, 30.0, 8.0, 12.0]
+        };
+        for (actual, expected) in sizes.into_iter().zip(expected) {
+            assert!((actual - expected).abs() <= 0.001);
+        }
+    }
+}
+
+#[test]
+fn fri08_c02_fit_content_spanning_contribution_caps_fit_and_grows_companion() {
+    let scalar = f32::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 4])
+        .children(4, [5, 6])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![
+                    TrackComponent::MAX_CONTENT,
+                    fri08_c02_fit_content_track(10.0, 0.0),
+                ],
+                grid_template_rows: vec![TrackComponent::px(40.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("first contribution track"),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_line(2).expect("fit-content contribution track"),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                display: Display::Flex,
+                flex_wrap: FlexWrap::Wrap,
+                grid_column: GridPlacement::try_line_span(1, 2).expect("two-track contribution"),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            5,
+            NodeInput {
+                size: Size::new(PreferredSize::px(40.0), PreferredSize::px(40.0)),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            6,
+            NodeInput {
+                size: Size::new(PreferredSize::px(40.0), PreferredSize::px(40.0)),
+                ..NodeInput::default()
+            },
+        )
+        .measure(2, Size::new(0.0, 40.0))
+        .measure(3, Size::new(20.0, 40.0));
+    let sizes = fri08_c02_track_sizes(
+        &tree,
+        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        Size::new(scalar(80.0), scalar(40.0)),
+        Fri08C02TrackAxis::Columns,
+        2,
+    );
+    assert_eq!(sizes, [60.0, 20.0]);
+}
+
+fn assert_fri08_c02_lanes_fit_content_characterization(axis: Fri08C02TrackAxis) {
+    let (tree, flow_axes, viewport) = fri08_c02_track_mix_tree::<f32>(
+        Display::GridLanes,
+        axis,
+        WritingMode::HorizontalTb,
+        (20.0, 0.0),
+        Some(100.0),
+        vec![fri08_c02_flex_track::<f32>(1.0)],
+        &[30.0, 0.0],
+    );
+    let sizes = fri08_c02_track_sizes(&tree, flow_axes, viewport, axis, 2);
+    assert_eq!(sizes, [30.0, 0.0], "pre-C02 lanes characterization");
+}
+
+#[test]
+fn fri08_c02_lanes_negative_columns_only_fit_content_retains_published_geometry() {
+    assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Columns);
+}
+
+#[test]
+fn fri08_c02_lanes_negative_rows_only_fit_content_retains_published_geometry() {
+    assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Rows);
+}
+
 fn assert_fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row<S: LayoutScalar>() {
     let scalar = S::from_f64;
     let tree = PublicLayoutTreeOf::new()
@@ -20247,6 +20555,10 @@ fn shared_grid_contexts_accept_non_default_scalar() {
     let tracks = vec![TrackSizingOf::<f64>::AUTO];
     let placements = GridPlacementContext::new(Vec::<usize>::new(), Vec::new());
     let subgrid_report = GridSubgridReport { items: Vec::new() };
+    let sizing_phases = GridTrackSizingPhases::<f64> {
+        inline: resolve_inline_tracks::<f64>,
+        block: resolve_tracks::<f64>,
+    };
 
     let _initialized = InitializedGridTracks::<usize, f64> {
         column_tracks: tracks.clone(),
@@ -20257,6 +20569,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         report: GridComputationReport::default(),
     };
     let _track_input = GridTrackResolutionInput::<usize, f64> {
+        sizing_policy: GridTrackSizingPolicy::Ordinary,
         style: &style,
         constants: &constants,
         column_tracks: &tracks,
@@ -20275,6 +20588,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         placements: &placements,
     };
     let _track_resolution = GridTrackResolution::<f64> {
+        sizing_phases,
         columns: vec![10.0],
         rows: vec![20.0],
         column_min_intrinsic_sizes: vec![1.0],
@@ -20282,6 +20596,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         row_intrinsic_sizes: vec![3.0],
     };
     let _child_input = GridChildLayoutInput::<usize, f64> {
+        sizing_phases,
         style: &style,
         constants: &constants,
         column_tracks: &tracks,
