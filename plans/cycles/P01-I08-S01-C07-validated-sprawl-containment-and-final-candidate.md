@@ -117,15 +117,18 @@ Each worker receives its exact full `TASK_BASE` SHA and newline-delimited
 ```sh
 test -z "$(comm -23 <(git diff --name-only "$TASK_BASE"..HEAD | LC_ALL=C sort) <(printf '%s\n' "$TASK_FILES" | LC_ALL=C sort))"
 if git diff --word-diff=porcelain --word-diff-regex='[[:alpha:]_][[:alnum:]_]*' "$TASK_BASE"..HEAD -- '*.rs' | rg '^\+.*\b(allow|expect)\b'; then exit 1; fi
-if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '(^|[^[:alnum:]_])(unsafe[[:space:]]*\{|unsafe[[:space:]]+fn|unsafe[[:space:]]+impl|unsafe[[:space:]]+trait|unsafe[[:space:]]+extern|extern[[:space:]]+"[^"]+"|#\[[[:space:]]*unsafe)'; then exit 1; fi
-if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U '#\[[^]]*\b(unsafe|no_mangle|export_name|link_section|naked)\b'; then exit 1; fi
+unsafe_hits="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '\bunsafe\b' | rg -v '^[^:]+:[0-9]+:[[:space:]]*unreachable!\("safe_fallback returns unsafe (item|content) alignment"\)$|^src/lib_tests\.rs:[0-9]+:[[:space:]]*Some\("async" \| "unsafe" \| "default" \| "extern"\) => keyword \+= 1,$|^src/lib_tests\.rs:[0-9]+:[[:space:]]*"removed phase-unsafe surface remains: \{removed\}"$|^tests/layout/browser_parity/support\.rs:[0-9]+:[[:space:]]*let has_overflow_prefix = safe \|\| raw\.starts_with\("unsafe "\);$|^tests/layout/browser_parity/support\.rs:[0-9]+:[[:space:]]*\.or_else\(\|\| raw\.strip_prefix\("unsafe "\)\)$|^tests/layout/browser_parity/support\.rs:[0-9]+:[[:space:]]*parse_align_content\("unsafe end"\)\.expect\("unsafe content alignment should parse"\),$|^tests/layout/browser_parity/support\.rs:[0-9]+:[[:space:]]*assert!\(parse_align_items\("unsafe first baseline"\)\.is_err\(\)\);$' || true)"
+test -z "$unsafe_hits"
+if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U '\b(no_mangle|export_name|link_section|naked)\b|(^|[^[:alnum:]_"])extern[[:space:]]*"'; then exit 1; fi
 ```
 
 The first command exits zero only when every changed file is inside the
 assignment envelope. The conservative word-diff scan rejects any newly added
 `allow` or `expect` token regardless of direct, multiline, or `cfg_attr` nesting.
-Both unsafe scans must find no executable construct or direct/nested unsafe
-attribute. `TASK_FILES` contains one path per line, not a shell glob.
+The raw unsafe-token scan fails on every token-separated or multiline `unsafe`
+outside the exact frozen safe-string inventory; the companion scan rejects every
+raw unsafe-attribute name and foreign ABI across the same complete file set.
+`TASK_FILES` contains one path per line, not a shell glob.
 
 ## 4 Tasks
 
@@ -330,8 +333,9 @@ src/test_support/mod.rs
 src/test_support/scroll_geometry.rs'
 test "$(git diff --name-only dc71a5582ab0ef3925826dce09b93ee9fa6f49a1..HEAD | LC_ALL=C sort)" = "$(printf '%s\n' "$expected_paths" | LC_ALL=C sort)"
 if git diff --word-diff=porcelain --word-diff-regex='[[:alpha:]_][[:alnum:]_]*' dc71a5582ab0ef3925826dce09b93ee9fa6f49a1..HEAD -- '*.rs' | rg '^\+.*\b(allow|expect)\b'; then exit 1; fi
-if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '(^|[^[:alnum:]_])(unsafe[[:space:]]*\{|unsafe[[:space:]]+fn|unsafe[[:space:]]+impl|unsafe[[:space:]]+trait|unsafe[[:space:]]+extern|extern[[:space:]]+"[^"]+"|#\[[[:space:]]*unsafe)'; then exit 1; fi
-if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U '#\[[^]]*\b(unsafe|no_mangle|export_name|link_section|naked)\b'; then exit 1; fi
+unsafe_hits="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '\bunsafe\b' | rg -v '^[^:]+:[0-9]+:[[:space:]]*unreachable!\("safe_fallback returns unsafe (item|content) alignment"\)$|^src/lib_tests\.rs:[0-9]+:[[:space:]]*Some\("async" \| "unsafe" \| "default" \| "extern"\) => keyword \+= 1,$|^src/lib_tests\.rs:[0-9]+:[[:space:]]*"removed phase-unsafe surface remains: \{removed\}"$|^tests/layout/browser_parity/support\.rs:[0-9]+:[[:space:]]*let has_overflow_prefix = safe \|\| raw\.starts_with\("unsafe "\);$|^tests/layout/browser_parity/support\.rs:[0-9]+:[[:space:]]*\.or_else\(\|\| raw\.strip_prefix\("unsafe "\)\)$|^tests/layout/browser_parity/support\.rs:[0-9]+:[[:space:]]*parse_align_content\("unsafe end"\)\.expect\("unsafe content alignment should parse"\),$|^tests/layout/browser_parity/support\.rs:[0-9]+:[[:space:]]*assert!\(parse_align_items\("unsafe first baseline"\)\.is_err\(\)\);$' || true)"
+test -z "$unsafe_hits"
+if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U '\b(no_mangle|export_name|link_section|naked)\b|(^|[^[:alnum:]_"])extern[[:space:]]*"'; then exit 1; fi
 ```
 
 The final changed-file list must equal the explicit set in both directions; the
