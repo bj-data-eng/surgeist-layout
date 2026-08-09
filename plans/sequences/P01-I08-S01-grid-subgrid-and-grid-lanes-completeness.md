@@ -237,20 +237,58 @@ manual XML edit, second provenance authority, or acquisition occurs.
 exact source, report, helper, manifest, XML, browser, and negative-control
 evidence before the final sprawl assessment begins.
 
-### 3.7 `P01/I08/S01/C07` Validated Sprawl Containment And Final Candidate
+### 3.7 `P01/I08/S01/C06R` Inherited Placement Capacity Correction
+
+**Specification sources:** `FRI-08.5 D-02`, `D-04`, `D-05`, and `D-21`;
+ordinary/inherited placement and error portions of `FRI-08.7`, `FRI-08.11`,
+`FRI-08.12`, `FRI-08.14` through `FRI-08.17`; `GRID-001` and the composed
+standalone-axis portion of `GRID-010`.
+
+**Prerequisites:** C06 complete, published, and remotely verified; the first C07
+sprawl characterization has been stopped and superseded after exposing a genuine
+behavior defect owned by C01 placement/error and composed through C04 inherited
+standalone axes.
+
+**Entry state:** An ordinary grid with one inherited four-track axis and an
+automatic five-track span bypasses canonical placement demand, returns success,
+and publishes a zero-size child. The canonical demand owner already models
+inherited axes as bounded and returns typed capacity failure, but ordinary grids
+with either inherited axis still enter the legacy child-count/span/`div_ceil`
+pre-sizing estimator in `src/grid/mod.rs`.
+
+**Bounded outcome:** Route every ordinary grid, including one- and
+two-inherited-axis subgrids, through canonical placement demand and settled
+integer areas. Prove exact geometry for accepted sparse/dense row/column flows,
+spans, overlap, holes, and leading/trailing demand; prove typed failure with no
+partial batch/cache mutation when inherited capacity is exceeded. Remove the
+now-unreferenced non-lanes estimator and span helper. Preserve the distinct
+grid-lanes policy and all C06 artifacts without generation.
+
+**Observable exit evidence:** No valid ordinary placement publishes sentinel
+zero geometry. Inherited-capacity overflow returns the existing typed error and
+transaction semantics. Existing C01, C04, C06, 72-row, FRI-09/F10, default,
+generator, corpus/Taffy, API, dependency/feature, unsafe, and artifact evidence
+remains green. The residual estimator is absent rather than deferred as sprawl.
+
+**Handoff:** Publish and remotely verify the corrected behavior candidate, then
+repeat the fresh full-range sprawl assessment before authoring the replacement
+C07 plan.
+
+### 3.8 `P01/I08/S01/C07` Validated Sprawl Containment And Final Candidate
 
 **Specification sources:** the finite structural invariants in `FRI-08.14`;
 final verification, responsibility, finding-closure, handoff, and acceptance
 portions of `FRI-08.15` through `FRI-08.19`.
 
-**Prerequisites:** C06 complete, published, and remotely verified; a fresh
+**Prerequisites:** C06R complete, published, and remotely verified; a fresh
 holistic sprawl assessment has reviewed the exact FRI-08 implementation range
-from the immutable initiative base through C06 and returned one finite,
+from the immutable initiative base through C06R and returned one finite,
 identified finding set.
 
-**Entry state:** All eight findings and their bounded artifact lineage are
-closed in the immutable C06 candidate. Only the exact reviewed sprawl findings
-remain for source validation and disposition.
+**Entry state:** All eight findings, including inherited-capacity error
+correction, and their bounded artifact lineage are closed in the immutable C06R
+candidate. Only the exact reviewed sprawl findings remain for source validation
+and disposition.
 
 **Bounded outcome:** Validate each assessed finding against current source.
 Implement every confirmed in-initiative mechanical consolidation with
