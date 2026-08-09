@@ -5175,6 +5175,148 @@ fn fri08_c06_collapsed_gutter_grid_lanes_interior_collapse_keeps_zero_active_gap
     assert_fri08_c06_collapsed_gutter_grid_lanes_interior_collapse::<f64>();
 }
 
+fn assert_fri08_c06_collapsed_gutter_inherited_grid_lanes_space_between<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let scalar = S::from_f64;
+    for reversed in [false, true] {
+        let parent_style = NodeInputOf::<S> {
+            display: Display::Grid,
+            ..NodeInputOf::<S>::default()
+        };
+        let child_style = NodeInputOf::<S> {
+            display: Display::GridLanes,
+            direction: if reversed {
+                Direction::Rtl
+            } else {
+                Direction::Ltr
+            },
+            size: Size::new(
+                PreferredSizeOf::px(scalar(190.0)),
+                PreferredSizeOf::px(scalar(20.0)),
+            ),
+            grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack {
+                name_components: Vec::new(),
+            })],
+            grid_template_rows: vec![TrackComponentOf::px(scalar(20.0))],
+            gap: Size::new(LengthOf::px(scalar(10.0)), LengthOf::ZERO),
+            justify_content: Some(AlignContent::SpaceBetween),
+            ..NodeInputOf::<S>::default()
+        };
+        let parent_gutters = OrdinaryGridAxisGuttersOf::new_zero_adjacent_to_collapsed_tracks(
+            4,
+            &[false, true, true, false],
+            scalar(10.0),
+        );
+        let parent_geometry = UsedGridAxisGeometryOf::from_sizing_gutters(
+            vec![scalar(40.0), S::ZERO, S::ZERO, scalar(40.0)],
+            &parent_gutters,
+        );
+        let item = SubgridItemReport {
+            node: 1_u32,
+            column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+        };
+        let context = subgrid_child_parent_context_with_geometry(
+            SubgridChildParentContextInput {
+                item,
+                child_style: &child_style,
+                area: GridArea {
+                    column: 0,
+                    row: 0,
+                    column_end: 4,
+                    row_end: 1,
+                    size: LogicalSizeOf::new(scalar(190.0), scalar(20.0)),
+                },
+                content_box_size: Size::new(scalar(190.0), scalar(20.0)),
+                columns: parent_geometry.sizes(),
+                rows: &[scalar(20.0)],
+                gap: LogicalSizeOf::new(scalar(10.0), S::ZERO),
+                parent_named_columns: &NamedGridLines::new(GridAxisKind::Column, 4),
+                parent_named_rows: &NamedGridLines::new(GridAxisKind::Row, 1),
+                parent_area_facts: None,
+                parent_baseline_groups: &GridBaselineGroups {
+                    columns: vec![TrackBaselineGroup::default(); 4],
+                    rows: vec![TrackBaselineGroup::default()],
+                },
+                margin: Edges::all(Some(S::ZERO)),
+                border: Edges::all(S::ZERO),
+                padding: Edges::all(S::ZERO),
+            },
+            Some(&parent_geometry),
+            None,
+        )
+        .expect("collapsed grid-lanes gutter policy remains inheritable");
+
+        let mut tree = OracleTreeOf::<S>::new()
+            .children(1, [2, 3])
+            .style(1, child_style)
+            .style(
+                2,
+                NodeInputOf::<S> {
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar(40.0)),
+                        PreferredSizeOf::px(scalar(20.0)),
+                    ),
+                    grid_column: GridPlacement::try_line(1).expect("first inherited track"),
+                    ..NodeInputOf::<S>::default()
+                },
+            )
+            .style(
+                3,
+                NodeInputOf::<S> {
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar(40.0)),
+                        PreferredSizeOf::px(scalar(20.0)),
+                    ),
+                    grid_column: GridPlacement::try_line(4).expect("last inherited track"),
+                    ..NodeInputOf::<S>::default()
+                },
+            );
+        compute_grid_with_context(
+            &mut tree,
+            1,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::new(Some(scalar(190.0)), Some(scalar(20.0))),
+                Size::new(Some(scalar(190.0)), Some(scalar(20.0))),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::Grid,
+                ),
+                Size::new(
+                    AvailableOf::Definite(scalar(190.0)),
+                    AvailableOf::Definite(scalar(20.0)),
+                ),
+            ),
+            context,
+        )
+        .expect("inherited grid-lanes layout");
+
+        let first = tree.layout(2).expect("first inherited-track child");
+        let last = tree.layout(3).expect("last inherited-track child");
+        let recreated_gap = if reversed {
+            first.location.x - last.location.x - last.size.width
+        } else {
+            last.location.x - first.location.x - first.size.width
+        };
+        assert_eq!(
+            recreated_gap,
+            S::ZERO,
+            "{reversed:?} inherited grid-lanes SpaceBetween must not reactivate a boundary adjacent to collapsed tracks",
+        );
+    }
+}
+
+#[test]
+fn fri08_c06_collapsed_gutter_inherited_grid_lanes_space_between_keeps_zero_gap() {
+    assert_fri08_c06_collapsed_gutter_inherited_grid_lanes_space_between::<f32>();
+    assert_fri08_c06_collapsed_gutter_inherited_grid_lanes_space_between::<f64>();
+}
+
 #[test]
 fn fri08_c02_lanes_negative_stretch_retains_pre_c02_auto_track_geometry() {
     let tree = PublicLayoutTreeOf::<f32>::new()

@@ -3015,9 +3015,10 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
     } else {
         inherited.final_boundary_gutters.clone()
     };
-    let geometry = UsedGridAxisGeometryOf::from_boundary_gutters(
+    let geometry = UsedGridAxisGeometryOf::from_active_boundary_gutters(
         layout_tracks.clone(),
         inherited.collapsed.clone(),
+        inherited.final_active_boundary_after.clone(),
         layout_boundary_gutters,
     );
 

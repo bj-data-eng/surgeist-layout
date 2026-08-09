@@ -651,6 +651,7 @@ pub(super) struct SubgridTrackInheritanceReport<S: LayoutScalar = Scalar> {
     pub(super) gap_difference: S,
     pub(super) collapsed: Vec<bool>,
     pub(super) parent_boundary_gutters: Vec<S>,
+    pub(super) final_active_boundary_after: Vec<bool>,
     pub(super) final_boundary_gutters: Vec<S>,
     pub(super) final_tracks: Vec<S>,
 }
@@ -1479,18 +1480,16 @@ pub(super) fn inherit_subgrid_tracks_with_geometry<S: LayoutScalar>(
     let end_index = input.parent_span.end - 1;
     let copied_parent_tracks = input.parent_tracks[start_index..end_index].to_vec();
     let mut after_reversal = copied_parent_tracks.clone();
-    let collapsed = parent_geometry.map_or_else(
-        || vec![false; copied_parent_tracks.len()],
-        |geometry| geometry.collapsed()[start_index..end_index].to_vec(),
-    );
-    let parent_boundary_gutters = parent_geometry.map_or_else(
-        || vec![input.parent_gap; copied_parent_tracks.len().saturating_sub(1)],
-        |geometry| geometry.gutter_after()[start_index..end_index.saturating_sub(1)].to_vec(),
-    );
-    let mut parent_gutters = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
-        copied_parent_tracks.len(),
-        &collapsed,
-        &parent_boundary_gutters,
+    let mut parent_gutters = parent_geometry.map_or_else(
+        || OrdinaryGridAxisGuttersOf::new(copied_parent_tracks.len(), &[], input.parent_gap),
+        |geometry| {
+            OrdinaryGridAxisGuttersOf::from_active_boundary_gutters(
+                copied_parent_tracks.len(),
+                &geometry.collapsed()[start_index..end_index],
+                &geometry.active_boundary_after()[start_index..end_index.saturating_sub(1)],
+                &geometry.gutter_after()[start_index..end_index.saturating_sub(1)],
+            )
+        },
     );
     if input.reversed {
         after_reversal.reverse();
@@ -1511,10 +1510,17 @@ pub(super) fn inherit_subgrid_tracks_with_geometry<S: LayoutScalar>(
 
     let resolved_subgrid_gap = input.subgrid_gap.resolve(input.parent_gap);
     let gap_difference = (resolved_subgrid_gap - input.parent_gap) / S::from_f64(2.0);
-    let final_boundary_gutters =
-        OrdinaryGridAxisGuttersOf::new(after_reversal.len(), &collapsed, resolved_subgrid_gap)
-            .gutter_after()
-            .to_vec();
+    let final_active_boundary_after = parent_gutters.active_boundary_after().to_vec();
+    let final_boundary_gutters = final_active_boundary_after
+        .iter()
+        .map(|active| {
+            if *active {
+                resolved_subgrid_gap
+            } else {
+                S::ZERO
+            }
+        })
+        .collect::<Vec<_>>();
     let mut final_tracks = end_mbp_removed.clone();
     for (edge, (parent_gutter, final_gutter)) in parent_boundary_gutters
         .iter()
@@ -1540,6 +1546,7 @@ pub(super) fn inherit_subgrid_tracks_with_geometry<S: LayoutScalar>(
         gap_difference,
         collapsed,
         parent_boundary_gutters,
+        final_active_boundary_after,
         final_boundary_gutters,
         final_tracks,
     })
@@ -2227,11 +2234,15 @@ pub(super) fn intrinsic_subgrid_axis_parent_context<Node, S: LayoutScalar>(
         .map(|geometry| {
             let sizes = vec![S::ZERO; track_count];
             let collapsed = geometry.collapsed()[parent_start..parent_end].to_vec();
+            let active_boundary_after = geometry.active_boundary_after()
+                [parent_start..parent_end.saturating_sub(1)]
+                .to_vec();
             let gutter_after =
                 geometry.gutter_after()[parent_start..parent_end.saturating_sub(1)].to_vec();
-            let gutters = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+            let gutters = OrdinaryGridAxisGuttersOf::from_active_boundary_gutters(
                 track_count,
                 &collapsed,
+                &active_boundary_after,
                 &gutter_after,
             );
             let gutters = if mapping.reversed {

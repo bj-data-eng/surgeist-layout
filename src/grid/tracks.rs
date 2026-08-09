@@ -52,9 +52,27 @@ impl<S: LayoutScalar> OrdinaryGridAxisGuttersOf<S> {
     ) -> Self {
         let mut collapsed = collapsed.to_vec();
         collapsed.resize(track_count, false);
+        let active_boundary_after = Self::derive_active_boundary_after(&collapsed);
+        Self::from_active_boundary_gutters(
+            track_count,
+            &collapsed,
+            &active_boundary_after,
+            gutter_after,
+        )
+    }
+
+    pub(super) fn from_active_boundary_gutters(
+        track_count: usize,
+        collapsed: &[bool],
+        active_boundary_after: &[bool],
+        gutter_after: &[S],
+    ) -> Self {
+        let mut collapsed = collapsed.to_vec();
+        collapsed.resize(track_count, false);
+        let mut active_boundary_after = active_boundary_after.to_vec();
+        active_boundary_after.resize(track_count.saturating_sub(1), false);
         let mut gutter_after = gutter_after.to_vec();
         gutter_after.resize(track_count.saturating_sub(1), S::ZERO);
-        let active_boundary_after = Self::derive_active_boundary_after(&collapsed);
         Self {
             collapsed,
             active_boundary_after,
@@ -89,28 +107,39 @@ impl<S: LayoutScalar> OrdinaryGridAxisGuttersOf<S> {
     }
 
     pub(super) fn reversed(&self) -> Self {
+        let uses_coincident_interior_policy =
+            self.active_boundary_after == Self::derive_active_boundary_after(&self.collapsed);
         let mut collapsed = self.collapsed.clone();
         collapsed.reverse();
-        let active_boundary_after = Self::derive_active_boundary_after(&collapsed);
-        let mut active_gutters = self
-            .gutter_after
-            .iter()
-            .copied()
-            .zip(&self.active_boundary_after)
-            .filter_map(|(gutter, active)| active.then_some(gutter))
-            .collect::<Vec<_>>();
-        active_gutters.reverse();
-        let mut active_gutters = active_gutters.into_iter();
-        let gutter_after = active_boundary_after
-            .iter()
-            .map(|active| {
-                if *active {
-                    active_gutters.next().unwrap_or(S::ZERO)
-                } else {
-                    S::ZERO
-                }
-            })
-            .collect();
+        let (active_boundary_after, gutter_after) = if uses_coincident_interior_policy {
+            let active_boundary_after = Self::derive_active_boundary_after(&collapsed);
+            let mut active_gutters = self
+                .gutter_after
+                .iter()
+                .copied()
+                .zip(&self.active_boundary_after)
+                .filter_map(|(gutter, active)| active.then_some(gutter))
+                .collect::<Vec<_>>();
+            active_gutters.reverse();
+            let mut active_gutters = active_gutters.into_iter();
+            let gutter_after = active_boundary_after
+                .iter()
+                .map(|active| {
+                    if *active {
+                        active_gutters.next().unwrap_or(S::ZERO)
+                    } else {
+                        S::ZERO
+                    }
+                })
+                .collect();
+            (active_boundary_after, gutter_after)
+        } else {
+            let mut active_boundary_after = self.active_boundary_after.clone();
+            active_boundary_after.reverse();
+            let mut gutter_after = self.gutter_after.clone();
+            gutter_after.reverse();
+            (active_boundary_after, gutter_after)
+        };
         Self {
             collapsed,
             active_boundary_after,
@@ -140,6 +169,7 @@ impl<S: LayoutScalar> OrdinaryGridAxisGuttersOf<S> {
 pub(super) struct UsedGridAxisGeometryOf<S: LayoutScalar = Scalar> {
     sizes: Vec<S>,
     collapsed: Vec<bool>,
+    active_boundary_after: Vec<bool>,
     gutter_after: Vec<S>,
     line_offsets: Vec<S>,
 }
@@ -154,9 +184,10 @@ impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
         sizes: Vec<S>,
         gutters: &OrdinaryGridAxisGuttersOf<S>,
     ) -> Self {
-        Self::from_boundary_gutters(
+        Self::from_active_boundary_gutters(
             sizes,
             gutters.collapsed().to_vec(),
+            gutters.active_boundary_after().to_vec(),
             gutters.gutter_after().to_vec(),
         )
     }
@@ -166,8 +197,24 @@ impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
         collapsed: Vec<bool>,
         gutter_after: Vec<S>,
     ) -> Self {
+        let gutters = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+            sizes.len(),
+            &collapsed,
+            &gutter_after,
+        );
+        Self::from_sizing_gutters(sizes, &gutters)
+    }
+
+    pub(super) fn from_active_boundary_gutters(
+        sizes: Vec<S>,
+        collapsed: Vec<bool>,
+        active_boundary_after: Vec<bool>,
+        gutter_after: Vec<S>,
+    ) -> Self {
         let mut collapsed = collapsed;
         collapsed.resize(sizes.len(), false);
+        let mut active_boundary_after = active_boundary_after;
+        active_boundary_after.resize(sizes.len().saturating_sub(1), false);
         let mut gutter_after = gutter_after;
         gutter_after.resize(sizes.len().saturating_sub(1), S::ZERO);
         let mut line_offsets = Vec::with_capacity(sizes.len() + 1);
@@ -183,6 +230,7 @@ impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
         Self {
             sizes,
             collapsed,
+            active_boundary_after,
             gutter_after,
             line_offsets,
         }
@@ -200,10 +248,15 @@ impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
         &self.gutter_after
     }
 
+    pub(super) fn active_boundary_after(&self) -> &[bool] {
+        &self.active_boundary_after
+    }
+
     pub(super) fn sizing_gutters(&self) -> OrdinaryGridAxisGuttersOf<S> {
-        OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+        OrdinaryGridAxisGuttersOf::from_active_boundary_gutters(
             self.sizes.len(),
             &self.collapsed,
+            &self.active_boundary_after,
             &self.gutter_after,
         )
     }
