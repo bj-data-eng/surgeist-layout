@@ -1,6 +1,6 @@
 # P01-I08-S01-C01 Canonical Grid Topology And Placement
 
-Status: in_progress
+Status: draft
 
 Cycle ID: `P01/I08/S01/C01`
 
@@ -98,7 +98,9 @@ exact commit, and a fresh exact-range task review before the next task starts.
 
 **Owned files:** new `src/grid/topology.rs`; topology wiring in
 `src/grid/mod.rs`; only the track-expansion support needed by the topology;
-`src/grid/named.rs`; and focused tracked tests in the existing grid test module.
+`src/grid/named.rs`; focused tracked tests in the existing grid test module;
+and `src/lib_tests.rs` only to add `src/grid/topology.rs` to its exhaustive
+production-source audit manifest. No other `src/lib_tests.rs` behavior changes.
 
 **Outcome:** Build one canonical per-axis topology from expanded template track
 lists, template-area dimensions, authored named lines, area-derived names, and
@@ -128,7 +130,8 @@ child-count input. Empty and populated area-only templates, row/column axis
 symmetry, leading/trailing line names, repeated auto-pattern phase, auto-repeat
 origin metadata, duplicate tokens, origin collisions, invalid names, and f32/
 f64 callers have explicit tests. Existing negative-line and named-grid tests
-remain green.
+remain green. The production-source audit includes the new topology module and
+continues to inspect every production Rust source exactly once.
 
 **Verification:**
 
