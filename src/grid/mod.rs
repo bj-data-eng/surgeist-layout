@@ -1,6 +1,7 @@
 use super::{
     AlignContent, AlignItems, AvailableOf, BaselinesOf, BoxSizing, Compute, ComputeInputOf,
     ComputeOutputOf, DefaultScalar, Direction, Display, Edges, GridAutoFlow, GridPlacement,
+    LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInternalInvariant, LayoutOperation,
     LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionStatus, MaxTrackSizingOf,
     MinTrackSizingOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position, PreferredSizeOf,
     RequestedAxis, RunMode, Scalar, Size, SizingAlgorithm, SizingMode, TrackComponentOf,
@@ -1000,6 +1001,7 @@ pub(super) struct GridPlacementContext<Node> {
     pub(super) children: Vec<Node>,
     pub(super) items: Vec<ResolvedGridItemPlacement>,
     pub(super) order_modified_indexes: Vec<crate::SourceIndex>,
+    settled_areas: Option<Vec<Option<PlacedGridArea>>>,
 }
 
 impl<Node> GridPlacementContext<Node> {
@@ -1018,6 +1020,7 @@ impl<Node> GridPlacementContext<Node> {
             children,
             items,
             order_modified_indexes,
+            settled_areas: None,
         }
     }
 
@@ -1087,11 +1090,6 @@ where
     }
     let mut percent_basis = sizing_flow_axes.logical_size(constants.node_inner_size);
     let children = tree.children(node).collect::<Vec<_>>();
-    let visible_child_count = children
-        .iter()
-        .copied()
-        .filter(|child| is_in_flow_grid_child(tree.node_input(*child)))
-        .count();
     let column_expansion_basis = track_expansion_basis(
         &style.grid_template_columns,
         sizing_flow_axes
@@ -1179,7 +1177,7 @@ where
             empty_grid_named_context(sized_explicit_columns, sized_explicit_rows)
         }
     };
-    let topology = ExpandedGridTopology::new(ExpandedGridTopologyInput {
+    let mut topology = ExpandedGridTopology::new(ExpandedGridTopologyInput {
         columns: column_expansion,
         rows: row_expansion,
         named: named_context,
@@ -1195,9 +1193,7 @@ where
     .map_err(|status| crate::compute::value_resolution_error(node, status))?;
     let explicit_columns = topology.explicit_columns;
     let explicit_rows = topology.explicit_rows;
-    let mut column_tracks = topology.column_tracks.clone();
-    let mut row_tracks = topology.row_tracks.clone();
-    let (placements, placement_report) = resolve_grid_child_placements(
+    let (mut placements, placement_report) = resolve_grid_child_placements(
         &children,
         tree,
         &topology,
@@ -1205,122 +1201,143 @@ where
         parent_context.rows.is_some(),
     );
     report.merge_named_grid(placement_report);
-    let visible_cell_count = placements
-        .checked_child_placements(&children)
-        .filter(|(child, _)| is_in_flow_grid_child(tree.node_input(*child)))
-        .map(|(_, placement)| {
-            placement_cell_span(placement.column, explicit_columns)
-                * placement_cell_span(placement.row, explicit_rows)
-        })
-        .sum::<usize>();
     let inherited_columns = parent_context.columns.is_some();
     let inherited_rows = parent_context.rows.is_some();
-    let leading_columns = if inherited_columns {
-        0
-    } else {
-        leading_implicit_tracks_from_placements(
-            &placements.items,
-            GridAxisKind::Column,
-            explicit_columns,
+    let ordinary_settled_placement = !style.display.establishes_grid_lanes_formatting_context()
+        && !inherited_columns
+        && !inherited_rows;
+    let (column_tracks, row_tracks, leading_columns, leading_rows) = if ordinary_settled_placement {
+        derive_grid_placement_demand(&mut topology, &mut placements, style.grid_auto_flow)
+            .map_err(|error| grid_placement_demand_error(node, error))?;
+        (
+            topology.column_tracks.clone(),
+            topology.row_tracks.clone(),
+            topology.column_explicit_start,
+            topology.row_explicit_start,
         )
-    };
-    let leading_rows = if inherited_rows {
-        0
     } else {
-        leading_implicit_tracks_from_placements(&placements.items, GridAxisKind::Row, explicit_rows)
-    };
-    if !inherited_columns {
-        prepend_auto_tracks(
-            &mut column_tracks,
-            &style.grid_auto_columns,
-            percent_basis.inline,
-            gap.inline,
-            leading_columns,
-            Some(visible_child_count),
-        )
-        .map_err(|status| crate::compute::value_resolution_error(node, status))?;
-    }
-    if !inherited_rows {
-        prepend_auto_tracks(
-            &mut row_tracks,
-            &style.grid_auto_rows,
-            percent_basis.block,
-            gap.block,
-            leading_rows,
-            Some(visible_child_count),
-        )
-        .map_err(|status| crate::compute::value_resolution_error(node, status))?;
-    }
-    let track_requirement = grid_track_requirement_from_placements(&placements.items);
-
-    let column_flow = if style.display.establishes_grid_lanes_formatting_context() {
-        column_flow_for_grid_lanes(style)
-    } else {
-        style.grid_auto_flow.is_column()
-    };
-
-    if column_flow {
-        if !inherited_rows {
-            extend_auto_tracks(
-                &mut row_tracks,
-                &style.grid_auto_rows,
-                percent_basis.block,
-                gap.block,
-                track_requirement.block.max(1),
+        // Inherited subgrid axes and grid-lanes retain their separately sequenced
+        // placement policies; ordinary grids never enter this pre-sizing path.
+        let mut column_tracks = topology.column_tracks.clone();
+        let mut row_tracks = topology.row_tracks.clone();
+        let visible_cell_count = placements
+            .checked_child_placements(&children)
+            .filter(|(child, _)| is_in_flow_grid_child(tree.node_input(*child)))
+            .map(|(_, placement)| {
+                placement_cell_span(placement.column, explicit_columns)
+                    * placement_cell_span(placement.row, explicit_rows)
+            })
+            .sum::<usize>();
+        let leading_columns = if inherited_columns {
+            0
+        } else {
+            leading_implicit_tracks_from_placements(
+                &placements.items,
+                GridAxisKind::Column,
+                explicit_columns,
             )
-            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
-        }
+        };
+        let leading_rows = if inherited_rows {
+            0
+        } else {
+            leading_implicit_tracks_from_placements(
+                &placements.items,
+                GridAxisKind::Row,
+                explicit_rows,
+            )
+        };
         if !inherited_columns {
-            let required_columns = if row_tracks.is_empty() {
-                0
-            } else {
-                visible_cell_count.div_ceil(row_tracks.len())
-            };
-            let required_columns = required_columns
-                .max(leading_columns + track_requirement.inline)
-                .max(column_tracks.len());
-            extend_auto_tracks(
+            prepend_auto_tracks(
                 &mut column_tracks,
                 &style.grid_auto_columns,
                 percent_basis.inline,
                 gap.inline,
-                required_columns,
-            )
-            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
-        }
-    } else {
-        if !inherited_columns {
-            let required_columns = (leading_columns + track_requirement.inline)
-                .max(1)
-                .max(column_tracks.len());
-            extend_auto_tracks(
-                &mut column_tracks,
-                &style.grid_auto_columns,
-                percent_basis.inline,
-                gap.inline,
-                required_columns,
+                leading_columns,
+                Some(visible_cell_count),
             )
             .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
         if !inherited_rows {
-            let required_rows = if column_tracks.is_empty() {
-                0
-            } else {
-                visible_cell_count.div_ceil(column_tracks.len())
-            };
-            let required_rows = required_rows
-                .max(leading_rows + track_requirement.block)
-                .max(row_tracks.len());
-            extend_auto_tracks(
+            prepend_auto_tracks(
                 &mut row_tracks,
                 &style.grid_auto_rows,
                 percent_basis.block,
                 gap.block,
-                required_rows,
+                leading_rows,
+                Some(visible_cell_count),
             )
             .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
-    }
+        let track_requirement = grid_track_requirement_from_placements(&placements.items);
+        let column_flow = if style.display.establishes_grid_lanes_formatting_context() {
+            column_flow_for_grid_lanes(style)
+        } else {
+            style.grid_auto_flow.is_column()
+        };
+        if column_flow {
+            if !inherited_rows {
+                extend_auto_tracks(
+                    &mut row_tracks,
+                    &style.grid_auto_rows,
+                    percent_basis.block,
+                    gap.block,
+                    track_requirement.block.max(1),
+                )
+                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            }
+            if !inherited_columns {
+                let required_columns = if row_tracks.is_empty() {
+                    0
+                } else {
+                    visible_cell_count.div_ceil(row_tracks.len())
+                };
+                let required_columns = required_columns
+                    .max(leading_columns + track_requirement.inline)
+                    .max(column_tracks.len());
+                extend_auto_tracks(
+                    &mut column_tracks,
+                    &style.grid_auto_columns,
+                    percent_basis.inline,
+                    gap.inline,
+                    required_columns,
+                )
+                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            }
+        } else {
+            if !inherited_columns {
+                let required_columns = (leading_columns + track_requirement.inline)
+                    .max(1)
+                    .max(column_tracks.len());
+                extend_auto_tracks(
+                    &mut column_tracks,
+                    &style.grid_auto_columns,
+                    percent_basis.inline,
+                    gap.inline,
+                    required_columns,
+                )
+                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            }
+            if !inherited_rows {
+                let required_rows = if column_tracks.is_empty() {
+                    0
+                } else {
+                    visible_cell_count.div_ceil(column_tracks.len())
+                };
+                let required_rows = required_rows
+                    .max(leading_rows + track_requirement.block)
+                    .max(row_tracks.len());
+                extend_auto_tracks(
+                    &mut row_tracks,
+                    &style.grid_auto_rows,
+                    percent_basis.block,
+                    gap.block,
+                    required_rows,
+                )
+                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            }
+        }
+        (column_tracks, row_tracks, leading_columns, leading_rows)
+    };
 
     let lines = GridLines {
         column_explicit_start: leading_columns,
@@ -1351,6 +1368,22 @@ where
 }
 
 fn debug_invalid_named_grid_context(_error: &NamedGridError) {}
+
+fn grid_placement_demand_error<Node, S: LayoutScalar, M>(
+    container: Node,
+    error: GridPlacementDemandError,
+) -> LayoutErrorOf<Node, S, M> {
+    match error {
+        GridPlacementDemandError::AxisCapacity { .. }
+        | GridPlacementDemandError::OccupancyCapacity { .. } => LayoutErrorOf::new(
+            LayoutErrorSiteOf::Node(container),
+            LayoutOperation::ChildLayout,
+            LayoutErrorKindOf::InternalInvariant(
+                LayoutInternalInvariant::InvalidBlockScrollGeometry,
+            ),
+        ),
+    }
+}
 
 fn resolve_grid_child_placements<Tree, M>(
     children: &[<Tree as Traverse>::Node],

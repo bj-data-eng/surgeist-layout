@@ -22,6 +22,670 @@ impl<S: LayoutScalar> GridArea<S> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct PlacedGridArea {
+    pub(super) column_start: usize,
+    pub(super) row_start: usize,
+    pub(super) column_end: usize,
+    pub(super) row_end: usize,
+}
+
+impl PlacedGridArea {
+    pub(super) const fn new(
+        column_start: usize,
+        row_start: usize,
+        column_end: usize,
+        row_end: usize,
+    ) -> Self {
+        Self {
+            column_start,
+            row_start,
+            column_end,
+            row_end,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum GridPlacementDemandError {
+    AxisCapacity {
+        axis: GridAxisKind,
+        requested_tracks: usize,
+    },
+    OccupancyCapacity {
+        columns: usize,
+        rows: usize,
+    },
+}
+
+#[derive(Clone, Debug)]
+struct PlacementDemand {
+    column_count: usize,
+    row_count: usize,
+    explicit_columns: usize,
+    explicit_rows: usize,
+    column_explicit_start: usize,
+    row_explicit_start: usize,
+    inherited_columns: bool,
+    inherited_rows: bool,
+    placed_areas: Vec<Option<PlacedGridArea>>,
+}
+
+impl PlacementDemand {
+    fn new<S: LayoutScalar>(
+        topology: &ExpandedGridTopology<S>,
+        item_count: usize,
+    ) -> Result<Self, GridPlacementDemandError> {
+        let mut placed_areas = Vec::new();
+        placed_areas.try_reserve_exact(item_count).map_err(|_| {
+            GridPlacementDemandError::OccupancyCapacity {
+                columns: topology.column_tracks.len(),
+                rows: topology.row_tracks.len(),
+            }
+        })?;
+        placed_areas.resize(item_count, None);
+        Ok(Self {
+            column_count: topology.column_tracks.len(),
+            row_count: topology.row_tracks.len(),
+            explicit_columns: topology.explicit_columns,
+            explicit_rows: topology.explicit_rows,
+            column_explicit_start: 0,
+            row_explicit_start: 0,
+            inherited_columns: topology.axis_is_inherited(GridAxisKind::Column),
+            inherited_rows: topology.axis_is_inherited(GridAxisKind::Row),
+            placed_areas,
+        })
+    }
+
+    fn axis_track_count(&self, axis: GridAxisKind) -> usize {
+        match axis {
+            GridAxisKind::Column => self.column_count,
+            GridAxisKind::Row => self.row_count,
+        }
+    }
+
+    fn set_axis_track_count(&mut self, axis: GridAxisKind, count: usize) {
+        match axis {
+            GridAxisKind::Column => self.column_count = count,
+            GridAxisKind::Row => self.row_count = count,
+        }
+    }
+
+    fn axis_explicit_count(&self, axis: GridAxisKind) -> usize {
+        match axis {
+            GridAxisKind::Column => self.explicit_columns,
+            GridAxisKind::Row => self.explicit_rows,
+        }
+    }
+
+    fn axis_explicit_start(&self, axis: GridAxisKind) -> usize {
+        match axis {
+            GridAxisKind::Column => self.column_explicit_start,
+            GridAxisKind::Row => self.row_explicit_start,
+        }
+    }
+
+    fn set_axis_explicit_start(&mut self, axis: GridAxisKind, start: usize) {
+        match axis {
+            GridAxisKind::Column => self.column_explicit_start = start,
+            GridAxisKind::Row => self.row_explicit_start = start,
+        }
+    }
+
+    fn axis_is_inherited(&self, axis: GridAxisKind) -> bool {
+        match axis {
+            GridAxisKind::Column => self.inherited_columns,
+            GridAxisKind::Row => self.inherited_rows,
+        }
+    }
+
+    fn capacity_error(&self) -> GridPlacementDemandError {
+        GridPlacementDemandError::OccupancyCapacity {
+            columns: self.column_count,
+            rows: self.row_count,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct PlacementCursor {
+    major: usize,
+    minor: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PlacementAxes {
+    major: GridAxisKind,
+    minor: GridAxisKind,
+    column_flow: bool,
+}
+
+pub(super) fn derive_grid_placement_demand<Node, S: LayoutScalar>(
+    topology: &mut ExpandedGridTopology<S>,
+    placements: &mut GridPlacementContext<Node>,
+    flow: GridAutoFlow,
+) -> Result<(), GridPlacementDemandError> {
+    let mut demand = PlacementDemand::new(topology, placements.items.len())?;
+    derive_grid_placement_demand_inner(&mut demand, placements, flow)?;
+    topology.apply_placement_demand(
+        demand.column_explicit_start,
+        demand.row_explicit_start,
+        demand.column_count,
+        demand.row_count,
+    )?;
+    placements.settled_areas = Some(demand.placed_areas);
+    Ok(())
+}
+
+fn derive_grid_placement_demand_inner<Node>(
+    demand: &mut PlacementDemand,
+    placements: &GridPlacementContext<Node>,
+    flow: GridAutoFlow,
+) -> Result<(), GridPlacementDemandError> {
+    if !placements.items.iter().any(|item| item.in_flow) {
+        return Ok(());
+    }
+
+    grow_for_definite_placements(demand, placements)?;
+    let column_flow = flow.is_column();
+    let (major_axis, minor_axis) = if column_flow {
+        (GridAxisKind::Column, GridAxisKind::Row)
+    } else {
+        (GridAxisKind::Row, GridAxisKind::Column)
+    };
+    let largest_unresolved_minor_span = placements
+        .items
+        .iter()
+        .filter(|item| item.in_flow)
+        .filter_map(|item| {
+            let placement = item_axis_placement(item, minor_axis);
+            (!has_definite_line(placement)).then_some(automatic_axis_span(placement))
+        })
+        .max()
+        .unwrap_or(1);
+    ensure_axis_track_count(demand, minor_axis, largest_unresolved_minor_span)?;
+    ensure_axis_track_count(demand, major_axis, 1)?;
+
+    let mut occupancy = super::topology::GridOccupancy::new(demand.column_count, demand.row_count)?;
+
+    for (index, placement) in placements.items.iter().enumerate() {
+        if !placement.in_flow
+            || !has_definite_line(placement.column)
+            || !has_definite_line(placement.row)
+        {
+            continue;
+        }
+        let area = definite_integer_area(demand, placement)?;
+        occupancy.occupy(area);
+        demand.placed_areas[index] = Some(area);
+    }
+
+    for source_index in &placements.order_modified_indexes {
+        let index = source_index.get();
+        let placement = placements
+            .items
+            .get(index)
+            .ok_or_else(|| demand.capacity_error())?;
+        if !placement.in_flow || demand.placed_areas[index].is_some() {
+            continue;
+        }
+        let major = item_axis_placement(placement, major_axis);
+        if !has_definite_line(major) {
+            continue;
+        }
+        let area = place_definite_major_item(
+            demand,
+            &mut occupancy,
+            placement,
+            major_axis,
+            minor_axis,
+            column_flow,
+        )?;
+        occupancy.occupy(area);
+        demand.placed_areas[index] = Some(area);
+    }
+
+    let mut cursor = PlacementCursor::default();
+    for source_index in &placements.order_modified_indexes {
+        let index = source_index.get();
+        let placement = placements
+            .items
+            .get(index)
+            .ok_or_else(|| demand.capacity_error())?;
+        if !placement.in_flow || demand.placed_areas[index].is_some() {
+            continue;
+        }
+        if has_definite_line(item_axis_placement(placement, major_axis)) {
+            return Err(demand.capacity_error());
+        }
+        let area = place_automatic_item(
+            demand,
+            &mut occupancy,
+            placement,
+            PlacementAxes {
+                major: major_axis,
+                minor: minor_axis,
+                column_flow,
+            },
+            flow.is_dense(),
+            &mut cursor,
+        )?;
+        occupancy.occupy(area);
+        demand.placed_areas[index] = Some(area);
+    }
+
+    if demand
+        .placed_areas
+        .iter()
+        .zip(&placements.items)
+        .any(|(area, placement)| {
+            placement.in_flow
+                && !matches!(
+                    area,
+                    Some(area)
+                        if area.column_start < area.column_end
+                            && area.row_start < area.row_end
+                            && area.column_end <= demand.column_count
+                            && area.row_end <= demand.row_count
+                )
+        })
+    {
+        return Err(demand.capacity_error());
+    }
+    Ok(())
+}
+
+fn grow_for_definite_placements<Node>(
+    demand: &mut PlacementDemand,
+    placements: &GridPlacementContext<Node>,
+) -> Result<(), GridPlacementDemandError> {
+    for axis in [GridAxisKind::Column, GridAxisKind::Row] {
+        let explicit_count = demand.axis_explicit_count(axis);
+        let explicit_end = isize::try_from(explicit_count).map_err(|_| {
+            GridPlacementDemandError::AxisCapacity {
+                axis,
+                requested_tracks: explicit_count,
+            }
+        })?;
+        let mut minimum = 0_isize;
+        let mut maximum = explicit_end;
+        for item in placements.items.iter().filter(|item| item.in_flow) {
+            if let Some((start, end)) =
+                signed_definite_axis_range(item_axis_placement(item, axis), explicit_count, axis)?
+            {
+                minimum = minimum.min(start);
+                maximum = maximum.max(end);
+            }
+        }
+        let leading = minimum
+            .checked_neg()
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or(GridPlacementDemandError::AxisCapacity {
+                axis,
+                requested_tracks: usize::MAX,
+            })?;
+        let trailing = maximum
+            .checked_sub(explicit_end)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or(GridPlacementDemandError::AxisCapacity {
+                axis,
+                requested_tracks: usize::MAX,
+            })?;
+        let requested_tracks = leading
+            .checked_add(explicit_count)
+            .and_then(|count| count.checked_add(trailing))
+            .ok_or(GridPlacementDemandError::AxisCapacity {
+                axis,
+                requested_tracks: usize::MAX,
+            })?;
+        if demand.axis_is_inherited(axis) && requested_tracks > demand.axis_track_count(axis) {
+            return Err(GridPlacementDemandError::AxisCapacity {
+                axis,
+                requested_tracks,
+            });
+        }
+        demand.set_axis_explicit_start(axis, leading);
+        demand.set_axis_track_count(axis, requested_tracks.max(demand.axis_track_count(axis)));
+    }
+    Ok(())
+}
+
+fn signed_definite_axis_range(
+    placement: GridPlacement,
+    explicit_count: usize,
+    axis: GridAxisKind,
+) -> Result<Option<(isize, isize)>, GridPlacementDemandError> {
+    if !has_definite_line(placement) {
+        return Ok(None);
+    }
+    let start = placement
+        .start()
+        .map(|line| signed_grid_line(line.get(), explicit_count, axis))
+        .transpose()?;
+    let end = placement
+        .end()
+        .map(|line| signed_grid_line(line.get(), explicit_count, axis))
+        .transpose()?;
+    let span = placement
+        .span()
+        .map(|span| {
+            isize::try_from(span.get()).map_err(|_| GridPlacementDemandError::AxisCapacity {
+                axis,
+                requested_tracks: span.get(),
+            })
+        })
+        .transpose()?;
+    let overflow = || GridPlacementDemandError::AxisCapacity {
+        axis,
+        requested_tracks: placement.span().map_or(usize::MAX, |span| span.get()),
+    };
+    let range = match (start, end, span) {
+        (Some(start), Some(end), _) if start == end => {
+            (start, start.checked_add(1).ok_or_else(overflow)?)
+        }
+        (Some(start), Some(end), _) => (start.min(end), start.max(end)),
+        (Some(start), None, Some(span)) => (start, start.checked_add(span).ok_or_else(overflow)?),
+        (Some(start), None, None) => (start, start.checked_add(1).ok_or_else(overflow)?),
+        (None, Some(end), Some(span)) => (end.checked_sub(span).ok_or_else(overflow)?, end),
+        (None, Some(end), None) => (end.checked_sub(1).ok_or_else(overflow)?, end),
+        (None, None, _) => return Ok(None),
+    };
+    Ok(Some(range))
+}
+
+fn signed_grid_line(
+    line: isize,
+    explicit_count: usize,
+    axis: GridAxisKind,
+) -> Result<isize, GridPlacementDemandError> {
+    if line > 0 {
+        return Ok(line - 1);
+    }
+    isize::try_from(explicit_count)
+        .ok()
+        .and_then(|count| count.checked_add(line))
+        .and_then(|line| line.checked_add(1))
+        .ok_or(GridPlacementDemandError::AxisCapacity {
+            axis,
+            requested_tracks: explicit_count,
+        })
+}
+
+fn definite_integer_axis_range(
+    demand: &PlacementDemand,
+    placement: GridPlacement,
+    axis: GridAxisKind,
+) -> Result<(usize, usize), GridPlacementDemandError> {
+    let (start, end) =
+        signed_definite_axis_range(placement, demand.axis_explicit_count(axis), axis)?
+            .ok_or_else(|| demand.capacity_error())?;
+    let explicit_start = isize::try_from(demand.axis_explicit_start(axis)).map_err(|_| {
+        GridPlacementDemandError::AxisCapacity {
+            axis,
+            requested_tracks: demand.axis_track_count(axis),
+        }
+    })?;
+    let start = start
+        .checked_add(explicit_start)
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or(GridPlacementDemandError::AxisCapacity {
+            axis,
+            requested_tracks: demand.axis_track_count(axis),
+        })?;
+    let end = end
+        .checked_add(explicit_start)
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or(GridPlacementDemandError::AxisCapacity {
+            axis,
+            requested_tracks: demand.axis_track_count(axis),
+        })?;
+    if start >= end || end > demand.axis_track_count(axis) {
+        return Err(GridPlacementDemandError::AxisCapacity {
+            axis,
+            requested_tracks: end,
+        });
+    }
+    Ok((start, end))
+}
+
+fn definite_integer_area(
+    demand: &PlacementDemand,
+    placement: &ResolvedGridItemPlacement,
+) -> Result<PlacedGridArea, GridPlacementDemandError> {
+    let (column_start, column_end) =
+        definite_integer_axis_range(demand, placement.column, GridAxisKind::Column)?;
+    let (row_start, row_end) =
+        definite_integer_axis_range(demand, placement.row, GridAxisKind::Row)?;
+    Ok(PlacedGridArea::new(
+        column_start,
+        row_start,
+        column_end,
+        row_end,
+    ))
+}
+
+fn item_axis_placement(placement: &ResolvedGridItemPlacement, axis: GridAxisKind) -> GridPlacement {
+    match axis {
+        GridAxisKind::Column => placement.column,
+        GridAxisKind::Row => placement.row,
+    }
+}
+
+fn automatic_axis_span(placement: GridPlacement) -> usize {
+    placement.span().map_or(1, |span| span.get())
+}
+
+fn ensure_axis_track_count(
+    demand: &mut PlacementDemand,
+    axis: GridAxisKind,
+    required_count: usize,
+) -> Result<(), GridPlacementDemandError> {
+    if isize::try_from(required_count).is_err() {
+        return Err(GridPlacementDemandError::AxisCapacity {
+            axis,
+            requested_tracks: required_count,
+        });
+    }
+    if required_count <= demand.axis_track_count(axis) {
+        return Ok(());
+    }
+    if demand.axis_is_inherited(axis) {
+        return Err(GridPlacementDemandError::AxisCapacity {
+            axis,
+            requested_tracks: required_count,
+        });
+    }
+    demand.set_axis_track_count(axis, required_count);
+    Ok(())
+}
+
+fn grow_occupancy_axis(
+    demand: &mut PlacementDemand,
+    occupancy: &mut super::topology::GridOccupancy,
+    axis: GridAxisKind,
+    required_count: usize,
+) -> Result<(), GridPlacementDemandError> {
+    ensure_axis_track_count(demand, axis, required_count)?;
+    occupancy.grow_to(demand.column_count, demand.row_count)
+}
+
+fn place_definite_major_item(
+    demand: &mut PlacementDemand,
+    occupancy: &mut super::topology::GridOccupancy,
+    placement: &ResolvedGridItemPlacement,
+    major_axis: GridAxisKind,
+    minor_axis: GridAxisKind,
+    column_flow: bool,
+) -> Result<PlacedGridArea, GridPlacementDemandError> {
+    let (major_start, major_end) = definite_integer_axis_range(
+        demand,
+        item_axis_placement(placement, major_axis),
+        major_axis,
+    )?;
+    let minor_span = automatic_axis_span(item_axis_placement(placement, minor_axis));
+    ensure_axis_track_count(demand, minor_axis, minor_span)?;
+    occupancy.grow_to(demand.column_count, demand.row_count)?;
+    loop {
+        let minor_count = demand.axis_track_count(minor_axis);
+        let last_start =
+            minor_count
+                .checked_sub(minor_span)
+                .ok_or(GridPlacementDemandError::AxisCapacity {
+                    axis: minor_axis,
+                    requested_tracks: minor_span,
+                })?;
+        for minor_start in 0..=last_start {
+            let minor_end = minor_start.checked_add(minor_span).ok_or(
+                GridPlacementDemandError::AxisCapacity {
+                    axis: minor_axis,
+                    requested_tracks: minor_span,
+                },
+            )?;
+            let area = oriented_area(column_flow, major_start, major_end, minor_start, minor_end);
+            if occupancy.is_free(area) {
+                return Ok(area);
+            }
+        }
+        let required =
+            minor_count
+                .checked_add(1)
+                .ok_or(GridPlacementDemandError::AxisCapacity {
+                    axis: minor_axis,
+                    requested_tracks: usize::MAX,
+                })?;
+        grow_occupancy_axis(demand, occupancy, minor_axis, required)?;
+    }
+}
+
+fn place_automatic_item(
+    demand: &mut PlacementDemand,
+    occupancy: &mut super::topology::GridOccupancy,
+    placement: &ResolvedGridItemPlacement,
+    axes: PlacementAxes,
+    dense: bool,
+    cursor: &mut PlacementCursor,
+) -> Result<PlacedGridArea, GridPlacementDemandError> {
+    let major_span = automatic_axis_span(item_axis_placement(placement, axes.major));
+    let minor = item_axis_placement(placement, axes.minor);
+    let mut search = if dense {
+        PlacementCursor::default()
+    } else {
+        *cursor
+    };
+
+    if has_definite_line(minor) {
+        let (minor_start, minor_end) = definite_integer_axis_range(demand, minor, axes.minor)?;
+        if !dense && minor_start < search.minor {
+            search.major =
+                search
+                    .major
+                    .checked_add(1)
+                    .ok_or(GridPlacementDemandError::AxisCapacity {
+                        axis: axes.major,
+                        requested_tracks: usize::MAX,
+                    })?;
+        }
+        search.minor = minor_start;
+        loop {
+            let major_end = search.major.checked_add(major_span).ok_or(
+                GridPlacementDemandError::AxisCapacity {
+                    axis: axes.major,
+                    requested_tracks: major_span,
+                },
+            )?;
+            grow_occupancy_axis(demand, occupancy, axes.major, major_end)?;
+            let area = oriented_area(
+                axes.column_flow,
+                search.major,
+                major_end,
+                minor_start,
+                minor_end,
+            );
+            if occupancy.is_free(area) {
+                return Ok(area);
+            }
+            search.major =
+                search
+                    .major
+                    .checked_add(1)
+                    .ok_or(GridPlacementDemandError::AxisCapacity {
+                        axis: axes.major,
+                        requested_tracks: usize::MAX,
+                    })?;
+        }
+    }
+
+    let minor_span = automatic_axis_span(minor);
+    ensure_axis_track_count(demand, axes.minor, minor_span)?;
+    loop {
+        let minor_count = demand.axis_track_count(axes.minor);
+        let minor_end =
+            search
+                .minor
+                .checked_add(minor_span)
+                .ok_or(GridPlacementDemandError::AxisCapacity {
+                    axis: axes.minor,
+                    requested_tracks: minor_span,
+                })?;
+        if minor_end > minor_count {
+            search.major =
+                search
+                    .major
+                    .checked_add(1)
+                    .ok_or(GridPlacementDemandError::AxisCapacity {
+                        axis: axes.major,
+                        requested_tracks: usize::MAX,
+                    })?;
+            search.minor = 0;
+            continue;
+        }
+        let major_end =
+            search
+                .major
+                .checked_add(major_span)
+                .ok_or(GridPlacementDemandError::AxisCapacity {
+                    axis: axes.major,
+                    requested_tracks: major_span,
+                })?;
+        grow_occupancy_axis(demand, occupancy, axes.major, major_end)?;
+        let area = oriented_area(
+            axes.column_flow,
+            search.major,
+            major_end,
+            search.minor,
+            minor_end,
+        );
+        if occupancy.is_free(area) {
+            if !dense {
+                *cursor = search;
+            }
+            return Ok(area);
+        }
+        search.minor =
+            search
+                .minor
+                .checked_add(1)
+                .ok_or(GridPlacementDemandError::AxisCapacity {
+                    axis: axes.minor,
+                    requested_tracks: usize::MAX,
+                })?;
+    }
+}
+
+fn oriented_area(
+    column_flow: bool,
+    major_start: usize,
+    major_end: usize,
+    minor_start: usize,
+    minor_end: usize,
+) -> PlacedGridArea {
+    if column_flow {
+        PlacedGridArea::new(major_start, minor_start, major_end, minor_end)
+    } else {
+        PlacedGridArea::new(minor_start, major_start, minor_end, major_end)
+    }
+}
+
 pub(super) fn grid_track_requirement_from_placements(
     placements: &[ResolvedGridItemPlacement],
 ) -> LogicalSizeOf<usize> {
@@ -576,6 +1240,24 @@ pub(super) fn resolve_grid_child_areas<Node, S: LayoutScalar>(
     } = input;
     debug_assert_eq!(children.len(), placements.children.len());
     debug_assert_eq!(children.len(), placements.items.len());
+    if let Some(settled_areas) = &placements.settled_areas {
+        debug_assert_eq!(settled_areas.len(), placements.items.len());
+        return settled_areas
+            .iter()
+            .map(|area| {
+                area.map(|area| GridArea {
+                    column: area.column_start,
+                    row: area.row_start,
+                    column_end: area.column_end,
+                    row_end: area.row_end,
+                    size: LogicalSizeOf::new(
+                        track_span_sum(columns, area.column_start, area.column_end, gap.inline),
+                        track_span_sum(rows, area.row_start, area.row_end, gap.block),
+                    ),
+                })
+            })
+            .collect();
+    }
     let mut areas = vec![None; children.len()];
     let mut occupancy = vec![false; columns.len() * rows.len()];
     for (index, placement) in placements.items.iter().enumerate() {

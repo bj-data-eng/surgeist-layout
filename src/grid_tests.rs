@@ -21,6 +21,412 @@ mod fri06_c12_t08_browser_front_door {
     ));
 }
 
+fn fri08_c01_placement_request() -> LayoutRootRequest {
+    LayoutRootRequest::viewport(Size::new(
+        Available::Definite(240.0),
+        Available::Definite(240.0),
+    ))
+    .expect("finite placement viewport")
+}
+
+fn fri08_c01_placement_output(batch: &CompletedLayoutBatch<u32>, node: u32) -> NodeOutput {
+    batch
+        .final_entries()
+        .iter()
+        .find(|entry| entry.node() == node)
+        .unwrap_or_else(|| panic!("placement output for node {node}"))
+        .output()
+}
+
+fn fri08_c01_placement_compute(tree: &PublicLayoutTreeOf) -> CompletedLayoutBatch<u32> {
+    compute_layout(tree, 1, fri08_c01_placement_request()).expect("valid grid placement")
+}
+
+#[test]
+fn fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::AUTO),
+                grid_template_columns: vec![
+                    TrackComponent::px(40.0),
+                    TrackComponent::px(40.0),
+                    TrackComponent::px(40.0),
+                ],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                grid_auto_rows: vec![TrackComponent::px(20.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(2).expect("middle column"),
+                grid_row: GridPlacement::try_line(1).expect("first row"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_span(2).expect("two-column span"),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let batch = fri08_c01_placement_compute(&tree);
+
+    assert_eq!(
+        fri08_c01_placement_output(&batch, 1).size,
+        Size::new(120.0, 40.0)
+    );
+    assert_eq!(
+        fri08_c01_placement_output(&batch, 3).location,
+        Point::new(0.0, 20.0)
+    );
+    assert_eq!(
+        fri08_c01_placement_output(&batch, 3).size,
+        Size::new(80.0, 20.0)
+    );
+}
+
+#[test]
+fn fri08_c01_placement_definite_overlap_adds_no_implicit_row() {
+    let definite = NodeInput {
+        grid_column: GridPlacement::try_line(1).expect("first column"),
+        grid_row: GridPlacement::try_line(1).expect("first row"),
+        ..NodeInput::DEFAULT
+    };
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::px(10.0)],
+                grid_template_rows: vec![TrackComponent::px(10.0)],
+                grid_auto_rows: vec![TrackComponent::px(10.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(2, definite.clone())
+        .style(3, definite);
+
+    let batch = fri08_c01_placement_compute(&tree);
+
+    assert_eq!(fri08_c01_placement_output(&batch, 1).size.height, 10.0);
+    assert_eq!(fri08_c01_placement_output(&batch, 2).location, Point::ZERO);
+    assert_eq!(fri08_c01_placement_output(&batch, 3).location, Point::ZERO);
+}
+
+#[test]
+fn fri08_c01_placement_automatic_span_reserves_its_full_extent() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(90.0), PreferredSize::AUTO),
+                grid_template_columns: vec![TrackComponent::px(30.0), TrackComponent::px(30.0)],
+                grid_template_rows: vec![TrackComponent::px(10.0)],
+                grid_auto_columns: vec![TrackComponent::px(30.0)],
+                grid_auto_rows: vec![TrackComponent::px(10.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_span(3).expect("three-column span"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(3, NodeInput::DEFAULT);
+
+    let batch = fri08_c01_placement_compute(&tree);
+
+    assert_eq!(
+        fri08_c01_placement_output(&batch, 2).size,
+        Size::new(90.0, 10.0)
+    );
+    assert_eq!(
+        fri08_c01_placement_output(&batch, 3).location,
+        Point::new(0.0, 10.0)
+    );
+}
+
+fn fri08_c01_placement_dense_tree(flow: GridAutoFlow) -> PublicLayoutTreeOf {
+    let (columns, rows, occupied_column, occupied_row, span_column, span_row) = if flow.is_column()
+    {
+        (
+            vec![TrackComponent::px(10.0)],
+            vec![
+                TrackComponent::px(10.0),
+                TrackComponent::px(10.0),
+                TrackComponent::px(10.0),
+            ],
+            GridPlacement::try_line(1).expect("first column"),
+            GridPlacement::try_line(2).expect("middle row"),
+            GridPlacement::AUTO,
+            GridPlacement::try_span(2).expect("two-row span"),
+        )
+    } else {
+        (
+            vec![
+                TrackComponent::px(10.0),
+                TrackComponent::px(10.0),
+                TrackComponent::px(10.0),
+            ],
+            vec![TrackComponent::px(10.0)],
+            GridPlacement::try_line(2).expect("middle column"),
+            GridPlacement::try_line(1).expect("first row"),
+            GridPlacement::try_span(2).expect("two-column span"),
+            GridPlacement::AUTO,
+        )
+    };
+    PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 4])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_auto_flow: flow,
+                grid_template_columns: columns,
+                grid_template_rows: rows,
+                grid_auto_columns: vec![TrackComponent::px(10.0)],
+                grid_auto_rows: vec![TrackComponent::px(10.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: occupied_column,
+                grid_row: occupied_row,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: span_column,
+                grid_row: span_row,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(4, NodeInput::DEFAULT)
+}
+
+#[test]
+fn fri08_c01_placement_dense_backfills_but_sparse_cursors_remain_monotonic() {
+    for (sparse_flow, dense_flow, sparse_location) in [
+        (
+            GridAutoFlow::Row,
+            GridAutoFlow::RowDense,
+            Point::new(20.0, 10.0),
+        ),
+        (
+            GridAutoFlow::Column,
+            GridAutoFlow::ColumnDense,
+            Point::new(10.0, 20.0),
+        ),
+    ] {
+        let sparse = fri08_c01_placement_compute(&fri08_c01_placement_dense_tree(sparse_flow));
+        let dense = fri08_c01_placement_compute(&fri08_c01_placement_dense_tree(dense_flow));
+        assert_eq!(
+            fri08_c01_placement_output(&sparse, 4).location,
+            sparse_location
+        );
+        assert_eq!(fri08_c01_placement_output(&dense, 4).location, Point::ZERO);
+    }
+}
+
+#[test]
+fn fri08_c01_placement_leading_growth_preserves_line_translation_and_auto_pattern_phase() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::px(40.0)],
+                grid_template_rows: vec![TrackComponent::px(10.0)],
+                grid_auto_columns: vec![TrackComponent::px(10.0), TrackComponent::px(20.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(-3).expect("leading implicit line"),
+                grid_row: GridPlacement::try_line(1).expect("first row"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("explicit first line"),
+                grid_row: GridPlacement::try_line(1).expect("first row"),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let batch = fri08_c01_placement_compute(&tree);
+
+    assert_eq!(fri08_c01_placement_output(&batch, 2).size.width, 20.0);
+    assert_eq!(fri08_c01_placement_output(&batch, 3).location.x, 20.0);
+}
+
+#[test]
+fn fri08_c01_placement_absolute_and_display_none_children_create_no_demand() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 4])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::px(10.0)],
+                grid_template_rows: vec![TrackComponent::px(10.0)],
+                grid_auto_columns: vec![TrackComponent::px(50.0)],
+                grid_auto_rows: vec![TrackComponent::px(50.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                position: Position::Absolute,
+                grid_column: GridPlacement::try_line(100).expect("absolute control line"),
+                grid_row: GridPlacement::try_line(100).expect("absolute control line"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::None,
+                grid_column: GridPlacement::try_line(-100).expect("hidden control line"),
+                grid_row: GridPlacement::try_line(-100).expect("hidden control line"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(4, NodeInput::DEFAULT);
+
+    let batch = fri08_c01_placement_compute(&tree);
+
+    assert_eq!(fri08_c01_placement_output(&batch, 1).size.height, 10.0);
+    assert_eq!(
+        fri08_c01_placement_output(&batch, 4).size,
+        Size::new(10.0, 10.0)
+    );
+}
+
+#[test]
+fn fri08_c01_placement_definite_line_plus_span_capacity_is_typed_and_retryable() {
+    let overflowing = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::px(10.0)],
+                grid_template_rows: vec![TrackComponent::px(10.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::line_span(
+                    GridLine::new(isize::MAX).expect("largest positive grid line"),
+                    GridSpan::new(usize::MAX).expect("largest grid span"),
+                ),
+                grid_row: GridPlacement::try_line(1).expect("first row"),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        compute_layout(&overflowing, 1, fri08_c01_placement_request())
+    }));
+    let error = match attempt {
+        Ok(Err(error)) => error,
+        Ok(Ok(_)) => panic!("capacity boundary must not publish a completed batch"),
+        Err(_) => panic!("capacity boundary must return the typed public error instead of panic"),
+    };
+    assert_eq!(error.site(), LayoutErrorSiteOf::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::ChildLayout);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidBlockScrollGeometry,)
+    );
+    let retry_error = compute_layout(&overflowing, 1, fri08_c01_placement_request())
+        .expect_err("the same immutable tree remains retryable after capacity failure");
+    assert_eq!(retry_error.site(), LayoutErrorSiteOf::Node(1));
+    assert_eq!(retry_error.operation(), LayoutOperation::ChildLayout);
+
+    let retry = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::px(10.0)],
+                grid_template_rows: vec![TrackComponent::px(10.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(2, NodeInput::DEFAULT);
+    assert!(compute_layout(&retry, 1, fri08_c01_placement_request()).is_ok());
+}
+
+#[test]
+fn fri08_c01_placement_automatic_span_capacity_is_axis_typed_without_allocation() {
+    let mut topology = ExpandedGridTopology::from_test_parts(
+        vec![TrackSizing::AUTO],
+        vec![TrackSizing::AUTO],
+        named::NamedGridLines::new(GridAxisKind::Column, 1),
+        named::NamedGridLines::new(GridAxisKind::Row, 1),
+        None,
+    );
+    let mut placements = GridPlacementContext::new(
+        vec![2_u32],
+        vec![ResolvedGridItemPlacement {
+            column: GridPlacement::try_span(usize::MAX).expect("nonzero maximum span"),
+            row: GridPlacement::AUTO,
+            absolute_column: GridPlacement::AUTO,
+            absolute_row: GridPlacement::AUTO,
+            in_flow: true,
+        }],
+    );
+
+    assert_eq!(
+        derive_grid_placement_demand(&mut topology, &mut placements, GridAutoFlow::Row),
+        Err(GridPlacementDemandError::AxisCapacity {
+            axis: GridAxisKind::Column,
+            requested_tracks: usize::MAX,
+        })
+    );
+    assert_eq!(topology.column_tracks.len(), 1);
+    assert!(placements.settled_areas.is_none());
+}
+
+#[test]
+fn fri08_c01_placement_occupancy_product_capacity_is_typed_without_allocation() {
+    assert_eq!(
+        topology::GridOccupancy::new(usize::MAX, 2),
+        Err(GridPlacementDemandError::OccupancyCapacity {
+            columns: usize::MAX,
+            rows: 2,
+        })
+    );
+}
+
 fn assert_fri06_c12_t08_ordinary_fixture_geometry(relative_path: &str) {
     fn clear_browser_control_observations(
         expectation: &mut fri06_c12_t08_browser_front_door::Expectation,
