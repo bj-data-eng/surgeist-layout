@@ -468,6 +468,18 @@ fn fri08_c06_exact_seventy_two_owned_rows_exist_parse_and_are_comment_free() {
     }
 }
 
+#[test]
+fn fri08_c06_exact_seventy_two_owned_rows_match_production() {
+    let paths = fri08_c06_owned_output_paths();
+    assert_eq!(paths.len(), 72);
+    for path in paths {
+        let golden = support::Golden::parse_file(&path)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", path.display()));
+        support::assert_surgeist_matches(&golden)
+            .unwrap_or_else(|error| panic!("{} failed layout comparison: {error}", path.display()));
+    }
+}
+
 fn fri07_c04_fixture_input_xml(name: &str, root_width: &str, first_width: &str) -> String {
     format!(
         concat!(

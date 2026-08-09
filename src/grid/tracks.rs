@@ -3,6 +3,7 @@ use super::*;
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct OrdinaryGridAxisGuttersOf<S: LayoutScalar = Scalar> {
     collapsed: Vec<bool>,
+    active_boundary_after: Vec<bool>,
     gutter_after: Vec<S>,
 }
 
@@ -10,17 +11,14 @@ impl<S: LayoutScalar> OrdinaryGridAxisGuttersOf<S> {
     pub(super) fn new(track_count: usize, collapsed: &[bool], gap: S) -> Self {
         let mut collapsed = collapsed.to_vec();
         collapsed.resize(track_count, false);
-        let gutter_after = (0..track_count.saturating_sub(1))
-            .map(|index| {
-                if collapsed[index] || collapsed[index + 1] {
-                    S::ZERO
-                } else {
-                    gap
-                }
-            })
+        let active_boundary_after = Self::derive_active_boundary_after(&collapsed);
+        let gutter_after = active_boundary_after
+            .iter()
+            .map(|active| if *active { gap } else { S::ZERO })
             .collect();
         Self {
             collapsed,
+            active_boundary_after,
             gutter_after,
         }
     }
@@ -34,10 +32,26 @@ impl<S: LayoutScalar> OrdinaryGridAxisGuttersOf<S> {
         collapsed.resize(track_count, false);
         let mut gutter_after = gutter_after.to_vec();
         gutter_after.resize(track_count.saturating_sub(1), S::ZERO);
+        let active_boundary_after = Self::derive_active_boundary_after(&collapsed);
         Self {
             collapsed,
+            active_boundary_after,
             gutter_after,
         }
+    }
+
+    fn derive_active_boundary_after(collapsed: &[bool]) -> Vec<bool> {
+        let mut has_active_track_after = false;
+        let mut active_boundary_after = vec![false; collapsed.len().saturating_sub(1)];
+        for index in (0..collapsed.len()).rev() {
+            if !collapsed[index] {
+                if has_active_track_after && index < active_boundary_after.len() {
+                    active_boundary_after[index] = true;
+                }
+                has_active_track_after = true;
+            }
+        }
+        active_boundary_after
     }
 
     pub(super) fn collapsed(&self) -> &[bool] {
@@ -46,6 +60,40 @@ impl<S: LayoutScalar> OrdinaryGridAxisGuttersOf<S> {
 
     pub(super) fn gutter_after(&self) -> &[S] {
         &self.gutter_after
+    }
+
+    pub(super) fn active_boundary_after(&self) -> &[bool] {
+        &self.active_boundary_after
+    }
+
+    pub(super) fn reversed(&self) -> Self {
+        let mut collapsed = self.collapsed.clone();
+        collapsed.reverse();
+        let active_boundary_after = Self::derive_active_boundary_after(&collapsed);
+        let mut active_gutters = self
+            .gutter_after
+            .iter()
+            .copied()
+            .zip(&self.active_boundary_after)
+            .filter_map(|(gutter, active)| active.then_some(gutter))
+            .collect::<Vec<_>>();
+        active_gutters.reverse();
+        let mut active_gutters = active_gutters.into_iter();
+        let gutter_after = active_boundary_after
+            .iter()
+            .map(|active| {
+                if *active {
+                    active_gutters.next().unwrap_or(S::ZERO)
+                } else {
+                    S::ZERO
+                }
+            })
+            .collect();
+        Self {
+            collapsed,
+            active_boundary_after,
+            gutter_after,
+        }
     }
 
     pub(super) fn active_gap_total(&self) -> S {

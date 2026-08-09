@@ -18,9 +18,9 @@ pub(super) fn ordinary_grid_axis_alignment<S: LayoutScalar>(
     alignment: AlignContent,
 ) -> OrdinaryGridAxisAlignment<S> {
     let active_boundaries = gutters
-        .collapsed()
-        .windows(2)
-        .filter(|pair| !pair[0] && !pair[1])
+        .active_boundary_after()
+        .iter()
+        .filter(|active| **active)
         .count();
     let active_tracks = gutters
         .collapsed()
@@ -73,8 +73,8 @@ pub(super) fn ordinary_grid_axis_alignment<S: LayoutScalar>(
         }
     };
     if distributed > S::ZERO {
-        for (boundary, pair) in gutter_after.iter_mut().zip(gutters.collapsed().windows(2)) {
-            if !pair[0] && !pair[1] {
+        for (boundary, active) in gutter_after.iter_mut().zip(gutters.active_boundary_after()) {
+            if *active {
                 *boundary = *boundary + distributed;
             }
         }

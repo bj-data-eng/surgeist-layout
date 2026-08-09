@@ -364,10 +364,10 @@ fn fri08_c05_composition_grid006_distinct_policies<S: LayoutScalar>() {
     let ordinary = fri08_c05_composition_grid006_auto_fit_overlap_span_hole::<S>(Display::Grid);
     let lanes = fri08_c05_composition_grid006_auto_fit_overlap_span_hole::<S>(Display::GridLanes);
 
-    assert_eq!(ordinary[0].location.x, scalar(40.0));
-    assert_eq!(ordinary[1].location.x, scalar(40.0));
+    assert_eq!(ordinary[0].location.x, scalar(50.0));
+    assert_eq!(ordinary[1].location.x, scalar(50.0));
     assert_eq!(ordinary[2].location.x, scalar(0.0));
-    assert_eq!(ordinary[3].location.x, scalar(90.0));
+    assert_eq!(ordinary[3].location.x, scalar(100.0));
     assert_eq!(ordinary[3].size.width, scalar(90.0));
 
     assert_eq!(lanes[0].location.x, scalar(100.0));
@@ -5173,6 +5173,216 @@ fn fri08_c02_auto_fit_output<S: LayoutScalar>(
     fri08_c01_placement_output(&batch, node)
 }
 
+fn assert_fri08_c06_collapsed_gutter_carrier<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    for (collapsed, expected) in [
+        (vec![false, true, false], vec![scalar(10.0), S::ZERO]),
+        (
+            vec![false, true, true, false, true, false],
+            vec![scalar(10.0), S::ZERO, S::ZERO, scalar(10.0), S::ZERO],
+        ),
+        (
+            vec![true, true, false, false],
+            vec![S::ZERO, S::ZERO, scalar(10.0)],
+        ),
+        (
+            vec![false, false, true, true],
+            vec![scalar(10.0), S::ZERO, S::ZERO],
+        ),
+        (vec![true, true, true], vec![S::ZERO, S::ZERO]),
+    ] {
+        let gutters = OrdinaryGridAxisGuttersOf::new(collapsed.len(), &collapsed, scalar(10.0));
+        assert_eq!(gutters.gutter_after(), expected);
+        assert_eq!(
+            gutters.active_gap_total(),
+            expected
+                .iter()
+                .copied()
+                .fold(S::ZERO, |sum, gutter| sum + gutter)
+        );
+    }
+}
+
+#[test]
+fn fri08_c06_collapsed_gutter_carrier_retains_one_gap_per_interior_run_for_both_scalars() {
+    assert_fri08_c06_collapsed_gutter_carrier::<f32>();
+    assert_fri08_c06_collapsed_gutter_carrier::<f64>();
+
+    let reversed = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+        4,
+        &[false, true, false, false],
+        &[10.0_f64, 0.0, 30.0],
+    )
+    .reversed();
+    assert_eq!(reversed.collapsed(), &[false, false, true, false]);
+    assert_eq!(reversed.gutter_after(), &[30.0, 10.0, 0.0]);
+}
+
+#[test]
+fn fri08_c06_collapsed_gutter_alignment_distributes_between_nearest_active_tracks() {
+    let gutters = OrdinaryGridAxisGuttersOf::new(3, &[false, true, false], 10.0_f64);
+    for (alignment, free_space, expected_start, expected_gutters) in [
+        (AlignContent::Start, 20.0, 0.0, vec![10.0, 0.0]),
+        (AlignContent::Center, 20.0, 10.0, vec![10.0, 0.0]),
+        (AlignContent::SpaceBetween, 20.0, 0.0, vec![30.0, 0.0]),
+        (AlignContent::SpaceAround, 20.0, 5.0, vec![20.0, 0.0]),
+        (AlignContent::SpaceEvenly, 30.0, 10.0, vec![20.0, 0.0]),
+    ] {
+        let actual = ordinary_grid_axis_alignment(free_space, &gutters, alignment);
+        assert_eq!(actual.start, expected_start, "{alignment:?} start");
+        assert_eq!(
+            actual.gutter_after, expected_gutters,
+            "{alignment:?} coincident boundary gutters"
+        );
+    }
+}
+
+fn assert_fri08_c06_collapsed_gutter_public_axis<S: LayoutScalar>(axis: Fri08C02TrackAxis) {
+    let scalar = S::from_f64;
+    let (size, columns, rows, first_column, first_row, third_column, third_row) = match axis {
+        Fri08C02TrackAxis::Columns => (
+            Size::new(
+                PreferredSizeOf::px(scalar(140.0)),
+                PreferredSizeOf::px(scalar(20.0)),
+            ),
+            vec![fri08_c02_auto_fit_repeat()],
+            vec![TrackComponentOf::px(scalar(20.0))],
+            GridPlacement::try_line(1).expect("first repeated column"),
+            GridPlacement::try_line(1).expect("single row"),
+            GridPlacement::try_line(3).expect("third repeated column"),
+            GridPlacement::try_line(1).expect("single row"),
+        ),
+        Fri08C02TrackAxis::Rows => (
+            Size::new(
+                PreferredSizeOf::px(scalar(20.0)),
+                PreferredSizeOf::px(scalar(140.0)),
+            ),
+            vec![TrackComponentOf::px(scalar(20.0))],
+            vec![fri08_c02_auto_fit_repeat()],
+            GridPlacement::try_line(1).expect("single column"),
+            GridPlacement::try_line(1).expect("first repeated row"),
+            GridPlacement::try_line(1).expect("single column"),
+            GridPlacement::try_line(3).expect("third repeated row"),
+        ),
+    };
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size,
+                grid_template_columns: columns,
+                grid_template_rows: rows,
+                gap: Size::new(LengthOf::px(scalar(10.0)), LengthOf::px(scalar(10.0))),
+                justify_content: Some(AlignContent::Center),
+                align_content: Some(AlignContent::Center),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                grid_column: first_column,
+                grid_row: first_row,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                grid_column: third_column,
+                grid_row: third_row,
+                ..NodeInputOf::default()
+            },
+        );
+    let viewport = match axis {
+        Fri08C02TrackAxis::Columns => Size::new(scalar(140.0), scalar(20.0)),
+        Fri08C02TrackAxis::Rows => Size::new(scalar(20.0), scalar(140.0)),
+    };
+    let first = fri08_c02_auto_fit_output(&tree, viewport, 2);
+    let third = fri08_c02_auto_fit_output(&tree, viewport, 3);
+    let actual = match axis {
+        Fri08C02TrackAxis::Columns => (
+            first.location.x,
+            first.size.width,
+            third.location.x,
+            third.size.width,
+        ),
+        Fri08C02TrackAxis::Rows => (
+            first.location.y,
+            first.size.height,
+            third.location.y,
+            third.size.height,
+        ),
+    };
+    assert_eq!(
+        actual,
+        (scalar(25.0), scalar(40.0), scalar(75.0), scalar(40.0))
+    );
+}
+
+#[test]
+fn fri08_c06_collapsed_gutter_public_layout_matches_on_both_axes_and_scalars() {
+    for axis in [Fri08C02TrackAxis::Columns, Fri08C02TrackAxis::Rows] {
+        assert_fri08_c06_collapsed_gutter_public_axis::<f32>(axis);
+        assert_fri08_c06_collapsed_gutter_public_axis::<f64>(axis);
+    }
+}
+
+#[test]
+fn fri08_c06_collapsed_gutter_automatic_and_absolute_spans_use_the_same_line_offsets() {
+    let golden = fri06_c12_t08_browser_front_door::Golden::parse(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/layout/browser_parity/xml/grid/fri08_auto_fit_occupied_track_collapse__border_box_ltr.xml"
+    )))
+    .expect("authoritative collapsed-gutter fixture parses");
+    fri06_c12_t08_browser_front_door::assert_surgeist_matches(&golden)
+        .expect("automatic span uses the coincident-gutter line offsets");
+
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2, 3, 4])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("first repeated track"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_line(3).expect("third repeated track"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                position: Position::Absolute,
+                grid_column: GridPlacement::try_lines(1, 4)
+                    .expect("absolute span through the interior collapsed run"),
+                grid_row: GridPlacement::try_lines(1, 2).expect("single row"),
+                inset: Edges::all(LengthAuto::ZERO),
+                ..NodeInput::DEFAULT
+            },
+        );
+    let absolute = fri08_c02_auto_fit_output(&tree, Size::new(140.0, 20.0), 4);
+    assert_eq!((absolute.location.x, absolute.size.width), (25.0, 90.0));
+}
+
 fn assert_fri08_c02_auto_fit_overlap_collapses_to_centered_track<S: LayoutScalar>(
     axis: Fri08C02TrackAxis,
 ) {
@@ -5318,7 +5528,7 @@ fn fri08_c02_auto_fit_all_empty_repetitions_and_adjacent_gutters_collapse() {
 }
 
 #[test]
-fn fri08_c02_auto_fit_interior_collapse_removes_both_ghost_gutters() {
+fn fri08_c02_auto_fit_interior_collapse_retains_one_coincident_gutter() {
     let tree = PublicLayoutTreeOf::<f32>::new()
         .children(1, [2, 3])
         .style(
@@ -5350,8 +5560,8 @@ fn fri08_c02_auto_fit_interior_collapse_removes_both_ghost_gutters() {
 
     let first = fri08_c02_auto_fit_output(&tree, Size::new(140.0, 20.0), 2);
     let third = fri08_c02_auto_fit_output(&tree, Size::new(140.0, 20.0), 3);
-    assert_eq!((first.location.x, first.size.width), (30.0, 40.0));
-    assert_eq!((third.location.x, third.size.width), (70.0, 40.0));
+    assert_eq!((first.location.x, first.size.width), (25.0, 40.0));
+    assert_eq!((third.location.x, third.size.width), (75.0, 40.0));
 }
 
 #[test]
@@ -5518,9 +5728,9 @@ fn fri08_c02_auto_fit_inherited_context(reversed: bool) -> GridParentContext<f32
                 row: 0,
                 column_end: 4,
                 row_end: 1,
-                size: LogicalSizeOf::new(130.0, 20.0),
+                size: LogicalSizeOf::new(140.0, 20.0),
             },
-            content_box_size: Size::new(130.0, 20.0),
+            content_box_size: Size::new(140.0, 20.0),
             columns: parent_geometry.sizes(),
             rows: &[20.0],
             gap: LogicalSizeOf::new(10.0, 0.0),
@@ -5552,9 +5762,9 @@ fn fri08_c02_auto_fit_inherited_subgrid_slices_and_reverses_geometry_with_baseli
     for reversed in [false, true] {
         let context = fri08_c02_auto_fit_inherited_context(reversed);
         let columns = context.columns.as_ref().expect("column subgrid context");
-        assert_eq!(columns.geometry.total_extent(), 130.0);
-        assert_eq!(columns.geometry.span_extent(0, 4), 130.0);
-        assert_eq!(columns.geometry.active_gap_total(), 10.0);
+        assert_eq!(columns.geometry.total_extent(), 140.0);
+        assert_eq!(columns.geometry.span_extent(0, 4), 140.0);
+        assert_eq!(columns.geometry.active_gap_total(), 20.0);
         assert_eq!(
             columns.geometry.collapsed(),
             if reversed {
@@ -5603,7 +5813,7 @@ fn fri08_c02_auto_fit_inherited_subgrid_slices_and_reverses_geometry_with_baseli
                     ..NodeInput::DEFAULT
                 },
             )
-            .measure(2, baseline_measure(130.0, 20.0, Some(7.0), None));
+            .measure(2, baseline_measure(140.0, 20.0, Some(7.0), None));
         let output = compute_grid_with_context(
             &mut tree,
             1,
@@ -5611,20 +5821,20 @@ fn fri08_c02_auto_fit_inherited_subgrid_slices_and_reverses_geometry_with_baseli
                 RunMode::PerformLayout,
                 SizingMode::InherentSize,
                 RequestedAxis::Both,
-                Size::new(Some(130.0), Some(20.0)),
-                Size::new(Some(130.0), Some(20.0)),
+                Size::new(Some(140.0), Some(20.0)),
+                Size::new(Some(140.0), Some(20.0)),
                 ContainingLayoutContext::new(
                     crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
                     ParentFormattingContext::Grid,
                 ),
-                Size::new(Available::Definite(130.0), Available::Definite(20.0)),
+                Size::new(Available::Definite(140.0), Available::Definite(20.0)),
             ),
             context,
         )
         .expect("inherited collapsed geometry layout");
         assert_eq!(
             tree.layout(2).expect("subgrid child layout").size.width,
-            130.0
+            140.0
         );
         assert!(output.scroll_geometry.is_some());
         assert_eq!(output.first_baselines.y, Some(7.0));
@@ -5692,9 +5902,9 @@ fn fri08_c02_auto_fit_inherited_baseline_crosses_collapsed_boundary_without_unif
                     row: 0,
                     column_end: 4,
                     row_end: 1,
-                    size: LogicalSizeOf::new(130.0, 20.0),
+                    size: LogicalSizeOf::new(140.0, 20.0),
                 },
-                content_box_size: Size::new(130.0, 20.0),
+                content_box_size: Size::new(140.0, 20.0),
                 columns: parent_geometry.sizes(),
                 rows: &[20.0],
                 gap: LogicalSizeOf::new(10.0, 0.0),
@@ -5747,10 +5957,10 @@ fn fri08_c02_auto_fit_inherited_baseline_crosses_collapsed_boundary_without_unif
 
         assert_eq!(
             placement.translated_target(),
-            if reversed { 83.0 } else { 17.0 },
-            "{reversed:?} inherited baseline must observe the collapsed zero gutter",
+            if reversed { 83.0 } else { 7.0 },
+            "{reversed:?} inherited baseline must observe the coincident interior gutter",
         );
-        assert_eq!(inherited.geometry.total_extent(), 130.0);
+        assert_eq!(inherited.geometry.total_extent(), 145.0);
     }
 }
 
