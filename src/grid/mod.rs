@@ -390,6 +390,8 @@ where
             .all(|item| !item.row.can_inherit() || item.row.mapping.is_ok())
     );
     let GridContainerContext { gap, lines, .. } = context.clone();
+    let column_gutters = context.column_gutters.clone();
+    let row_gutters = context.row_gutters.clone();
     debug_assert_eq!(lines.column_explicit_start, context.leading_columns);
     debug_assert_eq!(lines.column_explicit_count, context.explicit_columns);
     debug_assert_eq!(lines.row_explicit_start, context.leading_rows);
@@ -433,8 +435,8 @@ where
         row_intrinsic_sizes,
     } = track_resolution;
     let track_content_size = LogicalSizeOf::new(
-        track_content_sum(&column_tracks, &columns, gap.inline),
-        track_content_sum(&row_tracks, &rows, gap.block),
+        track_content_sum_with_gutters(&column_tracks, &columns, gap.inline, Some(&column_gutters)),
+        track_content_sum_with_gutters(&row_tracks, &rows, gap.block, Some(&row_gutters)),
     );
     let cyclic_percent_content_size = cyclic_percent_track_content_size(
         tree,
@@ -449,6 +451,8 @@ where
             columns: &columns,
             rows: &rows,
             gap,
+            column_gutters: Some(&column_gutters),
+            row_gutters: Some(&row_gutters),
             lines,
             placements: &placements,
         },
@@ -754,6 +758,8 @@ where
                 columns: &columns,
                 rows: &rows,
                 gap,
+                column_gutters: None,
+                row_gutters: None,
                 lines,
                 placements: &placements,
             },
@@ -825,6 +831,7 @@ where
                 definite_size: logical_node_inner_size.inline,
                 available_size: logical_available_inner_size.inline,
                 gap: layout_gap.inline,
+                gutters: None,
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
                 stretch_empty_auto_to_available: false,
                 min_intrinsic_sizes: &column_min_intrinsic_sizes,
@@ -841,6 +848,7 @@ where
             gap: layout_gap.block,
             alignment: style.align_content.unwrap_or(AlignContent::Stretch),
             intrinsic_sizes: &row_intrinsic_sizes,
+            gutters: None,
         });
         let mut child_layout = layout_grid_lanes_children(
             tree,
@@ -971,6 +979,8 @@ struct InheritedGridOwnerBaselineTargets<Node, S: LayoutScalar = Scalar> {
 struct GridContainerContext<S: LayoutScalar = Scalar> {
     topology: ExpandedGridTopology<S>,
     gap: LogicalSizeOf<S>,
+    column_gutters: OrdinaryGridAxisGuttersOf<S>,
+    row_gutters: OrdinaryGridAxisGuttersOf<S>,
     percent_basis: LogicalSizeOf<Option<S>>,
     leading_columns: usize,
     leading_rows: usize,
@@ -1380,12 +1390,29 @@ where
 
     let subgrid_report = collect_subgrid_report(tree, node, style);
 
+    let column_gutters = parent_context.columns.as_ref().map_or_else(
+        || {
+            OrdinaryGridAxisGuttersOf::new(
+                column_tracks.len(),
+                &topology.collapsed_columns,
+                gap.inline,
+            )
+        },
+        |axis| axis.geometry.sizing_gutters(),
+    );
+    let row_gutters = parent_context.rows.as_ref().map_or_else(
+        || OrdinaryGridAxisGuttersOf::new(row_tracks.len(), &topology.collapsed_rows, gap.block),
+        |axis| axis.geometry.sizing_gutters(),
+    );
+
     Ok(InitializedGridTracks {
         column_tracks,
         row_tracks,
         context: GridContainerContext {
             topology,
             gap,
+            column_gutters,
+            row_gutters,
             percent_basis,
             leading_columns,
             leading_rows,
@@ -1606,34 +1633,41 @@ enum GridTrackSizingPolicy {
     Lanes,
 }
 
-type InlineTrackResolver<S> = for<'a> fn(InlineTrackInput<'a, S>) -> Vec<S>;
-type BlockTrackResolver<S> = fn(&[TrackSizingOf<S>], Option<S>, S, AlignContent, &[S]) -> Vec<S>;
-
 #[derive(Clone, Copy)]
-struct GridTrackSizingPhases<S: LayoutScalar> {
-    inline: InlineTrackResolver<S>,
-    block: BlockTrackResolver<S>,
+struct GridTrackSizingPhases {
+    policy: GridTrackSizingPolicy,
 }
 
-impl<S: LayoutScalar> GridTrackSizingPhases<S> {
-    fn resolve_inline(self, input: InlineTrackInput<'_, S>) -> Vec<S> {
-        (self.inline)(input)
+impl GridTrackSizingPhases {
+    fn resolve_inline<S: LayoutScalar>(self, input: InlineTrackInput<'_, S>) -> Vec<S> {
+        match self.policy {
+            GridTrackSizingPolicy::Ordinary => resolve_inline_tracks(input),
+            GridTrackSizingPolicy::Lanes => resolve_lanes_inline_tracks(input),
+        }
     }
 
-    fn resolve_block(
+    fn resolve_block<S: LayoutScalar>(
         self,
         tracks: &[TrackSizingOf<S>],
         basis: Option<S>,
         gap: S,
         alignment: AlignContent,
         intrinsic_sizes: &[S],
+        gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
     ) -> Vec<S> {
-        (self.block)(tracks, basis, gap, alignment, intrinsic_sizes)
+        match self.policy {
+            GridTrackSizingPolicy::Ordinary => {
+                resolve_tracks_with_gutters(tracks, basis, gap, alignment, intrinsic_sizes, gutters)
+            }
+            GridTrackSizingPolicy::Lanes => {
+                resolve_lanes_tracks(tracks, basis, gap, alignment, intrinsic_sizes)
+            }
+        }
     }
 }
 
 struct GridTrackResolution<S: LayoutScalar = Scalar> {
-    sizing_phases: GridTrackSizingPhases<S>,
+    sizing_phases: GridTrackSizingPhases,
     columns: Vec<S>,
     rows: Vec<S>,
     column_min_intrinsic_sizes: Vec<S>,
@@ -1662,23 +1696,22 @@ where
         intrinsic_max_available,
         placements,
     } = input;
-    let sizing_phases = match sizing_policy {
-        GridTrackSizingPolicy::Ordinary => GridTrackSizingPhases {
-            inline: resolve_inline_tracks::<Tree::Scalar>,
-            block: resolve_tracks::<Tree::Scalar>,
-        },
-        GridTrackSizingPolicy::Lanes => GridTrackSizingPhases {
-            inline: resolve_lanes_inline_tracks::<Tree::Scalar>,
-            block: resolve_lanes_tracks::<Tree::Scalar>,
-        },
+    let sizing_phases = GridTrackSizingPhases {
+        policy: sizing_policy,
     };
     let GridContainerContext {
         topology,
         gap,
+        column_gutters,
+        row_gutters,
         percent_basis,
         lines,
         ..
     } = context;
+    let ordinary_column_gutters =
+        matches!(sizing_policy, GridTrackSizingPolicy::Ordinary).then_some(&column_gutters);
+    let ordinary_row_gutters =
+        matches!(sizing_policy, GridTrackSizingPolicy::Ordinary).then_some(&row_gutters);
     let ExpandedGridTopology {
         named_columns,
         named_rows,
@@ -1700,6 +1733,8 @@ where
         column_tracks,
         row_tracks,
         gap,
+        column_gutters: ordinary_column_gutters,
+        row_gutters: ordinary_row_gutters,
         percent_basis: LogicalSizeOf::new(None, None),
         lines,
         named_columns: &named_columns,
@@ -1815,6 +1850,7 @@ where
             definite_size: logical_node_inner_size.inline,
             available_size: logical_available_inner_size.inline,
             gap: gap.inline,
+            gutters: ordinary_column_gutters,
             alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
             stretch_empty_auto_to_available: intrinsic_max_available.inline
                 && logical_node_inner_size.inline.is_none()
@@ -1828,7 +1864,8 @@ where
     {
         let max_inner_inline =
             (max_inline - logical_content_box_inset_size.inline).max(Tree::Scalar::ZERO);
-        if track_sum(&columns, gap.inline) > max_inner_inline {
+        if track_sum_with_gutters(&columns, gap.inline, ordinary_column_gutters) > max_inner_inline
+        {
             columns = {
                 sizing_phases.resolve_inline(InlineTrackInput {
                     tracks: column_tracks,
@@ -1836,6 +1873,7 @@ where
                     definite_size: logical_node_inner_size.inline,
                     available_size: Some(max_inner_inline),
                     gap: gap.inline,
+                    gutters: ordinary_column_gutters,
                     alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
                     stretch_empty_auto_to_available: false,
                     min_intrinsic_sizes: &column_min_intrinsic_sizes,
@@ -1881,6 +1919,7 @@ where
             gap.block,
             style.align_content.unwrap_or(AlignContent::Stretch),
             &row_intrinsic_sizes,
+            ordinary_row_gutters,
         )
     };
     let row_constrained_column_intrinsic_sizes =
@@ -1921,6 +1960,7 @@ where
                 definite_size: logical_node_inner_size.inline,
                 available_size: logical_available_inner_size.inline,
                 gap: gap.inline,
+                gutters: ordinary_column_gutters,
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
                 stretch_empty_auto_to_available: intrinsic_max_available.inline
                     && logical_node_inner_size.inline.is_none()
@@ -1944,6 +1984,7 @@ where
                 gap.block,
                 style.align_content.unwrap_or(AlignContent::Stretch),
                 &row_intrinsic_sizes,
+                ordinary_row_gutters,
             )
         };
     }
@@ -1992,7 +2033,7 @@ fn merge_lane_intrinsic_lower_bounds<S: LayoutScalar>(
 }
 
 struct GridChildLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
-    sizing_phases: GridTrackSizingPhases<S>,
+    sizing_phases: GridTrackSizingPhases,
     style: &'a NodeInputOf<S>,
     constants: &'a Constants<S>,
     column_tracks: &'a [TrackSizingOf<S>],
@@ -2039,6 +2080,8 @@ where
     let GridContainerContext {
         topology,
         gap,
+        column_gutters,
+        row_gutters,
         percent_basis: container_percent_basis,
         lines,
         inherited_column_offset,
@@ -2067,6 +2110,16 @@ where
         logical_layout_content_box_size,
         gap,
     )?;
+    let layout_column_gutters = if parent_context.columns.is_some() {
+        column_gutters
+    } else {
+        OrdinaryGridAxisGuttersOf::new(column_tracks.len(), &collapsed_columns, layout_gap.inline)
+    };
+    let layout_row_gutters = if parent_context.rows.is_some() {
+        row_gutters
+    } else {
+        OrdinaryGridAxisGuttersOf::new(row_tracks.len(), &collapsed_rows, layout_gap.block)
+    };
     let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
     let logical_available_inner_size =
         sizing_flow_axes.logical_size(constants.available_inner_size);
@@ -2086,6 +2139,8 @@ where
                 column_tracks,
                 row_tracks,
                 gap: layout_gap,
+                column_gutters: Some(&layout_column_gutters),
+                row_gutters: Some(&layout_row_gutters),
                 percent_basis,
                 lines,
                 named_columns: &named_columns,
@@ -2131,6 +2186,7 @@ where
             definite_size: logical_node_inner_size.inline,
             available_size: logical_available_inner_size.inline,
             gap: layout_gap.inline,
+            gutters: Some(&layout_column_gutters),
             alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
             stretch_empty_auto_to_available: false,
             min_intrinsic_sizes: &layout_column_min_intrinsic_sizes,
@@ -2152,6 +2208,7 @@ where
                 definite_size: logical_node_inner_size.inline,
                 available_size: logical_available_inner_size.inline,
                 gap: layout_gap.inline,
+                gutters: Some(&layout_column_gutters),
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
                 stretch_empty_auto_to_available: false,
                 min_intrinsic_sizes: &layout_column_min_intrinsic_sizes,
@@ -2171,6 +2228,8 @@ where
             column_tracks,
             row_tracks,
             gap: layout_gap,
+            column_gutters: Some(&layout_column_gutters),
+            row_gutters: Some(&layout_row_gutters),
             percent_basis,
             lines,
             named_columns: &named_columns,
@@ -2206,6 +2265,7 @@ where
         gap: layout_gap.block,
         alignment: style.align_content.unwrap_or(AlignContent::Stretch),
         intrinsic_sizes: &layout_row_intrinsic_sizes,
+        gutters: Some(&layout_row_gutters),
     });
 
     layout_grid_children(
@@ -2221,6 +2281,8 @@ where
             collapsed_rows: &collapsed_rows,
             row_tracks,
             gap: layout_gap,
+            column_gutters: &layout_column_gutters,
+            row_gutters: &layout_row_gutters,
             lines,
             named_columns,
             named_rows,
@@ -2242,6 +2304,7 @@ struct InlineTrackInput<'a, S: LayoutScalar = Scalar> {
     definite_size: Option<S>,
     available_size: Option<S>,
     gap: S,
+    gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     alignment: AlignContent,
     stretch_empty_auto_to_available: bool,
     min_intrinsic_sizes: &'a [S],
@@ -2258,6 +2321,8 @@ struct GridLayoutContext<'a, Node, S: LayoutScalar = Scalar> {
     collapsed_rows: &'a [bool],
     row_tracks: &'a [TrackSizingOf<S>],
     gap: LogicalSizeOf<S>,
+    column_gutters: &'a OrdinaryGridAxisGuttersOf<S>,
+    row_gutters: &'a OrdinaryGridAxisGuttersOf<S>,
     lines: GridLines,
     named_columns: NamedGridLines,
     named_rows: NamedGridLines,
@@ -2299,7 +2364,7 @@ where
 }
 
 fn resolved_logical_layout_columns<S: LayoutScalar>(
-    sizing_phases: GridTrackSizingPhases<S>,
+    sizing_phases: GridTrackSizingPhases,
     constants: &Constants<S>,
     sizing_flow_axes: crate::geometry::FlowAxes,
     intrinsic_columns: &[S],
@@ -2334,7 +2399,7 @@ fn resolved_logical_layout_columns<S: LayoutScalar>(
 }
 
 struct ResolvedLogicalLayoutRowsInput<'a, S: LayoutScalar = Scalar> {
-    sizing_phases: GridTrackSizingPhases<S>,
+    sizing_phases: GridTrackSizingPhases,
     tracks: &'a [TrackSizingOf<S>],
     constants: &'a Constants<S>,
     sizing_flow_axes: crate::geometry::FlowAxes,
@@ -2343,6 +2408,7 @@ struct ResolvedLogicalLayoutRowsInput<'a, S: LayoutScalar = Scalar> {
     gap: S,
     alignment: AlignContent,
     intrinsic_sizes: &'a [S],
+    gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
 }
 
 fn resolved_logical_layout_rows<S: LayoutScalar>(
@@ -2358,6 +2424,7 @@ fn resolved_logical_layout_rows<S: LayoutScalar>(
         gap,
         alignment,
         intrinsic_sizes,
+        gutters,
     } = input;
     let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
     if logical_node_inner_size.block.is_some() || !tracks.iter().any(track_needs_layout_resolution)
@@ -2368,7 +2435,14 @@ fn resolved_logical_layout_rows<S: LayoutScalar>(
     let logical_content_box_inset_size =
         sizing_flow_axes.logical_size(constants.content_box_inset.sum_axes());
     let content_block = (output_block - logical_content_box_inset_size.block).max(S::ZERO);
-    sizing_phases.resolve_block(tracks, Some(content_block), gap, alignment, intrinsic_sizes)
+    sizing_phases.resolve_block(
+        tracks,
+        Some(content_block),
+        gap,
+        alignment,
+        intrinsic_sizes,
+        gutters,
+    )
 }
 
 fn track_needs_layout_resolution<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {

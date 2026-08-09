@@ -1598,6 +1598,8 @@ pub(super) struct GridSubgridIntrinsicTraversalInput<'a, Node, S: LayoutScalar =
     pub(super) named_rows: &'a NamedGridLines,
     pub(super) area_facts: Option<&'a GridAreaNameFacts>,
     pub(super) parent_gap: Size<S>,
+    pub(super) column_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
+    pub(super) row_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     pub(super) column_sizes: &'a [S],
     pub(super) row_sizes: &'a [S],
     pub(super) container_size: Size<Option<S>>,
@@ -1620,6 +1622,12 @@ pub(super) fn collect_grid_subgrid_intrinsic_traversal<Tree, M>(
 where
     Tree: Compute<M>,
 {
+    let column_geometry = input.column_gutters.map(|gutters| {
+        UsedGridAxisGeometryOf::from_sizing_gutters(input.column_sizes.to_vec(), gutters)
+    });
+    let row_geometry = input.row_gutters.map(|gutters| {
+        UsedGridAxisGeometryOf::from_sizing_gutters(input.row_sizes.to_vec(), gutters)
+    });
     let mut root_children = Vec::new();
     for ((child, area), item_report) in input
         .children
@@ -1648,6 +1656,8 @@ where
             input.column_sizes,
             input.row_sizes,
             input.parent_gap,
+            column_geometry.as_ref(),
+            row_geometry.as_ref(),
             input.container_size,
         );
         let Some(child) = subgrid_traversal_child(
@@ -1660,6 +1670,8 @@ where
             child_axis,
             input.containing_flow_axes,
             input.parent_gap,
+            column_geometry.as_ref(),
+            row_geometry.as_ref(),
             input.named_columns,
             input.named_rows,
             input.area_facts,
@@ -1699,6 +1711,8 @@ fn subgrid_traversal_child<Tree, M>(
     queried_axis: GridAxisKind,
     containing_flow_axes: crate::geometry::FlowAxes,
     parent_gap: Size<Tree::Scalar>,
+    parent_column_geometry: Option<&UsedGridAxisGeometryOf<Tree::Scalar>>,
+    parent_row_geometry: Option<&UsedGridAxisGeometryOf<Tree::Scalar>>,
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
     parent_area_facts: Option<&GridAreaNameFacts>,
@@ -1811,6 +1825,8 @@ where
         queried_axis,
         containing_flow_axes,
         subgrid_gap,
+        parent_column_geometry,
+        parent_row_geometry,
         parent_named_columns,
         parent_named_rows,
         parent_area_facts,
@@ -1857,6 +1873,8 @@ fn subgrid_traversal_children<Tree, M>(
     queried_axis: GridAxisKind,
     containing_flow_axes: crate::geometry::FlowAxes,
     gap: Size<Tree::Scalar>,
+    parent_column_geometry: Option<&UsedGridAxisGeometryOf<Tree::Scalar>>,
+    parent_row_geometry: Option<&UsedGridAxisGeometryOf<Tree::Scalar>>,
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
     parent_area_facts: Option<&GridAreaNameFacts>,
@@ -1877,6 +1895,7 @@ where
             item_report.column,
             area,
             gap,
+            (parent_column_geometry, parent_row_geometry),
             parent_named_columns,
             parent_named_rows,
             parent_area_facts,
@@ -1885,6 +1904,7 @@ where
             item_report.row,
             area,
             gap,
+            (parent_column_geometry, parent_row_geometry),
             parent_named_columns,
             parent_named_rows,
             parent_area_facts,
@@ -1935,6 +1955,14 @@ where
         .rows
         .as_ref()
         .map_or_else(|| zero_rows.clone(), |axis| axis.tracks.clone());
+    let traversal_column_geometry = UsedGridAxisGeometryOf::from_sizing_gutters(
+        traversal_columns.clone(),
+        &initialized.context.column_gutters,
+    );
+    let traversal_row_geometry = UsedGridAxisGeometryOf::from_sizing_gutters(
+        traversal_rows.clone(),
+        &initialized.context.row_gutters,
+    );
     let inherited_queried_track_count = match queried_axis {
         GridAxisKind::Column => parent_context
             .columns
@@ -1985,6 +2013,8 @@ where
             &traversal_columns,
             &traversal_rows,
             gap,
+            Some(&traversal_column_geometry),
+            Some(&traversal_row_geometry),
             Size::new(Some(content_box_size.width), Some(content_box_size.height)),
         );
         if let Some(child) = subgrid_traversal_child(
@@ -1997,6 +2027,8 @@ where
             child_axis,
             crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
             gap,
+            Some(&traversal_column_geometry),
+            Some(&traversal_row_geometry),
             &initialized.context.named_columns,
             &initialized.context.named_rows,
             initialized.context.area_facts.as_ref(),
@@ -2066,6 +2098,7 @@ fn traversal_child_area_tracks<Node, S: LayoutScalar>(
         definite_size: Some(content_width),
         available_size: Some(content_width),
         gap,
+        gutters: None,
         alignment,
         stretch_empty_auto_to_available: false,
         min_intrinsic_sizes: &intrinsic_sizes,
@@ -2077,6 +2110,10 @@ pub(super) fn intrinsic_subgrid_axis_parent_context<Node, S: LayoutScalar>(
     report: SubgridAxisReport,
     area: GridArea<S>,
     gap: Size<S>,
+    parent_geometry: (
+        Option<&UsedGridAxisGeometryOf<S>>,
+        Option<&UsedGridAxisGeometryOf<S>>,
+    ),
     named_columns: &NamedGridLines,
     named_rows: &NamedGridLines,
     area_facts: Option<&GridAreaNameFacts>,
@@ -2094,16 +2131,36 @@ pub(super) fn intrinsic_subgrid_axis_parent_context<Node, S: LayoutScalar>(
         GridAxisKind::Row => (gap.height, named_rows),
     };
     let track_count = parent_end.saturating_sub(parent_start);
+    let source_geometry = match mapping.parent_axis {
+        GridAxisKind::Column => parent_geometry.0,
+        GridAxisKind::Row => parent_geometry.1,
+    };
+    let geometry = source_geometry
+        .filter(|geometry| parent_end <= geometry.sizes().len())
+        .map(|geometry| {
+            let sizes = vec![S::ZERO; track_count];
+            let mut collapsed = geometry.collapsed()[parent_start..parent_end].to_vec();
+            let mut gutter_after =
+                geometry.gutter_after()[parent_start..parent_end.saturating_sub(1)].to_vec();
+            if mapping.reversed {
+                collapsed.reverse();
+                gutter_after.reverse();
+            }
+            UsedGridAxisGeometryOf::from_boundary_gutters(sizes, collapsed, gutter_after)
+        })
+        .unwrap_or_else(|| {
+            UsedGridAxisGeometryOf::new(
+                vec![S::ZERO; track_count],
+                vec![false; track_count],
+                parent_gap,
+            )
+        });
 
     Some(InheritedGridAxis {
         offset: S::ZERO,
         gap: parent_gap,
         tracks: vec![S::ZERO; track_count],
-        geometry: UsedGridAxisGeometryOf::new(
-            vec![S::ZERO; track_count],
-            vec![false; track_count],
-            parent_gap,
-        ),
+        geometry,
         named_lines: named_lines.clone(),
         area_facts: area_facts
             .filter(|facts| facts.is_valid_for_axis(mapping.parent_axis))
@@ -2208,6 +2265,8 @@ fn intrinsic_traversal_area_size<S: LayoutScalar>(
     columns: &[S],
     rows: &[S],
     gap: Size<S>,
+    column_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+    row_geometry: Option<&UsedGridAxisGeometryOf<S>>,
     container_size: Size<Option<S>>,
 ) -> Size<S> {
     Size::new(
@@ -2216,6 +2275,9 @@ fn intrinsic_traversal_area_size<S: LayoutScalar>(
             area.column_end,
             columns,
             gap.width,
+            column_geometry
+                .map(UsedGridAxisGeometryOf::sizing_gutters)
+                .as_ref(),
             container_size.width,
         ),
         intrinsic_traversal_axis_area_size(
@@ -2223,6 +2285,9 @@ fn intrinsic_traversal_area_size<S: LayoutScalar>(
             area.row_end,
             rows,
             gap.height,
+            row_geometry
+                .map(UsedGridAxisGeometryOf::sizing_gutters)
+                .as_ref(),
             container_size.height,
         ),
     )
@@ -2233,6 +2298,7 @@ fn intrinsic_traversal_axis_area_size<S: LayoutScalar>(
     end: usize,
     tracks: &[S],
     gap: S,
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
     definite_container_size: Option<S>,
 ) -> S {
     if tracks.is_empty() {
@@ -2242,9 +2308,10 @@ fn intrinsic_traversal_axis_area_size<S: LayoutScalar>(
         return S::ZERO;
     }
     if start == 0 && end == tracks.len() {
-        definite_container_size.unwrap_or_else(|| track_span_sum(tracks, start, end, gap))
+        definite_container_size
+            .unwrap_or_else(|| track_span_sum_with_gutters(tracks, start, end, gap, gutters))
     } else {
-        track_span_sum(tracks, start, end, gap)
+        track_span_sum_with_gutters(tracks, start, end, gap, gutters)
     }
 }
 
@@ -2474,6 +2541,8 @@ mod tests {
             GridAxisKind::Column,
             crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
             Size::ZERO,
+            None,
+            None,
             &named_columns,
             &named_rows,
             None,

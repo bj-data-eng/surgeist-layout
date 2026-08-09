@@ -6,6 +6,85 @@ pub(super) struct GridAlignment<S: LayoutScalar = Scalar> {
     pub(super) gap: S,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct OrdinaryGridAxisAlignment<S: LayoutScalar = Scalar> {
+    pub(super) start: S,
+    pub(super) gutter_after: Vec<S>,
+}
+
+pub(super) fn ordinary_grid_axis_alignment<S: LayoutScalar>(
+    free_space: S,
+    gutters: &OrdinaryGridAxisGuttersOf<S>,
+    alignment: AlignContent,
+) -> OrdinaryGridAxisAlignment<S> {
+    let active_boundaries = gutters
+        .collapsed()
+        .windows(2)
+        .filter(|pair| !pair[0] && !pair[1])
+        .count();
+    let active_tracks = gutters
+        .collapsed()
+        .iter()
+        .filter(|collapsed| !**collapsed)
+        .count();
+    let alignment = alignment.safe_fallback(free_space);
+    let mut gutter_after = gutters.gutter_after().to_vec();
+    let (start, distributed) = if free_space <= S::ZERO {
+        (
+            match alignment {
+                AlignContent::Center => free_space / S::from_f64(2.0),
+                AlignContent::End | AlignContent::FlexEnd => free_space,
+                AlignContent::Start
+                | AlignContent::FlexStart
+                | AlignContent::Stretch
+                | AlignContent::SpaceBetween
+                | AlignContent::SpaceAround
+                | AlignContent::SpaceEvenly => S::ZERO,
+                AlignContent::SafeEnd | AlignContent::SafeFlexEnd | AlignContent::SafeCenter => {
+                    unreachable!("safe_fallback returns unsafe content alignment")
+                }
+            },
+            S::ZERO,
+        )
+    } else {
+        match alignment {
+            AlignContent::SpaceBetween if active_boundaries > 0 => {
+                (S::ZERO, free_space / S::from_usize(active_boundaries))
+            }
+            AlignContent::SpaceAround if active_tracks > 0 => {
+                let distributed = free_space / S::from_usize(active_tracks);
+                (distributed / S::from_f64(2.0), distributed)
+            }
+            AlignContent::SpaceEvenly if active_tracks > 0 => {
+                let distributed = free_space / S::from_usize(active_tracks + 1);
+                (distributed, distributed)
+            }
+            AlignContent::Center => (free_space / S::from_f64(2.0), S::ZERO),
+            AlignContent::End | AlignContent::FlexEnd => (free_space, S::ZERO),
+            AlignContent::Start
+            | AlignContent::FlexStart
+            | AlignContent::Stretch
+            | AlignContent::SpaceBetween
+            | AlignContent::SpaceAround
+            | AlignContent::SpaceEvenly => (S::ZERO, S::ZERO),
+            AlignContent::SafeEnd | AlignContent::SafeFlexEnd | AlignContent::SafeCenter => {
+                unreachable!("safe_fallback returns unsafe content alignment")
+            }
+        }
+    };
+    if distributed > S::ZERO {
+        for (boundary, pair) in gutter_after.iter_mut().zip(gutters.collapsed().windows(2)) {
+            if !pair[0] && !pair[1] {
+                *boundary = *boundary + distributed;
+            }
+        }
+    }
+    OrdinaryGridAxisAlignment {
+        start,
+        gutter_after,
+    }
+}
+
 pub(super) fn grid_alignment<S: LayoutScalar>(
     free_space: S,
     track_count: usize,

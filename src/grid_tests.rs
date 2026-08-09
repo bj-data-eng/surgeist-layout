@@ -1100,6 +1100,182 @@ fn fri08_c02_auto_fit_public_parent_projects_reversed_subgrid_baseline_and_overf
 }
 
 #[test]
+fn fri08_c02_auto_fit_public_decreasing_subgrid_preserves_baseline_location_and_overflow_geometry()
+{
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .children(2, [3, 4, 5])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                direction: Direction::Rtl,
+                size: Size::new(PreferredSize::px(190.0), PreferredSize::px(40.0)),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponent::px(40.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                justify_content: Some(AlignContent::Center),
+                align_items: Some(AlignItems::Baseline),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                grid_column: GridPlacement::try_line(3).expect("retained third line"),
+                grid_row: GridPlacement::try_line(1).expect("single parent row"),
+                grid_template_columns: vec![TrackComponent::px(40.0)],
+                grid_template_rows: vec![empty_subgrid_track()],
+                gap: Size::new(Length::px(20.0), Length::ZERO),
+                align_items: Some(AlignItems::Baseline),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(PreferredSize::px(17.0), PreferredSize::px(10.0)),
+                grid_column: GridPlacement::try_line(1).expect("single subgrid column"),
+                grid_row: GridPlacement::try_line(1).expect("single inherited row"),
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
+                grid_column: GridPlacement::try_line(1).expect("single subgrid column"),
+                grid_row: GridPlacement::try_line(1).expect("single inherited row"),
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            5,
+            NodeInput {
+                align_self: Some(AlignItems::Start),
+                grid_column: GridPlacement::try_line(1).expect("single subgrid column"),
+                grid_row: GridPlacement::try_line(1).expect("single inherited row"),
+                overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .measure(5, Size::new(60.0, 17.0));
+
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequest::viewport(Size::new(
+            Available::Definite(190.0),
+            Available::Definite(40.0),
+        ))
+        .expect("finite public auto-fit viewport"),
+    )
+    .expect("public decreasing auto-fit subgrid layout");
+    let subgrid = fri08_c01_placement_output(&batch, 2);
+    let baseline_target = fri08_c01_placement_output(&batch, 3);
+    let baseline_peer = fri08_c01_placement_output(&batch, 4);
+    let descendant = fri08_c01_placement_output(&batch, 5);
+    let overflow = subgrid
+        .scroll_geometry
+        .expect("decreasing subgrid publishes scroll overflow")
+        .physical_range()
+        .x();
+
+    assert_eq!((subgrid.location.x, subgrid.size.width), (75.0, 40.0));
+    assert_eq!(baseline_peer.location.x - baseline_target.location.x, 7.0);
+    assert_eq!((overflow.minimum(), overflow.maximum()), (-20.0, 0.0));
+    assert_eq!(descendant.location.x, -20.0);
+}
+
+#[test]
+fn fri08_c02_auto_fit_public_intrinsic_span_counts_only_active_boundary_gutters() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineGrid,
+                size: Size::new(PreferredSize::AUTO, PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                justify_content: Some(AlignContent::Start),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_lines(1, 3)
+                    .expect("span across the two active repetitions"),
+                grid_row: GridPlacement::try_line(1).expect("single row"),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequest::viewport(Size::new(
+            Available::Definite(140.0),
+            Available::Definite(20.0),
+        ))
+        .expect("finite intrinsic auto-fit viewport"),
+    )
+    .expect("public intrinsic auto-fit layout");
+    let grid = fri08_c01_placement_output(&batch, 1);
+    let spanning = fri08_c01_placement_output(&batch, 2);
+
+    assert_eq!(grid.size.width, 90.0);
+    assert_eq!(spanning.size.width, 90.0);
+}
+
+#[test]
+fn fri08_c02_auto_fit_public_flex_uses_active_gutter_total_for_free_space() {
+    let flex_repeat = TrackComponent::Repeat(
+        TrackRepetition::auto_fit_components(vec![TrackComponent::minmax(
+            MinTrackSizing::px(40.0),
+            MaxTrackSizing::flex(
+                TrackFlexFactor::try_new(1.0).expect("finite auto-fit flex factor"),
+            ),
+        )])
+        .expect("valid flexible auto-fit repetition"),
+    );
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![flex_repeat],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                justify_content: Some(AlignContent::Start),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("first repeated track"),
+                grid_row: GridPlacement::try_line(1).expect("single row"),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let output = fri08_c02_auto_fit_output(&tree, Size::new(140.0, 20.0), 2);
+    assert_eq!((output.location.x, output.size.width), (0.0, 140.0));
+}
+
+#[test]
 fn fri08_c02_auto_fit_public_parent_decreasing_baseline_uses_collapsed_boundary_gutter() {
     let owner_group = AncestorBaselineGroup::reduce(
         1_u32,
@@ -6622,6 +6798,8 @@ fn grid_lanes_layout_rejects_overflowed_affine_tolerance_resolution() {
             None,
         ),
         gap: LogicalSizeOf::new(0.0, 0.0),
+        column_gutters: OrdinaryGridAxisGuttersOf::new(1, &[], 0.0),
+        row_gutters: OrdinaryGridAxisGuttersOf::new(1, &[], 0.0),
         percent_basis: LogicalSizeOf::new(Some(f32::MAX), Some(f32::MAX)),
         leading_columns: 0,
         leading_rows: 0,
@@ -20930,6 +21108,7 @@ fn resolve_inline_tracks_accepts_f64_track_inputs() {
         definite_size: Some(90.75_f64),
         available_size: Some(90.75_f64),
         gap: 0.25_f64,
+        gutters: None,
         alignment: AlignContent::Stretch,
         stretch_empty_auto_to_available: false,
         min_intrinsic_sizes: &[1.5_f64, 2.5_f64, 3.5_f64],
@@ -21381,6 +21560,8 @@ fn shared_grid_contexts_accept_non_default_scalar() {
             None,
         ),
         gap: LogicalSizeOf::new(1.0, 2.0),
+        column_gutters: OrdinaryGridAxisGuttersOf::new(1, &[], 1.0),
+        row_gutters: OrdinaryGridAxisGuttersOf::new(1, &[], 2.0),
         percent_basis: LogicalSizeOf::new(Some(100.0), None),
         leading_columns: 0,
         leading_rows: 0,
@@ -21407,10 +21588,11 @@ fn shared_grid_contexts_accept_non_default_scalar() {
     let tracks = vec![TrackSizingOf::<f64>::AUTO];
     let placements = GridPlacementContext::new(Vec::<usize>::new(), Vec::new());
     let subgrid_report = GridSubgridReport { items: Vec::new() };
-    let sizing_phases = GridTrackSizingPhases::<f64> {
-        inline: resolve_inline_tracks::<f64>,
-        block: resolve_tracks::<f64>,
+    let sizing_phases = GridTrackSizingPhases {
+        policy: GridTrackSizingPolicy::Ordinary,
     };
+    let column_gutters = OrdinaryGridAxisGuttersOf::new(1, &[], 1.0);
+    let row_gutters = OrdinaryGridAxisGuttersOf::new(1, &[], 2.0);
 
     let _initialized = InitializedGridTracks::<usize, f64> {
         column_tracks: tracks.clone(),
@@ -21475,6 +21657,8 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         collapsed_rows: &[false],
         row_tracks: &tracks,
         gap: LogicalSizeOf::new(1.0, 2.0),
+        column_gutters: &column_gutters,
+        row_gutters: &row_gutters,
         lines,
         named_columns: named_lines,
         named_rows: named::NamedGridLines::new(GridAxisKind::Row, 1),
@@ -22915,6 +23099,7 @@ fn subgrid_intrinsic_parent_context_uses_actual_span_and_reversal() {
             size: LogicalSizeOf::new(Scalar::ZERO, Scalar::ZERO),
         },
         Size::<Scalar>::ZERO,
+        (None, None),
         &parent,
         &parent,
         None,
@@ -24653,6 +24838,8 @@ fn vertical_subgrid_percentage_edges_use_physical_area_basis() {
             named_rows: &named_rows,
             area_facts: None,
             parent_gap: Size::ZERO,
+            column_gutters: None,
+            row_gutters: None,
             column_sizes: &[200.0, 1.0],
             row_sizes: &[100.0, 1.0],
             container_size: Size::new(Some(100.0), Some(200.0)),
@@ -24721,6 +24908,8 @@ fn orthogonal_subgrid_percentage_edges_use_containing_physical_area_basis() {
             named_rows: &named_rows,
             area_facts: None,
             parent_gap: Size::ZERO,
+            column_gutters: None,
+            row_gutters: None,
             column_sizes: &[200.0, 1.0],
             row_sizes: &[100.0, 1.0],
             container_size: Size::new(Some(100.0), Some(200.0)),
@@ -24820,6 +25009,8 @@ fn nested_subgrid_same_flow_projects_physical_edge_sums_before_local_track_sizin
             named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
             area_facts: None,
             parent_gap: Size::ZERO,
+            column_gutters: None,
+            row_gutters: None,
             column_sizes: &[200.0, 1.0],
             row_sizes: &[100.0, 1.0],
             container_size: Size::new(Some(100.0), Some(200.0)),
@@ -24912,6 +25103,8 @@ fn orthogonal_subgrid_grandchild_percentage_edges_use_immediate_containing_flow(
             named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
             area_facts: None,
             parent_gap: Size::ZERO,
+            column_gutters: None,
+            row_gutters: None,
             column_sizes: &[200.0, 1.0],
             row_sizes: &[100.0, 1.0],
             container_size: Size::new(Some(100.0), Some(200.0)),
@@ -26484,6 +26677,7 @@ fn inline_sub_one_flex_tracks_keep_non_spanned_track_proportional_to_used_fracti
         definite_size: None,
         available_size: None,
         gap: 0.0,
+        gutters: None,
         alignment: AlignContent::Start,
         stretch_empty_auto_to_available: false,
         min_intrinsic_sizes: &[24.0, 36.0, 0.0],
@@ -26529,6 +26723,7 @@ fn inline_minmax_tracks_shrink_to_minimum_bounds() {
         definite_size: Some(90.0),
         available_size: None,
         gap: 0.0,
+        gutters: None,
         alignment: AlignContent::Start,
         stretch_empty_auto_to_available: false,
         min_intrinsic_sizes: &[0.0, 0.0, 0.0],
@@ -26551,6 +26746,7 @@ fn inline_minmax_tracks_interpolate_inside_bounds() {
         definite_size: Some(110.0),
         available_size: None,
         gap: 0.0,
+        gutters: None,
         alignment: AlignContent::Start,
         stretch_empty_auto_to_available: false,
         min_intrinsic_sizes: &[0.0, 0.0, 0.0],
@@ -26572,6 +26768,7 @@ fn inline_minmax_max_content_minimum_overrides_fixed_maximum() {
         definite_size: None,
         available_size: None,
         gap: 0.0,
+        gutters: None,
         alignment: AlignContent::Start,
         stretch_empty_auto_to_available: false,
         min_intrinsic_sizes: &[20.0],
@@ -26593,6 +26790,7 @@ fn inline_minmax_auto_minimum_allows_fixed_maximum() {
         definite_size: None,
         available_size: None,
         gap: 0.0,
+        gutters: None,
         alignment: AlignContent::Start,
         stretch_empty_auto_to_available: false,
         min_intrinsic_sizes: &[20.0],

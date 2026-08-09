@@ -1,6 +1,72 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+pub(super) struct OrdinaryGridAxisGuttersOf<S: LayoutScalar = Scalar> {
+    collapsed: Vec<bool>,
+    gutter_after: Vec<S>,
+}
+
+impl<S: LayoutScalar> OrdinaryGridAxisGuttersOf<S> {
+    pub(super) fn new(track_count: usize, collapsed: &[bool], gap: S) -> Self {
+        let mut collapsed = collapsed.to_vec();
+        collapsed.resize(track_count, false);
+        let gutter_after = (0..track_count.saturating_sub(1))
+            .map(|index| {
+                if collapsed[index] || collapsed[index + 1] {
+                    S::ZERO
+                } else {
+                    gap
+                }
+            })
+            .collect();
+        Self {
+            collapsed,
+            gutter_after,
+        }
+    }
+
+    pub(super) fn from_boundary_gutters(
+        track_count: usize,
+        collapsed: &[bool],
+        gutter_after: &[S],
+    ) -> Self {
+        let mut collapsed = collapsed.to_vec();
+        collapsed.resize(track_count, false);
+        let mut gutter_after = gutter_after.to_vec();
+        gutter_after.resize(track_count.saturating_sub(1), S::ZERO);
+        Self {
+            collapsed,
+            gutter_after,
+        }
+    }
+
+    pub(super) fn collapsed(&self) -> &[bool] {
+        &self.collapsed
+    }
+
+    pub(super) fn gutter_after(&self) -> &[S] {
+        &self.gutter_after
+    }
+
+    pub(super) fn active_gap_total(&self) -> S {
+        self.gutter_after
+            .iter()
+            .copied()
+            .fold(S::ZERO, |sum, gutter| sum + gutter)
+    }
+
+    pub(super) fn span_gap_total(&self, start: usize, end: usize) -> S {
+        if start >= end || end > self.collapsed.len() {
+            return S::ZERO;
+        }
+        self.gutter_after[start..end.saturating_sub(1)]
+            .iter()
+            .copied()
+            .fold(S::ZERO, |sum, gutter| sum + gutter)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct UsedGridAxisGeometryOf<S: LayoutScalar = Scalar> {
     sizes: Vec<S>,
     collapsed: Vec<bool>,
@@ -10,18 +76,19 @@ pub(super) struct UsedGridAxisGeometryOf<S: LayoutScalar = Scalar> {
 
 impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
     pub(super) fn new(sizes: Vec<S>, collapsed: Vec<bool>, gap: S) -> Self {
-        let mut collapsed = collapsed;
-        collapsed.resize(sizes.len(), false);
-        let gutter_after = (0..sizes.len().saturating_sub(1))
-            .map(|index| {
-                if collapsed[index] || collapsed[index + 1] {
-                    S::ZERO
-                } else {
-                    gap
-                }
-            })
-            .collect::<Vec<_>>();
-        Self::from_boundary_gutters(sizes, collapsed, gutter_after)
+        let gutters = OrdinaryGridAxisGuttersOf::new(sizes.len(), &collapsed, gap);
+        Self::from_sizing_gutters(sizes, &gutters)
+    }
+
+    pub(super) fn from_sizing_gutters(
+        sizes: Vec<S>,
+        gutters: &OrdinaryGridAxisGuttersOf<S>,
+    ) -> Self {
+        Self::from_boundary_gutters(
+            sizes,
+            gutters.collapsed().to_vec(),
+            gutters.gutter_after().to_vec(),
+        )
     }
 
     pub(super) fn from_boundary_gutters(
@@ -63,15 +130,16 @@ impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
         &self.gutter_after
     }
 
-    pub(super) fn line_offsets(&self) -> &[S] {
-        &self.line_offsets
+    pub(super) fn sizing_gutters(&self) -> OrdinaryGridAxisGuttersOf<S> {
+        OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+            self.sizes.len(),
+            &self.collapsed,
+            &self.gutter_after,
+        )
     }
 
-    pub(super) fn active_track_count(&self) -> usize {
-        self.collapsed
-            .iter()
-            .filter(|collapsed| !**collapsed)
-            .count()
+    pub(super) fn line_offsets(&self) -> &[S] {
+        &self.line_offsets
     }
 
     pub(super) fn active_gap_total(&self) -> S {
@@ -166,6 +234,8 @@ pub(super) struct IntrinsicGrid<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) column_tracks: &'a [TrackSizingOf<S>],
     pub(super) row_tracks: &'a [TrackSizingOf<S>],
     pub(super) gap: LogicalSizeOf<S>,
+    pub(super) column_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
+    pub(super) row_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     pub(super) percent_basis: LogicalSizeOf<Option<S>>,
     pub(super) lines: GridLines,
     pub(super) named_columns: &'a NamedGridLines,
@@ -173,6 +243,28 @@ pub(super) struct IntrinsicGrid<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) area_facts: Option<&'a GridAreaNameFacts>,
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
     pub(super) placements: &'a GridPlacementContext<Node>,
+}
+
+impl<'a, Node, S: LayoutScalar> IntrinsicGrid<'a, Node, S> {
+    fn gutters(self, axis: GridAxisKind) -> Option<&'a OrdinaryGridAxisGuttersOf<S>> {
+        match axis {
+            GridAxisKind::Column => self.column_gutters,
+            GridAxisKind::Row => self.row_gutters,
+        }
+    }
+
+    fn span_extent(self, axis: GridAxisKind, sizes: &[S], start: usize, end: usize) -> S {
+        track_span_sum_with_gutters(
+            sizes,
+            start,
+            end,
+            match axis {
+                GridAxisKind::Column => self.gap.inline,
+                GridAxisKind::Row => self.gap.block,
+            },
+            self.gutters(axis),
+        )
+    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -634,15 +726,25 @@ where
     let zero_columns: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; column_count];
     let zero_rows: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; row_count];
     let children = tree.children(node).collect::<Vec<_>>();
-    let placed_areas = resolve_grid_child_areas(ResolveGridChildAreasInput {
-        children: &children,
-        placements: grid.placements,
-        style,
-        columns: &zero_columns,
-        rows: &zero_rows,
-        gap: LogicalSizeOf::new(Tree::Scalar::ZERO, Tree::Scalar::ZERO),
-        lines: grid.lines,
-    });
+    let column_geometry = grid
+        .column_gutters
+        .map(|gutters| UsedGridAxisGeometryOf::from_sizing_gutters(zero_columns.clone(), gutters));
+    let row_geometry = grid
+        .row_gutters
+        .map(|gutters| UsedGridAxisGeometryOf::from_sizing_gutters(zero_rows.clone(), gutters));
+    let placed_areas = resolve_grid_child_areas_with_geometry(
+        ResolveGridChildAreasInput {
+            children: &children,
+            placements: grid.placements,
+            style,
+            columns: &zero_columns,
+            rows: &zero_rows,
+            gap: LogicalSizeOf::new(Tree::Scalar::ZERO, Tree::Scalar::ZERO),
+            lines: grid.lines,
+        },
+        column_geometry.as_ref(),
+        row_geometry.as_ref(),
+    );
     let column_area_sizes = columns.clone();
     let row_area_sizes = rows.clone();
     let column_subgrid_contributions = apply_subgrid_intrinsic_contributions(
@@ -656,6 +758,9 @@ where
             sizes: &mut columns,
             percent_basis: grid.percent_basis.inline,
             gap: grid.gap.inline,
+            gutters: grid.column_gutters,
+            column_gutters: grid.column_gutters,
+            row_gutters: grid.row_gutters,
             container_gap: grid.gap,
             available,
             children: &children,
@@ -681,6 +786,9 @@ where
             sizes: &mut rows,
             percent_basis: grid.percent_basis.block,
             gap: grid.gap.block,
+            gutters: grid.row_gutters,
+            column_gutters: grid.column_gutters,
+            row_gutters: grid.row_gutters,
             container_gap: grid.gap,
             available,
             children: &children,
@@ -715,8 +823,8 @@ where
         let column_span_tracks = column_tracks.get(column_start..column_end);
         let row_span_tracks = row_tracks.get(row_start..row_end);
         area.size = LogicalSizeOf::new(
-            track_span_sum(&columns, column_start, column_end, grid.gap.inline),
-            track_span_sum(&rows, row_start, row_end, grid.gap.block),
+            grid.span_extent(GridAxisKind::Column, &columns, column_start, column_end),
+            grid.span_extent(GridAxisKind::Row, &rows, row_start, row_end),
         );
         let inherited_column_subgrid = grid.subgrid_report.items.get(index).is_some_and(|item| {
             item_inherits_parent_axis(&child_style, *item, GridAxisKind::Column)
@@ -895,10 +1003,12 @@ where
                     &column_tracks[column_start..column_end],
                     contribution_kind,
                     grid.percent_basis.inline,
-                    span_contribution(
+                    span_contribution_with_gutters(
                         column_contribution,
-                        column_end - column_start,
+                        column_start,
+                        column_end,
                         grid.gap.inline,
+                        grid.column_gutters,
                     ),
                 );
             }
@@ -967,7 +1077,13 @@ where
                 &row_tracks[item.start..item.end],
                 item.contribution_kind,
                 grid.percent_basis.block,
-                span_contribution(contribution, item.end - item.start, grid.gap.block),
+                span_contribution_with_gutters(
+                    contribution,
+                    item.start,
+                    item.end,
+                    grid.gap.block,
+                    grid.row_gutters,
+                ),
             );
         }
     }
@@ -1280,6 +1396,8 @@ pub(super) struct FinalAncestorBaselineGroupInput<'a, Node, S: LayoutScalar = Sc
     pub(super) area_facts: Option<&'a GridAreaNameFacts>,
     pub(super) column_sizes: &'a [S],
     pub(super) row_sizes: &'a [S],
+    pub(super) column_geometry: &'a UsedGridAxisGeometryOf<S>,
+    pub(super) row_geometry: &'a UsedGridAxisGeometryOf<S>,
     pub(super) intrinsic_min_track_facts: Option<&'a [bool]>,
     pub(super) direct_members: Vec<AncestorBaselineMember<Node, S>>,
 }
@@ -1324,6 +1442,8 @@ where
     let track_facts = input
         .intrinsic_min_track_facts
         .unwrap_or(&fallback_track_facts);
+    let column_gutters = input.column_geometry.sizing_gutters();
+    let row_gutters = input.row_geometry.sizing_gutters();
     let Ok(report) = collect_grid_subgrid_intrinsic_traversal(
         tree,
         GridSubgridIntrinsicTraversalInput {
@@ -1336,6 +1456,8 @@ where
             named_rows: input.named_rows,
             area_facts: input.area_facts,
             parent_gap: Size::new(input.gap.inline, input.gap.block),
+            column_gutters: Some(&column_gutters),
+            row_gutters: Some(&row_gutters),
             column_sizes: input.column_sizes,
             row_sizes: input.row_sizes,
             container_size: input.constants.node_inner_size,
@@ -1904,6 +2026,9 @@ struct SubgridIntrinsicContributionInput<'a, Node, S: LayoutScalar = Scalar> {
     sizes: &'a mut [S],
     percent_basis: Option<S>,
     gap: S,
+    gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
+    column_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
+    row_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     container_gap: LogicalSizeOf<S>,
     available: Size<AvailableOf<S>>,
     children: &'a [Node],
@@ -1966,6 +2091,8 @@ where
             named_rows: input.named_rows,
             area_facts: input.area_facts,
             parent_gap: Size::new(input.container_gap.inline, input.container_gap.block),
+            column_gutters: input.column_gutters,
+            row_gutters: input.row_gutters,
             column_sizes: input.column_sizes,
             row_sizes: input.row_sizes,
             container_size: input.constants.node_inner_size,
@@ -2275,7 +2402,7 @@ where
                 span_tracks,
                 flattened.contribution_kind,
                 input.percent_basis,
-                span_contribution(contribution, end - start, input.gap),
+                span_contribution_with_gutters(contribution, start, end, input.gap, input.gutters),
             );
         }
     }
@@ -2439,15 +2566,25 @@ where
     }
     let zero_rows: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; row_count];
     let children = tree.children(node).collect::<Vec<_>>();
-    let placed_areas = resolve_grid_child_areas(ResolveGridChildAreasInput {
-        children: &children,
-        placements: grid.placements,
-        style: grid.style,
-        columns,
-        rows: &zero_rows,
-        gap,
-        lines: grid.lines,
-    });
+    let column_geometry = grid
+        .column_gutters
+        .map(|gutters| UsedGridAxisGeometryOf::from_sizing_gutters(columns.to_vec(), gutters));
+    let row_geometry = grid
+        .row_gutters
+        .map(|gutters| UsedGridAxisGeometryOf::from_sizing_gutters(zero_rows.clone(), gutters));
+    let placed_areas = resolve_grid_child_areas_with_geometry(
+        ResolveGridChildAreasInput {
+            children: &children,
+            placements: grid.placements,
+            style: grid.style,
+            columns,
+            rows: &zero_rows,
+            gap,
+            lines: grid.lines,
+        },
+        column_geometry.as_ref(),
+        row_geometry.as_ref(),
+    );
     let subgrid_contributions = if grid
         .subgrid_report
         .items
@@ -2467,9 +2604,16 @@ where
                 sizes: &mut rows,
                 percent_basis: grid.percent_basis.block,
                 gap: gap.block,
+                gutters: grid.row_gutters,
+                column_gutters: grid.column_gutters,
+                row_gutters: grid.row_gutters,
                 container_gap: gap,
                 available: Size::new(
-                    AvailableOf::Definite(track_sum(columns, gap.inline)),
+                    AvailableOf::Definite(track_sum_with_gutters(
+                        columns,
+                        gap.inline,
+                        grid.column_gutters,
+                    )),
                     AvailableOf::MAX_CONTENT,
                 ),
                 children: &children,
@@ -2658,7 +2802,13 @@ where
                 &grid.row_tracks[item.start..item.end],
                 item.contribution_kind,
                 grid.percent_basis.block,
-                span_contribution(contribution, item.end - item.start, gap.block),
+                span_contribution_with_gutters(
+                    contribution,
+                    item.start,
+                    item.end,
+                    gap.block,
+                    grid.row_gutters,
+                ),
             );
         }
     }
@@ -2690,15 +2840,25 @@ where
     }
 
     let children = tree.children(node).collect::<Vec<_>>();
-    let placed_areas = resolve_grid_child_areas(ResolveGridChildAreasInput {
-        children: &children,
-        placements: grid.placements,
-        style: grid.style,
-        columns,
-        rows,
-        gap,
-        lines: grid.lines,
-    });
+    let column_geometry = grid
+        .column_gutters
+        .map(|gutters| UsedGridAxisGeometryOf::from_sizing_gutters(columns.to_vec(), gutters));
+    let row_geometry = grid
+        .row_gutters
+        .map(|gutters| UsedGridAxisGeometryOf::from_sizing_gutters(rows.to_vec(), gutters));
+    let placed_areas = resolve_grid_child_areas_with_geometry(
+        ResolveGridChildAreasInput {
+            children: &children,
+            placements: grid.placements,
+            style: grid.style,
+            columns,
+            rows,
+            gap,
+            lines: grid.lines,
+        },
+        column_geometry.as_ref(),
+        row_geometry.as_ref(),
+    );
 
     for (child, area) in children.into_iter().zip(placed_areas) {
         let child_style = tree.node_input(child).clone();
@@ -2788,6 +2948,8 @@ pub(super) struct PercentTrackContent<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
     pub(super) gap: LogicalSizeOf<S>,
+    pub(super) column_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
+    pub(super) row_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     pub(super) lines: GridLines,
     pub(super) placements: &'a GridPlacementContext<Node>,
 }
@@ -2810,6 +2972,8 @@ where
         columns,
         rows,
         gap,
+        column_gutters,
+        row_gutters,
         lines,
         placements,
     } = input;
@@ -2820,17 +2984,39 @@ where
     }
 
     let children = tree.children(node).collect::<Vec<_>>();
-    let placed_areas = resolve_grid_child_areas(ResolveGridChildAreasInput {
-        children: &children,
-        placements,
-        style,
-        columns,
-        rows,
-        gap,
-        lines,
-    });
-    let column_offsets = offsets(columns, Tree::Scalar::ZERO, gap.inline);
-    let row_offsets = offsets(rows, Tree::Scalar::ZERO, gap.block);
+    let column_geometry = column_gutters
+        .map(|gutters| UsedGridAxisGeometryOf::from_sizing_gutters(columns.to_vec(), gutters));
+    let row_geometry = row_gutters
+        .map(|gutters| UsedGridAxisGeometryOf::from_sizing_gutters(rows.to_vec(), gutters));
+    let placed_areas = resolve_grid_child_areas_with_geometry(
+        ResolveGridChildAreasInput {
+            children: &children,
+            placements,
+            style,
+            columns,
+            rows,
+            gap,
+            lines,
+        },
+        column_geometry.as_ref(),
+        row_geometry.as_ref(),
+    );
+    let column_offsets = column_gutters.map_or_else(
+        || offsets(columns, Tree::Scalar::ZERO, gap.inline),
+        |gutters| {
+            UsedGridAxisGeometryOf::from_sizing_gutters(columns.to_vec(), gutters)
+                .line_offsets()
+                .to_vec()
+        },
+    );
+    let row_offsets = row_gutters.map_or_else(
+        || offsets(rows, Tree::Scalar::ZERO, gap.block),
+        |gutters| {
+            UsedGridAxisGeometryOf::from_sizing_gutters(rows.to_vec(), gutters)
+                .line_offsets()
+                .to_vec()
+        },
+    );
     let mut content_size = LogicalSizeOf::new(Tree::Scalar::ZERO, Tree::Scalar::ZERO);
     let accumulate_standalone_percent_columns =
         inherits_opposite_subgrid_axis(parent_context, GridAxisKind::Column);
@@ -2915,12 +3101,17 @@ where
     }
 
     if accumulate_standalone_percent_columns {
-        content_size.inline = content_size
-            .inline
-            .max(track_sum(&column_content, gap.inline));
+        content_size.inline = content_size.inline.max(track_sum_with_gutters(
+            &column_content,
+            gap.inline,
+            column_gutters,
+        ));
     }
     if accumulate_standalone_percent_rows {
-        content_size.block = content_size.block.max(track_sum(&row_content, gap.block));
+        content_size.block =
+            content_size
+                .block
+                .max(track_sum_with_gutters(&row_content, gap.block, row_gutters));
     }
 
     Ok(sizing_flow_axes.physical_size(content_size))
@@ -3542,6 +3733,7 @@ pub(super) fn resolve_lanes_inline_tracks<S: LayoutScalar>(
         stretch_empty_auto_to_available,
         min_intrinsic_sizes,
         max_intrinsic_sizes,
+        ..
     } = input;
 
     let max_tracks = resolve_lanes_tracks_with_intrinsics(
@@ -3841,12 +4033,17 @@ fn ordinary_track_states<'a, S: LayoutScalar>(
     basis: Option<S>,
     min_intrinsic_sizes: &[S],
     max_intrinsic_sizes: &[S],
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
 ) -> Vec<OrdinaryTrackState<'a, S>> {
     tracks
         .iter()
         .enumerate()
         .map(|(index, track)| {
-            let mut state = OrdinaryTrackState::new(track, false);
+            let collapsed = gutters
+                .and_then(|gutters| gutters.collapsed().get(index))
+                .copied()
+                .unwrap_or(false);
+            let mut state = OrdinaryTrackState::new(track, collapsed);
             state.apply_intrinsic_contributions(
                 basis,
                 intrinsic_at(min_intrinsic_sizes, index),
@@ -3864,9 +4061,19 @@ fn resolve_ordinary_track_phases<S: LayoutScalar>(
     alignment: AlignContent,
     min_intrinsic_sizes: &[S],
     max_intrinsic_sizes: &[S],
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
 ) -> Vec<S> {
-    let gap_total = gap * S::from_usize(tracks.len().saturating_sub(1));
-    let mut states = ordinary_track_states(tracks, basis, min_intrinsic_sizes, max_intrinsic_sizes);
+    let gap_total = gutters.map_or_else(
+        || gap * S::from_usize(tracks.len().saturating_sub(1)),
+        OrdinaryGridAxisGuttersOf::active_gap_total,
+    );
+    let mut states = ordinary_track_states(
+        tracks,
+        basis,
+        min_intrinsic_sizes,
+        max_intrinsic_sizes,
+        gutters,
+    );
     let base_sizes = states
         .iter()
         .map(|state| state.base_size)
@@ -3914,12 +4121,24 @@ fn resolve_ordinary_track_phases<S: LayoutScalar>(
         .collect()
 }
 
+#[cfg(test)]
 pub(super) fn resolve_tracks<S: LayoutScalar>(
     tracks: &[TrackSizingOf<S>],
     basis: Option<S>,
     gap: S,
     alignment: AlignContent,
     intrinsic_sizes: &[S],
+) -> Vec<S> {
+    resolve_tracks_with_gutters(tracks, basis, gap, alignment, intrinsic_sizes, None)
+}
+
+pub(super) fn resolve_tracks_with_gutters<S: LayoutScalar>(
+    tracks: &[TrackSizingOf<S>],
+    basis: Option<S>,
+    gap: S,
+    alignment: AlignContent,
+    intrinsic_sizes: &[S],
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
 ) -> Vec<S> {
     resolve_ordinary_track_phases(
         tracks,
@@ -3928,6 +4147,7 @@ pub(super) fn resolve_tracks<S: LayoutScalar>(
         alignment,
         intrinsic_sizes,
         intrinsic_sizes,
+        gutters,
     )
 }
 
@@ -3942,6 +4162,7 @@ pub(super) fn resolve_inline_tracks<S: LayoutScalar>(input: InlineTrackInput<'_,
         stretch_empty_auto_to_available,
         min_intrinsic_sizes,
         max_intrinsic_sizes,
+        gutters,
     } = input;
 
     let max_tracks = resolve_ordinary_track_phases(
@@ -3951,17 +4172,31 @@ pub(super) fn resolve_inline_tracks<S: LayoutScalar>(input: InlineTrackInput<'_,
         AlignContent::Start,
         min_intrinsic_sizes,
         max_intrinsic_sizes,
+        gutters,
     );
-    let min_tracks =
+    let mut min_tracks =
         resolve_track_min_bounds(tracks, basis, min_intrinsic_sizes, max_intrinsic_sizes);
-    let max_content = track_sum(&max_tracks, gap);
-    let min_content = track_sum(&min_tracks, gap);
+    if let Some(gutters) = gutters {
+        for (size, collapsed) in min_tracks.iter_mut().zip(gutters.collapsed()) {
+            if *collapsed {
+                *size = S::ZERO;
+            }
+        }
+    }
+    let max_content = track_sum_with_gutters(&max_tracks, gap, gutters);
+    let min_content = track_sum_with_gutters(&min_tracks, gap, gutters);
     if let Some(available_size) = definite_size.or(available_size)
         && max_content > S::ZERO
         && available_size < max_content
     {
         let target = available_size.max(min_content).min(max_content);
-        return distribute_tracks_between_bounds(&min_tracks, &max_tracks, gap, target);
+        return distribute_tracks_between_bounds_with_gutters(
+            &min_tracks,
+            &max_tracks,
+            gap,
+            gutters,
+            target,
+        );
     }
 
     let phase_basis = basis.or_else(|| {
@@ -3980,6 +4215,7 @@ pub(super) fn resolve_inline_tracks<S: LayoutScalar>(input: InlineTrackInput<'_,
         alignment,
         min_intrinsic_sizes,
         max_intrinsic_sizes,
+        gutters,
     )
 }
 
@@ -4089,8 +4325,18 @@ pub(super) fn distribute_tracks_between_bounds<S: LayoutScalar>(
     gap: S,
     target: S,
 ) -> Vec<S> {
-    let min_sum = track_sum(min_tracks, gap);
-    let max_sum = track_sum(max_tracks, gap);
+    distribute_tracks_between_bounds_with_gutters(min_tracks, max_tracks, gap, None, target)
+}
+
+fn distribute_tracks_between_bounds_with_gutters<S: LayoutScalar>(
+    min_tracks: &[S],
+    max_tracks: &[S],
+    gap: S,
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
+    target: S,
+) -> Vec<S> {
+    let min_sum = track_sum_with_gutters(min_tracks, gap, gutters);
+    let max_sum = track_sum_with_gutters(max_tracks, gap, gutters);
     if target <= min_sum {
         return min_tracks.to_vec();
     }
@@ -4573,12 +4819,70 @@ pub(super) fn track_sum<S: LayoutScalar>(sizes: &[S], gap: S) -> S {
         + gap * S::from_usize(sizes.len().saturating_sub(1))
 }
 
+pub(super) fn track_sum_with_gutters<S: LayoutScalar>(
+    sizes: &[S],
+    gap: S,
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
+) -> S {
+    sizes
+        .iter()
+        .copied()
+        .fold(S::ZERO, |sum, value| sum + value)
+        + gutters.map_or_else(
+            || gap * S::from_usize(sizes.len().saturating_sub(1)),
+            OrdinaryGridAxisGuttersOf::active_gap_total,
+        )
+}
+
+pub(super) fn track_span_sum_with_gutters<S: LayoutScalar>(
+    sizes: &[S],
+    start: usize,
+    end: usize,
+    gap: S,
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
+) -> S {
+    if start >= end || end > sizes.len() {
+        return S::ZERO;
+    }
+    sizes[start..end]
+        .iter()
+        .copied()
+        .fold(S::ZERO, |sum, size| sum + size)
+        + gutters.map_or_else(
+            || gap * S::from_usize(end.saturating_sub(start + 1)),
+            |gutters| gutters.span_gap_total(start, end),
+        )
+}
+
+fn span_contribution_with_gutters<S: LayoutScalar>(
+    contribution: S,
+    start: usize,
+    end: usize,
+    gap: S,
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
+) -> S {
+    let gutter_total = gutters.map_or_else(
+        || gap * S::from_usize(end.saturating_sub(start + 1)),
+        |gutters| gutters.span_gap_total(start, end),
+    );
+    (contribution - gutter_total).max(S::ZERO)
+}
+
 pub(super) fn track_content_sum<S: LayoutScalar>(
     tracks: &[TrackSizingOf<S>],
     sizes: &[S],
     gap: S,
 ) -> S {
     track_sum(sizes, gap) + sub_one_flex_unfilled_space(tracks, sizes)
+}
+
+pub(super) fn track_content_sum_with_gutters<S: LayoutScalar>(
+    tracks: &[TrackSizingOf<S>],
+    sizes: &[S],
+    gap: S,
+    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
+) -> S {
+    track_sum_with_gutters(sizes, gap, gutters) + sub_one_flex_unfilled_space(tracks, sizes)
 }
 
 fn sub_one_flex_unfilled_space<S: LayoutScalar>(tracks: &[TrackSizingOf<S>], sizes: &[S]) -> S {
@@ -4981,6 +5285,8 @@ mod tests {
                     column_tracks: &[TrackSizing::px(200.0)],
                     row_tracks: &[TrackSizing::px(100.0)],
                     gap: LogicalSizeOf::new(0.0, 0.0),
+                    column_gutters: None,
+                    row_gutters: None,
                     percent_basis: LogicalSizeOf::new(None, None),
                     lines: GridLines {
                         column_explicit_start: 0,
@@ -5091,6 +5397,8 @@ mod tests {
                     column_tracks: &[TrackSizing::px(100.0), TrackSizing::px(100.0)],
                     row_tracks: &[TrackSizing::px(100.0)],
                     gap: LogicalSizeOf::new(0.0, 0.0),
+                    column_gutters: None,
+                    row_gutters: None,
                     percent_basis: LogicalSizeOf::new(None, None),
                     lines: GridLines {
                         column_explicit_start: 0,

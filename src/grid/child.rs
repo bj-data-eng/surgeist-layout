@@ -724,6 +724,8 @@ where
         collapsed_rows,
         row_tracks,
         gap,
+        column_gutters,
+        row_gutters,
         lines,
         named_columns,
         named_rows,
@@ -768,31 +770,14 @@ where
         });
     }
 
-    let inherited_collapsed_column_geometry = parent_context
-        .columns
-        .as_ref()
-        .map(|axis| &axis.geometry)
-        .filter(|geometry| geometry.collapsed().iter().any(|collapsed| *collapsed));
-    let inherited_collapsed_row_geometry = parent_context
-        .rows
-        .as_ref()
-        .map(|axis| &axis.geometry)
-        .filter(|geometry| geometry.collapsed().iter().any(|collapsed| *collapsed));
-    let intrinsic_column_geometry =
-        inherited_collapsed_column_geometry
-            .cloned()
-            .unwrap_or_else(|| {
-                UsedGridAxisGeometryOf::new(
-                    columns.to_vec(),
-                    collapsed_columns.to_vec(),
-                    gap.inline,
-                )
-            });
-    let intrinsic_row_geometry = inherited_collapsed_row_geometry
+    let inherited_column_geometry = parent_context.columns.as_ref().map(|axis| &axis.geometry);
+    let inherited_row_geometry = parent_context.rows.as_ref().map(|axis| &axis.geometry);
+    let intrinsic_column_geometry = inherited_column_geometry.cloned().unwrap_or_else(|| {
+        UsedGridAxisGeometryOf::from_sizing_gutters(columns.to_vec(), column_gutters)
+    });
+    let intrinsic_row_geometry = inherited_row_geometry
         .cloned()
-        .unwrap_or_else(|| {
-            UsedGridAxisGeometryOf::new(rows.to_vec(), collapsed_rows.to_vec(), gap.block)
-        });
+        .unwrap_or_else(|| UsedGridAxisGeometryOf::from_sizing_gutters(rows.to_vec(), row_gutters));
     let logical_content_size = LogicalSizeOf::new(
         intrinsic_column_geometry.total_extent(),
         intrinsic_row_geometry.total_extent(),
@@ -816,32 +801,38 @@ where
         .flow_axes
         .logical_edges(constants.content_box_inset);
     let alignment_free_space = logical_content_box_size - logical_content_size;
-    let column_alignment = grid_alignment(
+    let ordinary_column_alignment = ordinary_grid_axis_alignment(
         alignment_free_space.inline,
-        intrinsic_column_geometry.active_track_count(),
-        gap.inline,
+        column_gutters,
         style.justify_content.unwrap_or(AlignContent::Stretch),
     );
-    let row_alignment = grid_alignment(
+    let ordinary_row_alignment = ordinary_grid_axis_alignment(
         alignment_free_space.block,
-        intrinsic_row_geometry.active_track_count(),
-        gap.block,
+        row_gutters,
         style.align_content.unwrap_or(AlignContent::Stretch),
     );
-    let column_geometry = inherited_collapsed_column_geometry
-        .cloned()
-        .unwrap_or_else(|| {
-            UsedGridAxisGeometryOf::new(
-                columns.to_vec(),
-                collapsed_columns.to_vec(),
-                column_alignment.gap,
-            )
-        });
-    let row_geometry = inherited_collapsed_row_geometry
-        .cloned()
-        .unwrap_or_else(|| {
-            UsedGridAxisGeometryOf::new(rows.to_vec(), collapsed_rows.to_vec(), row_alignment.gap)
-        });
+    let column_alignment = GridAlignment {
+        start: ordinary_column_alignment.start,
+        gap: gap.inline,
+    };
+    let row_alignment = GridAlignment {
+        start: ordinary_row_alignment.start,
+        gap: gap.block,
+    };
+    let column_geometry = inherited_column_geometry.cloned().unwrap_or_else(|| {
+        UsedGridAxisGeometryOf::from_boundary_gutters(
+            columns.to_vec(),
+            collapsed_columns.to_vec(),
+            ordinary_column_alignment.gutter_after,
+        )
+    });
+    let row_geometry = inherited_row_geometry.cloned().unwrap_or_else(|| {
+        UsedGridAxisGeometryOf::from_boundary_gutters(
+            rows.to_vec(),
+            collapsed_rows.to_vec(),
+            ordinary_row_alignment.gutter_after,
+        )
+    });
     let logical_column_geometry = column_geometry.clone().translated(
         inherited_column_offset.unwrap_or(Tree::Scalar::ZERO)
             + logical_content_box_inset.inline_start
@@ -2005,6 +1996,8 @@ where
             area_facts: input.area_facts,
             column_sizes: input.columns,
             row_sizes: input.rows,
+            column_geometry: input.column_geometry,
+            row_geometry: input.row_geometry,
             intrinsic_min_track_facts: None,
             direct_members: direct_members.columns,
         },
@@ -2038,6 +2031,8 @@ where
             area_facts: input.area_facts,
             column_sizes: input.columns,
             row_sizes: input.rows,
+            column_geometry: input.column_geometry,
+            row_geometry: input.row_geometry,
             intrinsic_min_track_facts: Some(&row_intrinsic_min_track_facts),
             direct_members: direct_members.rows,
         },
@@ -2978,10 +2973,10 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
     } else {
         inherited_subgrid_layout_tracks(input.axis, &inherited)
     };
-    let geometry = UsedGridAxisGeometryOf::from_boundary_gutters(
+    let geometry = UsedGridAxisGeometryOf::new(
         layout_tracks.clone(),
         inherited.collapsed.clone(),
-        inherited.final_boundary_gutters.clone(),
+        layout_gap,
     );
 
     Ok(Some(InheritedGridAxis {
