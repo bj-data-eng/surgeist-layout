@@ -329,6 +329,17 @@ eleven mechanical opportunities and two lint-policy escalations. The cycle task
 bound requires two ordered sprawl-containment cycles rather than compressing
 unrelated findings behind broad write envelopes.
 
+The finite report partition is disjoint and exhaustive:
+
+| Cycle | Accepted report rows |
+| --- | --- |
+| `P01/I08/S01/C07` | `SP-002`, `SP-003`, `SP-004`, `SP-005`, `SP-011` |
+| `P01/I08/S01/C08` | `SP-006`, `SP-007`, `SP-008`, `SP-009`, `SP-010`, `SP-012`, `ESC-001`, `ESC-002` |
+
+The two previously identified behavior findings are resolved prerequisites,
+not unassigned rows: inherited placement closed in C06R and grid-lanes final
+track phases closed in C02R.
+
 **Bounded outcome:** Validate and implement the first coherent partition of the
 accepted report: visible inline-run transition ownership, canonical scroll
 source/reconstruction ownership, optional layout arithmetic, grid scrollbar
