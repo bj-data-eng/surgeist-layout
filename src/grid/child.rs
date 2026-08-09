@@ -821,16 +821,18 @@ where
         gap: gap.block,
     };
     let column_geometry = inherited_column_geometry.cloned().unwrap_or_else(|| {
-        UsedGridAxisGeometryOf::from_boundary_gutters(
+        UsedGridAxisGeometryOf::from_active_boundary_gutters(
             columns.to_vec(),
             collapsed_columns.to_vec(),
+            column_gutters.active_boundary_after().to_vec(),
             ordinary_column_alignment.gutter_after,
         )
     });
     let row_geometry = inherited_row_geometry.cloned().unwrap_or_else(|| {
-        UsedGridAxisGeometryOf::from_boundary_gutters(
+        UsedGridAxisGeometryOf::from_active_boundary_gutters(
             rows.to_vec(),
             collapsed_rows.to_vec(),
+            row_gutters.active_boundary_after().to_vec(),
             ordinary_row_alignment.gutter_after,
         )
     });

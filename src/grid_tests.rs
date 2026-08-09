@@ -5209,9 +5209,11 @@ where
             &[false, true, true, false],
             scalar(10.0),
         );
-        let parent_geometry = UsedGridAxisGeometryOf::from_sizing_gutters(
+        let parent_geometry = UsedGridAxisGeometryOf::from_active_boundary_gutters(
             vec![scalar(40.0), S::ZERO, S::ZERO, scalar(40.0)],
-            &parent_gutters,
+            parent_gutters.collapsed().to_vec(),
+            parent_gutters.active_boundary_after().to_vec(),
+            parent_gutters.gutter_after().to_vec(),
         );
         let item = SubgridItemReport {
             node: 1_u32,
@@ -5401,9 +5403,10 @@ fn fri08_c06_collapsed_gutter_carrier_retains_one_gap_per_interior_run_for_both_
     assert_fri08_c06_collapsed_gutter_carrier::<f32>();
     assert_fri08_c06_collapsed_gutter_carrier::<f64>();
 
-    let reversed = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+    let reversed = OrdinaryGridAxisGuttersOf::from_active_boundary_gutters(
         4,
         &[false, true, false, false],
+        &[true, false, true],
         &[10.0_f64, 0.0, 30.0],
     )
     .reversed();

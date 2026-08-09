@@ -45,22 +45,6 @@ impl<S: LayoutScalar> OrdinaryGridAxisGuttersOf<S> {
         }
     }
 
-    pub(super) fn from_boundary_gutters(
-        track_count: usize,
-        collapsed: &[bool],
-        gutter_after: &[S],
-    ) -> Self {
-        let mut collapsed = collapsed.to_vec();
-        collapsed.resize(track_count, false);
-        let active_boundary_after = Self::derive_active_boundary_after(&collapsed);
-        Self::from_active_boundary_gutters(
-            track_count,
-            &collapsed,
-            &active_boundary_after,
-            gutter_after,
-        )
-    }
-
     pub(super) fn from_active_boundary_gutters(
         track_count: usize,
         collapsed: &[bool],
@@ -190,19 +174,6 @@ impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
             gutters.active_boundary_after().to_vec(),
             gutters.gutter_after().to_vec(),
         )
-    }
-
-    pub(super) fn from_boundary_gutters(
-        sizes: Vec<S>,
-        collapsed: Vec<bool>,
-        gutter_after: Vec<S>,
-    ) -> Self {
-        let gutters = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
-            sizes.len(),
-            &collapsed,
-            &gutter_after,
-        );
-        Self::from_sizing_gutters(sizes, &gutters)
     }
 
     pub(super) fn from_active_boundary_gutters(

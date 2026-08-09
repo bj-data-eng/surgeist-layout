@@ -1813,14 +1813,16 @@ where
             gutter_after: vec![legacy_row_alignment.gap; rows.len().saturating_sub(1)],
         }
     };
-    context.column_gutters = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+    context.column_gutters = OrdinaryGridAxisGuttersOf::from_active_boundary_gutters(
         columns.len(),
         context.column_gutters.collapsed(),
+        context.column_gutters.active_boundary_after(),
         &column_alignment.gutter_after,
     );
-    context.row_gutters = OrdinaryGridAxisGuttersOf::from_boundary_gutters(
+    context.row_gutters = OrdinaryGridAxisGuttersOf::from_active_boundary_gutters(
         rows.len(),
         context.row_gutters.collapsed(),
+        context.row_gutters.active_boundary_after(),
         &row_alignment.gutter_after,
     );
     context.gap = gap;
