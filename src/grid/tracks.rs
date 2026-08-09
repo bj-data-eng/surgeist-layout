@@ -3720,6 +3720,10 @@ pub(super) fn track_flex_factor<S: LayoutScalar>(track: &TrackSizingOf<S>) -> Op
     }
 }
 
+fn track_has_auto_maximum<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
+    matches!(track.max, MaxTrackSizingOf::Auto)
+}
+
 pub(super) fn resolve_lanes_inline_tracks<S: LayoutScalar>(
     input: InlineTrackInput<'_, S>,
 ) -> Vec<S> {
@@ -3955,13 +3959,7 @@ impl<'a, S: LayoutScalar> OrdinaryTrackState<'a, S> {
             growth_limit: None,
             fit_content_limit: None,
             flex_factor: track_flex_factor(sizing_functions),
-            auto_max_stretch_eligible: matches!(
-                sizing_functions,
-                TrackSizingOf {
-                    min: MinTrackSizingOf::Auto,
-                    max: MaxTrackSizingOf::Auto
-                }
-            ),
+            auto_max_stretch_eligible: track_has_auto_maximum(sizing_functions),
             collapsed,
         }
     }

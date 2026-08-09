@@ -186,6 +186,322 @@ fn fri08_c02_track_sizes<S: LayoutScalar>(
         .collect()
 }
 
+fn fri08_c02_stretch_track<S: LayoutScalar>(minimum: MinTrackSizingOf<S>) -> TrackComponentOf<S> {
+    TrackComponentOf::minmax(minimum, MaxTrackSizingOf::AUTO)
+}
+
+struct Fri08C02StretchTreeInput<'a, S: LayoutScalar> {
+    display: Display,
+    axis: Fri08C02TrackAxis,
+    writing_mode: WritingMode,
+    definite_axis_size: Option<f64>,
+    viewport_axis_size: f64,
+    gap: f64,
+    alignment: Option<AlignContent>,
+    tracks: Vec<TrackComponentOf<S>>,
+    measurements: &'a [f64],
+}
+
+fn fri08_c02_stretch_tree<S: LayoutScalar>(
+    input: Fri08C02StretchTreeInput<'_, S>,
+) -> (PublicLayoutTreeOf<S>, crate::geometry::FlowAxes, Size<S>) {
+    let Fri08C02StretchTreeInput {
+        display,
+        axis,
+        writing_mode,
+        definite_axis_size,
+        viewport_axis_size,
+        gap,
+        alignment,
+        tracks,
+        measurements,
+    } = input;
+    let scalar = S::from_f64;
+    let flow_axes = crate::geometry::FlowAxes::new(writing_mode, Direction::Ltr);
+    let logical_root_size = match axis {
+        Fri08C02TrackAxis::Columns => LogicalSizeOf::new(
+            definite_axis_size.map_or(PreferredSizeOf::AUTO, |size| {
+                PreferredSizeOf::px(scalar(size))
+            }),
+            PreferredSizeOf::px(scalar(10.0)),
+        ),
+        Fri08C02TrackAxis::Rows => LogicalSizeOf::new(
+            PreferredSizeOf::px(scalar(10.0)),
+            definite_axis_size.map_or(PreferredSizeOf::AUTO, |size| {
+                PreferredSizeOf::px(scalar(size))
+            }),
+        ),
+    };
+    let physical_root_size = flow_axes.physical_size(logical_root_size);
+    let (columns, rows) = match axis {
+        Fri08C02TrackAxis::Columns => (tracks, vec![TrackComponentOf::px(scalar(10.0))]),
+        Fri08C02TrackAxis::Rows => (vec![TrackComponentOf::px(scalar(10.0))], tracks),
+    };
+    let children = (0..measurements.len())
+        .map(|index| index as u32 + 2)
+        .collect::<Vec<_>>();
+    let mut tree = PublicLayoutTreeOf::new()
+        .children(1, children.iter().copied())
+        .style(
+            1,
+            NodeInputOf {
+                display,
+                writing_mode,
+                size: physical_root_size,
+                grid_template_columns: columns,
+                grid_template_rows: rows,
+                gap: flow_axes.physical_size(LogicalSizeOf::new(
+                    LengthOf::px(scalar(gap)),
+                    LengthOf::ZERO,
+                )),
+                justify_content: alignment,
+                align_content: alignment,
+                ..NodeInputOf::default()
+            },
+        );
+    for (index, measurement) in measurements.iter().copied().enumerate() {
+        let node = index as u32 + 2;
+        let line = isize::try_from(index + 1).expect("small stretch track index");
+        let placement = GridPlacement::try_line(line).expect("valid stretch track line");
+        let style = match axis {
+            Fri08C02TrackAxis::Columns => NodeInputOf {
+                grid_column: placement,
+                grid_row: GridPlacement::try_line(1).expect("single stretch row"),
+                ..NodeInputOf::default()
+            },
+            Fri08C02TrackAxis::Rows => NodeInputOf {
+                grid_column: GridPlacement::try_line(1).expect("single stretch column"),
+                grid_row: placement,
+                ..NodeInputOf::default()
+            },
+        };
+        let logical_measurement = match axis {
+            Fri08C02TrackAxis::Columns => LogicalSizeOf::new(scalar(measurement), scalar(10.0)),
+            Fri08C02TrackAxis::Rows => LogicalSizeOf::new(scalar(10.0), scalar(measurement)),
+        };
+        tree = tree
+            .style(node, style)
+            .measure(node, flow_axes.physical_size(logical_measurement));
+    }
+    let logical_viewport = match axis {
+        Fri08C02TrackAxis::Columns => LogicalSizeOf::new(scalar(viewport_axis_size), scalar(10.0)),
+        Fri08C02TrackAxis::Rows => LogicalSizeOf::new(scalar(10.0), scalar(viewport_axis_size)),
+    };
+    (tree, flow_axes, flow_axes.physical_size(logical_viewport))
+}
+
+#[test]
+fn fri08_c02_stretch_minmax_zero_auto_uses_definite_remaining_space() {
+    let (tree, flow_axes, viewport) = fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+        display: Display::Grid,
+        axis: Fri08C02TrackAxis::Columns,
+        writing_mode: WritingMode::HorizontalTb,
+        definite_axis_size: Some(100.0),
+        viewport_axis_size: 100.0,
+        gap: 0.0,
+        alignment: Some(AlignContent::Stretch),
+        tracks: vec![fri08_c02_stretch_track(MinTrackSizingOf::px(0.0))],
+        measurements: &[0.0],
+    });
+
+    assert_eq!(
+        fri08_c02_track_sizes(&tree, flow_axes, viewport, Fri08C02TrackAxis::Columns, 1,),
+        [100.0]
+    );
+}
+
+fn assert_fri08_c02_stretch_intrinsic_minimums<S: LayoutScalar>() {
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for axis in [Fri08C02TrackAxis::Columns, Fri08C02TrackAxis::Rows] {
+            for minimum in [
+                MinTrackSizingOf::<S>::MIN_CONTENT,
+                MinTrackSizingOf::<S>::MAX_CONTENT,
+            ] {
+                let (tree, flow_axes, viewport) =
+                    fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+                        display: Display::Grid,
+                        axis,
+                        writing_mode,
+                        definite_axis_size: Some(100.0),
+                        viewport_axis_size: 100.0,
+                        gap: 0.0,
+                        alignment: None,
+                        tracks: vec![fri08_c02_stretch_track(minimum)],
+                        measurements: &[20.0],
+                    });
+                let size = fri08_c02_track_sizes(&tree, flow_axes, viewport, axis, 1)[0];
+                assert_eq!(size, S::from_f64(100.0));
+                assert!(size > S::from_f64(20.0));
+            }
+        }
+    }
+}
+
+#[test]
+fn fri08_c02_stretch_intrinsic_minimums_match_both_axes_writing_modes_and_scalars() {
+    assert_fri08_c02_stretch_intrinsic_minimums::<f32>();
+    assert_fri08_c02_stretch_intrinsic_minimums::<f64>();
+}
+
+#[test]
+fn fri08_c02_stretch_excludes_other_maxima_after_fit_and_flex_use() {
+    let tracks = vec![
+        fri08_c02_stretch_track(MinTrackSizingOf::px(0.0)),
+        TrackComponentOf::px(10.0),
+        fri08_c02_fit_content_track(30.0, 0.0),
+        TrackComponentOf::minmax(MinTrackSizingOf::px(0.0), MaxTrackSizingOf::MIN_CONTENT),
+        TrackComponentOf::minmax(MinTrackSizingOf::px(0.0), MaxTrackSizingOf::MAX_CONTENT),
+        fri08_c02_flex_track(0.5),
+    ];
+    let (tree, flow_axes, viewport) = fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+        display: Display::Grid,
+        axis: Fri08C02TrackAxis::Columns,
+        writing_mode: WritingMode::HorizontalTb,
+        definite_axis_size: Some(300.0),
+        viewport_axis_size: 300.0,
+        gap: 0.0,
+        alignment: Some(AlignContent::Stretch),
+        tracks,
+        measurements: &[0.0, 0.0, 20.0, 15.0, 25.0, 0.0],
+    });
+
+    assert_eq!(
+        fri08_c02_track_sizes(&tree, flow_axes, viewport, Fri08C02TrackAxis::Columns, 6,),
+        [115.0, 10.0, 20.0, 15.0, 25.0, 115.0]
+    );
+}
+
+#[test]
+fn fri08_c02_stretch_uses_only_active_gaps_and_noncollapsed_auto_fit_tracks() {
+    let repeat = TrackComponentOf::Repeat(
+        TrackRepetitionOf::auto_fit_components(vec![fri08_c02_stretch_track(
+            MinTrackSizingOf::px(40.0),
+        )])
+        .expect("valid fixed-minimum auto-fit repetition"),
+    );
+    let (tree, _, viewport) = fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+        display: Display::Grid,
+        axis: Fri08C02TrackAxis::Columns,
+        writing_mode: WritingMode::HorizontalTb,
+        definite_axis_size: Some(140.0),
+        viewport_axis_size: 140.0,
+        gap: 10.0,
+        alignment: Some(AlignContent::Stretch),
+        tracks: vec![repeat],
+        measurements: &[0.0, 0.0],
+    });
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(viewport.map(AvailableOf::definite))
+            .expect("finite collapsed stretch viewport"),
+    )
+    .expect("valid collapsed stretch grid");
+    let first = fri08_c01_placement_output(&batch, 2);
+    let second = fri08_c01_placement_output(&batch, 3);
+
+    assert_eq!((first.location.x, first.size.width), (0.0, 65.0));
+    assert_eq!((second.location.x, second.size.width), (75.0, 65.0));
+}
+
+#[test]
+fn fri08_c02_stretch_requires_normal_or_stretch_positive_definite_remainder() {
+    let resolve = |definite_axis_size, alignment| {
+        let (tree, flow_axes, viewport) = fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+            display: Display::Grid,
+            axis: Fri08C02TrackAxis::Columns,
+            writing_mode: WritingMode::HorizontalTb,
+            definite_axis_size,
+            viewport_axis_size: 100.0,
+            gap: 0.0,
+            alignment,
+            tracks: vec![fri08_c02_stretch_track(
+                MinTrackSizingOf::<f32>::MIN_CONTENT,
+            )],
+            measurements: &[20.0],
+        });
+        fri08_c02_track_sizes(&tree, flow_axes, viewport, Fri08C02TrackAxis::Columns, 1)[0]
+    };
+
+    assert_eq!(resolve(Some(100.0), None), 100.0);
+    assert_eq!(resolve(Some(100.0), Some(AlignContent::Stretch)), 100.0);
+    assert_eq!(resolve(Some(100.0), Some(AlignContent::Start)), 20.0);
+    assert_eq!(resolve(Some(100.0), Some(AlignContent::Center)), 20.0);
+    assert_eq!(
+        resolve_tracks(
+            &[TrackSizingOf::minmax(
+                MinTrackSizingOf::MIN_CONTENT,
+                MaxTrackSizingOf::AUTO,
+            )],
+            None,
+            0.0,
+            AlignContent::Stretch,
+            &[20.0],
+        ),
+        [20.0]
+    );
+    assert_eq!(resolve(Some(10.0), Some(AlignContent::Stretch)), 20.0);
+}
+
+#[test]
+fn fri08_c02_stretch_lanes_policy_retains_fit_content_stretch_and_auto_fit() {
+    assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Columns);
+    assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Rows);
+
+    let (tree, flow_axes, viewport) = fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+        display: Display::GridLanes,
+        axis: Fri08C02TrackAxis::Columns,
+        writing_mode: WritingMode::HorizontalTb,
+        definite_axis_size: Some(100.0),
+        viewport_axis_size: 100.0,
+        gap: 0.0,
+        alignment: Some(AlignContent::Stretch),
+        tracks: vec![fri08_c02_stretch_track(MinTrackSizingOf::px(0.0))],
+        measurements: &[0.0],
+    });
+    assert_eq!(
+        fri08_c02_track_sizes(&tree, flow_axes, viewport, Fri08C02TrackAxis::Columns, 1,),
+        [0.0],
+        "ordinary auto-maximum stretch must not enter lanes"
+    );
+
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("first lane track"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("overlapping lane track"),
+                ..NodeInput::DEFAULT
+            },
+        );
+    let output = fri08_c02_auto_fit_output(&tree, Size::new(120.0, 20.0), 2);
+    assert_eq!((output.location.x, output.size.width), (0.0, 40.0));
+}
+
 fn assert_fri08_c02_fit_content_flex_composes<S: LayoutScalar>(
     axis: Fri08C02TrackAxis,
     writing_mode: WritingMode,
