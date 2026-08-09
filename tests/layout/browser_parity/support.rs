@@ -3840,12 +3840,12 @@ fn parse_grid_template_area_ident(raw: &str) -> Result<&str, Error> {
             "invalid grid template area name `{raw}`"
         )));
     }
-    let mut bytes = raw.bytes();
-    let valid_start = match (bytes.next(), bytes.next()) {
-        (Some(first), second) if first.is_ascii_alphabetic() || first == b'_' => {
-            second.is_none_or(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-        }
-        (Some(b'-'), Some(second)) => second.is_ascii_alphabetic() || matches!(second, b'_' | b'-'),
+    let mut bytes = raw.strip_prefix('-').unwrap_or(raw).bytes();
+    let valid_start = match bytes.next() {
+        Some(first) if first.is_ascii_alphabetic() || first == b'_' => true,
+        Some(b'-') => bytes
+            .next()
+            .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_'),
         _ => false,
     };
     if !valid_start

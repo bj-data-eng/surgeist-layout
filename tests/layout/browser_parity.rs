@@ -84,6 +84,77 @@ fn fri08_c05_adapter_template_areas_reach_public_layout() {
 }
 
 #[test]
+fn fri08_c05_adapter_template_areas_reject_identifier_without_name_start() {
+    let golden = support::Golden::parse(concat!(
+        "<test name=\"invalid-template-area-ident\">",
+        "<viewport width=\"max-content\" height=\"max-content\"/>",
+        "<input><div display=\"grid\" grid-template-areas=\"--\"/></input>",
+        "<expectations><node/></expectations>",
+        "</test>"
+    ))
+    .expect("well-formed XML should reach the existing adapter consumer");
+
+    assert!(
+        support::assert_surgeist_matches(&golden).is_err(),
+        "a double hyphen without a following name-start must fail closed"
+    );
+}
+
+fn fri08_c05_adapter_template_area_ident_xml(value: &str) -> String {
+    format!(
+        concat!(
+            "<test name=\"finite-template-area-ident\">",
+            "<viewport width=\"max-content\" height=\"max-content\"/>",
+            "<input><div display=\"grid\" grid-template-areas=\"{}\"/></input>",
+            "<expectations><node/></expectations>",
+            "</test>"
+        ),
+        value
+    )
+}
+
+#[test]
+fn fri08_c05_adapter_template_area_identifier_boundaries_match_finite_helper() {
+    for (case, value) in [
+        ("ordinary name", "head"),
+        ("underscore name-start", "_"),
+        ("one leading hyphen", "-head"),
+        ("two leading hyphens with a name-start", "--head"),
+        ("finite continuation characters", "head2-_"),
+    ] {
+        let golden = support::Golden::parse(&fri08_c05_adapter_template_area_ident_xml(value))
+            .expect("well-formed XML should reach the existing adapter consumer");
+        assert!(
+            support::assert_surgeist_matches(&golden).is_ok(),
+            "helper-valid {case} {value:?} must reach public layout"
+        );
+    }
+
+    for (case, value) in [
+        ("missing name-start after two hyphens", "--"),
+        ("lone hyphen", "-"),
+        ("leading digit", "2head"),
+        ("reserved identifier", "auto"),
+        ("reserved identifier", "default"),
+        ("reserved identifier", "inherit"),
+        ("reserved identifier", "initial"),
+        ("reserved identifier", "none"),
+        ("reserved identifier", "revert"),
+        ("reserved identifier", "revert-layer"),
+        ("reserved identifier", "span"),
+        ("reserved identifier", "unset"),
+        ("illegal punctuation", "head@"),
+    ] {
+        let golden = support::Golden::parse(&fri08_c05_adapter_template_area_ident_xml(value))
+            .expect("well-formed XML should reach the existing adapter consumer");
+        assert!(
+            support::assert_surgeist_matches(&golden).is_err(),
+            "helper-invalid {case} {value:?} must fail closed"
+        );
+    }
+}
+
+#[test]
 fn fri08_c05_adapter_template_areas_reject_malformed_unknown_and_contradictory_values() {
     for value in [
         "",
