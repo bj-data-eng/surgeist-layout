@@ -91,10 +91,11 @@ adds no `allow` or `expect` attribute.
 
 ## 3 Shared Task Gate
 
-Tasks run in order. Each worker proves its characterization on the exact task
-base, adds a structural RED that fails only because the named duplication or
-impossible state remains, performs the mechanical change, repeats focused
-commands, and runs:
+Tasks run in order. Each behavior-preserving refactor first proves its named
+behavioral characterization on the exact task base. A separate read-only source
+inventory records the named duplicate or impossible state before the edit and
+its absence afterward; source shape is never used as behavioral test evidence.
+The worker performs the mechanical change, repeats focused commands, and runs:
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
@@ -132,11 +133,24 @@ read and entry diagnostics, and sorting. Existing callers retain their relative
 versus absolute projection and HTML filtering. Generated-XML pruning traversal
 and every output path remain separate and unchanged.
 
-**RED and acceptance:** new `fri08_c08_t01_generator_traversal_` tests first
+**Characterization and acceptance:** new
+`fri08_c08_t01_generator_traversal_` tests first
 characterize nested ordering, relative/absolute paths, extension filtering,
 non-UTF-8-safe path handling, and missing/unreadable-directory diagnostics, then
-structurally reject the two collector owners. After consolidation, exact vectors
-and diagnostics match; production outside the private traversal is unchanged.
+pass unchanged after consolidation. A separate source inventory records two
+fixture collector owners before and one after. Exact vectors and diagnostics
+match; production outside the private traversal is unchanged.
+
+**Mechanical inventory:** run outside the test suite; base has exactly the two
+named fixture collectors, while HEAD has one new owner and retains the separate
+generated-XML collector.
+
+```sh
+test "$(git show "$TASK_BASE":tests/bin/surgeist-layout-generate/generator.rs | rg -c '^fn (collect_relative_files_into|collect_html_into)\(')" = 2
+test -z "$(rg '^fn (collect_relative_files_into|collect_html_into)\(' tests/bin/surgeist-layout-generate/generator.rs || true)"
+test "$(rg -c '^fn collect_fixture_files_into\(' tests/bin/surgeist-layout-generate/generator.rs)" = 1
+test "$(rg -c '^fn collect_generated_xml_files\(' tests/bin/surgeist-layout-generate/generator.rs)" = 1
+```
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate fri08_c08_t01_generator_traversal_
@@ -158,11 +172,25 @@ test-private structural expression representation with destination-specific
 validated lowering. Run all five block, flex, grid, grid-lanes, and subgrid axis
 families through one typed family harness; topology predicates remain local.
 
-**RED and acceptance:** new `fri08_c08_t02_` tests characterize every supported
+**Characterization and acceptance:** new `fri08_c08_t02_` tests characterize
+every supported
 leaf/function, nesting limit, optional clamp bound, malformed argument,
 destination-specific rejection and diagnostic, plus all five family inventories,
-topology checks, paths, and mismatch identity. Structural RED rejects duplicate
-parser recursion and duplicate family loops. All pre/post results are exact.
+topology checks, paths, and mismatch identity. A separate source inventory records
+the duplicate parser recursion and family loops before and their single owners
+after. All pre/post results are exact.
+
+**Mechanical inventory:** run outside the test suite; base parser-owner count is
+two and the generic family harness has two callers. HEAD has one structural
+parser and all five family callers.
+
+```sh
+test "$(git show "$TASK_BASE":tests/layout/browser_parity/support.rs | rg -c '^fn (parse_sizing_calculation_inner|parse_calc_size_calculation_inner)\(')" = 2
+test "$(git show "$TASK_BASE":tests/layout/browser_parity.rs | rg -c 'assert_axis_fixture_family_matches\(')" = 3
+test -z "$(rg '^fn (parse_sizing_calculation_inner|parse_calc_size_calculation_inner)\(' tests/layout/browser_parity/support.rs || true)"
+test "$(rg -c '^fn parse_fixture_sizing_expression\(' tests/layout/browser_parity/support.rs)" = 1
+test "$(rg -c 'assert_axis_fixture_family_matches\(' tests/layout/browser_parity.rs)" = 6
+```
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --test layout fri08_c08_t02_
@@ -181,10 +209,23 @@ on clean T02 only for ordered attribution.
 owner replaces repeated atomic state, cache, and completion setup. Per-scenario
 tree/style/input and expected behavior remain local.
 
-**RED and acceptance:** new `fri08_c08_t03_retained_state_` tests characterize
+**Characterization and acceptance:** new `fri08_c08_t03_retained_state_` tests
+characterize
 initial revisions, prepared batches, success/failure publication, cache identity,
-f32/f64, and no-partial-state behavior; structural RED rejects duplicate setup.
-Existing grid behavior and transaction tests remain exact.
+f32/f64, and no-partial-state behavior. A separate source inventory records the
+duplicate setup before and its single owner after. Existing grid behavior and
+transaction tests remain exact.
+
+**Mechanical inventory:** run outside the test suite; base contains three
+scenario-specific retained stores. HEAD contains one store and one batch owner
+used by all three existing sink implementations.
+
+```sh
+test "$(git show "$TASK_BASE":src/grid_tests.rs | rg -c '^struct Fri08C(06RRetained|03NestedRetained|04BaselineRetained)')" = 3
+test -z "$(rg '^struct Fri08C(06RRetained|03NestedRetained|04BaselineRetained)' src/grid_tests.rs || true)"
+test "$(rg -c '^struct GridTestRetainedState' src/grid_tests.rs)" = 1
+test "$(rg -c 'prepare_grid_test_batch\(' src/grid_tests.rs)" = 4
+```
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c08_t03_retained_state_
@@ -203,10 +244,23 @@ clean T03 because the test module overlaps.
 owns corresponding-node traversal. Case construction and algorithm-specific
 geometry, baseline, scroll, and error assertions remain local.
 
-**RED and acceptance:** new `fri08_c08_t04_comparison_walk_` tests characterize
+**Characterization and acceptance:** new `fri08_c08_t04_comparison_walk_` tests
+characterize
 source identity, child order, missing/duplicate identities, nested mismatch
-paths, both scalars, and exact diagnostic order; structural RED rejects repeated
-walks. Production/oracle comparison behavior remains exact.
+paths, both scalars, and exact diagnostic order. A separate source inventory
+records repeated walks before and one identity-map/walker owner after.
+Production/oracle comparison behavior remains exact.
+
+**Mechanical inventory:** run outside the test suite; base contains the three
+reconstructed-numbering functions. HEAD removes them and has exactly one private
+identity-map builder and one phase-parameterized walker.
+
+```sh
+test "$(git show "$TASK_BASE":src/test_support/grid_layout_comparison.rs | rg -c '^fn (append_node|assert_nested_expected_layouts|assert_nested_expected_final_layouts)\(')" = 3
+test -z "$(rg '^fn (append_node|assert_nested_expected_layouts|assert_nested_expected_final_layouts)\(' src/test_support/grid_layout_comparison.rs || true)"
+test "$(rg -c '^fn build_grid_comparison_identity_map\(' src/test_support/grid_layout_comparison.rs)" = 1
+test "$(rg -c '^fn walk_grid_comparison_expectations\(' src/test_support/grid_layout_comparison.rs)" = 1
+```
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c08_t04_comparison_walk_
@@ -230,11 +284,21 @@ and dead-code expectation. Remove the unreachable independent-formatting-context
 subgrid ineligibility state and branch while preserving every reachable
 standalone, nested, lanes, intrinsic, and scroll-container decision.
 
-**RED and acceptance:** new `fri08_c08_t05_impossible_state_` tests first prove
+**Characterization and acceptance:** new `fri08_c08_t05_impossible_state_` tests
+first prove
 all flow axes, scalars, caller projections, subgrid eligibility combinations,
 standalone termination, nested lanes, exact remaining errors, and public output,
-then structurally reject both impossible states and the obsolete expectation.
-After removal, behavior is identical and no valid failure is erased.
+and pass unchanged after removal. A separate source inventory is nonempty before
+the edit and requires both impossible states and the obsolete expectation absent
+afterward. No valid failure is erased.
+
+**Mechanical inventory:** run outside the test suite; every named base symbol is
+required to exist and every HEAD match across the exact task envelope is empty.
+
+```sh
+for symbol in GridAxisMappingError VerticalWritingModeUnsupported IndependentFormattingContext establishes_independent_formatting_context; do git grep -q "$symbol" "$TASK_BASE" -- src/grid/axis.rs src/grid/subgrid.rs src/grid/mod.rs src/grid/child.rs src/grid/tracks.rs src/grid/lanes.rs src/grid_tests.rs; done
+test -z "$(rg -n 'GridAxisMappingError|VerticalWritingModeUnsupported|IndependentFormattingContext|establishes_independent_formatting_context' src/grid/{axis,subgrid,mod,child,tracks,lanes}.rs src/grid_tests.rs || true)"
+```
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c08_t05_impossible_state_
@@ -246,9 +310,9 @@ CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fr
 
 ### 4.6 `P01/I08/S01/C08/T06` Eliminate Bare Source Suppressions
 
-**Finding and write envelope:** `ESC-002`; exactly `src/grid_tests.rs`,
-`src/lib_tests.rs`, and every tracked Rust file below `src/test_support/` at the
-task base. Depends on clean T05. Stop before production modules outside
+**Finding and write envelope:** `ESC-002`; exactly `src/grid_tests.rs` and every
+tracked Rust file below `src/test_support/` at the task base. Depends on clean
+T05. Stop before production modules outside
 `src/test_support/`, integration tests, or another source tree.
 
 **Outcome:** remove the three module `dead_code`, ten oracle-grid
@@ -257,17 +321,26 @@ privatize genuinely unused test-only exports and imports, and replace the
 positional helper argument cluster with one typed test input. Do not add or
 relocate suppressions, weaken tests, or make production-visible surface.
 
-**RED and acceptance:** add `fri08_c08_t06_owned_rust_policy_inventory_` in
-`src/lib_tests.rs` using the existing lexical source inventory. Its RED reports
-the exact fourteen bare allows; GREEN requires zero `allow`, the exact remaining
-justified `expect` inventory after T05, and zero executable unsafe across every
-tracked and non-ignored owned Rust file. Focused behavior tests characterize
-every retained test-support export and the large helper before restructuring.
+**Characterization and acceptance:** new `fri08_c08_t06_suppression_cleanup_`
+tests characterize the live consumers implicated by the removed module/import
+allows and the large helper before restructuring and pass unchanged afterward.
+A read-only owned-source scan reports the exact fourteen bare allows before the
+edit and zero after. The final suppression inventory equals the task-base
+inventory minus those fourteen allows, with no added or relocated attribute; the
+repository-wide unsafe scan remains empty.
+
+**Mechanical inventory:** run outside the test suite; the exact task-base scope
+has fourteen direct bare allows and HEAD has none. The shared diff inventory also
+rejects every added or relocated suppression token.
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c08_t06_owned_rust_policy_inventory_
+test "$(git grep -n -F '#[allow(' "$TASK_BASE" -- src/grid_tests.rs src/test_support | wc -l | tr -d ' ')" = 14
+test -z "$(rg -n -F '#[allow(' src/grid_tests.rs src/test_support --glob '*.rs' || true)"
+```
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c08_t06_suppression_cleanup_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib grid_tests::
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib lib_tests::
 ```
 
 **Intended commit:** `refactor(test-support): eliminate bare suppressions`.
@@ -305,7 +378,7 @@ failed-to-generate; and the worktree is clean.
 expected_paths="$({ printf '%s\n' 'plans/cycles/P01-I08-S01-C08-whole-crate-sprawl-containment-and-final-candidate.md'; while IFS= read -r span; do git diff --name-only "$span"; done <<< "$TASK_SPANS"; } | LC_ALL=C sort -u)"
 actual_paths="$(git diff --name-only 4f14431cb000fceb97be7f3203927b5e5f7d07cd..HEAD | LC_ALL=C sort -u)"
 test "$actual_paths" = "$expected_paths"
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c08_t06_owned_rust_policy_inventory_
+if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U --pcre2 '#\s*\[\s*allow\b'; then exit 1; fi
 if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U '\b(no_mangle|export_name|link_section|naked)\b|(^|[^[:alnum:]_"])extern[[:space:]]*"'; then exit 1; fi
 ```
 
