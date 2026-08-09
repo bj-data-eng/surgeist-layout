@@ -1129,6 +1129,99 @@ struct InFlowPassContext<'a, S: LayoutScalar, Node> {
     inherited: Option<&'a InheritedFloatExclusions<S, Node>>,
 }
 
+#[derive(Clone, Copy)]
+struct VisibleInlineRunTransition {
+    start: usize,
+    end: usize,
+}
+
+enum InFlowChildStart<S: LayoutScalar> {
+    VisibleInlineRun(VisibleInlineRunTransition),
+    FlowBox(Box<NodeInputOf<S>>),
+}
+
+impl VisibleInlineRunTransition {
+    const fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+
+    fn apply<Tree, S, M>(
+        self,
+        tree: &mut Tree,
+        node: <Tree as Traverse>::Node,
+        children: &[<Tree as Traverse>::Node],
+        mut context: InlineRunContext<'_, S>,
+        state: InlineRunTransitionState<'_, <Tree as Traverse>::Node, S>,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, (), S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+        S: LayoutScalar,
+    {
+        let InlineRunTransitionState {
+            cursor_block,
+            content_size,
+            scroll_content_size,
+            baselines,
+            static_positions,
+            resolved_terminal_float_block_end,
+            active_margin,
+            is_collapsing_first_margin,
+            active_margin_can_collapse_with_parent,
+            all_in_flow_children_can_collapse_through,
+            float_exclusions,
+            contributions,
+        } = state;
+        *cursor_block = *cursor_block + active_margin.resolve();
+        *is_collapsing_first_margin = false;
+        context.cursor_block = *cursor_block;
+        let constants = context.constants;
+        let placement = layout_inline_run_children(
+            tree,
+            node,
+            &children[self.start..self.end],
+            context,
+            float_exclusions,
+            contributions,
+        )?;
+
+        let placement_content_size = constants.flow_axes.logical_size(placement.content_size);
+        content_size.inline = content_size.inline.max(placement_content_size.inline);
+        content_size.block = content_size.block.max(placement_content_size.block);
+        let placement_scroll_content_size = constants
+            .flow_axes
+            .logical_size(placement.scroll_content_size);
+        scroll_content_size.inline = scroll_content_size
+            .inline
+            .max(placement_scroll_content_size.inline);
+        scroll_content_size.block = scroll_content_size
+            .block
+            .max(placement_scroll_content_size.block);
+        record_inline_run_baselines(baselines, &placement, *cursor_block, constants);
+        *cursor_block = *cursor_block + placement.logical_block_extent(constants.flow_axes);
+        static_positions.extend(placement.static_positions);
+        *resolved_terminal_float_block_end = placement.resolved_float_terminal_block_end;
+        *active_margin = CollapsibleMarginOf::<S>::ZERO;
+        *active_margin_can_collapse_with_parent = false;
+        *all_in_flow_children_can_collapse_through = false;
+        Ok(())
+    }
+}
+
+struct InlineRunTransitionState<'a, Node, S: LayoutScalar> {
+    cursor_block: &'a mut S,
+    content_size: &'a mut LogicalSizeOf<S>,
+    scroll_content_size: &'a mut LogicalSizeOf<S>,
+    baselines: &'a mut BaselinesOf<S>,
+    static_positions: &'a mut Vec<(Node, Point<S>)>,
+    resolved_terminal_float_block_end: &'a mut Option<S>,
+    active_margin: &'a mut CollapsibleMarginOf<S>,
+    is_collapsing_first_margin: &'a mut bool,
+    active_margin_can_collapse_with_parent: &'a mut bool,
+    all_in_flow_children_can_collapse_through: &'a mut bool,
+    float_exclusions: &'a FloatExclusions<S, Node>,
+    contributions: &'a mut ScrollContributionAccumulatorOf<S>,
+}
+
 fn layout_in_flow_children<Tree, S, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
@@ -1203,55 +1296,58 @@ where
     while index < children.len() {
         let source_index = index;
         let child = children[index];
-        let child_style = match tree.layout_input(child) {
-            LayoutInputOf::Box(style) => *style,
+        let child_start = match tree.layout_input(child) {
+            LayoutInputOf::Box(style) => {
+                if style.display == super::Display::None {
+                    if set_layout {
+                        tree.set_unrounded(
+                            child,
+                            NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(
+                                source_index,
+                            )),
+                        );
+                        tree.compute_child(
+                            child,
+                            ComputeInputOf::<S>::hidden_in_containing_pass(
+                                ContainingLayoutContext::new(
+                                    constants.flow_axes,
+                                    ParentFormattingContext::BlockFlow,
+                                ),
+                                input.settled_auto_scrollbars(),
+                            ),
+                        )?;
+                    }
+                    index += 1;
+                    continue;
+                }
+                if style.position == Position::Absolute {
+                    static_positions.push((
+                        child,
+                        absolute_static_position(
+                            cursor_block + active_margin.resolve(),
+                            constants,
+                            constants.containing_size(logical_node_inner_size),
+                        ),
+                    ));
+                    index += 1;
+                    continue;
+                }
+                if style.display.is_inline_level() && style.float.is_none() {
+                    let run_start = index;
+                    index = inline_run_end(tree, children, constants, index + 1);
+                    InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
+                        run_start, index,
+                    ))
+                } else {
+                    InFlowChildStart::FlowBox(style)
+                }
+            }
             LayoutInputOf::InlineText(_) => {
                 let run_start = index;
                 index = inline_run_end(tree, children, constants, index + 1);
-
-                let collapsed_margin = active_margin.resolve();
-                cursor_block = cursor_block + collapsed_margin;
-                if is_collapsing_first_margin {
-                    is_collapsing_first_margin = false;
-                }
-
-                let placement = layout_inline_run_children(
-                    tree,
-                    node,
-                    &children[run_start..index],
-                    InlineRunContext {
-                        source_index_start: run_start,
-                        cursor_block,
-                        owned_float_block_end,
-                        constants,
-                        input,
-                        node_inner_size,
-                        set_layout,
-                    },
-                    &float_exclusions,
-                    &mut contributions,
-                )?;
-                let placement_content_size =
-                    constants.flow_axes.logical_size(placement.content_size);
-                content_size.inline = content_size.inline.max(placement_content_size.inline);
-                content_size.block = content_size.block.max(placement_content_size.block);
-                let placement_scroll_content_size = constants
-                    .flow_axes
-                    .logical_size(placement.scroll_content_size);
-                scroll_content_size.inline = scroll_content_size
-                    .inline
-                    .max(placement_scroll_content_size.inline);
-                scroll_content_size.block = scroll_content_size
-                    .block
-                    .max(placement_scroll_content_size.block);
-                record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
-                cursor_block = cursor_block + placement.logical_block_extent(constants.flow_axes);
-                static_positions.extend(placement.static_positions);
-                resolved_terminal_float_block_end = placement.resolved_float_terminal_block_end;
-                active_margin = CollapsibleMarginOf::<S>::ZERO;
-                active_margin_can_collapse_with_parent = false;
-                all_in_flow_children_can_collapse_through = false;
-                continue;
+                InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
+                    run_start, index,
+                ))
             }
             LayoutInputOf::LineBreak(line_break) => {
                 if line_break.display().is_none() {
@@ -1275,50 +1371,9 @@ where
 
                 let run_start = index;
                 index = inline_run_end(tree, children, constants, index + 1);
-
-                let collapsed_margin = active_margin.resolve();
-                cursor_block = cursor_block + collapsed_margin;
-                if is_collapsing_first_margin {
-                    is_collapsing_first_margin = false;
-                }
-
-                let placement = layout_inline_run_children(
-                    tree,
-                    node,
-                    &children[run_start..index],
-                    InlineRunContext {
-                        source_index_start: run_start,
-                        cursor_block,
-                        owned_float_block_end,
-                        constants,
-                        input,
-                        node_inner_size,
-                        set_layout,
-                    },
-                    &float_exclusions,
-                    &mut contributions,
-                )?;
-                let placement_content_size =
-                    constants.flow_axes.logical_size(placement.content_size);
-                content_size.inline = content_size.inline.max(placement_content_size.inline);
-                content_size.block = content_size.block.max(placement_content_size.block);
-                let placement_scroll_content_size = constants
-                    .flow_axes
-                    .logical_size(placement.scroll_content_size);
-                scroll_content_size.inline = scroll_content_size
-                    .inline
-                    .max(placement_scroll_content_size.inline);
-                scroll_content_size.block = scroll_content_size
-                    .block
-                    .max(placement_scroll_content_size.block);
-                record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
-                cursor_block = cursor_block + placement.logical_block_extent(constants.flow_axes);
-                static_positions.extend(placement.static_positions);
-                resolved_terminal_float_block_end = placement.resolved_float_terminal_block_end;
-                active_margin = CollapsibleMarginOf::<S>::ZERO;
-                active_margin_can_collapse_with_parent = false;
-                all_in_flow_children_can_collapse_through = false;
-                continue;
+                InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
+                    run_start, index,
+                ))
             }
             LayoutInputOf::InlineBoundary(_) => {
                 visible_inline_boundary_in_flow(
@@ -1330,19 +1385,19 @@ where
 
                 let run_start = index;
                 index = inline_run_end(tree, children, constants, index + 1);
-
-                let collapsed_margin = active_margin.resolve();
-                cursor_block = cursor_block + collapsed_margin;
-                if is_collapsing_first_margin {
-                    is_collapsing_first_margin = false;
-                }
-
-                let placement = layout_inline_run_children(
+                InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
+                    run_start, index,
+                ))
+            }
+        };
+        let child_style = match child_start {
+            InFlowChildStart::VisibleInlineRun(transition) => {
+                transition.apply(
                     tree,
                     node,
-                    &children[run_start..index],
+                    children,
                     InlineRunContext {
-                        source_index_start: run_start,
+                        source_index_start: transition.start,
                         cursor_block,
                         owned_float_block_end,
                         constants,
@@ -1350,112 +1405,27 @@ where
                         node_inner_size,
                         set_layout,
                     },
-                    &float_exclusions,
-                    &mut contributions,
+                    InlineRunTransitionState {
+                        cursor_block: &mut cursor_block,
+                        content_size: &mut content_size,
+                        scroll_content_size: &mut scroll_content_size,
+                        baselines: &mut baselines,
+                        static_positions: &mut static_positions,
+                        resolved_terminal_float_block_end: &mut resolved_terminal_float_block_end,
+                        active_margin: &mut active_margin,
+                        is_collapsing_first_margin: &mut is_collapsing_first_margin,
+                        active_margin_can_collapse_with_parent:
+                            &mut active_margin_can_collapse_with_parent,
+                        all_in_flow_children_can_collapse_through:
+                            &mut all_in_flow_children_can_collapse_through,
+                        float_exclusions: &float_exclusions,
+                        contributions: &mut contributions,
+                    },
                 )?;
-                let placement_content_size =
-                    constants.flow_axes.logical_size(placement.content_size);
-                content_size.inline = content_size.inline.max(placement_content_size.inline);
-                content_size.block = content_size.block.max(placement_content_size.block);
-                let placement_scroll_content_size = constants
-                    .flow_axes
-                    .logical_size(placement.scroll_content_size);
-                scroll_content_size.inline = scroll_content_size
-                    .inline
-                    .max(placement_scroll_content_size.inline);
-                scroll_content_size.block = scroll_content_size
-                    .block
-                    .max(placement_scroll_content_size.block);
-                record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
-                cursor_block = cursor_block + placement.logical_block_extent(constants.flow_axes);
-                static_positions.extend(placement.static_positions);
-                resolved_terminal_float_block_end = placement.resolved_float_terminal_block_end;
-                active_margin = CollapsibleMarginOf::<S>::ZERO;
-                active_margin_can_collapse_with_parent = false;
-                all_in_flow_children_can_collapse_through = false;
                 continue;
             }
+            InFlowChildStart::FlowBox(style) => *style,
         };
-        if child_style.display == super::Display::None {
-            if set_layout {
-                tree.set_unrounded(
-                    child,
-                    NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(source_index)),
-                );
-                tree.compute_child(
-                    child,
-                    ComputeInputOf::<S>::hidden_in_containing_pass(
-                        ContainingLayoutContext::new(
-                            constants.flow_axes,
-                            ParentFormattingContext::BlockFlow,
-                        ),
-                        input.settled_auto_scrollbars(),
-                    ),
-                )?;
-            }
-            index += 1;
-            continue;
-        }
-        if child_style.position == Position::Absolute {
-            static_positions.push((
-                child,
-                absolute_static_position(
-                    cursor_block + active_margin.resolve(),
-                    constants,
-                    constants.containing_size(logical_node_inner_size),
-                ),
-            ));
-            index += 1;
-            continue;
-        }
-
-        if child_style.display.is_inline_level() && child_style.float.is_none() {
-            let run_start = index;
-            index = inline_run_end(tree, children, constants, index + 1);
-
-            let collapsed_margin = active_margin.resolve();
-            cursor_block = cursor_block + collapsed_margin;
-            if is_collapsing_first_margin {
-                is_collapsing_first_margin = false;
-            }
-
-            let placement = layout_inline_run_children(
-                tree,
-                node,
-                &children[run_start..index],
-                InlineRunContext {
-                    source_index_start: run_start,
-                    cursor_block,
-                    owned_float_block_end,
-                    constants,
-                    input,
-                    node_inner_size,
-                    set_layout,
-                },
-                &float_exclusions,
-                &mut contributions,
-            )?;
-            let placement_content_size = constants.flow_axes.logical_size(placement.content_size);
-            content_size.inline = content_size.inline.max(placement_content_size.inline);
-            content_size.block = content_size.block.max(placement_content_size.block);
-            let placement_scroll_content_size = constants
-                .flow_axes
-                .logical_size(placement.scroll_content_size);
-            scroll_content_size.inline = scroll_content_size
-                .inline
-                .max(placement_scroll_content_size.inline);
-            scroll_content_size.block = scroll_content_size
-                .block
-                .max(placement_scroll_content_size.block);
-            record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
-            cursor_block = cursor_block + placement.logical_block_extent(constants.flow_axes);
-            static_positions.extend(placement.static_positions);
-            resolved_terminal_float_block_end = placement.resolved_float_terminal_block_end;
-            active_margin = CollapsibleMarginOf::<S>::ZERO;
-            active_margin_can_collapse_with_parent = false;
-            all_in_flow_children_can_collapse_through = false;
-            continue;
-        }
 
         let unresolved_margin = constants.flow_axes.zip_physical_edges_with_inline_extent(
             child_style.margin,

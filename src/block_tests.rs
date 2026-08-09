@@ -803,6 +803,296 @@ fn scalar_value<S: LayoutScalar>(value: f64) -> S {
     S::from_f64(value)
 }
 
+#[derive(Clone, Copy, Debug)]
+enum Fri08C07T01InlineRunStart {
+    Text,
+    InlineBoundary,
+    ExplicitLineBreak,
+    InlineBox,
+}
+
+fn fri08_c07_t01_text<S: LayoutScalar>(
+    segment_id: u64,
+    advance: f64,
+    ascent: f64,
+    descent: f64,
+) -> LayoutInputOf<S> {
+    LayoutInputOf::inline_text(
+        InlineTextInputOf::try_new(vec![
+            ShapedInlineSegmentOf::try_new(
+                InlineSegmentId::new(segment_id),
+                S::from_f64(advance),
+                InlineMetricsOf::from_ascent_descent(S::from_f64(ascent), S::from_f64(descent))
+                    .unwrap(),
+                BidiLevel::try_new(0).unwrap(),
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )
+            .unwrap(),
+        ])
+        .unwrap(),
+    )
+}
+
+fn fri08_c07_t01_inline_transition_tree<S: LayoutScalar>(
+    start: Fri08C07T01InlineRunStart,
+) -> PublicBlockTree<S> {
+    let fixed_size = |width, height| {
+        Size::new(
+            PreferredSizeOf::px(S::from_f64(width)),
+            PreferredSizeOf::px(S::from_f64(height)),
+        )
+    };
+    let mut tree = PublicBlockTree::default()
+        .with_children(0, [1, 2, 3, 4, 5, 6, 7])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_children(3, [])
+        .with_children(4, [])
+        .with_children(5, [])
+        .with_children(6, [])
+        .with_children(7, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::AUTO,
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                size: fixed_size(1.0, 10.0),
+                margin: Edges {
+                    bottom: LengthAutoOf::px(S::from_f64(7.0)),
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                float: Float::Left,
+                size: fixed_size(20.0, 12.0),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(4, NodeInputOf::non_box())
+        .with_layout_input(4, fri08_c07_t01_text(404, 10.0, 8.0, 2.0))
+        .with_style(
+            5,
+            NodeInputOf {
+                display: Display::InlineBlock,
+                position: Position::Absolute,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
+                size: fixed_size(4.0, 3.0),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(6, NodeInputOf::non_box())
+        .with_layout_input(
+            6,
+            LayoutInputOf::line_break(LineBreakInputOf::new().hidden()),
+        )
+        .with_style(
+            7,
+            NodeInputOf {
+                display: Display::Block,
+                size: fixed_size(1.0, 5.0),
+                margin: Edges {
+                    top: LengthAutoOf::px(S::from_f64(3.0)),
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                ..NodeInputOf::default()
+            },
+        );
+
+    tree = match start {
+        Fri08C07T01InlineRunStart::Text => tree
+            .with_style(3, NodeInputOf::non_box())
+            .with_layout_input(3, fri08_c07_t01_text(303, 0.0, 0.0, 0.0)),
+        Fri08C07T01InlineRunStart::InlineBoundary => tree
+            .with_style(3, NodeInputOf::non_box())
+            .with_layout_input(
+                3,
+                LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                    InlineBoundaryKind::Start,
+                    InlineMetricsOf::from_ascent_descent(S::ZERO, S::ZERO).unwrap(),
+                )),
+            ),
+        Fri08C07T01InlineRunStart::ExplicitLineBreak => {
+            tree.with_style(3, NodeInputOf::non_box())
+                .with_layout_input(
+                    3,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(
+                        InlineMetricsOf::from_ascent_descent(S::ZERO, S::ZERO).unwrap(),
+                    )),
+                )
+        }
+        Fri08C07T01InlineRunStart::InlineBox => tree.with_style(
+            3,
+            NodeInputOf {
+                display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
+                size: fixed_size(0.0, 0.0),
+                ..NodeInputOf::default()
+            },
+        ),
+    };
+
+    tree
+}
+
+fn assert_fri08_c07_t01_inline_transition_roles<S: LayoutScalar>() {
+    for start in [
+        Fri08C07T01InlineRunStart::Text,
+        Fri08C07T01InlineRunStart::InlineBoundary,
+        Fri08C07T01InlineRunStart::ExplicitLineBreak,
+        Fri08C07T01InlineRunStart::InlineBox,
+    ] {
+        let tree = fri08_c07_t01_inline_transition_tree(start);
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(100.0))))
+                .unwrap(),
+        )
+        .unwrap();
+
+        let root = public_final_output(&batch, 0);
+        let prefix = public_final_output(&batch, 1);
+        let float = public_final_output(&batch, 2);
+        let role = public_final_output(&batch, 3);
+        let text = public_final_output(&batch, 4);
+        let absolute = public_final_output(&batch, 5);
+        let hidden_break = public_final_output(&batch, 6);
+        let trailing = public_final_output(&batch, 7);
+        let text_fragment = batch
+            .final_inline_fragments()
+            .iter()
+            .find(|entry| entry.node() == 4)
+            .unwrap()
+            .fragment();
+
+        assert_eq!(prefix.source_index, SourceIndex::ZERO, "{start:?}");
+        assert_eq!(float.source_index, SourceIndex::new(1), "{start:?}");
+        assert_eq!(role.source_index, SourceIndex::new(2), "{start:?}");
+        assert_eq!(text.source_index, SourceIndex::new(3), "{start:?}");
+        assert_eq!(absolute.source_index, SourceIndex::new(4), "{start:?}");
+        assert_eq!(hidden_break.source_index, SourceIndex::new(5), "{start:?}");
+        assert_eq!(trailing.source_index, SourceIndex::new(6), "{start:?}");
+
+        assert_eq!(prefix.location, Point::ZERO, "{start:?}");
+        assert_eq!(prefix.margin.bottom, S::from_f64(7.0), "{start:?}");
+        assert_eq!(
+            float.location,
+            Point::new(S::ZERO, S::from_f64(10.0)),
+            "{start:?}"
+        );
+        assert_eq!(
+            text.location,
+            Point::new(S::from_f64(20.0), S::from_f64(17.0)),
+            "{start:?}"
+        );
+        assert_eq!(
+            text.size,
+            Size::new(S::from_f64(10.0), S::from_f64(10.0)),
+            "{start:?}"
+        );
+        assert_eq!(
+            absolute.location,
+            Point::new(S::ZERO, S::from_f64(17.0)),
+            "{start:?}"
+        );
+        assert_eq!(hidden_break.size, Size::ZERO, "{start:?}");
+        assert_eq!(
+            trailing.location,
+            Point::new(S::ZERO, S::from_f64(30.0)),
+            "{start:?}"
+        );
+        assert_eq!(trailing.margin.top, S::from_f64(3.0), "{start:?}");
+        assert_eq!(
+            root.size,
+            Size::new(S::from_f64(100.0), S::from_f64(35.0)),
+            "{start:?}"
+        );
+        assert_eq!(
+            text_fragment.baseline(),
+            Point::new(S::from_f64(20.0), S::from_f64(25.0)),
+            "{start:?}"
+        );
+        assert_eq!(
+            text_fragment.line_index(),
+            usize::from(matches!(
+                start,
+                Fri08C07T01InlineRunStart::ExplicitLineBreak
+            )),
+            "{start:?}"
+        );
+        assert_eq!(
+            root.scroll_geometry.unwrap().scrollable_overflow(),
+            ScrollRectOf::try_new(
+                Point::ZERO,
+                Size::new(S::from_f64(100.0), S::from_f64(35.0))
+            )
+            .unwrap(),
+            "{start:?}",
+        );
+    }
+}
+
+#[test]
+fn fri08_c07_t01_inline_transition_all_visible_start_roles_preserve_shared_state_both_scalars() {
+    assert_fri08_c07_t01_inline_transition_roles::<f32>();
+    assert_fri08_c07_t01_inline_transition_roles::<f64>();
+}
+
+fn assert_fri08_c07_t01_invalid_input_ordering<S: LayoutScalar>() {
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(0, NodeInputOf::default())
+        .with_style(1, NodeInputOf::default())
+        .with_layout_input(1, fri08_c07_t01_text(101, 1.0, 1.0, 0.0))
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::InlineBlock,
+                ..NodeInputOf::default()
+            },
+        );
+    let error = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(100.0))))
+            .unwrap(),
+    )
+    .expect_err("the first invalid public input must be rejected");
+
+    assert_eq!(error.site(), LayoutErrorSiteOf::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::RootLayout);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::NonBoxNodeRole {
+            reason: NonBoxNodeRoleError::NonCanonicalNodeInput,
+        })
+    ));
+}
+
+#[test]
+fn fri08_c07_t01_inline_transition_public_validation_keeps_source_error_order_both_scalars() {
+    assert_fri08_c07_t01_invalid_input_ordering::<f32>();
+    assert_fri08_c07_t01_invalid_input_ordering::<f64>();
+}
+
 fn scalar_percentage<S: LayoutScalar>(
     absolute_px: f64,
     percent_fraction: f64,
