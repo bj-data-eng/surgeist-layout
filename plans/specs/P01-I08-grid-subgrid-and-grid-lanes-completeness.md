@@ -152,6 +152,23 @@ items; negative line numbering and named placement must use those explicit
 edges; and each area-only track must receive the correct `grid-auto-*` sizing
 pattern. Incidental track growth caused by an item does not close GRID-005.
 
+### 3.2 Corrected GRID-006 Gutter Evidence
+
+The first full FRI-08 derivation exposed one incorrect implementation
+interpretation that focused C02 tests had frozen. CSS Grid Level 2 says the two
+gutters adjacent to a collapsed track coincide exactly. For an interior run of
+one or more collapsed tracks between two non-collapsed tracks, the coincident
+gutters therefore retain one shared gap, not zero gaps. At the outer edge, where
+one side has no gutter, the collapsed result has no edge gutter.
+
+The pinned Chrome `149.0.7827.115` result for
+`grid/fri08_auto_fit_occupied_track_collapse.html` confirms that rule. With
+`40px` repetitions and a `10px` column gap, the empty second repetition
+collapses between occupied first and third repetitions; the third track starts
+at x `50`, not x `40`. The automatic span-two item starts at x `100` and has
+width `90`. This is ordinary occupancy-derived auto-fit behavior, not a browser
+exception or a fixture-lowering change.
+
 ## 4 FRI-08.4 Normative Product Authorities
 
 The normative product sources are:
@@ -201,7 +218,7 @@ The relevant normative anchors are explicit:
 | `D-04` | Definite overlapping items mark the same cells and never create demand proportional to their count. Automatic placement grows the implicit grid exactly when its cursor/span cannot fit; it never returns an out-of-range zero area for a valid representable placement. |
 | `D-05` | Before automatic placement, the non-flow axis grows for definite placements and the largest automatic span as required by Grid section 8.5. During placement, the flow axis grows monotonically. Leading and trailing implicit tracks preserve the existing forward/backward `grid-auto-*` pattern phase. |
 | `D-06` | `display:none` and absolute children retain source slots but neither occupy cells nor create implicit demand. Ordinary in-flow children are traversed by the one stable `item_order_permutation`; dense mode may backfill cells but never changes source association. |
-| `D-07` | Ordinary-grid auto-fit expands to the full auto-repeat count, participates in placement, then collapses exactly repeated tracks not occupied or spanned by an in-flow item. Collapsed tracks have zero fixed size, adjacent gutters collapse, and line identity remains. |
+| `D-07` | Ordinary-grid auto-fit expands to the full auto-repeat count, participates in placement, then collapses exactly repeated tracks not occupied or spanned by an in-flow item. Collapsed tracks have zero fixed size and line identity remains. Their adjacent gutters coincide: an interior collapsed run retains exactly one shared gap between the nearest non-collapsed tracks, while a leading, trailing, or all-collapsed run creates no outer-edge gap. |
 | `D-08` | Grid-lanes auto-fit uses the Level 3 pre-placement heuristic: explicitly occupied tracks remain, then the first `N` otherwise-unoccupied candidate tracks remain where `N` is the sum of automatic item spans; all other auto-fit tracks collapse and reject automatic placement. It does not reuse ordinary-grid post-placement occupancy or raw child count. |
 | `D-09` | Fit-content is a per-track growth limit inside the general track sizing pipeline. No collection-wide fit-content early return is allowed. Other intrinsic and flexible tracks execute their ordinary phases, including `fr` expansion in definite space. |
 | `D-10` | The track solver retains distinct base size and growth limit facts through intrinsic contribution distribution. Fit-content behaves as max-content until its argument limits further growth. Spanning contributions and flexible expansion consume the same settled facts in rows and columns. |
@@ -225,6 +242,9 @@ Rejected alternatives:
   failure and confuses topology with size.
 - Truncating auto-fit to item count fails overlap and spanning; deleting line
   identities after collapse breaks named and negative placement.
+- Zeroing both boundaries adjacent to every collapsed track erases the one
+  coincident gutter required between non-collapsed tracks across an interior
+  collapsed run; retaining both full gutters instead creates a ghost double gap.
 - Running a separate fit-content solver loses flexible and spanning phases.
 - Treating only `auto/auto` as stretchable contradicts the max-track rule.
 - Deleting all duplicate origin entries at parse time would discard provenance
@@ -357,13 +377,23 @@ Every unoccupied auto-fit track becomes collapsed:
 
 - used min and max are a fixed zero;
 - intrinsic contributions do not reopen it;
-- the gutter on either side collapses when it would border a collapsed track;
+- its adjacent gutters coincide with one another across the entire contiguous
+  collapsed run, retaining exactly one shared gap between nearest non-collapsed
+  tracks and no gap at an outer edge;
 - content distribution treats it as zero fixed space; and
 - its grid lines and names remain addressable.
 
 In the GRID-006 repro, three `40px` repetitions fit in `120px`; two children
 overlap the first repetition; only that track remains non-collapsed and its
 `40px` subject centers at x `40`.
+
+In the interior-collapse repro with `40px` repetitions and a `10px` gap, the
+first and third tracks are occupied while the second collapses. Their two
+adjacent gutters coincide into one `10px` gap, so the third track starts at x
+`50`. The same boundary carrier drives track totals, content distribution,
+spanning areas, absolute areas, inherited/reversed subgrid views, baselines, and
+overflow; no consumer reconstructs a uniform gap or independently zeros both
+boundaries.
 
 Grid-lanes uses `D-08` instead because its placement consumes already-sized
 tracks. Tests distinguish the two algorithms with explicit overlap, automatic
