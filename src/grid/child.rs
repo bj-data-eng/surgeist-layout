@@ -372,16 +372,36 @@ pub(super) fn spanned_track_size<S: LayoutScalar>(
     track_sum + gap_sum
 }
 
-fn owner_progression_track_frame_origins<S: LayoutScalar>(
-    parent_tracks: &[S],
-    parent_gap: S,
-    current_gap: S,
+struct OwnerProgressionTrackFrameInput<'a, S: LayoutScalar = Scalar> {
+    parent_tracks: &'a [S],
+    parent_boundary_gutters: &'a [S],
+    parent_line_offsets: Option<&'a [S]>,
     parent_span: GridTrackSpan,
-    current_tracks_before_gutter: &[S],
+    current_tracks_before_gutter: &'a [S],
+    local_parent_boundary_gutters: &'a [S],
+    current_boundary_gutters: &'a [S],
     reversed: bool,
     start_mbp: S,
+}
+
+fn owner_progression_track_frame_origins<S: LayoutScalar>(
+    input: OwnerProgressionTrackFrameInput<'_, S>,
 ) -> Option<OwnerProgressionTrackFrameOrigins<S>> {
-    let track_positions = |tracks: &[S], gap: S| {
+    let OwnerProgressionTrackFrameInput {
+        parent_tracks,
+        parent_boundary_gutters,
+        parent_line_offsets,
+        parent_span,
+        current_tracks_before_gutter,
+        local_parent_boundary_gutters,
+        current_boundary_gutters,
+        reversed,
+        start_mbp,
+    } = input;
+    let track_positions = |tracks: &[S], boundary_gutters: &[S]| {
+        if boundary_gutters.len() != tracks.len().saturating_sub(1) {
+            return None;
+        }
         let mut starts = Vec::with_capacity(tracks.len());
         let mut ends = Vec::with_capacity(tracks.len());
         let mut cursor = S::ZERO;
@@ -389,21 +409,37 @@ fn owner_progression_track_frame_origins<S: LayoutScalar>(
             starts.push(cursor);
             cursor = cursor + track;
             ends.push(cursor);
-            if index + 1 < tracks.len() {
-                cursor = cursor + gap;
+            if let Some(gutter) = boundary_gutters.get(index) {
+                cursor = cursor + *gutter;
             }
         }
-        (starts, ends)
+        Some((starts, ends))
     };
-    let (parent_starts, parent_ends) = track_positions(parent_tracks, parent_gap);
+    let (parent_starts, parent_ends) = if let Some(line_offsets) = parent_line_offsets {
+        if line_offsets.len() != parent_tracks.len() + 1 {
+            return None;
+        }
+        let starts = line_offsets[..parent_tracks.len()].to_vec();
+        let ends = starts
+            .iter()
+            .copied()
+            .zip(parent_tracks.iter().copied())
+            .map(|(start, track)| start + track)
+            .collect();
+        (starts, ends)
+    } else {
+        track_positions(parent_tracks, parent_boundary_gutters)?
+    };
     let track_count = parent_span.checked_len()?;
     if parent_span.end > parent_tracks.len() || current_tracks_before_gutter.len() != track_count {
         return None;
     }
     let span_start = *parent_starts.get(parent_span.start)?;
     let span_end = *parent_ends.get(parent_span.end.checked_sub(1)?)?;
-    let (local_starts, _) = track_positions(current_tracks_before_gutter, current_gap);
-    let (_, local_ends) = track_positions(current_tracks_before_gutter, parent_gap);
+    let (local_starts, _) =
+        track_positions(current_tracks_before_gutter, current_boundary_gutters)?;
+    let (_, local_ends) =
+        track_positions(current_tracks_before_gutter, local_parent_boundary_gutters)?;
 
     let (parent_first, parent_last) = if reversed {
         (
@@ -2597,17 +2633,28 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
         input.border,
         input.padding,
     );
-    let inherited = inherit_subgrid_tracks(SubgridTrackInheritanceInput {
-        parent_tracks: parent_axis.tracks,
-        parent_span: GridTrackSpan::new(start_line, end_line),
-        reversed: mapping.reversed,
-        start_mbp,
-        end_mbp,
-        parent_gap: parent_axis.gap,
-        subgrid_gap: child_subgrid_gap(input.child_style, input.axis, input.content_box_size)
-            .map_err(SubgridChildContextError::ValueResolution)?,
-    })
+    let inherited = inherit_subgrid_tracks_with_geometry(
+        SubgridTrackInheritanceInput {
+            parent_tracks: parent_axis.tracks,
+            parent_span: GridTrackSpan::new(start_line, end_line),
+            reversed: mapping.reversed,
+            start_mbp,
+            end_mbp,
+            parent_gap: parent_axis.gap,
+            subgrid_gap: child_subgrid_gap(input.child_style, input.axis, input.content_box_size)
+                .map_err(SubgridChildContextError::ValueResolution)?,
+        },
+        parent_axis.geometry,
+    )
     .map_err(SubgridChildContextError::TrackInheritance)?;
+    let uniform_parent_boundary_gutters;
+    let parent_boundary_gutters = if let Some(geometry) = parent_axis.geometry {
+        geometry.gutter_after()
+    } else {
+        uniform_parent_boundary_gutters =
+            vec![parent_axis.gap; parent_axis.tracks.len().saturating_sub(1)];
+        &uniform_parent_boundary_gutters
+    };
     let physical_axis = grid_axis_physical_axis(child_flow_axes, input.axis);
     let baseline_input = |parent_major, parent_minor| SubgridBaselineInheritanceInput {
         parent_major,
@@ -2650,15 +2697,19 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
                 parent_last_frame_origins,
                 mut current_first_frame_origins,
                 mut current_last_frame_origins,
-            ) = owner_progression_track_frame_origins(
-                parent_axis.tracks,
-                parent_axis.gap,
-                inherited.resolved_subgrid_gap,
+            ) = owner_progression_track_frame_origins(OwnerProgressionTrackFrameInput {
+                parent_tracks: parent_axis.tracks,
+                parent_boundary_gutters,
+                parent_line_offsets: parent_axis
+                    .geometry
+                    .map(UsedGridAxisGeometryOf::line_offsets),
                 parent_span,
-                &inherited.end_mbp_removed,
-                mapping.reversed,
+                current_tracks_before_gutter: &inherited.end_mbp_removed,
+                local_parent_boundary_gutters: &inherited.parent_boundary_gutters,
+                current_boundary_gutters: &inherited.final_boundary_gutters,
+                reversed: mapping.reversed,
                 start_mbp,
-            )
+            })
             .ok_or(SubgridChildContextError::BaselineInheritance(
                 SubgridBaselineInheritanceError::Envelope(
                     SubgridTrackInheritanceError::SpanOutOfRange,
@@ -2666,7 +2717,13 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
             ))?;
             let parent_progression = transported.mapping.current_progression();
             let current_progression = child_flow_axes.physical_axis_progression(physical_axis);
-            let gap_difference = inherited.resolved_subgrid_gap - parent_axis.gap;
+            let boundary_gap_differences = inherited
+                .final_boundary_gutters
+                .iter()
+                .zip(&inherited.parent_boundary_gutters)
+                .map(|(current, parent)| *current - *parent)
+                .collect::<Vec<_>>();
+            let gap_difference = boundary_gap_differences.last().copied().unwrap_or(S::ZERO);
             let half_gap = gap_difference / S::from_f64(2.0);
             let uniform_parent_track_frames = parent_axis
                 .tracks
@@ -2711,15 +2768,20 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
                     }
                     if input.axis == GridAxisKind::Column {
                         let last_count = current_last_frame_origins.len().saturating_sub(1);
-                        for last in current_last_frame_origins.iter_mut().take(last_count) {
-                            *last = *last - gap_difference;
+                        for (last, boundary_difference) in current_last_frame_origins
+                            .iter_mut()
+                            .take(last_count)
+                            .zip(boundary_gap_differences.iter().copied())
+                        {
+                            *last = *last - boundary_difference;
                         }
                     }
                 } else {
                     let current_track_count = current_first_frame_origins.len();
                     for (local, first) in current_first_frame_origins.iter_mut().enumerate().skip(1)
                     {
-                        *first = *first - half_gap;
+                        let boundary_difference = boundary_gap_differences[local - 1];
+                        *first = *first - boundary_difference / S::from_f64(2.0);
                         if uniform_parent_track_frames
                             && current_track_count > 2
                             && local + 1 == current_track_count
@@ -2730,7 +2792,11 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
                             && end_mbp != S::ZERO
                             && !uniform_parent_track_frames
                         {
-                            *first = *first - gap_difference * S::from_usize(local);
+                            *first = *first
+                                - boundary_gap_differences[..local]
+                                    .iter()
+                                    .copied()
+                                    .fold(S::ZERO, |sum, difference| sum + difference);
                         }
                     }
                     if input.axis == GridAxisKind::Row && uniform_parent_track_frames {
@@ -2744,8 +2810,16 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
                             .take(last_count)
                             .enumerate()
                         {
-                            *last =
-                                *last + end_mbp - half_gap - gap_difference * S::from_usize(local);
+                            let accumulated_difference = boundary_gap_differences[..local]
+                                .iter()
+                                .copied()
+                                .fold(S::ZERO, |sum, difference| sum + difference);
+                            let local_half_gap = boundary_gap_differences
+                                .get(local)
+                                .copied()
+                                .unwrap_or(S::ZERO)
+                                / S::from_f64(2.0);
+                            *last = *last + end_mbp - local_half_gap - accumulated_difference;
                             if input.axis == GridAxisKind::Row {
                                 *last = *last
                                     - (half_gap + half_gap / S::from_f64(2.0))
@@ -2762,8 +2836,12 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
                     *first = *first + inherited.resolved_subgrid_gap + half_gap;
                 }
                 let last_count = current_last_frame_origins.len().saturating_sub(1);
-                for last in current_last_frame_origins.iter_mut().take(last_count) {
-                    *last = *last - gap_difference;
+                for (last, boundary_difference) in current_last_frame_origins
+                    .iter_mut()
+                    .take(last_count)
+                    .zip(boundary_gap_differences.iter().copied())
+                {
+                    *last = *last - boundary_difference;
                 }
                 if let Some(last) = current_last_frame_origins.last_mut() {
                     *last = *last - (inherited.resolved_subgrid_gap - half_gap);
@@ -2785,6 +2863,8 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
                     parent_last_frame_origins: &parent_last_frame_origins,
                     current_first_frame_origins: &current_first_frame_origins,
                     current_last_frame_origins: &current_last_frame_origins,
+                    parent_boundary_gutters,
+                    current_boundary_gutters: &inherited.final_boundary_gutters,
                     parent_gap: parent_axis.gap,
                     current_gap: inherited.resolved_subgrid_gap,
                     start_mbp,
@@ -2817,13 +2897,16 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
                 .flatten()
                 .all(|baseline| baseline.axis() == physical_axis)
         {
-            let inherited_view =
-                inherit_subgrid_baselines(baseline_input(&parent_view.major, &parent_view.minor))
-                    .map_err(|error| {
-                    SubgridChildContextError::BaselineInheritance(
-                        SubgridBaselineInheritanceError::Envelope(error),
-                    )
-                })?;
+            let inherited_view = inherit_subgrid_baselines_with_boundary_gutters(
+                baseline_input(&parent_view.major, &parent_view.minor),
+                &inherited.parent_boundary_gutters,
+                &inherited.final_boundary_gutters,
+            )
+            .map_err(|error| {
+                SubgridChildContextError::BaselineInheritance(
+                    SubgridBaselineInheritanceError::Envelope(error),
+                )
+            })?;
             ChildBaselineEnvelopeView {
                 major: inherited_view.final_major,
                 minor: inherited_view.final_minor,
@@ -2847,6 +2930,8 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
                     end_mbp,
                     parent_gap: parent_axis.gap,
                     subgrid_gap: inherited.resolved_subgrid_gap,
+                    parent_boundary_gutters: &inherited.parent_boundary_gutters,
+                    subgrid_boundary_gutters: &inherited.final_boundary_gutters,
                 },
                 match mapping.parent_axis {
                     GridAxisKind::Column => &ancestor_groups.column_downward_major_translation,
@@ -2869,34 +2954,35 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
             parent_baseline_groups(parent_axis.baseline_groups, parent_axis.tracks.len(), true);
         let parent_minor =
             parent_baseline_groups(parent_axis.baseline_groups, parent_axis.tracks.len(), false);
-        let inherited_baselines =
-            inherit_subgrid_baselines(baseline_input(&parent_major, &parent_minor)).map_err(
-                |error| {
-                    SubgridChildContextError::BaselineInheritance(
-                        SubgridBaselineInheritanceError::Envelope(error),
-                    )
-                },
-            )?;
+        let inherited_baselines = inherit_subgrid_baselines_with_boundary_gutters(
+            baseline_input(&parent_major, &parent_minor),
+            &inherited.parent_boundary_gutters,
+            &inherited.final_boundary_gutters,
+        )
+        .map_err(|error| {
+            SubgridChildContextError::BaselineInheritance(
+                SubgridBaselineInheritanceError::Envelope(error),
+            )
+        })?;
         (
             inherited_baselines.final_major,
             inherited_baselines.final_minor,
         )
     };
 
-    let (mut layout_tracks, layout_gap) = inherited_subgrid_layout_tracks(input.axis, &inherited);
-    let geometry = parent_axis.geometry.map_or_else(
-        || {
-            UsedGridAxisGeometryOf::new(
-                layout_tracks.clone(),
-                vec![false; layout_tracks.len()],
-                layout_gap,
-            )
-        },
-        |geometry| geometry.sliced_reversed(start_line - 1, end_line - 1, mapping.reversed),
+    let (layout_tracks, layout_gap) = if inherited.collapsed.iter().any(|collapsed| *collapsed) {
+        (
+            inherited.final_tracks.clone(),
+            inherited.resolved_subgrid_gap,
+        )
+    } else {
+        inherited_subgrid_layout_tracks(input.axis, &inherited)
+    };
+    let geometry = UsedGridAxisGeometryOf::from_boundary_gutters(
+        layout_tracks.clone(),
+        inherited.collapsed.clone(),
+        inherited.final_boundary_gutters.clone(),
     );
-    if geometry.collapsed().iter().any(|collapsed| *collapsed) {
-        layout_tracks = geometry.sizes().to_vec();
-    }
 
     Ok(Some(InheritedGridAxis {
         offset: S::ZERO,

@@ -622,6 +622,9 @@ pub(super) struct SubgridTrackInheritanceReport<S: LayoutScalar = Scalar> {
     pub(super) subgrid_gap: ResolvedSubgridGap<S>,
     pub(super) resolved_subgrid_gap: S,
     pub(super) gap_difference: S,
+    pub(super) collapsed: Vec<bool>,
+    pub(super) parent_boundary_gutters: Vec<S>,
+    pub(super) final_boundary_gutters: Vec<S>,
     pub(super) final_tracks: Vec<S>,
 }
 
@@ -716,6 +719,8 @@ pub(super) struct OwnerToCurrentPlacementBoundaryInput<'a, Node, S: LayoutScalar
     pub(super) parent_last_frame_origins: &'a [S],
     pub(super) current_first_frame_origins: &'a [S],
     pub(super) current_last_frame_origins: &'a [S],
+    pub(super) parent_boundary_gutters: &'a [S],
+    pub(super) current_boundary_gutters: &'a [S],
     pub(super) parent_gap: S,
     pub(super) current_gap: S,
     pub(super) start_mbp: S,
@@ -768,6 +773,8 @@ impl<Node: Copy + PartialEq, S: LayoutScalar> CheckedOwnerToCurrentPlacementMap<
             || input.parent_last_frame_origins.len() != self.tracks.len()
             || input.current_first_frame_origins.len() != track_count
             || input.current_last_frame_origins.len() != track_count
+            || input.parent_boundary_gutters.len() != self.tracks.len().saturating_sub(1)
+            || input.current_boundary_gutters.len() != track_count.saturating_sub(1)
         {
             return Err(InheritedCurrentGridBaselinePlacementError::SpanOutOfRange);
         }
@@ -788,15 +795,13 @@ impl<Node: Copy + PartialEq, S: LayoutScalar> CheckedOwnerToCurrentPlacementMap<
                 .chain(input.parent_last_frame_origins)
                 .chain(input.current_first_frame_origins)
                 .chain(input.current_last_frame_origins)
+                .chain(input.parent_boundary_gutters)
+                .chain(input.current_boundary_gutters)
                 .any(|origin| !origin.is_finite())
         {
             return Err(InheritedCurrentGridBaselinePlacementError::NonFinite);
         }
 
-        let half_gap = (input.current_gap - input.parent_gap) / S::from_f64(2.0);
-        if !half_gap.is_finite() {
-            return Err(InheritedCurrentGridBaselinePlacementError::NonFinite);
-        }
         let mut tracks = Vec::with_capacity(track_count);
         for local in 0..track_count {
             let parent = if input.reversed {
@@ -818,17 +823,30 @@ impl<Node: Copy + PartialEq, S: LayoutScalar> CheckedOwnerToCurrentPlacementMap<
                 }
             };
             let boundary_gutter = |role| {
-                let crossing = match role {
-                    AncestorBaselineRole::First => local > 0,
-                    AncestorBaselineRole::Last => local + 1 < track_count,
+                let current_boundary = match role {
+                    AncestorBaselineRole::First => local.checked_sub(1),
+                    AncestorBaselineRole::Last => (local + 1 < track_count).then_some(local),
                 };
-                if !crossing || half_gap == S::ZERO {
-                    S::ZERO
-                } else {
-                    match mapped_edge(role) {
-                        BaselineMappedEdge::Start => half_gap,
-                        BaselineMappedEdge::End => -half_gap,
+                let Some(current_boundary) = current_boundary else {
+                    return S::ZERO;
+                };
+                let parent_boundary = if input.reversed {
+                    match role {
+                        AncestorBaselineRole::First => parent,
+                        AncestorBaselineRole::Last => parent.checked_sub(1).unwrap_or(parent),
                     }
+                } else {
+                    match role {
+                        AncestorBaselineRole::First => parent.checked_sub(1).unwrap_or(parent),
+                        AncestorBaselineRole::Last => parent,
+                    }
+                };
+                let half_gap = (input.current_boundary_gutters[current_boundary]
+                    - input.parent_boundary_gutters[parent_boundary])
+                    / S::from_f64(2.0);
+                match mapped_edge(role) {
+                    BaselineMappedEdge::Start => half_gap,
+                    BaselineMappedEdge::End => -half_gap,
                 }
             };
             let first_frame_translation = parent_entry.first_frame_translation
@@ -1157,7 +1175,7 @@ pub(super) fn prepare_inherited_current_grid_baseline_placements<
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct ChildBaselineEnvelopeInput<S: LayoutScalar = Scalar> {
+pub(super) struct ChildBaselineEnvelopeInput<'a, S: LayoutScalar = Scalar> {
     pub(super) axis: GridAxisKind,
     pub(super) physical_axis: PhysicalAxis,
     pub(super) ancestor_progression_decreasing: bool,
@@ -1167,6 +1185,8 @@ pub(super) struct ChildBaselineEnvelopeInput<S: LayoutScalar = Scalar> {
     pub(super) end_mbp: S,
     pub(super) parent_gap: S,
     pub(super) subgrid_gap: S,
+    pub(super) parent_boundary_gutters: &'a [S],
+    pub(super) subgrid_boundary_gutters: &'a [S],
 }
 
 impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
@@ -1185,7 +1205,7 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
 
     pub(super) fn derive<Node: Copy>(
         group: &AncestorBaselineGroup<Node, S>,
-        input: ChildBaselineEnvelopeInput<S>,
+        input: ChildBaselineEnvelopeInput<'_, S>,
         downward_major_translation: &[S],
         downward_minor_translation: &[S],
     ) -> Result<Self, SubgridTrackInheritanceError> {
@@ -1240,17 +1260,21 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
         } else {
             (input.start_mbp, input.end_mbp, input.parent_gap)
         };
-        let inherited = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
-            parent_major: &parent_major,
-            parent_minor: &parent_minor,
-            physical_axis: input.physical_axis,
-            parent_span: input.parent_span,
-            reversed: input.reversed,
-            start_mbp,
-            end_mbp,
-            parent_gap,
-            subgrid_gap: input.subgrid_gap,
-        })?;
+        let inherited = inherit_subgrid_baselines_with_boundary_gutters(
+            SubgridBaselineInheritanceInput {
+                parent_major: &parent_major,
+                parent_minor: &parent_minor,
+                physical_axis: input.physical_axis,
+                parent_span: input.parent_span,
+                reversed: input.reversed,
+                start_mbp,
+                end_mbp,
+                parent_gap,
+                subgrid_gap: input.subgrid_gap,
+            },
+            input.parent_boundary_gutters,
+            input.subgrid_boundary_gutters,
+        )?;
         let edge_translation = if input.axis == GridAxisKind::Column && !input.reversed {
             -(input.start_mbp + input.end_mbp)
         } else {
@@ -1283,8 +1307,27 @@ pub(super) enum SubgridTrackInheritanceError {
     SpanOutOfRange,
 }
 
+#[cfg(test)]
 pub(super) fn inherit_subgrid_baselines<S: LayoutScalar>(
     input: SubgridBaselineInheritanceInput<'_, S>,
+) -> Result<SubgridBaselineInheritanceReport<S>, SubgridTrackInheritanceError> {
+    let span_len = input
+        .parent_span
+        .checked_len()
+        .ok_or(SubgridTrackInheritanceError::SpanOutOfRange)?;
+    let parent_boundary_gutters = vec![input.parent_gap; span_len.saturating_sub(1)];
+    let subgrid_boundary_gutters = vec![input.subgrid_gap; span_len.saturating_sub(1)];
+    inherit_subgrid_baselines_with_boundary_gutters(
+        input,
+        &parent_boundary_gutters,
+        &subgrid_boundary_gutters,
+    )
+}
+
+pub(super) fn inherit_subgrid_baselines_with_boundary_gutters<S: LayoutScalar>(
+    input: SubgridBaselineInheritanceInput<'_, S>,
+    parent_boundary_gutters: &[S],
+    subgrid_boundary_gutters: &[S],
 ) -> Result<SubgridBaselineInheritanceReport<S>, SubgridTrackInheritanceError> {
     let span_len = input
         .parent_span
@@ -1297,6 +1340,8 @@ pub(super) fn inherit_subgrid_baselines<S: LayoutScalar>(
         || input.parent_span.start == 0
         || input.parent_span.end > input.parent_major.len() + 1
         || span_len == 0
+        || parent_boundary_gutters.len() != span_len.saturating_sub(1)
+        || subgrid_boundary_gutters.len() != span_len.saturating_sub(1)
     {
         return Err(SubgridTrackInheritanceError::SpanOutOfRange);
     }
@@ -1324,13 +1369,26 @@ pub(super) fn inherit_subgrid_baselines<S: LayoutScalar>(
     }
 
     let gap_difference = (input.subgrid_gap - input.parent_gap) / S::from_f64(2.0);
+    let boundary_gap_differences = subgrid_boundary_gutters
+        .iter()
+        .zip(parent_boundary_gutters)
+        .map(|(subgrid, parent)| (*subgrid - *parent) / S::from_f64(2.0))
+        .collect::<Vec<_>>();
     let mut final_major = after_mbp_major.clone();
     let mut final_minor = after_mbp_minor.clone();
-    for baseline in final_major.iter_mut().skip(1) {
+    for (baseline, gap_difference) in final_major
+        .iter_mut()
+        .skip(1)
+        .zip(boundary_gap_differences.iter().copied())
+    {
         subtract_baseline(baseline, gap_difference, input.physical_axis);
     }
     let minor_count = final_minor.len().saturating_sub(1);
-    for baseline in final_minor.iter_mut().take(minor_count) {
+    for (baseline, gap_difference) in final_minor
+        .iter_mut()
+        .take(minor_count)
+        .zip(boundary_gap_differences.iter().copied())
+    {
         subtract_baseline(baseline, gap_difference, input.physical_axis);
     }
 
@@ -1353,8 +1411,16 @@ pub(super) fn inherit_subgrid_baselines<S: LayoutScalar>(
     })
 }
 
+#[cfg(test)]
 pub(super) fn inherit_subgrid_tracks<S: LayoutScalar>(
     input: SubgridTrackInheritanceInput<'_, S>,
+) -> Result<SubgridTrackInheritanceReport<S>, SubgridTrackInheritanceError> {
+    inherit_subgrid_tracks_with_geometry(input, None)
+}
+
+pub(super) fn inherit_subgrid_tracks_with_geometry<S: LayoutScalar>(
+    input: SubgridTrackInheritanceInput<'_, S>,
+    parent_geometry: Option<&UsedGridAxisGeometryOf<S>>,
 ) -> Result<SubgridTrackInheritanceReport<S>, SubgridTrackInheritanceError> {
     let span_len = input
         .parent_span
@@ -1366,6 +1432,8 @@ pub(super) fn inherit_subgrid_tracks<S: LayoutScalar>(
     if input.parent_span.start == 0
         || input.parent_span.end > input.parent_tracks.len() + 1
         || span_len == 0
+        || parent_geometry
+            .is_some_and(|geometry| geometry.sizes().len() != input.parent_tracks.len())
     {
         return Err(SubgridTrackInheritanceError::SpanOutOfRange);
     }
@@ -1374,8 +1442,18 @@ pub(super) fn inherit_subgrid_tracks<S: LayoutScalar>(
     let end_index = input.parent_span.end - 1;
     let copied_parent_tracks = input.parent_tracks[start_index..end_index].to_vec();
     let mut after_reversal = copied_parent_tracks.clone();
+    let mut collapsed = parent_geometry.map_or_else(
+        || vec![false; copied_parent_tracks.len()],
+        |geometry| geometry.collapsed()[start_index..end_index].to_vec(),
+    );
+    let mut parent_boundary_gutters = parent_geometry.map_or_else(
+        || vec![input.parent_gap; copied_parent_tracks.len().saturating_sub(1)],
+        |geometry| geometry.gutter_after()[start_index..end_index.saturating_sub(1)].to_vec(),
+    );
     if input.reversed {
         after_reversal.reverse();
+        collapsed.reverse();
+        parent_boundary_gutters.reverse();
     }
 
     let mut start_mbp_removed = after_reversal.clone();
@@ -1390,12 +1468,25 @@ pub(super) fn inherit_subgrid_tracks<S: LayoutScalar>(
 
     let resolved_subgrid_gap = input.subgrid_gap.resolve(input.parent_gap);
     let gap_difference = (resolved_subgrid_gap - input.parent_gap) / S::from_f64(2.0);
+    let final_boundary_gutters = (0..after_reversal.len().saturating_sub(1))
+        .map(|index| {
+            if collapsed[index] || collapsed[index + 1] {
+                S::ZERO
+            } else {
+                resolved_subgrid_gap
+            }
+        })
+        .collect::<Vec<_>>();
     let mut final_tracks = end_mbp_removed.clone();
-    if final_tracks.len() > 1 {
-        for edge in 0..(final_tracks.len() - 1) {
-            final_tracks[edge] = (final_tracks[edge] - gap_difference).max(S::ZERO);
-            final_tracks[edge + 1] = (final_tracks[edge + 1] - gap_difference).max(S::ZERO);
-        }
+    for (edge, (parent_gutter, final_gutter)) in parent_boundary_gutters
+        .iter()
+        .copied()
+        .zip(final_boundary_gutters.iter().copied())
+        .enumerate()
+    {
+        let boundary_difference = (final_gutter - parent_gutter) / S::from_f64(2.0);
+        final_tracks[edge] = (final_tracks[edge] - boundary_difference).max(S::ZERO);
+        final_tracks[edge + 1] = (final_tracks[edge + 1] - boundary_difference).max(S::ZERO);
     }
 
     Ok(SubgridTrackInheritanceReport {
@@ -1409,6 +1500,9 @@ pub(super) fn inherit_subgrid_tracks<S: LayoutScalar>(
         subgrid_gap: input.subgrid_gap,
         resolved_subgrid_gap,
         gap_difference,
+        collapsed,
+        parent_boundary_gutters,
+        final_boundary_gutters,
         final_tracks,
     })
 }

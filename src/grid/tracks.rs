@@ -21,6 +21,18 @@ impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
                 }
             })
             .collect::<Vec<_>>();
+        Self::from_boundary_gutters(sizes, collapsed, gutter_after)
+    }
+
+    pub(super) fn from_boundary_gutters(
+        sizes: Vec<S>,
+        collapsed: Vec<bool>,
+        gutter_after: Vec<S>,
+    ) -> Self {
+        let mut collapsed = collapsed;
+        collapsed.resize(sizes.len(), false);
+        let mut gutter_after = gutter_after;
+        gutter_after.resize(sizes.len().saturating_sub(1), S::ZERO);
         let mut line_offsets = Vec::with_capacity(sizes.len() + 1);
         let mut cursor = S::ZERO;
         line_offsets.push(cursor);
@@ -45,6 +57,14 @@ impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
 
     pub(super) fn collapsed(&self) -> &[bool] {
         &self.collapsed
+    }
+
+    pub(super) fn gutter_after(&self) -> &[S] {
+        &self.gutter_after
+    }
+
+    pub(super) fn line_offsets(&self) -> &[S] {
+        &self.line_offsets
     }
 
     pub(super) fn active_track_count(&self) -> usize {
@@ -92,35 +112,6 @@ impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
             *line_offset = *line_offset + offset;
         }
         self
-    }
-
-    pub(super) fn sliced_reversed(&self, start: usize, end: usize, reversed: bool) -> Self {
-        let end = end.min(self.sizes.len());
-        let start = start.min(end);
-        let mut sizes = self.sizes[start..end].to_vec();
-        let mut collapsed = self.collapsed[start..end].to_vec();
-        let mut gutter_after = self.gutter_after[start..end.saturating_sub(1)].to_vec();
-        if reversed {
-            sizes.reverse();
-            collapsed.reverse();
-            gutter_after.reverse();
-        }
-        let mut line_offsets = Vec::with_capacity(sizes.len() + 1);
-        let mut cursor = S::ZERO;
-        line_offsets.push(cursor);
-        for (index, size) in sizes.iter().copied().enumerate() {
-            cursor = cursor + size;
-            if let Some(gutter) = gutter_after.get(index) {
-                cursor = cursor + *gutter;
-            }
-            line_offsets.push(cursor);
-        }
-        Self {
-            sizes,
-            collapsed,
-            gutter_after,
-            line_offsets,
-        }
     }
 }
 use crate::geometry::{FlowAxes, LogicalSizeOf};

@@ -895,6 +895,210 @@ fn fri08_c02_auto_fit_inherited_subgrid_slices_and_reverses_geometry_with_baseli
     }
 }
 
+#[test]
+fn fri08_c02_auto_fit_inherited_baseline_crosses_collapsed_boundary_without_uniform_gap_delta() {
+    for reversed in [false, true] {
+        let role = if reversed {
+            AncestorBaselineRole::Last
+        } else {
+            AncestorBaselineRole::First
+        };
+        let owner_member = inherited_placement_member(91, GridAxisKind::Column, role, 2, 17.0);
+        let owner_group = AncestorBaselineGroup::reduce(
+            1_u32,
+            GridAxisKind::Column,
+            PhysicalAxis::Horizontal,
+            4,
+            [owner_member],
+        );
+        let ancestor_groups = final_ancestor_baseline_groups_for_transport_test(
+            AncestorBaselineGroup::reduce(
+                1_u32,
+                GridAxisKind::Row,
+                PhysicalAxis::Vertical,
+                1,
+                Vec::<AncestorBaselineMember<u32>>::new(),
+            ),
+            owner_group.clone(),
+        );
+        let parent_style = NodeInput {
+            display: Display::Grid,
+            ..NodeInput::DEFAULT
+        };
+        let child_style = NodeInput {
+            display: Display::Grid,
+            direction: if reversed {
+                Direction::Rtl
+            } else {
+                Direction::Ltr
+            },
+            grid_template_columns: vec![empty_subgrid_track()],
+            grid_template_rows: vec![TrackComponent::px(20.0)],
+            gap: Size::new(Length::px(20.0), Length::ZERO),
+            overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
+            ..NodeInput::DEFAULT
+        };
+        let parent_geometry = UsedGridAxisGeometryOf::new(
+            vec![40.0, 0.0, 40.0, 40.0],
+            vec![false, true, false, false],
+            10.0,
+        );
+        let context = subgrid_child_parent_context_from_ancestor_groups_with_geometry(
+            SubgridChildParentContextInput {
+                item: SubgridItemReport {
+                    node: 7_u32,
+                    column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
+                    row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+                },
+                child_style: &child_style,
+                area: GridArea {
+                    column: 0,
+                    row: 0,
+                    column_end: 4,
+                    row_end: 1,
+                    size: LogicalSizeOf::new(130.0, 20.0),
+                },
+                content_box_size: Size::new(130.0, 20.0),
+                columns: parent_geometry.sizes(),
+                rows: &[20.0],
+                gap: LogicalSizeOf::new(10.0, 0.0),
+                parent_named_columns: &NamedGridLines::new(GridAxisKind::Column, 4),
+                parent_named_rows: &NamedGridLines::new(GridAxisKind::Row, 1),
+                parent_area_facts: None,
+                parent_baseline_groups: &GridBaselineGroups {
+                    columns: vec![TrackBaselineGroup::default(); 4],
+                    rows: vec![TrackBaselineGroup::default()],
+                },
+                margin: Edges::all(Some(0.0)),
+                border: Edges::ZERO,
+                padding: Edges::ZERO,
+            },
+            &ancestor_groups,
+            1_u32,
+            Some(&parent_geometry),
+            None,
+        )
+        .expect("collapsed ordinary geometry remains inheritable");
+        let inherited = context.columns.as_ref().expect("column subgrid context");
+        let transported = inherited
+            .owner_baseline_targets
+            .as_ref()
+            .expect("owner baseline target remains transportable");
+        let local_span = if reversed {
+            GridTrackSpan::new(1, 2)
+        } else {
+            GridTrackSpan::new(2, 3)
+        };
+        let placement = InheritedCurrentGridBaselinePlacement::try_derive(
+            &transported.group,
+            InheritedCurrentGridBaselinePlacementInput {
+                axis: GridAxisKind::Column,
+                physical_axis: PhysicalAxis::Horizontal,
+                mapping: transported.mapping.clone(),
+                direct_witness: CurrentGridDirectWitness::new(
+                    7,
+                    11,
+                    GridAxisKind::Column,
+                    local_span,
+                    role,
+                ),
+                current_grid: 7,
+                item: 11,
+            },
+        )
+        .expect("collapsed-boundary baseline placement");
+
+        assert_eq!(
+            placement.translated_target(),
+            if reversed { 83.0 } else { 17.0 },
+            "{reversed:?} inherited baseline must observe the collapsed zero gutter",
+        );
+        assert_eq!(inherited.geometry.total_extent(), 130.0);
+    }
+}
+
+#[test]
+fn fri08_c02_auto_fit_public_parent_projects_reversed_subgrid_baseline_and_overflow_past_collapsed_lines()
+ {
+    let layout = |writing_mode| {
+        let tree = PublicLayoutTreeOf::<f32>::new()
+            .children(1, [2])
+            .children(2, [3])
+            .style(
+                1,
+                NodeInput {
+                    display: Display::Grid,
+                    size: Size::new(PreferredSize::px(190.0), PreferredSize::px(40.0)),
+                    grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                    grid_template_rows: vec![TrackComponent::px(40.0)],
+                    gap: Size::new(Length::px(10.0), Length::ZERO),
+                    justify_content: Some(AlignContent::Center),
+                    align_items: Some(AlignItems::Baseline),
+                    ..NodeInput::DEFAULT
+                },
+            )
+            .style(
+                2,
+                NodeInput {
+                    display: Display::Grid,
+                    writing_mode,
+                    grid_column: GridPlacement::try_line(3).expect("retained third line"),
+                    grid_row: GridPlacement::try_line(1).expect("single parent row"),
+                    grid_template_columns: vec![TrackComponent::px(40.0)],
+                    grid_template_rows: vec![empty_subgrid_track()],
+                    align_items: Some(AlignItems::Baseline),
+                    overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
+                    ..NodeInput::DEFAULT
+                },
+            )
+            .style(
+                3,
+                NodeInput {
+                    align_self: Some(AlignItems::Baseline),
+                    overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
+                    ..NodeInput::DEFAULT
+                },
+            )
+            .measure(3, Size::new(60.0, 20.0));
+        let batch = compute_layout(
+            &tree,
+            1,
+            LayoutRootRequest::viewport(Size::new(
+                Available::Definite(190.0),
+                Available::Definite(40.0),
+            ))
+            .expect("finite public auto-fit viewport"),
+        )
+        .expect("public auto-fit subgrid layout");
+        (
+            fri08_c01_placement_output(&batch, 2),
+            fri08_c01_placement_output(&batch, 3),
+        )
+    };
+
+    let (forward, forward_child) = layout(WritingMode::VerticalLr);
+    let (reversed, reversed_child) = layout(WritingMode::VerticalRl);
+    assert_eq!((forward.location.x, forward.size.width), (75.0, 40.0));
+    assert_eq!((reversed.location.x, reversed.size.width), (75.0, 40.0));
+    let forward_scroll = forward.scroll_geometry.expect("forward subgrid overflow");
+    let reversed_scroll = reversed.scroll_geometry.expect("reversed subgrid overflow");
+    assert_eq!(
+        (
+            forward_scroll.physical_range().x().minimum(),
+            forward_scroll.physical_range().x().maximum(),
+            reversed_scroll.physical_range().x().minimum(),
+            reversed_scroll.physical_range().x().maximum(),
+        ),
+        (0.0, 20.0, -20.0, 0.0),
+    );
+    assert_eq!(forward_child.size, reversed_child.size);
+    assert_eq!(
+        (forward_child.location.x, reversed_child.location.x),
+        (0.0, -20.0),
+        "baseline-aligned descendant mirrors across the inherited reversed axis",
+    );
+}
+
 fn assert_fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row<S: LayoutScalar>() {
     let scalar = S::from_f64;
     let tree = PublicLayoutTreeOf::new()
@@ -9956,6 +10160,14 @@ macro_rules! owner_placement_boundary {
             parent_last_frame_origins: $parent_last_frame_origins,
             current_first_frame_origins: $current_first_frame_origins,
             current_last_frame_origins: $current_last_frame_origins,
+            parent_boundary_gutters: &vec![
+                $parent_gap;
+                ($parent_first_frame_origins).len().saturating_sub(1)
+            ],
+            current_boundary_gutters: &vec![
+                $current_gap;
+                ($current_first_frame_origins).len().saturating_sub(1)
+            ],
             parent_gap: $parent_gap,
             current_gap: $current_gap,
             start_mbp: $start_mbp,
@@ -10292,6 +10504,8 @@ fn inherited_placement_mapping(
     let current_count = parent_span.checked_len().unwrap_or(0);
     let parent_origins = vec![0.0; 4];
     let current_origins = vec![0.0; current_count];
+    let parent_boundary_gutters = vec![parent_gap; 3];
+    let current_boundary_gutters = vec![current_gap; current_count.saturating_sub(1)];
     identity
         .compose(OwnerToCurrentPlacementBoundaryInput {
             parent_grid: 1,
@@ -10307,6 +10521,8 @@ fn inherited_placement_mapping(
             parent_last_frame_origins: &parent_origins,
             current_first_frame_origins: &current_origins,
             current_last_frame_origins: &current_origins,
+            parent_boundary_gutters: &parent_boundary_gutters,
+            current_boundary_gutters: &current_boundary_gutters,
             parent_gap,
             current_gap,
             start_mbp: 0.0,
