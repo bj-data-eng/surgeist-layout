@@ -655,7 +655,6 @@ where
         tree,
         node,
         GridTrackResolutionInput {
-            sizing_policy: GridTrackSizingPolicy::Ordinary,
             style: &style,
             constants: &constants,
             column_tracks: &column_tracks,
@@ -922,7 +921,6 @@ where
         tree,
         node,
         GridTrackResolutionInput {
-            sizing_policy: GridTrackSizingPolicy::Lanes,
             style: &style,
             constants: &constants,
             column_tracks: &column_tracks,
@@ -1864,7 +1862,6 @@ fn raw_grid_line_is_numeric(line: &super::RawGridLine) -> bool {
 }
 
 struct GridTrackResolutionInput<'a, Node, S: LayoutScalar = Scalar> {
-    sizing_policy: GridTrackSizingPolicy,
     style: &'a NodeInputOf<S>,
     constants: &'a Constants<S>,
     column_tracks: &'a [TrackSizingOf<S>],
@@ -1878,22 +1875,11 @@ struct GridTrackResolutionInput<'a, Node, S: LayoutScalar = Scalar> {
 }
 
 #[derive(Clone, Copy)]
-enum GridTrackSizingPolicy {
-    Ordinary,
-    Lanes,
-}
-
-#[derive(Clone, Copy)]
-struct GridTrackSizingPhases {
-    policy: GridTrackSizingPolicy,
-}
+struct GridTrackSizingPhases;
 
 impl GridTrackSizingPhases {
     fn resolve_inline<S: LayoutScalar>(self, input: InlineTrackInput<'_, S>) -> Vec<S> {
-        match self.policy {
-            GridTrackSizingPolicy::Ordinary => resolve_inline_tracks(input),
-            GridTrackSizingPolicy::Lanes => resolve_lanes_inline_tracks(input),
-        }
+        resolve_inline_tracks(input)
     }
 
     fn resolve_block<S: LayoutScalar>(
@@ -1905,19 +1891,7 @@ impl GridTrackSizingPhases {
         intrinsic_sizes: &[S],
         gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
     ) -> Vec<S> {
-        match self.policy {
-            GridTrackSizingPolicy::Ordinary => {
-                resolve_tracks_with_gutters(tracks, basis, gap, alignment, intrinsic_sizes, gutters)
-            }
-            GridTrackSizingPolicy::Lanes => resolve_lanes_tracks_with_gutters(
-                tracks,
-                basis,
-                gap,
-                alignment,
-                intrinsic_sizes,
-                gutters,
-            ),
-        }
+        resolve_tracks_with_gutters(tracks, basis, gap, alignment, intrinsic_sizes, gutters)
     }
 }
 
@@ -1939,7 +1913,6 @@ where
     Tree: Compute<M>,
 {
     let GridTrackResolutionInput {
-        sizing_policy,
         style,
         constants,
         column_tracks,
@@ -1951,9 +1924,7 @@ where
         intrinsic_max_available,
         placements,
     } = input;
-    let sizing_phases = GridTrackSizingPhases {
-        policy: sizing_policy,
-    };
+    let sizing_phases = GridTrackSizingPhases;
     let GridContainerContext {
         topology,
         gap,

@@ -5200,7 +5200,7 @@ fn fri08_c03_intrinsic_collapsed_auto_fit_tracks_are_not_candidate_starts() {
     assert_eq!(report.final_track_sizes, [20.0, 0.0, 20.0]);
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Fri08C02TrackAxis {
     Columns,
     Rows,
@@ -5281,6 +5281,10 @@ fn fri08_c02_track_mix_tree<S: LayoutScalar>(
                 size: physical_root_size,
                 grid_template_columns: columns,
                 grid_template_rows: rows,
+                grid_auto_flow: match axis {
+                    Fri08C02TrackAxis::Columns => GridAutoFlow::Row,
+                    Fri08C02TrackAxis::Rows => GridAutoFlow::Column,
+                },
                 justify_content: Some(AlignContent::Start),
                 align_content: Some(AlignContent::Start),
                 ..NodeInputOf::default()
@@ -5403,6 +5407,10 @@ fn fri08_c02_stretch_tree<S: LayoutScalar>(
                 size: physical_root_size,
                 grid_template_columns: columns,
                 grid_template_rows: rows,
+                grid_auto_flow: match axis {
+                    Fri08C02TrackAxis::Columns => GridAutoFlow::Row,
+                    Fri08C02TrackAxis::Rows => GridAutoFlow::Column,
+                },
                 gap: flow_axes.physical_size(LogicalSizeOf::new(
                     LengthOf::px(scalar(gap)),
                     LengthOf::ZERO,
@@ -5603,27 +5611,7 @@ fn fri08_c02_stretch_requires_normal_or_stretch_positive_definite_remainder() {
 }
 
 #[test]
-fn fri08_c02_stretch_lanes_policy_retains_fit_content_and_accepts_c03_auto_fit() {
-    assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Columns);
-    assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Rows);
-
-    let (tree, flow_axes, viewport) = fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
-        display: Display::GridLanes,
-        axis: Fri08C02TrackAxis::Columns,
-        writing_mode: WritingMode::HorizontalTb,
-        definite_axis_size: Some(100.0),
-        viewport_axis_size: 100.0,
-        gap: 0.0,
-        alignment: Some(AlignContent::Stretch),
-        tracks: vec![fri08_c02_stretch_track(MinTrackSizingOf::px(0.0))],
-        measurements: &[0.0],
-    });
-    assert_eq!(
-        fri08_c02_track_sizes(&tree, flow_axes, viewport, Fri08C02TrackAxis::Columns, 1,),
-        [0.0],
-        "ordinary auto-maximum stretch must not enter lanes"
-    );
-
+fn fri08_c02_stretch_lanes_policy_accepts_c03_auto_fit_control() {
     let tree = PublicLayoutTreeOf::<f32>::new()
         .children(1, [2, 3])
         .style(
@@ -5800,28 +5788,315 @@ fn fri08_c02_fit_content_spanning_contribution_caps_fit_and_grows_companion() {
     assert_eq!(sizes, [60.0, 20.0]);
 }
 
-fn assert_fri08_c02_lanes_fit_content_characterization(axis: Fri08C02TrackAxis) {
-    let (tree, flow_axes, viewport) = fri08_c02_track_mix_tree::<f32>(
-        Display::GridLanes,
-        axis,
+fn assert_fri08_c02r_lanes_fit_content_flex<S: LayoutScalar>() {
+    for writing_mode in [
         WritingMode::HorizontalTb,
-        (20.0, 0.0),
-        Some(100.0),
-        vec![fri08_c02_flex_track::<f32>(1.0)],
-        &[30.0, 0.0],
+        WritingMode::VerticalRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for axis in [Fri08C02TrackAxis::Columns, Fri08C02TrackAxis::Rows] {
+            for (fit_limit, basis, intrinsic_bases, expected) in [
+                (50.0, 200.0, [20.0, 0.0], [20.0, 180.0]),
+                (20.0, 100.0, [30.0, 0.0], [30.0, 70.0]),
+            ] {
+                let (tree, flow_axes, viewport) = fri08_c02_track_mix_tree(
+                    Display::GridLanes,
+                    axis,
+                    writing_mode,
+                    (fit_limit, 0.0),
+                    Some(basis),
+                    vec![fri08_c02_flex_track::<S>(1.0)],
+                    &intrinsic_bases,
+                );
+                let sizes = fri08_c02_track_sizes(&tree, flow_axes, viewport, axis, 2);
+                assert_eq!(
+                    sizes,
+                    expected.map(S::from_f64),
+                    "{writing_mode:?} {axis:?} fit-content and flex must execute one phase pipeline"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fri08_c02r_lanes_track_phase_fit_content_and_flex_compose_across_axes_flows_and_scalars() {
+    assert_fri08_c02r_lanes_fit_content_flex::<f32>();
+    assert_fri08_c02r_lanes_fit_content_flex::<f64>();
+}
+
+fn assert_fri08_c02r_lanes_auto_max_stretch<S: LayoutScalar>() {
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for axis in [Fri08C02TrackAxis::Columns, Fri08C02TrackAxis::Rows] {
+            for alignment in [None, Some(AlignContent::Stretch)] {
+                let (tree, flow_axes, viewport) =
+                    fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+                        display: Display::GridLanes,
+                        axis,
+                        writing_mode,
+                        definite_axis_size: Some(100.0),
+                        viewport_axis_size: 100.0,
+                        gap: 0.0,
+                        alignment,
+                        tracks: vec![fri08_c02_stretch_track(MinTrackSizingOf::px(S::ZERO))],
+                        measurements: &[0.0],
+                    });
+                assert_eq!(
+                    fri08_c02_track_sizes(&tree, flow_axes, viewport, axis, 1),
+                    [S::from_f64(100.0)],
+                    "{writing_mode:?} {axis:?} {alignment:?} minmax(0,auto) stretches"
+                );
+            }
+
+            let (tree, flow_axes, viewport) = fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+                display: Display::GridLanes,
+                axis,
+                writing_mode,
+                definite_axis_size: Some(100.0),
+                viewport_axis_size: 100.0,
+                gap: 0.0,
+                alignment: Some(AlignContent::Stretch),
+                tracks: vec![
+                    fri08_c02_stretch_track(MinTrackSizingOf::<S>::MIN_CONTENT),
+                    fri08_c02_stretch_track(MinTrackSizingOf::<S>::MAX_CONTENT),
+                ],
+                measurements: &[20.0, 30.0],
+            });
+            assert_eq!(
+                fri08_c02_track_sizes(&tree, flow_axes, viewport, axis, 2),
+                [S::from_f64(45.0), S::from_f64(55.0)],
+                "{writing_mode:?} {axis:?} intrinsic floors receive the same remainder"
+            );
+        }
+    }
+}
+
+#[test]
+fn fri08_c02r_lanes_track_phase_auto_max_stretch_preserves_floors_across_axes_flows_and_scalars() {
+    assert_fri08_c02r_lanes_auto_max_stretch::<f32>();
+    assert_fri08_c02r_lanes_auto_max_stretch::<f64>();
+}
+
+fn assert_fri08_c02r_lanes_stretch_exclusions<S: LayoutScalar>() {
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for axis in [Fri08C02TrackAxis::Columns, Fri08C02TrackAxis::Rows] {
+            let resolve = |track, definite_axis_size, alignment, measurement| {
+                let (tree, flow_axes, viewport) =
+                    fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+                        display: Display::GridLanes,
+                        axis,
+                        writing_mode,
+                        definite_axis_size,
+                        viewport_axis_size: 100.0,
+                        gap: 0.0,
+                        alignment,
+                        tracks: vec![track],
+                        measurements: &[measurement],
+                    });
+                fri08_c02_track_sizes(&tree, flow_axes, viewport, axis, 1)[0]
+            };
+
+            assert_eq!(
+                resolve(
+                    TrackComponentOf::minmax(
+                        MinTrackSizingOf::px(S::ZERO),
+                        MaxTrackSizingOf::MAX_CONTENT,
+                    ),
+                    Some(100.0),
+                    Some(AlignContent::Stretch),
+                    20.0,
+                ),
+                S::from_f64(20.0),
+                "{writing_mode:?} {axis:?} a non-auto maximum is ineligible"
+            );
+            assert_eq!(
+                resolve(
+                    fri08_c02_stretch_track(MinTrackSizingOf::MIN_CONTENT),
+                    Some(100.0),
+                    Some(AlignContent::Start),
+                    20.0,
+                ),
+                S::from_f64(20.0),
+                "{writing_mode:?} {axis:?} start alignment does not stretch"
+            );
+
+            let (indefinite_tree, indefinite_flow_axes, _) =
+                fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+                    display: Display::GridLanes,
+                    axis,
+                    writing_mode,
+                    definite_axis_size: None,
+                    viewport_axis_size: 100.0,
+                    gap: 0.0,
+                    alignment: Some(AlignContent::Stretch),
+                    tracks: vec![fri08_c02_stretch_track(MinTrackSizingOf::<S>::MIN_CONTENT)],
+                    measurements: &[20.0],
+                });
+            let indefinite_batch = compute_layout(
+                &indefinite_tree,
+                1,
+                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+                    .expect("indefinite lanes track-phase viewport"),
+            )
+            .expect("indefinite lanes track sizing completes");
+            let indefinite_size = indefinite_flow_axes
+                .logical_size(fri08_c01_placement_output(&indefinite_batch, 2).size);
+            assert_eq!(
+                match axis {
+                    Fri08C02TrackAxis::Columns => indefinite_size.inline,
+                    Fri08C02TrackAxis::Rows => indefinite_size.block,
+                },
+                S::from_f64(20.0),
+                "{writing_mode:?} {axis:?} indefinite space does not stretch"
+            );
+            assert_eq!(
+                resolve(
+                    fri08_c02_stretch_track(MinTrackSizingOf::MIN_CONTENT),
+                    Some(10.0),
+                    Some(AlignContent::Stretch),
+                    20.0,
+                ),
+                S::from_f64(20.0),
+                "{writing_mode:?} {axis:?} a non-positive remainder preserves the floor"
+            );
+
+            let (collapsed_tree, collapsed_flow_axes, collapsed_viewport) =
+                fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+                    display: Display::GridLanes,
+                    axis,
+                    writing_mode,
+                    definite_axis_size: Some(120.0),
+                    viewport_axis_size: 120.0,
+                    gap: 0.0,
+                    alignment: Some(AlignContent::Stretch),
+                    tracks: vec![fri08_c02_auto_fit_repeat::<S>()],
+                    measurements: &[0.0],
+                });
+            assert_eq!(
+                fri08_c02_track_sizes(
+                    &collapsed_tree,
+                    collapsed_flow_axes,
+                    collapsed_viewport,
+                    axis,
+                    1,
+                ),
+                [S::from_f64(40.0)],
+                "{writing_mode:?} {axis:?} collapsed auto-fit tracks stay zero under stretch"
+            );
+        }
+    }
+}
+
+#[test]
+fn fri08_c02r_lanes_track_phase_stretch_excludes_non_auto_collapsed_start_indefinite_and_non_positive()
+ {
+    assert_fri08_c02r_lanes_stretch_exclusions::<f32>();
+    assert_fri08_c02r_lanes_stretch_exclusions::<f64>();
+}
+
+fn assert_fri08_c02r_lanes_cold_warm_cache<S: LayoutScalar>() {
+    let (tree, flow_axes, _) = fri08_c02_track_mix_tree(
+        Display::GridLanes,
+        Fri08C02TrackAxis::Columns,
+        WritingMode::HorizontalTb,
+        (50.0, 0.0),
+        Some(200.0),
+        vec![fri08_c02_flex_track::<S>(1.0)],
+        &[20.0, 0.0],
     );
-    let sizes = fri08_c02_track_sizes(&tree, flow_axes, viewport, axis, 2);
-    assert_eq!(sizes, [30.0, 0.0], "pre-C02 lanes characterization");
+    let mut tree = Fri08C06RAtomicTree::new(tree);
+    let request =
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(200.0))))
+            .expect("finite lanes track-phase viewport");
+    let cold = compute_layout(&tree, 1, request).expect("cold lanes sizing completes");
+    assert_eq!(
+        (0..2)
+            .map(|index| {
+                flow_axes
+                    .logical_size(fri08_c01_placement_output(&cold, index + 2).size)
+                    .inline
+            })
+            .collect::<Vec<_>>(),
+        [S::from_f64(20.0), S::from_f64(180.0)]
+    );
+    assert_eq!(cold.final_entries().len(), 3);
+    let cold_unrounded = cold.unrounded_entries().to_vec();
+    let cold_final = cold.final_entries().to_vec();
+    cold.apply_to(&mut tree)
+        .expect("cold lanes sizing batch commits atomically");
+
+    tree.cache_queries.borrow_mut().clear();
+    let warm = compute_layout(&tree, 1, request).expect("warm lanes sizing completes");
+    assert_eq!(warm.unrounded_entries(), cold_unrounded);
+    assert_eq!(warm.final_entries(), cold_final);
+    assert!(
+        tree.cache_queries.borrow().iter().any(|(_, hit)| *hit),
+        "warm lanes sizing must reuse committed cache state"
+    );
 }
 
 #[test]
-fn fri08_c02_lanes_negative_columns_only_fit_content_retains_published_geometry() {
-    assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Columns);
+fn fri08_c02r_lanes_track_phase_completed_batches_are_cold_warm_cache_equivalent() {
+    assert_fri08_c02r_lanes_cold_warm_cache::<f32>();
+    assert_fri08_c02r_lanes_cold_warm_cache::<f64>();
 }
 
 #[test]
-fn fri08_c02_lanes_negative_rows_only_fit_content_retains_published_geometry() {
-    assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Rows);
+fn fri08_c02r_lanes_track_phase_architecture_has_no_collection_fit_content_shortcut() {
+    let tracks = include_str!("grid/tracks.rs");
+    assert!(
+        !tracks.contains("fn resolve_lanes_inline_tracks"),
+        "FRI-08.14(5) forbids the lanes collection-wide inline-track shortcut"
+    );
+    assert!(
+        !tracks.contains("fn resolve_fit_content_tracks"),
+        "FRI-08.14(5) forbids an orphan collection-wide fit-content resolver"
+    );
+}
+
+#[test]
+fn fri08_c02r_lanes_track_phase_architecture_has_one_auto_maximum_predicate() {
+    let tracks = include_str!("grid/tracks.rs");
+    assert!(
+        !tracks.contains("fn resolve_lanes_tracks_with_intrinsics")
+            && !tracks.contains("fn resolve_lanes_tracks_with_gutters"),
+        "FRI-08.14(6) requires lanes stretch to use the canonical maximum-is-Auto predicate"
+    );
+    assert_eq!(
+        tracks.matches("track_has_auto_maximum(").count(),
+        1,
+        "the maximum-is-Auto predicate has one canonical state-owner use"
+    );
+    assert!(tracks.contains("fn track_has_auto_maximum"));
+}
+
+#[test]
+fn fri08_c02r_lanes_track_phase_architecture_has_one_policy_free_final_owner() {
+    let orchestration = include_str!("grid/mod.rs");
+    assert!(
+        !orchestration.contains("GridTrackSizingPolicy"),
+        "FRI-08.14(14) forbids an ordinary-versus-lanes final sizing discriminator"
+    );
+    assert_eq!(
+        orchestration
+            .matches("resolve_inline_tracks(input)")
+            .count(),
+        1
+    );
+    assert_eq!(
+        orchestration
+            .matches("resolve_tracks_with_gutters(")
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -12393,7 +12668,18 @@ fn fri04_c03_grid_track_nested_track_breadths_and_fit_content_use_complete_progr
 
     let fit = TrackSizing::fit_content(fri04_c03_grid_track_nested(20.0, 60.0, 80.0));
     assert_eq!(
-        resolve_fit_content_tracks(&[fit], None, &[20.0], &[100.0]),
+        resolve_inline_tracks(InlineTrackInput {
+            tracks: &[fit],
+            basis: None,
+            definite_size: None,
+            available_size: None,
+            gap: 0.0,
+            alignment: AlignContent::Start,
+            stretch_empty_auto_to_available: false,
+            min_intrinsic_sizes: &[20.0],
+            max_intrinsic_sizes: &[100.0],
+            gutters: None,
+        }),
         [60.0]
     );
 
@@ -12405,15 +12691,32 @@ fn fri04_c03_grid_track_nested_track_breadths_and_fit_content_use_complete_progr
     let dependent_fit =
         TrackSizing::fit_content(fri04_c03_grid_track_percentage_nested(20.0, 0.6, 80.0));
     assert_eq!(
-        resolve_fit_content_tracks(
-            core::slice::from_ref(&dependent_fit),
-            None,
-            &[20.0],
-            &[100.0],
-        ),
+        resolve_inline_tracks(InlineTrackInput {
+            tracks: core::slice::from_ref(&dependent_fit),
+            basis: None,
+            definite_size: None,
+            available_size: None,
+            gap: 0.0,
+            alignment: AlignContent::Start,
+            stretch_empty_auto_to_available: false,
+            min_intrinsic_sizes: &[20.0],
+            max_intrinsic_sizes: &[100.0],
+            gutters: None,
+        }),
         [100.0]
     );
-    let definite_fit = resolve_fit_content_tracks(&[dependent_fit], Some(100.0), &[20.0], &[100.0]);
+    let definite_fit = resolve_inline_tracks(InlineTrackInput {
+        tracks: &[dependent_fit],
+        basis: Some(100.0),
+        definite_size: Some(100.0),
+        available_size: Some(100.0),
+        gap: 0.0,
+        alignment: AlignContent::Start,
+        stretch_empty_auto_to_available: false,
+        min_intrinsic_sizes: &[20.0],
+        max_intrinsic_sizes: &[100.0],
+        gutters: None,
+    });
     assert!(
         (definite_fit[0] - 60.0).abs() <= 0.000_01,
         "definite nested fit-content limit: {}",
@@ -27601,9 +27904,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
     let tracks = vec![TrackSizingOf::<f64>::AUTO];
     let placements = GridPlacementContext::new(Vec::<usize>::new(), Vec::new());
     let subgrid_report = GridSubgridReport { items: Vec::new() };
-    let sizing_phases = GridTrackSizingPhases {
-        policy: GridTrackSizingPolicy::Ordinary,
-    };
+    let sizing_phases = GridTrackSizingPhases;
     let column_gutters = OrdinaryGridAxisGuttersOf::new(1, &[], 1.0);
     let row_gutters = OrdinaryGridAxisGuttersOf::new(1, &[], 2.0);
 
@@ -27616,7 +27917,6 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         report: GridComputationReport::default(),
     };
     let _track_input = GridTrackResolutionInput::<usize, f64> {
-        sizing_policy: GridTrackSizingPolicy::Ordinary,
         style: &style,
         constants: &constants,
         column_tracks: &tracks,
