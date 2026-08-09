@@ -1,6 +1,6 @@
 # P01-I08-S01-C02 Ordinary Track Sizing And Auto-Fit
 
-Status: reviewed
+Status: in_progress
 
 Cycle ID: `P01/I08/S01/C02`
 
