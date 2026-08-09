@@ -174,12 +174,36 @@ fn fri08_c05_composition_grid003_fit_content_flex_and_stretch_share_one_sizing_r
         WritingMode::SidewaysLr,
     ] {
         for axis in [Fri08C02TrackAxis::Columns, Fri08C02TrackAxis::Rows] {
-            assert_fri08_c02_fit_content_flex_composes::<f32>(axis, writing_mode);
-            assert_fri08_c02_fit_content_flex_composes::<f64>(axis, writing_mode);
+            fri08_c05_composition_grid003_fit_flex_stretch::<f32>(axis, writing_mode);
+            fri08_c05_composition_grid003_fit_flex_stretch::<f64>(axis, writing_mode);
         }
     }
-    assert_fri08_c02_stretch_intrinsic_minimums::<f32>();
-    assert_fri08_c02_stretch_intrinsic_minimums::<f64>();
+}
+
+fn fri08_c05_composition_grid003_fit_flex_stretch<S: LayoutScalar>(
+    axis: Fri08C02TrackAxis,
+    writing_mode: WritingMode,
+) {
+    let (tree, flow_axes, viewport) = fri08_c02_stretch_tree(Fri08C02StretchTreeInput {
+        display: Display::Grid,
+        axis,
+        writing_mode,
+        definite_axis_size: Some(200.0),
+        viewport_axis_size: 200.0,
+        gap: 0.0,
+        alignment: Some(AlignContent::Stretch),
+        tracks: vec![
+            fri08_c02_fit_content_track(50.0, 0.0),
+            fri08_c02_flex_track(0.5),
+            fri08_c02_stretch_track(MinTrackSizingOf::px(S::ZERO)),
+        ],
+        measurements: &[20.0, 0.0, 0.0],
+    });
+
+    assert_eq!(
+        fri08_c02_track_sizes(&tree, flow_axes, viewport, axis, 3),
+        [S::from_f64(20.0), S::from_f64(90.0), S::from_f64(90.0)]
+    );
 }
 
 fn fri08_c05_composition_grid005_area_only_topology<S: LayoutScalar>() {
@@ -251,7 +275,9 @@ fn fri08_c05_composition_grid005_area_only_topology_uses_auto_pattern_and_area_e
     fri08_c05_composition_grid005_area_only_topology::<f64>();
 }
 
-fn fri08_c05_composition_grid006_auto_fit_overlap<S: LayoutScalar>(display: Display) {
+fn fri08_c05_composition_grid006_auto_fit_overlap_span_hole<S: LayoutScalar>(
+    display: Display,
+) -> [NodeOutputOf<S>; 4] {
     let scalar = S::from_f64;
     let repeat = TrackComponentOf::Repeat(
         TrackRepetitionOf::auto_fit_components(vec![
@@ -260,27 +286,20 @@ fn fri08_c05_composition_grid006_auto_fit_overlap<S: LayoutScalar>(display: Disp
         ])
         .expect("finite named auto-fit repeat"),
     );
-    let named_first = RawGridPlacement::new(
-        RawGridLine::NamedLine {
-            name: "slot".to_string(),
-            index: 1,
-        },
-        RawGridLine::Auto,
-    );
     let tree = PublicLayoutTreeOf::new()
-        .children(1, [2, 3])
+        .children(1, [2, 3, 4, 5])
         .style(
             1,
             NodeInputOf {
                 display,
                 size: Size::new(
-                    PreferredSizeOf::px(scalar(190.0)),
+                    PreferredSizeOf::px(scalar(240.0)),
                     PreferredSizeOf::px(scalar(40.0)),
                 ),
                 grid_template_columns: vec![repeat],
                 grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
                 gap: Size::new(LengthOf::px(scalar(10.0)), LengthOf::ZERO),
-                justify_content: Some(AlignContent::Center),
+                justify_content: Some(AlignContent::Start),
                 align_content: Some(AlignContent::Start),
                 ..NodeInputOf::default()
             },
@@ -288,7 +307,8 @@ fn fri08_c05_composition_grid006_auto_fit_overlap<S: LayoutScalar>(display: Disp
         .style(
             2,
             NodeInputOf {
-                raw_grid_column: named_first.clone(),
+                grid_column: GridPlacement::try_line(3).expect("third repeated track"),
+                grid_row: GridPlacement::try_line(1).expect("shared explicit row"),
                 size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
                 ..NodeInputOf::default()
             },
@@ -296,7 +316,26 @@ fn fri08_c05_composition_grid006_auto_fit_overlap<S: LayoutScalar>(display: Disp
         .style(
             3,
             NodeInputOf {
-                raw_grid_column: named_first,
+                grid_column: GridPlacement::try_line(3).expect("overlapping repeated track"),
+                grid_row: GridPlacement::try_line(1).expect("shared explicit row"),
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                grid_column: GridPlacement::try_line(1).expect("first repeated track"),
+                grid_row: GridPlacement::try_line(1).expect("shared explicit row"),
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            5,
+            NodeInputOf {
+                grid_column: GridPlacement::try_span(2).expect("two-track automatic span"),
+                grid_row: GridPlacement::try_line(1).expect("shared explicit row"),
                 size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
                 ..NodeInputOf::default()
             },
@@ -305,31 +344,36 @@ fn fri08_c05_composition_grid006_auto_fit_overlap<S: LayoutScalar>(display: Disp
         &tree,
         1,
         LayoutRootRequestOf::viewport(Size::new(
-            AvailableOf::definite(scalar(190.0)),
+            AvailableOf::definite(scalar(240.0)),
             AvailableOf::definite(scalar(40.0)),
         ))
         .expect("finite auto-fit viewport"),
     )
     .expect("GRID-006 public composition succeeds");
-    assert_eq!(
-        (
-            fri08_c05_composition_output(&batch, 2).location.x,
-            fri08_c05_composition_output(&batch, 2).size.width,
-        ),
-        (scalar(75.0), scalar(40.0))
-    );
-    assert_eq!(
-        fri08_c05_composition_output(&batch, 3).location.x,
-        scalar(75.0)
-    );
+    [2, 3, 4, 5].map(|node| fri08_c05_composition_output(&batch, node))
 }
 
 #[test]
 fn fri08_c05_composition_grid006_ordinary_and_lanes_auto_fit_keep_distinct_occupancy_policies() {
-    for display in [Display::Grid, Display::GridLanes] {
-        fri08_c05_composition_grid006_auto_fit_overlap::<f32>(display);
-        fri08_c05_composition_grid006_auto_fit_overlap::<f64>(display);
-    }
+    fri08_c05_composition_grid006_distinct_policies::<f32>();
+    fri08_c05_composition_grid006_distinct_policies::<f64>();
+}
+
+fn fri08_c05_composition_grid006_distinct_policies<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let ordinary = fri08_c05_composition_grid006_auto_fit_overlap_span_hole::<S>(Display::Grid);
+    let lanes = fri08_c05_composition_grid006_auto_fit_overlap_span_hole::<S>(Display::GridLanes);
+
+    assert_eq!(ordinary[0].location.x, scalar(40.0));
+    assert_eq!(ordinary[1].location.x, scalar(40.0));
+    assert_eq!(ordinary[2].location.x, scalar(0.0));
+    assert_eq!(ordinary[3].location.x, scalar(90.0));
+    assert_eq!(ordinary[3].size.width, scalar(90.0));
+
+    assert_eq!(lanes[0].location.x, scalar(100.0));
+    assert_eq!(lanes[1].location.x, scalar(100.0));
+    assert_eq!(lanes[2].location.x, scalar(0.0));
+    assert_eq!(lanes[3].size.width, scalar(90.0));
 }
 
 #[test]
@@ -415,8 +459,57 @@ fn fri08_c05_composition_grid008_duplicate_names_and_area_origins_count_one_line
 fn fri08_c05_composition_grid010_standalone_and_inherited_boundaries_keep_baseline_roles() {
     assert_fri08_c04_standalone_nested_flows::<f32>();
     assert_fri08_c04_standalone_nested_flows::<f64>();
+    fri08_c05_composition_grid010_nested_indefinite_lanes_output::<f32>();
+    fri08_c05_composition_grid010_nested_indefinite_lanes_output::<f64>();
     assert_fri08_c04_baseline_area_topology_controls::<f32>();
     assert_fri08_c04_baseline_area_topology_controls::<f64>();
+}
+
+fn fri08_c05_composition_grid010_nested_indefinite_lanes_output<S: LayoutScalar>() {
+    let tree = fri08_c03_nested_projection_tree(
+        Fri08C03NestedFlowCase {
+            root_direction: Direction::Ltr,
+            first_wrapper_mode: WritingMode::HorizontalTb,
+            first_wrapper_direction: Direction::Ltr,
+            second_wrapper_mode: WritingMode::HorizontalTb,
+            second_wrapper_direction: Direction::Ltr,
+            inherited_axis: GridAxisKind::Column,
+        },
+        GridFlowToleranceOf::Length(LengthOf::ZERO),
+        false,
+    );
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("nested indefinite lanes viewport"),
+    )
+    .expect("nested indefinite lanes subgrid publishes a completed batch");
+
+    assert_eq!(
+        batch
+            .final_entries()
+            .iter()
+            .map(LayoutOutputEntryOf::node)
+            .collect::<Vec<_>>(),
+        [1, 2, 3, 4, 5, 6, 7, 8]
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 1).size,
+        Size::new(S::from_f64(60.0), S::from_f64(10.0))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 4).size,
+        Size::new(S::from_f64(20.0), S::from_f64(10.0))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 5).size,
+        Size::new(S::from_f64(40.0), S::from_f64(10.0))
+    );
+    assert_eq!(
+        [6, 7, 8].map(|node| fri08_c05_composition_output(&batch, node).size.width),
+        [S::from_f64(20.0), S::ZERO, S::from_f64(40.0)]
+    );
 }
 
 fn fri08_c05_composition_fractional_rounding<S: LayoutScalar>() {
@@ -488,12 +581,12 @@ fn fri08_c05_composition_overflow_scrollbar_settles_once_in_both_scalar_lanes() 
 }
 
 #[test]
-fn fri08_c05_composition_fri09_negative_control_keeps_existing_baseline_roles() {
+fn fri08_c05_composition_inherited_baseline_role_regression_preserves_fri06_contract() {
     assert_fri08_c04_baseline_area_topology_controls::<f32>();
     assert_fri08_c04_baseline_area_topology_controls::<f64>();
 }
 
-fn fri08_c05_composition_fri10_absolute_control<S: LayoutScalar>() {
+fn fri08_c05_composition_absolute_no_demand_control<S: LayoutScalar>() {
     let scalar = S::from_f64;
     let tree = PublicLayoutTreeOf::new()
         .children(1, [2, 3])
@@ -544,9 +637,44 @@ fn fri08_c05_composition_fri10_absolute_control<S: LayoutScalar>() {
 }
 
 #[test]
-fn fri08_c05_composition_fri10_negative_control_absolute_item_creates_no_grid_demand() {
-    fri08_c05_composition_fri10_absolute_control::<f32>();
-    fri08_c05_composition_fri10_absolute_control::<f64>();
+fn fri08_c05_composition_absolute_item_preserves_source_without_grid_demand() {
+    fri08_c05_composition_absolute_no_demand_control::<f32>();
+    fri08_c05_composition_absolute_no_demand_control::<f64>();
+}
+
+fn fri08_c05_later_owned_browser_parity_disposition(relative_path: &str) -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative_path);
+    let golden = fri06_c12_t08_browser_front_door::Golden::parse_file(path)
+        .expect("later-owned browser control parses");
+    fri06_c12_t08_browser_front_door::assert_surgeist_matches(&golden)
+        .expect_err("later-owned behavior must remain visibly unresolved during FRI-08")
+        .to_string()
+}
+
+#[test]
+fn fri09_c05_control_records_ordinary_grid_baseline_distribution_mismatch() {
+    assert_eq!(
+        fri08_c05_later_owned_browser_parity_disposition(
+            "tests/layout/browser_parity/xml/grid/grid_align_items_baseline_child_multiline_no_override_on_secondline__content_box_ltr.xml",
+        ),
+        "grid_align_items_baseline_child_multiline_no_override_on_secondline__content_box_ltr/1: y mismatch, expected 68, got 60"
+    );
+}
+
+#[test]
+fn fri10_c05_control_records_grid_absolute_percentage_and_static_position_mismatches() {
+    assert_eq!(
+        fri08_c05_later_owned_browser_parity_disposition(
+            "tests/layout/browser_parity/xml/grid/absolute_correct_cross_child_size_with_percentage__content_box_ltr.xml",
+        ),
+        "absolute_correct_cross_child_size_with_percentage__content_box_ltr/0: x mismatch, expected 50, got 0"
+    );
+    assert_eq!(
+        fri08_c05_later_owned_browser_parity_disposition(
+            "tests/layout/browser_parity/xml/grid/grid_absolute_layout_within_border_static__content_box_ltr.xml",
+        ),
+        "grid_absolute_layout_within_border_static__content_box_ltr/0: x mismatch, expected 10, got 0"
+    );
 }
 
 fn fri08_c05_composition_non_grid_block_control<S: LayoutScalar>() {
