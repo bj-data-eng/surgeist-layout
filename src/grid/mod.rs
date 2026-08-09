@@ -131,41 +131,18 @@ pub(crate) fn compute_grid_with_report<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let mut pass_input = input;
-    loop {
-        let result = compute_grid_with_context_result(
-            tree,
-            node,
-            pass_input,
-            GridParentContext::none(),
-            GridMeasurementBoundary::Ordinary,
-        )?;
-        if !input.run_mode().is_perform_layout() {
-            return Ok(GridComputationOf {
-                output: result.output,
-                report: result.report,
-            });
-        }
-        let Some(geometry) = result.output.scroll_geometry else {
-            return Ok(GridComputationOf {
-                output: result.output,
-                report: result.report,
-            });
-        };
-        let next_state = pass_input.settled_auto_scrollbars().transition(geometry);
-        if next_state == pass_input.settled_auto_scrollbars()
-            || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
-                geometry, next_state,
-            )
-            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?
-        {
-            return Ok(GridComputationOf {
-                output: result.output,
-                report: result.report,
-            });
-        }
-        pass_input = input.with_settled_auto_scrollbars(next_state);
-    }
+    let result = compute_grid_with_scrollbar_settlement(
+        tree,
+        node,
+        input,
+        input.settled_auto_scrollbars(),
+        GridParentContext::none(),
+        GridMeasurementBoundary::Ordinary,
+    )?;
+    Ok(GridComputationOf {
+        output: result.output,
+        report: result.report,
+    })
 }
 
 struct GridComputeResult<S: LayoutScalar = Scalar> {
@@ -184,6 +161,45 @@ impl<S: LayoutScalar> GridComputeResult<S> {
                 columns: Vec::new(),
             },
         }
+    }
+}
+
+fn compute_grid_with_scrollbar_settlement<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<Tree::Scalar>,
+    initial_state: crate::scroll::SettledAutoScrollbarState,
+    parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
+    measurement_boundary: GridMeasurementBoundary<Tree::Scalar>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    let mut pass_input = input.with_settled_auto_scrollbars(initial_state);
+    loop {
+        let result = compute_grid_with_context_result(
+            tree,
+            node,
+            pass_input,
+            parent_context.clone(),
+            measurement_boundary,
+        )?;
+        if !input.run_mode().is_perform_layout() {
+            return Ok(result);
+        }
+        let Some(geometry) = result.output.scroll_geometry else {
+            return Ok(result);
+        };
+        let next_state = pass_input.settled_auto_scrollbars().transition(geometry);
+        if next_state == pass_input.settled_auto_scrollbars()
+            || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
+                geometry, next_state,
+            )
+            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?
+        {
+            return Ok(result);
+        }
+        pass_input = input.with_settled_auto_scrollbars(next_state);
     }
 }
 
@@ -527,33 +543,14 @@ fn compute_grid_with_context_settled<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let mut pass_input =
-        input.with_settled_auto_scrollbars(crate::scroll::SettledAutoScrollbarState::INITIAL);
-    loop {
-        let result = compute_grid_with_context_result(
-            tree,
-            node,
-            pass_input,
-            parent_context.clone(),
-            measurement_boundary,
-        )?;
-        if !input.run_mode().is_perform_layout() {
-            return Ok(result);
-        }
-        let Some(geometry) = result.output.scroll_geometry else {
-            return Ok(result);
-        };
-        let next_state = pass_input.settled_auto_scrollbars().transition(geometry);
-        if next_state == pass_input.settled_auto_scrollbars()
-            || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
-                geometry, next_state,
-            )
-            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?
-        {
-            return Ok(result);
-        }
-        pass_input = input.with_settled_auto_scrollbars(next_state);
-    }
+    compute_grid_with_scrollbar_settlement(
+        tree,
+        node,
+        input,
+        crate::scroll::SettledAutoScrollbarState::INITIAL,
+        parent_context,
+        measurement_boundary,
+    )
 }
 
 fn compute_grid_with_context_result<Tree, M>(

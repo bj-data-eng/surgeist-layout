@@ -10407,6 +10407,113 @@ fn fri05_c05_grid_auto_settles_cross_axis_induction_and_partitions_nested_pass_s
     }));
 }
 
+fn assert_fri08_c07_t04_grid_settlement_root_and_context_state<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let caller_state = crate::scroll::SettledAutoScrollbarState::new(false, true);
+    let mut tree = OracleTreeOf::<S>::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                ),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(10.0)).unwrap(),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(95.0))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(120.0))],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(1, NodeInputOf::default());
+    let input = ComputeInputOf::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::splat(Some(scalar(100.0))),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::splat(AvailableOf::definite(scalar(100.0))),
+    )
+    .with_settled_auto_scrollbars(caller_state);
+
+    let output = compute_grid(&mut tree, 0, input).unwrap();
+    let geometry = output.scroll_geometry.unwrap();
+    assert!(geometry.gutters().right().is_some());
+    assert!(geometry.gutters().bottom().is_some());
+    assert_eq!(geometry.content_box().size(), Size::splat(scalar(90.0)));
+
+    let performed = tree
+        .inputs(1)
+        .iter()
+        .filter(|input| input.run_mode() == RunMode::PerformLayout)
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(performed.len(), 2, "caller-settled y then induced x pass");
+    assert_eq!(
+        performed
+            .iter()
+            .map(ComputeInputOf::containing_auto_scrollbar_pass)
+            .collect::<Vec<_>>(),
+        vec![
+            caller_state,
+            crate::scroll::SettledAutoScrollbarState::new(true, true),
+        ]
+    );
+    assert!(performed.iter().all(|input| {
+        input.settled_auto_scrollbars() == crate::scroll::SettledAutoScrollbarState::INITIAL
+    }));
+
+    let mut measurement_tree = OracleTreeOf::<S>::new()
+        .children(0, [])
+        .style(0, tree.node_input(0).clone());
+    let measurement = compute_grid(
+        &mut measurement_tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::splat(Some(scalar(100.0))),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(AvailableOf::definite(scalar(100.0))),
+        )
+        .with_settled_auto_scrollbars(caller_state),
+    )
+    .unwrap();
+    assert!(measurement.scroll_geometry.is_none());
+}
+
+#[test]
+fn fri08_c07_t04_grid_settlement_preserves_root_context_state_and_termination() {
+    assert_fri08_c07_t04_grid_settlement_root_and_context_state::<f32>();
+    assert_fri08_c07_t04_grid_settlement_root_and_context_state::<f64>();
+}
+
+#[test]
+fn fri08_c07_t04_grid_settlement_preserves_geometry_cache_and_inherited_contexts() {
+    assert_fri05_c05_grid_round_cache_for_display::<f32>(Display::Grid);
+    assert_fri05_c05_grid_round_cache_for_display::<f64>(Display::Grid);
+    assert_fri08_c06r_inherited_placement_flow_matrix::<f32>();
+    assert_fri08_c06r_inherited_placement_flow_matrix::<f64>();
+}
+
+#[test]
+fn fri08_c07_t04_grid_settlement_preserves_exact_error_mapping() {
+    assert_fri06_mr02_geometry_error_grid_own::<f32>();
+    assert_fri06_mr02_geometry_error_grid_own::<f64>();
+}
+
 #[test]
 fn fri05_c05_grid_auto_covers_none_single_axis_and_both_induction_orders() {
     for (tracks, expected_gutters, expected_passes) in [
