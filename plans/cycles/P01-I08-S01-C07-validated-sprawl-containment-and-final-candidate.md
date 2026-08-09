@@ -1,6 +1,6 @@
 # P01-I08-S01-C07 Validated Sprawl Containment And Final Candidate
 
-Status: in_progress
+Status: superseded
 
 Cycle ID: `P01/I08/S01/C07`
 
