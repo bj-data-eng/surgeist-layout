@@ -1,6 +1,6 @@
 # P01-I08-S01-C06 Browser Artifact Candidate
 
-Status: complete
+Status: in_progress
 
 Cycle ID: `P01/I08/S01/C06`
 
