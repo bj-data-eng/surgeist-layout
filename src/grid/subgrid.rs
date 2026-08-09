@@ -2045,7 +2045,7 @@ where
     Ok(Some((traversal_children, queried_axis_fully_inherited)))
 }
 
-fn inherited_subgrid_axis_for_parent_axis<Node, S: LayoutScalar>(
+pub(super) fn inherited_subgrid_axis_for_parent_axis<Node, S: LayoutScalar>(
     style: &NodeInputOf<S>,
     item_report: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,

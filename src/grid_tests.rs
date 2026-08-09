@@ -1097,6 +1097,64 @@ fn fri08_c03_intrinsic_equivalence_requires_candidates_baseline_role_and_edges()
     assert_eq!(equivalent.max_max_content, 50.0);
 }
 
+fn assert_fri08_c03_nested_candidate_bounds_edges_and_reversal<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let projection = NestedLaneIntrinsicProjectionOf {
+        root_track_count: 5,
+        axis: GridAxisKind::Column,
+        wrapper_span: 3,
+        wrapper_starts: vec![1],
+        reversed: false,
+        parent_gap: S::ZERO,
+        accumulated_edges: LaneIntrinsicEdgeFactsOf::default(),
+        wrapper_edges: LaneIntrinsicEdgeFactsOf {
+            start_mbp: scalar(2.0),
+            end_mbp: scalar(5.0),
+            start_half_gap: scalar(3.0),
+            end_half_gap: scalar(7.0),
+        },
+    };
+    let groups = nested_lane_candidate_groups(&projection, 1, [0, 1, 2]);
+    assert_eq!(groups.len(), 3);
+    assert!(groups.iter().any(|group| {
+        group.starts == [1]
+            && group.edges.start_mbp == scalar(2.0)
+            && group.edges.start_half_gap == scalar(3.0)
+            && group.edges.end_mbp == S::ZERO
+    }));
+    assert!(groups.iter().any(|group| {
+        group.starts == [2] && group.edges == LaneIntrinsicEdgeFactsOf::default()
+    }));
+    assert!(groups.iter().any(|group| {
+        group.starts == [3]
+            && group.edges.end_mbp == scalar(5.0)
+            && group.edges.end_half_gap == scalar(7.0)
+            && group.edges.start_mbp == S::ZERO
+    }));
+
+    let reversed = NestedLaneIntrinsicProjectionOf {
+        reversed: true,
+        ..projection
+    };
+    let reversed_groups = nested_lane_candidate_groups(&reversed, 1, [0, 1, 2]);
+    assert!(reversed_groups.iter().any(|group| {
+        group.starts == [3]
+            && group.edges.end_mbp == scalar(2.0)
+            && group.edges.end_half_gap == scalar(3.0)
+    }));
+    assert!(reversed_groups.iter().any(|group| {
+        group.starts == [1]
+            && group.edges.start_mbp == scalar(5.0)
+            && group.edges.start_half_gap == scalar(7.0)
+    }));
+}
+
+#[test]
+fn fri08_c03_nested_candidate_bounds_edges_and_reversal_are_scalar_stable() {
+    assert_fri08_c03_nested_candidate_bounds_edges_and_reversal::<f32>();
+    assert_fri08_c03_nested_candidate_bounds_edges_and_reversal::<f64>();
+}
+
 fn assert_fri08_c03_intrinsic_fixed_content_gap_distribution<S: LayoutScalar>() {
     let scalar = S::from_f64;
     let input = LaneIntrinsicSizingInputOf::<S> {
@@ -7128,6 +7186,7 @@ where
         border: Edges::ZERO,
     };
     let tracks = [TrackSizingOf::AUTO, TrackSizingOf::AUTO];
+    let subgrid_report = collect_subgrid_report(&tree, 0, tree.node_input(0));
     let intrinsic_sizes = lane_intrinsic_track_sizes(
         &mut tree,
         0,
@@ -7146,6 +7205,7 @@ where
                 row_explicit_count: 1,
             },
             placements: &placements,
+            subgrid_report: &subgrid_report,
         },
     )
     .expect("intrinsic collection succeeds")
@@ -33105,28 +33165,6 @@ mod root_oracle {
     }
 
     #[test]
-    fn oracle_lanes_intrinsic_reports_nested_indefinite_subgrid_unsupported() {
-        let err = grid::lane_intrinsic_sizing(grid::LaneIntrinsicSizingInput {
-            axis: GridAxis::Column,
-            available: Some(300.0),
-            gap: 10.0,
-            tracks: vec![GridTrack::auto(), GridTrack::auto(), GridTrack::auto()],
-            content_sized_tracks: vec![0, 1, 2],
-            items: vec![grid::LaneIntrinsicItem::nested_indefinite_subgrid(
-                "subgrid-child",
-                oracle_lane_span(2),
-                oracle_lane_facts(20.0, 50.0),
-            )],
-        })
-        .unwrap_err();
-
-        assert_eq!(
-            err,
-            grid::OracleGridError::NestedGridLanesSubgridIndefiniteUnsupported
-        );
-    }
-
-    #[test]
     fn oracle_lanes_intrinsic_rejects_invalid_definite_span() {
         let err = grid::LaneIntrinsicItem::definite(
             "bad",
@@ -35664,33 +35702,6 @@ mod root_layout_oracle {
     }
 
     #[test]
-    fn lanes_intrinsic_reports_nested_indefinite_subgrid_unsupported_like_oracle() {
-        let production_facts = production_lane_facts(20.0, 50.0);
-        let production = production_lane_intrinsic_sizing(ProductionLaneIntrinsicSizingInput {
-            axis: ProductionGridAxisKind::Column,
-            available: Some(300.0),
-            gap: 10.0,
-            tracks: vec![
-                ProductionTrackSizing::AUTO,
-                ProductionTrackSizing::AUTO,
-                ProductionTrackSizing::AUTO,
-            ],
-            content_sized_tracks: vec![0, 1, 2],
-            items: vec![ProductionLaneIntrinsicItem::nested_indefinite_subgrid(
-                "subgrid-child",
-                production_lane_span(2),
-                production_facts,
-            )],
-        });
-
-        assert!(
-            production
-                .expect("nested subgrid rejection should not be a value-resolution error")
-                .is_err()
-        );
-    }
-
-    #[test]
     fn lanes_content_size_contributes_to_indefinite_container_size() {
         let expected_columns = TrackSizingSlice::indefinite_columns(0.0)
             .track(GridTrack::fixed(40.0))
@@ -36127,7 +36138,7 @@ mod root_layout_oracle {
     }
 
     #[test]
-    fn lanes_indefinite_nested_subgrid_does_not_contribute_as_ordinary_lane_item() {
+    fn fri08_c03_nested_empty_wrapper_does_not_substitute_its_zero_box() {
         GridLayoutComparison::new()
             .root_display(crate::Display::GridLanes)
             .container(Size::new(0.0, 10.0))
@@ -36153,6 +36164,84 @@ mod root_layout_oracle {
                     .expect_layout(Point::new(0.0, 0.0), Size::new(0.0, 10.0)),
             )
             .assert_layout_size(Size::new(0.0, 10.0));
+    }
+
+    #[test]
+    fn fri08_c03_nested_automatic_wrapper_projects_descendant_intrinsic_size() {
+        let expected_columns = TrackSizingSlice::indefinite_columns(0.0)
+            .track(GridTrack::auto())
+            .track(GridTrack::auto())
+            .track(GridTrack::auto())
+            .item(intrinsic_item(GridArea::new(2, 1, 1, 1), 90.0))
+            .item(intrinsic_item(GridArea::new(3, 1, 1, 1), 90.0))
+            .solve();
+        let expected_rows = TrackSizingSlice::definite_rows(10.0, 0.0)
+            .track(GridTrack::fixed(10.0))
+            .solve();
+
+        GridLayoutComparison::new()
+            .root_display(crate::Display::GridLanes)
+            .container(Size::new(0.0, 10.0))
+            .root_size(Size::new(PreferredSize::AUTO, PreferredSize::px(10.0)))
+            .columns(vec![
+                TrackComponent::AUTO,
+                TrackComponent::AUTO,
+                TrackComponent::AUTO,
+            ])
+            .rows(vec![TrackComponent::px(10.0)])
+            .expected_tracks(expected_columns, expected_rows)
+            .node(
+                GridLayoutNode::auto_spanning_item(GridArea::new(1, 1, 2, 1), 2, 1)
+                    .display(crate::Display::GridLanes)
+                    .columns(vec![TrackComponent::Subgrid(crate::SubgridTrack {
+                        name_components: Vec::new(),
+                    })])
+                    .rows(vec![TrackComponent::px(10.0)])
+                    .child(
+                        GridLayoutNode::item(GridArea::new(2, 1, 1, 1))
+                            .measurement(Size::new(90.0, 10.0)),
+                    ),
+            )
+            .assert_layout_size(Size::new(180.0, 10.0));
+    }
+
+    #[test]
+    fn fri08_c03_nested_definite_wrapper_bounds_automatic_descendant_candidates() {
+        let expected_columns = TrackSizingSlice::indefinite_columns(0.0)
+            .track(GridTrack::auto())
+            .track(GridTrack::auto())
+            .track(GridTrack::auto())
+            .item(intrinsic_item(GridArea::new(2, 1, 1, 1), 90.0))
+            .item(intrinsic_item(GridArea::new(3, 1, 1, 1), 90.0))
+            .solve();
+        let expected_rows = TrackSizingSlice::definite_rows(10.0, 0.0)
+            .track(GridTrack::fixed(10.0))
+            .solve();
+
+        GridLayoutComparison::new()
+            .root_display(crate::Display::GridLanes)
+            .container(Size::new(0.0, 10.0))
+            .root_size(Size::new(PreferredSize::AUTO, PreferredSize::px(10.0)))
+            .columns(vec![
+                TrackComponent::AUTO,
+                TrackComponent::AUTO,
+                TrackComponent::AUTO,
+            ])
+            .rows(vec![TrackComponent::px(10.0)])
+            .expected_tracks(expected_columns, expected_rows)
+            .node(
+                GridLayoutNode::item(GridArea::new(2, 1, 2, 1))
+                    .display(crate::Display::GridLanes)
+                    .columns(vec![TrackComponent::Subgrid(crate::SubgridTrack {
+                        name_components: Vec::new(),
+                    })])
+                    .rows(vec![TrackComponent::px(10.0)])
+                    .child(
+                        GridLayoutNode::auto_item(GridArea::new(1, 1, 1, 1))
+                            .measurement(Size::new(90.0, 10.0)),
+                    ),
+            )
+            .assert_layout_size(Size::new(180.0, 10.0));
     }
 
     #[test]

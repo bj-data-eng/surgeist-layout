@@ -148,7 +148,6 @@ pub enum LanePlacementError {
     },
     InvalidGridFlowToleranceBasis,
     InvalidGridFlowToleranceResolution,
-    NestedGridLanesSubgridIndefiniteUnsupported,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -247,7 +246,6 @@ pub type LaneIntrinsicItem = LaneIntrinsicItemOf<DefaultScalar>;
 pub enum LaneIntrinsicItemKind {
     Definite { span: LaneTrackSpan },
     Indefinite { span: LaneTrackSpanLength },
-    NestedIndefiniteSubgrid { span: LaneTrackSpanLength },
 }
 
 impl<S: LayoutScalar> LaneIntrinsicItemOf<S> {
@@ -275,19 +273,6 @@ impl<S: LayoutScalar> LaneIntrinsicItemOf<S> {
         Self {
             id,
             kind: LaneIntrinsicItemKind::Indefinite { span },
-            contribution,
-        }
-    }
-
-    #[must_use]
-    pub const fn nested_indefinite_subgrid(
-        id: &'static str,
-        span: LaneTrackSpanLength,
-        contribution: LaneContributionFactsOf<S>,
-    ) -> Self {
-        Self {
-            id,
-            kind: LaneIntrinsicItemKind::NestedIndefiniteSubgrid { span },
             contribution,
         }
     }
@@ -666,11 +651,6 @@ where
                     });
                 }
             }
-            LaneIntrinsicItemKind::NestedIndefiniteSubgrid { .. } => {
-                return Ok(Err(
-                    LanePlacementError::NestedGridLanesSubgridIndefiniteUnsupported,
-                ));
-            }
         }
     }
 
@@ -1047,6 +1027,7 @@ pub(super) struct LaneIntrinsicTrackSizeInput<'a, Node, S: LayoutScalar = Scalar
     pub(super) gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     pub(super) lines: GridLines,
     pub(super) placements: &'a GridPlacementContext<Node>,
+    pub(super) subgrid_report: &'a GridSubgridReport<Node>,
 }
 
 #[expect(
@@ -1076,6 +1057,7 @@ where
         gutters,
         lines,
         placements,
+        subgrid_report,
     } = input;
     let content_sized_tracks = tracks
         .iter()
@@ -1107,25 +1089,71 @@ where
         };
         let (definite_grid_axis_start, grid_axis_span) =
             lane_grid_axis_facts(placement, tracks.len(), grid_axis_lines(lines, axis));
+        let item_report = subgrid_report
+            .items
+            .get(source_slot)
+            .copied()
+            .expect("grid-lanes subgrid report must preserve one item per child");
+        if let Some(child_axis) =
+            inherited_subgrid_axis_for_parent_axis(&child_style, item_report, axis)
+        {
+            let axis_report = match child_axis {
+                GridAxisKind::Column => item_report.column,
+                GridAxisKind::Row => item_report.row,
+            };
+            let reversed = axis_report
+                .mapping
+                .expect("an inheritable subgrid axis has a valid mapping")
+                .reversed;
+            let wrapper_span = grid_axis_span.max(1).min(tracks.len());
+            let collapsed = gutters
+                .map(OrdinaryGridAxisGuttersOf::collapsed)
+                .unwrap_or(&[]);
+            let wrapper_starts = definite_grid_axis_start.map_or_else(
+                || active_candidate_starts(tracks.len(), wrapper_span, collapsed),
+                |start| vec![start - 1],
+            );
+            let wrapper_edges = lane_child_edge_facts(
+                tree,
+                child,
+                &child_style,
+                constants.flow_axes,
+                constants.node_inner_size,
+                axis,
+            )?;
+            collect_nested_lane_intrinsic_items(
+                tree,
+                child,
+                &child_style,
+                constants,
+                NestedLaneIntrinsicProjectionOf {
+                    root_track_count: tracks.len(),
+                    axis: child_axis,
+                    wrapper_span,
+                    wrapper_starts,
+                    reversed,
+                    parent_gap: gap,
+                    accumulated_edges: LaneIntrinsicEdgeFactsOf::default(),
+                    wrapper_edges,
+                },
+                available,
+                &mut items,
+            )?;
+            continue;
+        }
         let child_facts = lane_child_contribution_facts(
             tree,
             child,
             &child_style,
-            &container_style,
-            constants,
-            axis,
-            available,
+            LaneChildIntrinsicMeasurementContextOf {
+                container_style: &container_style,
+                constants,
+                containing_flow_axes: constants.flow_axes,
+                axis,
+                available,
+            },
         )?;
-        let item = if definite_grid_axis_start.is_none()
-            && lane_child_has_unsupported_indefinite_subgrid(&child_style, axis)
-        {
-            LaneIntrinsicItemOf::nested_indefinite_subgrid(
-                "nested-subgrid",
-                LaneTrackSpanLength::new(grid_axis_span)
-                    .unwrap_or_else(|| LaneTrackSpanLength::new(1).expect("one is nonzero")),
-                child_facts.contribution,
-            )
-        } else if let Some(start) = definite_grid_axis_start {
+        let item = if let Some(start) = definite_grid_axis_start {
             match LaneIntrinsicItemOf::definite(
                 "definite-item",
                 LaneTrackSpan::new(start, start + grid_axis_span),
@@ -1178,25 +1206,328 @@ struct LaneChildIntrinsicFactsOf<S: LayoutScalar = Scalar> {
     contribution_kind: IntrinsicSpanContribution,
 }
 
-fn lane_child_has_unsupported_indefinite_subgrid<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
-    axis: GridAxisKind,
-) -> bool {
-    let axis_has_subgrid = match axis {
-        GridAxisKind::Column => subgrid_components(&style.grid_template_columns),
-        GridAxisKind::Row => subgrid_components(&style.grid_template_rows),
+#[derive(Clone)]
+pub(super) struct NestedLaneIntrinsicProjectionOf<S: LayoutScalar = Scalar> {
+    pub(super) root_track_count: usize,
+    pub(super) axis: GridAxisKind,
+    pub(super) wrapper_span: usize,
+    pub(super) wrapper_starts: Vec<usize>,
+    pub(super) reversed: bool,
+    pub(super) parent_gap: S,
+    pub(super) accumulated_edges: LaneIntrinsicEdgeFactsOf<S>,
+    pub(super) wrapper_edges: LaneIntrinsicEdgeFactsOf<S>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct NestedLaneCandidateGroupOf<S: LayoutScalar = Scalar> {
+    pub(super) starts: Vec<usize>,
+    pub(super) edges: LaneIntrinsicEdgeFactsOf<S>,
+}
+
+fn add_lane_intrinsic_edges<S: LayoutScalar>(
+    left: LaneIntrinsicEdgeFactsOf<S>,
+    right: LaneIntrinsicEdgeFactsOf<S>,
+) -> LaneIntrinsicEdgeFactsOf<S> {
+    LaneIntrinsicEdgeFactsOf {
+        start_mbp: left.start_mbp + right.start_mbp,
+        end_mbp: left.end_mbp + right.end_mbp,
+        start_half_gap: left.start_half_gap + right.start_half_gap,
+        end_half_gap: left.end_half_gap + right.end_half_gap,
+    }
+}
+
+fn translated_nested_lane_start(
+    wrapper_start: usize,
+    wrapper_span: usize,
+    local_start: usize,
+    child_span: usize,
+    reversed: bool,
+) -> usize {
+    if reversed {
+        wrapper_start + wrapper_span - local_start - child_span
+    } else {
+        wrapper_start + local_start
+    }
+}
+
+pub(super) fn nested_lane_candidate_groups<S: LayoutScalar>(
+    projection: &NestedLaneIntrinsicProjectionOf<S>,
+    child_span: usize,
+    local_starts: impl IntoIterator<Item = usize>,
+) -> Vec<NestedLaneCandidateGroupOf<S>> {
+    let mut groups: Vec<NestedLaneCandidateGroupOf<S>> = Vec::new();
+    for local_start in local_starts {
+        let touches_local_start = local_start == 0;
+        let touches_local_end = local_start + child_span == projection.wrapper_span;
+        for wrapper_start in &projection.wrapper_starts {
+            let mut boundary_edges = LaneIntrinsicEdgeFactsOf::default();
+            if touches_local_start {
+                if projection.reversed {
+                    boundary_edges.end_mbp = projection.wrapper_edges.start_mbp;
+                    boundary_edges.end_half_gap = projection.wrapper_edges.start_half_gap;
+                } else {
+                    boundary_edges.start_mbp = projection.wrapper_edges.start_mbp;
+                    boundary_edges.start_half_gap = projection.wrapper_edges.start_half_gap;
+                }
+            }
+            if touches_local_end {
+                if projection.reversed {
+                    boundary_edges.start_mbp = projection.wrapper_edges.end_mbp;
+                    boundary_edges.start_half_gap = projection.wrapper_edges.end_half_gap;
+                } else {
+                    boundary_edges.end_mbp = projection.wrapper_edges.end_mbp;
+                    boundary_edges.end_half_gap = projection.wrapper_edges.end_half_gap;
+                }
+            }
+            let edges = add_lane_intrinsic_edges(projection.accumulated_edges, boundary_edges);
+            let start = translated_nested_lane_start(
+                *wrapper_start,
+                projection.wrapper_span,
+                local_start,
+                child_span,
+                projection.reversed,
+            );
+            if start + child_span > projection.root_track_count {
+                continue;
+            }
+            if let Some(group) = groups.iter_mut().find(|group| group.edges == edges) {
+                group.starts.push(start);
+            } else {
+                groups.push(NestedLaneCandidateGroupOf {
+                    starts: vec![start],
+                    edges,
+                });
+            }
+        }
+    }
+    for group in &mut groups {
+        group.starts.sort_unstable();
+        group.starts.dedup();
+    }
+    groups
+}
+
+fn collect_nested_lane_intrinsic_items<Tree, M>(
+    tree: &mut Tree,
+    wrapper: <Tree as Traverse>::Node,
+    wrapper_style: &NodeInputOf<Tree::Scalar>,
+    constants: &Constants<Tree::Scalar>,
+    mut projection: NestedLaneIntrinsicProjectionOf<Tree::Scalar>,
+    available: AvailableOf<Tree::Scalar>,
+    items: &mut Vec<ProjectedLaneIntrinsicItemOf<Tree::Scalar>>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    if projection.wrapper_starts.is_empty() || projection.wrapper_span == 0 {
+        return Ok(());
+    }
+    let wrapper_flow_axes =
+        crate::geometry::FlowAxes::new(wrapper_style.writing_mode, wrapper_style.direction);
+    let logical_gap = wrapper_flow_axes.logical_size(wrapper_style.gap);
+    let gap_value = match projection.axis {
+        GridAxisKind::Column => logical_gap.inline,
+        GridAxisKind::Row => logical_gap.block,
     };
-    axis_has_subgrid && style.display.establishes_grid_formatting_context()
+    let logical_containing_size = wrapper_flow_axes.logical_size(constants.node_inner_size);
+    let gap_basis = match projection.axis {
+        GridAxisKind::Column => logical_containing_size.inline,
+        GridAxisKind::Row => logical_containing_size.block,
+    };
+    let wrapper_gap = match gap_value {
+        LengthOf::Normal => projection.parent_gap,
+        value => resolve_length_or_zero(value, gap_basis)
+            .map_err(|status| crate::compute::value_resolution_error(wrapper, status))?,
+    };
+    let half_gap_difference = (wrapper_gap - projection.parent_gap) / Tree::Scalar::from_f64(2.0);
+    projection.wrapper_edges.start_half_gap = half_gap_difference;
+    projection.wrapper_edges.end_half_gap = half_gap_difference;
+
+    let children = tree.children(wrapper).collect::<Vec<_>>();
+    let order = item_order_permutation(
+        &children
+            .iter()
+            .enumerate()
+            .filter_map(|(index, child)| {
+                let style = tree.node_input(*child);
+                is_in_flow_grid_child(style)
+                    .then_some((style.item_order, crate::SourceIndex::new(index)))
+            })
+            .collect::<Vec<_>>(),
+    );
+    for source_index in order {
+        let child = children[source_index.get()];
+        let child_style = tree.node_input(child).clone();
+        if !is_in_flow_grid_child(&child_style)
+            || scroll_container_auto_minimum_zero(&child_style, wrapper_flow_axes, projection.axis)
+        {
+            continue;
+        }
+        let placement = match projection.axis {
+            GridAxisKind::Column => child_style.grid_column,
+            GridAxisKind::Row => child_style.grid_row,
+        };
+        let (definite_start, child_span) = lane_grid_axis_facts(
+            placement,
+            projection.wrapper_span,
+            GridAxisLines {
+                explicit_start: 0,
+                explicit_count: projection.wrapper_span,
+            },
+        );
+        let child_span = child_span.max(1).min(projection.wrapper_span);
+        let local_starts = definite_start.map_or_else(
+            || candidate_starts(projection.wrapper_span, child_span).collect::<Vec<_>>(),
+            |start| vec![start - 1],
+        );
+        let candidate_groups = nested_lane_candidate_groups(&projection, child_span, local_starts);
+        if candidate_groups.is_empty() {
+            continue;
+        }
+
+        let item_report = SubgridItemReport {
+            node: child,
+            column: subgrid_axis_report(wrapper_style, &child_style, GridAxisKind::Column),
+            row: subgrid_axis_report(wrapper_style, &child_style, GridAxisKind::Row),
+        };
+        if let Some(child_axis) =
+            inherited_subgrid_axis_for_parent_axis(&child_style, item_report, projection.axis)
+        {
+            let axis_report = match child_axis {
+                GridAxisKind::Column => item_report.column,
+                GridAxisKind::Row => item_report.row,
+            };
+            let mapping_reversed = axis_report
+                .mapping
+                .expect("an inheritable subgrid axis has a valid mapping")
+                .reversed;
+            let wrapper_edges = lane_child_edge_facts(
+                tree,
+                child,
+                &child_style,
+                wrapper_flow_axes,
+                constants.node_inner_size,
+                projection.axis,
+            )?;
+            for group in candidate_groups {
+                collect_nested_lane_intrinsic_items(
+                    tree,
+                    child,
+                    &child_style,
+                    constants,
+                    NestedLaneIntrinsicProjectionOf {
+                        root_track_count: projection.root_track_count,
+                        axis: child_axis,
+                        wrapper_span: child_span,
+                        wrapper_starts: group.starts,
+                        reversed: projection.reversed ^ mapping_reversed,
+                        parent_gap: wrapper_gap,
+                        accumulated_edges: group.edges,
+                        wrapper_edges,
+                    },
+                    available,
+                    items,
+                )?;
+            }
+            continue;
+        }
+
+        let child_facts = lane_child_contribution_facts(
+            tree,
+            child,
+            &child_style,
+            LaneChildIntrinsicMeasurementContextOf {
+                container_style: wrapper_style,
+                constants,
+                containing_flow_axes: wrapper_flow_axes,
+                axis: projection.axis,
+                available,
+            },
+        )?;
+        for group in candidate_groups {
+            let adjustment = group.edges.start_mbp
+                + group.edges.end_mbp
+                + group.edges.start_half_gap
+                + group.edges.end_half_gap;
+            let contribution = LaneContributionFactsOf {
+                min_content: (child_facts.contribution.min_content + adjustment)
+                    .max(Tree::Scalar::ZERO),
+                max_content: (child_facts.contribution.max_content + adjustment)
+                    .max(Tree::Scalar::ZERO),
+                min_size: (child_facts.contribution.min_size + adjustment).max(Tree::Scalar::ZERO),
+                automatic_minimum_applies: child_facts.contribution.automatic_minimum_applies,
+            };
+            items.push(ProjectedLaneIntrinsicItemOf {
+                id: "nested-descendant",
+                kind: LaneIntrinsicItemKind::Indefinite {
+                    span: LaneTrackSpanLength::new(child_span)
+                        .expect("nested descendant spans are nonzero"),
+                },
+                candidate_starts: Some(group.starts),
+                contribution,
+                baseline_role: child_facts.baseline_role,
+                edges: add_lane_intrinsic_edges(group.edges, child_facts.edges),
+                contribution_kind: child_facts.contribution_kind,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn lane_child_edge_facts<Tree, M>(
+    tree: &Tree,
+    child: <Tree as Traverse>::Node,
+    child_style: &NodeInputOf<Tree::Scalar>,
+    containing_flow_axes: crate::geometry::FlowAxes,
+    containing_size: Size<Option<Tree::Scalar>>,
+    axis: GridAxisKind,
+) -> LayoutResultOf<<Tree as Traverse>::Node, LaneIntrinsicEdgeFactsOf<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    let margin = intrinsic_contribution_margin(child_style, containing_flow_axes, containing_size)
+        .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+    let padding = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(
+            child_style.padding,
+            containing_size,
+            resolve_length_or_zero,
+        )
+        .transpose_with_node(tree, child)?;
+    let border = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(
+            child_style.border,
+            containing_size,
+            resolve_length_or_zero,
+        )
+        .transpose_with_node(tree, child)?;
+    let logical_mbp = containing_flow_axes.logical_edges(margin + padding + border);
+    let (start_mbp, end_mbp) = match axis.logical_axis() {
+        LogicalAxis::Inline => (logical_mbp.inline_start, logical_mbp.inline_end),
+        LogicalAxis::Block => (logical_mbp.block_start, logical_mbp.block_end),
+    };
+    Ok(LaneIntrinsicEdgeFactsOf {
+        start_mbp,
+        end_mbp,
+        start_half_gap: Tree::Scalar::ZERO,
+        end_half_gap: Tree::Scalar::ZERO,
+    })
+}
+
+#[derive(Clone, Copy)]
+struct LaneChildIntrinsicMeasurementContextOf<'a, S: LayoutScalar = Scalar> {
+    container_style: &'a NodeInputOf<S>,
+    constants: &'a Constants<S>,
+    containing_flow_axes: crate::geometry::FlowAxes,
+    axis: GridAxisKind,
+    available: AvailableOf<S>,
 }
 
 fn lane_child_contribution_facts<Tree, M>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
     child_style: &NodeInputOf<Tree::Scalar>,
-    container_style: &NodeInputOf<Tree::Scalar>,
-    constants: &Constants<Tree::Scalar>,
-    axis: GridAxisKind,
-    available: AvailableOf<Tree::Scalar>,
+    context: LaneChildIntrinsicMeasurementContextOf<'_, Tree::Scalar>,
 ) -> LayoutResultOf<
     <Tree as Traverse>::Node,
     LaneChildIntrinsicFactsOf<Tree::Scalar>,
@@ -1206,6 +1537,13 @@ fn lane_child_contribution_facts<Tree, M>(
 where
     Tree: Compute<M>,
 {
+    let LaneChildIntrinsicMeasurementContextOf {
+        container_style,
+        constants,
+        containing_flow_axes,
+        axis,
+        available,
+    } = context;
     let preferred_size = grid_lanes_child_sizing_preflight(
         child_style,
         Size::new(
@@ -1215,9 +1553,9 @@ where
     )
     .map_err(|error| sizing_resolution_error(child, error))?;
     let min_available =
-        lane_child_intrinsic_available(constants.flow_axes, axis, preferred_size, available);
+        lane_child_intrinsic_available(containing_flow_axes, axis, preferred_size, available);
     let max_available = lane_child_intrinsic_available(
-        constants.flow_axes,
+        containing_flow_axes,
         axis,
         preferred_size,
         AvailableOf::MAX_CONTENT,
@@ -1234,7 +1572,7 @@ where
                 constants.node_inner_size.height,
             ),
             crate::ContainingLayoutContext::new(
-                constants.flow_axes,
+                containing_flow_axes,
                 crate::ParentFormattingContext::Grid,
             ),
             min_available,
@@ -1252,24 +1590,24 @@ where
                 constants.node_inner_size.height,
             ),
             crate::ContainingLayoutContext::new(
-                constants.flow_axes,
+                containing_flow_axes,
                 crate::ParentFormattingContext::Grid,
             ),
             max_available,
         ),
     )?;
     let margin =
-        intrinsic_contribution_margin(child_style, constants.flow_axes, constants.node_inner_size)
+        intrinsic_contribution_margin(child_style, containing_flow_axes, constants.node_inner_size)
             .map_err(|status| crate::compute::value_resolution_error(child, status))?;
-    let used_overflow = grid_axis_used_overflow(child_style, constants.flow_axes, axis);
-    let min_output_size = lane_axis_size(constants.flow_axes.logical_size(min_output.size), axis);
+    let used_overflow = grid_axis_used_overflow(child_style, containing_flow_axes, axis);
+    let min_output_size = lane_axis_size(containing_flow_axes.logical_size(min_output.size), axis);
     let min_content_size = lane_axis_size(
-        constants.flow_axes.logical_size(min_output.content_size),
+        containing_flow_axes.logical_size(min_output.content_size),
         axis,
     );
-    let max_output_size = lane_axis_size(constants.flow_axes.logical_size(max_output.size), axis);
+    let max_output_size = lane_axis_size(containing_flow_axes.logical_size(max_output.size), axis);
     let max_content_size = lane_axis_size(
-        constants.flow_axes.logical_size(max_output.content_size),
+        containing_flow_axes.logical_size(max_output.content_size),
         axis,
     );
     let min_contribution = if used_overflow.value() == Overflow::Visible {
@@ -1282,24 +1620,22 @@ where
     } else {
         max_output_size
     };
-    let padding = constants
-        .flow_axes
+    let padding = containing_flow_axes
         .zip_physical_edges_with_inline_extent(
             child_style.padding,
             constants.node_inner_size,
             resolve_length_or_zero,
         )
         .transpose_with_node(tree, child)?;
-    let border = constants
-        .flow_axes
+    let border = containing_flow_axes
         .zip_physical_edges_with_inline_extent(
             child_style.border,
             constants.node_inner_size,
             resolve_length_or_zero,
         )
         .transpose_with_node(tree, child)?;
-    let logical_margin = constants.flow_axes.logical_edges(margin);
-    let logical_mbp = constants.flow_axes.logical_edges(margin + padding + border);
+    let logical_margin = containing_flow_axes.logical_edges(margin);
+    let logical_mbp = containing_flow_axes.logical_edges(margin + padding + border);
     let margin_sum = lane_axis_margin_sum(logical_margin, axis);
     let (start_mbp, end_mbp) = match axis.logical_axis() {
         LogicalAxis::Inline => (logical_mbp.inline_start, logical_mbp.inline_end),
@@ -1315,7 +1651,7 @@ where
         AlignItems::LastBaseline => LaneIntrinsicBaselineRole::Last,
         _ => LaneIntrinsicBaselineRole::None,
     };
-    let automatic_minimum = automatic_minimum_applies(child_style, constants.flow_axes, axis);
+    let automatic_minimum = automatic_minimum_applies(child_style, containing_flow_axes, axis);
     Ok(LaneChildIntrinsicFactsOf {
         contribution: LaneContributionFactsOf {
             min_content: min_contribution + margin_sum,

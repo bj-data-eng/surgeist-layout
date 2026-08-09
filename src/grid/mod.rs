@@ -1877,6 +1877,7 @@ where
                 gutters: active_column_gutters,
                 lines,
                 placements,
+                subgrid_report,
             },
         )?;
         let lane_max = lane_intrinsic_track_sizes(
@@ -1892,6 +1893,7 @@ where
                 gutters: active_column_gutters,
                 lines,
                 placements,
+                subgrid_report,
             },
         )?;
         merge_lane_intrinsic_lower_bounds(&mut column_min_intrinsic_sizes, lane_min);
@@ -1972,6 +1974,7 @@ where
                 gutters: active_row_gutters,
                 lines,
                 placements,
+                subgrid_report,
             },
         )?;
         merge_lane_intrinsic_lower_bounds(&mut row_intrinsic_sizes, lane_rows);
@@ -2075,11 +2078,6 @@ fn merge_lane_intrinsic_lower_bounds<S: LayoutScalar>(
 ) {
     match lower_bounds {
         Ok(lower_bounds) => merge_intrinsic_lower_bounds(sizes, &lower_bounds),
-        Err(LanePlacementError::NestedGridLanesSubgridIndefiniteUnsupported) => {
-            // The first-pass supported scope intentionally leaves indefinite
-            // nested grid-lanes subgrid sizing unsupported. Keep that state
-            // explicit instead of treating the child as an ordinary lane item.
-        }
         Err(
             error @ (LanePlacementError::EmptyTrackList
             | LanePlacementError::InvalidGridAxisStart { .. }

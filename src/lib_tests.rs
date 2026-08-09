@@ -1054,6 +1054,38 @@ fn fri05_c04_flex_bridge_accounting_accepts_grid_family_closure() {
 }
 
 #[test]
+fn fri08_c03_public_removal_nested_lanes_unsupported_symbols_are_absent() {
+    let lanes = include_str!("grid/lanes.rs");
+    let grid = include_str!("grid/mod.rs");
+    let public_front_door = include_str!("lib.rs");
+
+    for removed_declaration in [
+        "NestedIndefiniteSubgrid { span: LaneTrackSpanLength }",
+        "pub const fn nested_indefinite_subgrid(",
+        "NestedGridLanesSubgridIndefiniteUnsupported",
+    ] {
+        assert!(
+            !lanes.contains(removed_declaration),
+            "retained removed grid-lanes declaration: {removed_declaration}"
+        );
+    }
+    for removed_use in [
+        "LaneIntrinsicItemKind::NestedIndefiniteSubgrid",
+        "LaneIntrinsicItemOf::nested_indefinite_subgrid",
+        "LanePlacementError::NestedGridLanesSubgridIndefiniteUnsupported",
+    ] {
+        assert!(
+            !lanes.contains(removed_use) && !grid.contains(removed_use),
+            "retained removed grid-lanes production use: {removed_use}"
+        );
+    }
+    assert!(
+        public_front_door.contains("LaneIntrinsicItemKind"),
+        "the retained definite/indefinite public item kind stays reexported"
+    );
+}
+
+#[test]
 fn fri05_c04_flex_round_cache_publication_has_one_canonical_geometry_path() {
     let flex = include_str!("flex.rs");
 

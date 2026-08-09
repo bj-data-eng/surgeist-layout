@@ -309,7 +309,6 @@ impl LaneTrackSpanLength {
 pub enum LaneIntrinsicItemKind {
     Definite { span: TrackSpan },
     Indefinite { span: LaneTrackSpanLength },
-    NestedIndefiniteSubgrid { span: LaneTrackSpanLength },
 }
 
 impl LaneIntrinsicItem {
@@ -337,19 +336,6 @@ impl LaneIntrinsicItem {
         Self {
             id,
             kind: LaneIntrinsicItemKind::Indefinite { span },
-            contribution,
-        }
-    }
-
-    #[must_use]
-    pub const fn nested_indefinite_subgrid(
-        id: &'static str,
-        span: LaneTrackSpanLength,
-        contribution: ItemContributionFacts,
-    ) -> Self {
-        Self {
-            id,
-            kind: LaneIntrinsicItemKind::NestedIndefiniteSubgrid { span },
             contribution,
         }
     }
@@ -446,9 +432,6 @@ pub fn lane_intrinsic_sizing(
                         item_ids: vec![item.id()],
                     });
                 }
-            }
-            LaneIntrinsicItemKind::NestedIndefiniteSubgrid { .. } => {
-                return Err(OracleGridError::NestedGridLanesSubgridIndefiniteUnsupported);
             }
         }
     }

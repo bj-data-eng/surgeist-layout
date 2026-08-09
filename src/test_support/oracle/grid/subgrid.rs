@@ -5,7 +5,6 @@ pub enum OracleGridError {
     NamedLineInheritanceUnsupported,
     BaselineInferenceUnsupported,
     MissingIntrinsicMinTrackFacts,
-    NestedGridLanesSubgridIndefiniteUnsupported,
     StandaloneSubgridTraversalUnsupported,
     EmptyTrackList,
     SpanOutOfRange,
