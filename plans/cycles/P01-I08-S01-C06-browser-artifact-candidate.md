@@ -165,15 +165,21 @@ sequence, and plan reviews.
 `src/grid/alignment.rs`, `src/grid/child.rs`, `src/grid/placement.rs`,
 `src/grid/subgrid.rs`, and `src/grid/mod.rs` only where necessary to consume or
 transport the same carrier; focused tests in `src/grid_tests.rs`; and final
-owned-row parity evidence in `tests/layout/browser_parity.rs`. `src/grid/lanes.rs`
-and lanes policy are frozen. Stop before widening the production envelope.
+owned-row parity evidence in `tests/layout/browser_parity.rs`.
+`src/grid/lanes.rs` is writable only at its existing gutter-reconstruction sites
+to transport the already-selected explicit active-boundary mask; its placement,
+collapse, sizing, and alignment policies remain frozen. Stop before widening
+the production envelope.
 
 **Outcome:** represent collapsed gutters as coincident boundaries: each
 contiguous interior collapsed run retains exactly one base gap between its
 nearest non-collapsed tracks, while leading, trailing, and all-collapsed runs
 create no outer gap. Every ordinary sizing/alignment/span/absolute/subgrid/
 baseline/overflow consumer uses that one carrier without reconstructing a
-uniform gap or independently zeroing boundaries.
+uniform gap or independently zeroing boundaries. The explicit active-boundary
+mask survives used-geometry construction, alignment, sizing-gutter
+reconstruction, inherited slicing, child consumption, and semantic reversal;
+numeric zero gutter values are never used to guess the policy.
 
 **RED evidence:** first retain the generated
 `fri08_auto_fit_occupied_track_collapse__border_box_ltr` failure x `50` versus
@@ -184,6 +190,10 @@ alignment, spans and absolute areas, and forward/reversed inherited subgrid
 geometry. The current carrier fails the interior cases because it zeros both
 adjacent boundaries. Existing C02 tests with the incorrect no-gap expectation
 must become corrected RED evidence, not be deleted or weakened.
+Add production-path GridLanes tests whose local `[active, collapsed,
+collapsed, active]`-equivalent policy passes through child and lanes
+reconstruction before forward/reversed inherited `SpaceBetween` consumption;
+they fail if either reconstruction regenerates the ordinary coincident mask.
 
 **Acceptance:** the generated row and all four variants match exact browser
 geometry: occupied track three starts at x `50`, and the automatic span-two item
@@ -192,8 +202,11 @@ of run length; outer/all-collapsed cases retain none. Active-gap totals,
 intrinsic/flex/stretch free space, content distribution, line offsets, spans,
 absolute areas, inherited/reversed carriers, baselines, and overflow agree.
 Auto-fill, lanes auto-fit, named/negative lines, occupancy, public API, errors,
-artifacts, and inputs remain unchanged. All 72 owned rows pass; FRI-09/F10
-controls remain separately visible. No browser or generator runs.
+artifacts, and inputs remain unchanged. GridLanes retains zero boundaries
+adjacent to collapsed tracks through every reconstruction and inherited
+distributed-alignment path in f32/f64 and forward/reversed axes. All 72 owned
+rows pass; FRI-09/F10 controls remain separately visible. No browser or
+generator runs.
 
 **Commands:**
 
