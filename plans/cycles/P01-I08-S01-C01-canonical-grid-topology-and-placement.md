@@ -1,6 +1,6 @@
 # P01-I08-S01-C01 Canonical Grid Topology And Placement
 
-Status: in_progress
+Status: draft
 
 Cycle ID: `P01/I08/S01/C01`
 
@@ -144,103 +144,94 @@ cargo fmt --check
 
 **Commit:** `refactor(grid): establish canonical explicit topology`
 
-### 4.2 `P01/I08/S01/C01/T02` Growable Integer Placement Demand
+### 4.2 `P01/I08/S01/C01/T02` Derive Placement Demand Before Sizing
 
-**Owned files:** `src/grid/placement.rs`, the occupancy and implicit-extension
-surface in `src/grid/topology.rs`, narrowly required orchestration in
-`src/grid/mod.rs`, and focused tracked grid tests. T01 name semantics may be
-consumed but not redesigned.
+T02 combines scalar-free placement with its public-layout integration because
+the T01 base has no independently behavior-testable placement-demand boundary.
+The public layout surface supplies the stable owning API for valid RED evidence;
+compile failure against a newly invented private helper is not RED evidence.
 
-**Outcome:** Replace fixed scalar-sized placement occupancy with a growable
-integer lattice over half-open row/column areas. Resolve explicit placements,
-then one-axis-definite items, then fully automatic items. Row flow advances
-columns then rows; column flow swaps the axes and phase constraints. Sparse
-flow preserves a monotonic cursor. Dense flow restarts its search without
-changing source/order precedence. Automatic spans reserve their full extent.
-Implicit extension preserves leading/trailing auto-track pattern phase and
-records exact demand for later sizing.
+**Owned files:** `src/grid/placement.rs`; occupancy and implicit-extension
+support in `src/grid/topology.rs`; `src/grid/mod.rs`; `src/grid/child.rs` only if
+required to consume settled areas; narrowly required support in tracks and
+names; and focused tracked tests in `src/grid_tests.rs`. T01 name semantics may
+be consumed but not redesigned. No public signature or downstream-cycle policy
+changes.
 
-Absolutely positioned and `display:none` children neither occupy cells nor
-create implicit tracks. Definite overlap remains legal and creates no demand
-beyond the definite endpoints. A valid placement never becomes a zero-area
-sentinel merely because it exceeds the pre-placement topology.
+**Outcome:** Replace fixed scalar-sized occupancy with a growable integer lattice
+over half-open row/column areas and make it the public layout path before track
+sizing. Resolve explicit placements, then one-axis-definite items, then fully
+automatic items. Row flow advances columns then rows; column flow swaps the axes
+and phase constraints. Sparse flow preserves a monotonic cursor. Dense flow
+restarts its search without changing source/order precedence. Automatic spans
+reserve their full extent. Implicit extension preserves leading/trailing
+auto-track pattern phase and records exact demand.
 
-**Required RED prefix:** `fri08_c01_placement_` proves at least:
+Remove the visible-child, span-product, and `div_ceil` demand guess. Extend the
+actual track vectors to the exact settled placement bounds, invoke the unchanged
+ordinary sizing path, then materialize child geometry from the settled areas.
+The same areas feed child layout, subgrid contribution, baseline collection, and
+overflow. Absolutely positioned and `display:none` children neither occupy cells
+nor create implicit tracks. Definite overlap remains legal and creates no demand
+beyond its definite endpoints. A valid placement never becomes a zero-area
+sentinel merely because it exceeds pre-placement topology.
 
-- the original span-after-occupied repro creates exactly one demanded row;
-- the original definite-overlap repro creates no extra row;
-- fully automatic spans search and reserve the whole span;
+Every capacity calculation and allocation is fallible before mutation. Invalid
+lines, arithmetic overflow, capacity overflow, and allocation failure return a
+typed placement-demand error that maps through the existing public layout
+error surface without partially changing topology or cached layout state. No
+dimension product or per-track extension may panic or abort for a constructible
+placement span.
+
+**Required behavioral RED prefix:** `fri08_c01_placement_` runs against the T01
+base through existing public layout entry points and proves at least:
+
+- the original span-after-occupied repro creates exactly one demanded row and
+  returns the oracle geometry rather than a zero-area sentinel;
+- the original definite-overlap repro creates no extra row and returns the
+  oracle geometry;
+- fully automatic spans search and reserve their whole extent;
 - row/column sparse flow and row/column dense flow differ only as specified;
 - leading negative implicit demand retains correct line translation and auto
   pattern phase;
-- absolute and display-none controls do not affect occupancy.
+- absolute and display-none controls do not affect occupancy;
+- constructible automatic-span and definite-line capacity boundaries return a
+  typed public error and leave layout state retryable.
 
-**Acceptance:** Integer placement is independent of measured track sizes.
-Explicit overlap, mixed definite/automatic axes, order-modified source order,
-dense backfill, sparse cursor monotonicity, negative lines, named spans,
-leading/trailing implicit growth, automatic spans larger than explicit
-topology, empty topology, invalid input, and overflow boundaries have direct
-tests. Every successful in-flow child has an in-range nonempty integer area.
+The worker must apply and run the focused tests alone on exact T01 base
+`e5964ff7a8ace892f241b27f0eea92a7da8343c4`, record assertion-level failures for
+the intended behavior, and only then edit production code. The unaccepted
+compile-only implementation range is diagnosis, not implementation evidence.
 
-**Verification:**
-
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c01_placement_
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout grid_auto_placement
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout placement::
-cargo fmt --check
-```
-
-**Commit:** `fix(grid): derive implicit demand from placement`
-
-### 4.3 `P01/I08/S01/C01/T03` Integrate Placement Before Sizing Through Public Layout
-
-**Owned files:** `src/grid/mod.rs`; placement-to-geometry integration in
-`src/grid/placement.rs`; `src/grid/child.rs` only if required to consume settled
-areas; narrowly required support in topology, tracks, and names; and focused
-tracked grid tests. No public signature or downstream-cycle policy changes.
-
-**Outcome:** Make canonical topology construction and integer placement precede
-ordinary track sizing in the public layout path. Remove the visible-child,
-span-product, and `div_ceil` implicit-demand guess. Extend the actual track
-vectors to the exact settled placement bounds, size those vectors with existing
-algorithms, then materialize child geometry from the settled areas. The same
-areas feed child layout, subgrid contribution, baseline collection, and
-overflow without an alternate placement computation.
-
-**Required RED prefix:** `fri08_c01_composition_` proves at least:
-
-- the public-layout span-after-occupied repro grows one exact row and returns
-  the oracle geometry;
-- public-layout definite overlap adds no implicit row and returns the oracle
-  geometry;
-- empty and populated area-only grids use the canonical explicit dimensions;
-- duplicate-line membership changes public named placement as required;
-- row/column, dense/sparse, order, percentage, and f64 composition consume the
-  same settled integer areas.
-
-**Acceptance:** The old demand heuristic and valid zero-area fallback are
-absent. No parallel topology or final occupancy owner remains. Existing child,
-subgrid contribution, baseline, overflow, order, percentage, writing-mode,
-cache, rollback, invalid-input, and f32/f64 suites remain green. C02 receives
-stable placements plus track-origin metadata without needing to reinterpret
+**Acceptance:** Integer placement is independent of measured track sizes and the
+public path consumes it before unchanged sizing. Explicit overlap, mixed
+definite/automatic axes, order-modified source order, dense backfill, sparse
+cursor monotonicity, negative lines, named spans, leading/trailing implicit
+growth, spans larger than explicit topology, empty topology, percentage,
+writing mode, invalid input, direct allocation boundaries, and f32/f64 have
+behavioral tests. Every successful in-flow child has an in-range nonempty area.
+The old demand heuristic and valid zero-area fallback are absent. No parallel
+topology or final occupancy owner remains. Existing child, subgrid contribution,
+baseline, overflow, cache, rollback, and named-grid suites remain green. C02
+receives stable placements plus track-origin metadata without reinterpreting
 areas or names.
 
 **Verification:**
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c01_composition_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c01_placement_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c01_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout grid_auto_placement
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout grid_tests::
 CARGO_NET_OFFLINE=true just verify
 cargo fmt --check
 ```
 
-**Commit:** `refactor(grid): place canonical topology before sizing`
+**Commit:** `refactor(grid): derive placement demand before sizing`
 
 ## 5 Cycle Completion Gate
 
-After T03 has a clean exact-range review, run the complete C01 acceptance gate:
+After T02 has a clean exact-range review, run the complete C01 acceptance gate:
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c01_
@@ -262,7 +253,7 @@ hashes in section 3 without invoking browser acquisition or generation.
 
 The C01 candidate is publication-ready only when:
 
-1. all three task commits and exact-range task reviews are clean;
+1. both task commits and exact-range task reviews are clean;
 2. one private canonical topology owns expanded track identity and origin;
 3. growable integer placement determines exact implicit demand before sizing;
 4. named occurrences count each matching physical line once;
