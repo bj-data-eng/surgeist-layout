@@ -902,6 +902,272 @@ fn fri08_c03_auto_fit_lanes_flexible_tracks_and_stretched_items_ignore_collapsed
     assert_eq!(track_geometries, [(0.0, 140.0), (0.0, 140.0)]);
 }
 
+#[test]
+fn fri08_c03_intrinsic_checked_in_min_max_container_variants_use_candidate_projection() {
+    for family in [
+        "grid_lanes_min_content_container_sizing",
+        "grid_lanes_max_content_container_sizing",
+    ] {
+        for variant in [
+            "border_box_ltr",
+            "border_box_rtl",
+            "content_box_ltr",
+            "content_box_rtl",
+        ] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/layout/browser_parity/xml/grid-lanes")
+                .join(format!("{family}__{variant}.xml"));
+            let golden = fri06_c12_t08_browser_front_door::Golden::parse_file(&path)
+                .unwrap_or_else(|error| panic!("{} must parse: {error}", path.display()));
+            fri06_c12_t08_browser_front_door::assert_surgeist_matches(&golden)
+                .unwrap_or_else(|error| panic!("{} must match: {error}", path.display()));
+        }
+    }
+}
+
+fn fri08_c03_intrinsic_facts<S: LayoutScalar>(
+    minimum: f64,
+    min_content: f64,
+    max_content: f64,
+) -> LaneContributionFactsOf<S> {
+    LaneContributionFactsOf {
+        min_content: S::from_f64(min_content),
+        max_content: S::from_f64(max_content),
+        min_size: S::from_f64(minimum),
+        automatic_minimum_applies: false,
+    }
+}
+
+fn fri08_c03_intrinsic_projected_item<S: LayoutScalar>(
+    id: &'static str,
+    span: usize,
+    candidate_starts: Option<Vec<usize>>,
+    baseline_role: LaneIntrinsicBaselineRole,
+    edges: LaneIntrinsicEdgeFactsOf<S>,
+    contribution: LaneContributionFactsOf<S>,
+) -> ProjectedLaneIntrinsicItemOf<S> {
+    ProjectedLaneIntrinsicItemOf {
+        id,
+        kind: LaneIntrinsicItemKind::Indefinite {
+            span: LaneTrackSpanLength::new(span).expect("intrinsic span is nonzero"),
+        },
+        candidate_starts,
+        contribution,
+        baseline_role,
+        edges,
+        contribution_kind: IntrinsicSpanContribution::MinContent {
+            prioritize_min_tracks: false,
+        },
+    }
+}
+
+#[test]
+fn fri08_c03_intrinsic_definite_exact_and_automatic_spans_project_to_every_active_start() {
+    let input = LaneIntrinsicSizingInput {
+        axis: GridAxisKind::Column,
+        available: None,
+        gap: 0.0,
+        tracks: vec![TrackSizing::AUTO; 4],
+        content_sized_tracks: vec![0, 1, 2, 3],
+        items: vec![
+            LaneIntrinsicItem::definite(
+                "definite",
+                LaneTrackSpan::new(2, 4),
+                fri08_c03_intrinsic_facts(20.0, 30.0, 40.0),
+            )
+            .expect("definite span fits"),
+            LaneIntrinsicItem::indefinite(
+                "auto-one",
+                LaneTrackSpanLength::new(1).expect("one is nonzero"),
+                fri08_c03_intrinsic_facts(10.0, 20.0, 30.0),
+            ),
+            LaneIntrinsicItem::indefinite(
+                "auto-two",
+                LaneTrackSpanLength::new(2).expect("two is nonzero"),
+                fri08_c03_intrinsic_facts(10.0, 20.0, 30.0),
+            ),
+        ],
+    };
+    let report = lane_intrinsic_sizing(input)
+        .expect("candidate projection has finite values")
+        .expect("candidate projection has valid spans");
+
+    assert_eq!(report.definite_items[0].span, LaneTrackSpan::new(2, 4));
+    assert_eq!(
+        report
+            .converted_indefinite_items
+            .iter()
+            .map(|item| item.span)
+            .collect::<Vec<_>>(),
+        vec![
+            LaneTrackSpan::new(1, 2),
+            LaneTrackSpan::new(2, 3),
+            LaneTrackSpan::new(3, 4),
+            LaneTrackSpan::new(4, 5),
+            LaneTrackSpan::new(1, 3),
+            LaneTrackSpan::new(2, 4),
+            LaneTrackSpan::new(3, 5),
+        ]
+    );
+}
+
+#[test]
+fn fri08_c03_intrinsic_equivalence_requires_candidates_baseline_role_and_edges() {
+    let input = LaneIntrinsicSizingInput {
+        axis: GridAxisKind::Column,
+        available: None,
+        gap: 0.0,
+        tracks: vec![TrackSizing::AUTO; 3],
+        content_sized_tracks: vec![0, 1, 2],
+        items: Vec::new(),
+    };
+    let zero_edges = LaneIntrinsicEdgeFactsOf::default();
+    let items = vec![
+        fri08_c03_intrinsic_projected_item(
+            "equivalent-a",
+            1,
+            None,
+            LaneIntrinsicBaselineRole::None,
+            zero_edges,
+            fri08_c03_intrinsic_facts(5.0, 30.0, 40.0),
+        ),
+        fri08_c03_intrinsic_projected_item(
+            "equivalent-b",
+            1,
+            None,
+            LaneIntrinsicBaselineRole::None,
+            zero_edges,
+            fri08_c03_intrinsic_facts(20.0, 10.0, 50.0),
+        ),
+        fri08_c03_intrinsic_projected_item(
+            "equivalent-candidate-set",
+            1,
+            Some(vec![2, 1, 0, 1]),
+            LaneIntrinsicBaselineRole::None,
+            zero_edges,
+            fri08_c03_intrinsic_facts(1.0, 2.0, 3.0),
+        ),
+        fri08_c03_intrinsic_projected_item(
+            "different-candidates",
+            1,
+            Some(vec![0]),
+            LaneIntrinsicBaselineRole::None,
+            zero_edges,
+            fri08_c03_intrinsic_facts(7.0, 8.0, 9.0),
+        ),
+        fri08_c03_intrinsic_projected_item(
+            "different-baseline",
+            1,
+            None,
+            LaneIntrinsicBaselineRole::First,
+            zero_edges,
+            fri08_c03_intrinsic_facts(7.0, 8.0, 9.0),
+        ),
+        fri08_c03_intrinsic_projected_item(
+            "different-edges",
+            1,
+            None,
+            LaneIntrinsicBaselineRole::None,
+            LaneIntrinsicEdgeFactsOf {
+                start_mbp: 1.0,
+                ..zero_edges
+            },
+            fri08_c03_intrinsic_facts(7.0, 8.0, 9.0),
+        ),
+    ];
+    let report = lane_intrinsic_sizing_projected_with::<(), _, core::convert::Infallible>(
+        &input,
+        &items,
+        None,
+        LayoutErrorSite::Standalone,
+    )
+    .expect("projection values are finite")
+    .expect("projection spans are valid");
+
+    assert_eq!(report.indefinite_groups.len(), 4);
+    let equivalent = report
+        .indefinite_groups
+        .iter()
+        .find(|group| {
+            group.item_ids == ["equivalent-a", "equivalent-b", "equivalent-candidate-set"]
+        })
+        .expect("equal keys share one componentwise maximum group");
+    assert_eq!(equivalent.max_min_size, 20.0);
+    assert_eq!(equivalent.max_min_content, 30.0);
+    assert_eq!(equivalent.max_max_content, 50.0);
+}
+
+fn assert_fri08_c03_intrinsic_fixed_content_gap_distribution<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let input = LaneIntrinsicSizingInputOf::<S> {
+        axis: GridAxisKind::Column,
+        available: None,
+        gap: scalar(10.0),
+        tracks: vec![
+            TrackSizingOf::AUTO,
+            TrackSizingOf::px(scalar(20.0)),
+            TrackSizingOf::AUTO,
+        ],
+        content_sized_tracks: vec![0, 2],
+        items: vec![LaneIntrinsicItemOf::indefinite(
+            "mixed-span",
+            LaneTrackSpanLength::new(3).expect("three is nonzero"),
+            fri08_c03_intrinsic_facts(100.0, 120.0, 160.0),
+        )],
+    };
+    let report = lane_intrinsic_sizing(input)
+        .expect("mixed projection values are finite")
+        .expect("mixed projection span is valid");
+    assert_eq!(
+        report.final_track_sizes,
+        vec![scalar(30.0), scalar(20.0), scalar(30.0)]
+    );
+}
+
+#[test]
+fn fri08_c03_intrinsic_fixed_content_gap_distribution_is_scalar_deterministic() {
+    assert_fri08_c03_intrinsic_fixed_content_gap_distribution::<f32>();
+    assert_fri08_c03_intrinsic_fixed_content_gap_distribution::<f64>();
+}
+
+#[test]
+fn fri08_c03_intrinsic_collapsed_auto_fit_tracks_are_not_candidate_starts() {
+    let input = LaneIntrinsicSizingInput {
+        axis: GridAxisKind::Column,
+        available: None,
+        gap: 10.0,
+        tracks: vec![TrackSizing::AUTO, TrackSizing::px(0.0), TrackSizing::AUTO],
+        content_sized_tracks: vec![0, 2],
+        items: Vec::new(),
+    };
+    let items = vec![fri08_c03_intrinsic_projected_item(
+        "active-only",
+        1,
+        None,
+        LaneIntrinsicBaselineRole::None,
+        LaneIntrinsicEdgeFactsOf::default(),
+        fri08_c03_intrinsic_facts(20.0, 30.0, 40.0),
+    )];
+    let gutters = OrdinaryGridAxisGuttersOf::new(3, &[false, true, false], 10.0);
+    let report = lane_intrinsic_sizing_projected_with::<(), _, core::convert::Infallible>(
+        &input,
+        &items,
+        Some(&gutters),
+        LayoutErrorSite::Standalone,
+    )
+    .expect("active candidate projection has finite values")
+    .expect("active candidate projection has valid spans");
+    assert_eq!(
+        report
+            .converted_indefinite_items
+            .iter()
+            .map(|item| item.span)
+            .collect::<Vec<_>>(),
+        vec![LaneTrackSpan::new(1, 2), LaneTrackSpan::new(3, 4)]
+    );
+    assert_eq!(report.final_track_sizes, [20.0, 0.0, 20.0]);
+}
+
 #[derive(Clone, Copy)]
 enum Fri08C02TrackAxis {
     Columns,
@@ -6872,6 +7138,7 @@ where
             gap: S::ZERO,
             available: AvailableOf::MAX_CONTENT,
             available_basis: None,
+            gutters: None,
             lines: GridLines {
                 column_explicit_start: 0,
                 column_explicit_count: 2,
@@ -6885,8 +7152,8 @@ where
     .expect("intrinsic placement is valid");
     assert_eq!(
         intrinsic_sizes,
-        vec![S::from_f64(90.0), S::from_f64(10.0)],
-        "overlapping definite spans apply in the order-modified sequence"
+        vec![S::from_f64(80.0), S::from_f64(20.0)],
+        "overlapping definite spans use the ordinary contribution leveling phase in order-modified sequence"
     );
 
     let output = compute_grid(
@@ -6907,7 +7174,7 @@ where
     )
     .expect("order-modified grid-lanes layout succeeds");
 
-    assert_eq!(output.size.width, S::from_f64(140.0));
+    assert_eq!(output.size.width, S::from_f64(130.0));
     for (node, expected_y) in [(3, 0.0), (5, 20.0), (1, 50.0), (6, 60.0)] {
         let layout = tree.layout(node).expect("in-flow lane child is staged");
         assert_eq!(layout.source_index, SourceIndex::new((node - 1) as usize));
@@ -35205,57 +35472,42 @@ mod root_layout_oracle {
     }
 
     #[test]
-    fn lanes_intrinsic_groups_indefinite_items_like_oracle() {
-        let facts = oracle_lane_facts(20.0, 50.0);
+    fn lanes_intrinsic_groups_equivalent_items_without_source_offset() {
         let production_facts = production_lane_facts(20.0, 50.0);
-        assert_production_lane_intrinsic_matches_oracle(
-            ProductionLaneIntrinsicSizingInput {
-                axis: ProductionGridAxisKind::Column,
-                available: Some(300.0),
-                gap: 10.0,
-                tracks: vec![
-                    ProductionTrackSizing::AUTO,
-                    ProductionTrackSizing::AUTO,
-                    ProductionTrackSizing::AUTO,
-                ],
-                content_sized_tracks: vec![0, 1, 2],
-                items: vec![
-                    ProductionLaneIntrinsicItem::indefinite(
-                        "a",
-                        production_lane_span(2),
-                        production_facts,
-                    ),
-                    ProductionLaneIntrinsicItem::indefinite(
-                        "b",
-                        production_lane_span(2),
-                        ProductionLaneContributionFacts {
-                            min_content: 30.0,
-                            max_content: 60.0,
-                            ..production_facts
-                        },
-                    ),
-                ],
-            },
-            LaneIntrinsicSizingInput {
-                axis: GridAxis::Column,
-                available: Some(300.0),
-                gap: 10.0,
-                tracks: vec![GridTrack::auto(), GridTrack::auto(), GridTrack::auto()],
-                content_sized_tracks: vec![0, 1, 2],
-                items: vec![
-                    LaneIntrinsicItem::indefinite("a", oracle_lane_span(2), facts),
-                    LaneIntrinsicItem::indefinite(
-                        "b",
-                        oracle_lane_span(2),
-                        ItemContributionFacts {
-                            min_content: 30.0,
-                            max_content: 60.0,
-                            ..facts
-                        },
-                    ),
-                ],
-            },
-        );
+        let report = production_lane_intrinsic_sizing(ProductionLaneIntrinsicSizingInput {
+            axis: ProductionGridAxisKind::Column,
+            available: Some(300.0),
+            gap: 10.0,
+            tracks: vec![
+                ProductionTrackSizing::AUTO,
+                ProductionTrackSizing::AUTO,
+                ProductionTrackSizing::AUTO,
+            ],
+            content_sized_tracks: vec![0, 1, 2],
+            items: vec![
+                ProductionLaneIntrinsicItem::indefinite(
+                    "a",
+                    production_lane_span(2),
+                    production_facts,
+                ),
+                ProductionLaneIntrinsicItem::indefinite(
+                    "b",
+                    production_lane_span(2),
+                    ProductionLaneContributionFacts {
+                        min_content: 30.0,
+                        max_content: 60.0,
+                        ..production_facts
+                    },
+                ),
+            ],
+        })
+        .expect("equivalent intrinsic values are finite")
+        .expect("equivalent intrinsic spans are valid");
+
+        assert_eq!(report.indefinite_groups.len(), 1);
+        assert_eq!(report.indefinite_groups[0].item_ids, ["a", "b"]);
+        assert_eq!(report.converted_indefinite_items.len(), 2);
+        assert_eq!(report.final_track_sizes, [10.0, 10.0, 10.0]);
     }
 
     #[test]

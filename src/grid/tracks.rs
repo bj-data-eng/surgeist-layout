@@ -3159,7 +3159,7 @@ pub(super) enum IntrinsicSpanContribution {
 }
 
 impl IntrinsicSpanContribution {
-    const fn for_axis<S: LayoutScalar>(
+    pub(super) const fn for_axis<S: LayoutScalar>(
         available: AvailableOf<S>,
         overflow: UsedOverflowAxis,
     ) -> Self {
@@ -3453,10 +3453,6 @@ pub(super) fn track_min_floor_space<S: LayoutScalar>(track: &TrackSizingOf<S>) -
                 .then(|| track_base_size(track, None, S::ZERO))
         })
         .unwrap_or(S::ZERO)
-}
-
-pub(super) fn span_contribution<S: LayoutScalar>(contribution: S, span: usize, gap: S) -> S {
-    (contribution - gap * S::from_usize(span.saturating_sub(1))).max(S::ZERO)
 }
 
 pub(super) fn track_accepts_intrinsic_contribution<S: LayoutScalar>(
@@ -4140,6 +4136,52 @@ fn resolve_ordinary_track_phases<S: LayoutScalar>(
             }
         })
         .collect()
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct OrdinaryIntrinsicContributionInput<'a, S: LayoutScalar = Scalar> {
+    pub(super) tracks: &'a [TrackSizingOf<S>],
+    pub(super) start: usize,
+    pub(super) end: usize,
+    pub(super) kind: IntrinsicSpanContribution,
+    pub(super) percent_basis: Option<S>,
+    pub(super) contribution: S,
+    pub(super) gap: S,
+    pub(super) gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
+}
+
+pub(super) fn apply_ordinary_intrinsic_contribution<S: LayoutScalar>(
+    sizes: &mut [S],
+    input: OrdinaryIntrinsicContributionInput<'_, S>,
+) {
+    let OrdinaryIntrinsicContributionInput {
+        tracks,
+        start,
+        end,
+        kind,
+        percent_basis,
+        contribution,
+        gap,
+        gutters,
+    } = input;
+    let Some(span_tracks) = tracks.get(start..end) else {
+        return;
+    };
+    let Some(span_sizes) = sizes.get_mut(start..end) else {
+        return;
+    };
+    if span_tracks.is_empty() || !span_tracks.iter().any(track_accepts_intrinsic_contribution) {
+        return;
+    }
+    if span_tracks.len() == 1 {
+        span_sizes[0] = span_sizes[0].max(contribution);
+        return;
+    }
+    let mut target = span_contribution_with_gutters(contribution, start, end, gap, gutters);
+    if matches!(kind, IntrinsicSpanContribution::MinContent { .. }) {
+        target = (target - intrinsic_span_minimum_floor_space(span_tracks)).max(S::ZERO);
+    }
+    distribute_intrinsic_span(span_sizes, span_tracks, kind, percent_basis, target);
 }
 
 #[cfg(test)]
