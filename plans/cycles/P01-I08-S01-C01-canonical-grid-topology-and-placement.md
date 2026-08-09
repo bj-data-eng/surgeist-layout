@@ -1,6 +1,6 @@
 # P01-I08-S01-C01 Canonical Grid Topology And Placement
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `P01/I08/S01/C01`
 
