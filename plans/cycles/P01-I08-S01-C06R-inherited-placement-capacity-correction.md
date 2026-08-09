@@ -52,10 +52,11 @@ The superseded first C07 characterization established the behavior reopen:
   maps excess capacity to the existing typed error envelope.
 
 The cycle owns the exact GRID-001 placement/error correction composed through
-GRID-010 standalone axes. Every non-grid-lanes ordinary grid must consume the
-canonical integer placement-demand result before collapse, sizing, and geometry
-materialization. Accepted requests preserve their exact completed batch and
-cache behavior. Inherited capacity overflow returns
+GRID-010 standalone axes. Every non-grid-lanes ordinary grid, including grids
+with both axes inherited, must consume the canonical integer placement-demand
+result before collapse, sizing, and geometry materialization. Accepted requests
+preserve their exact completed batch and cold/warm cache behavior. Inherited
+capacity overflow on either axis returns
 `LayoutErrorSiteOf::Node(container)`, `LayoutOperation::ChildLayout`, and
 `LayoutErrorKindOf::InternalInvariant(InvalidBlockScrollGeometry)` with no
 completed batch, partial publication, or cache mutation; a retry is
@@ -115,21 +116,26 @@ or recreating the heuristic.
 
 **RED evidence:** first add `fri08_c06r_inherited_placement_` public tests. The
 accepted matrix covers one inherited column plus standalone row and the
-transpose, sparse/dense row/column flow, automatic spans within capacity,
-definite overlap, holes, leading/trailing demand, and f32/f64; it must pass on
-the task base and freeze exact geometry. The overflow matrix uses a four-track
-inherited axis and automatic span five in both transposes and scalar lanes; it
-must fail on the task base because success and zero geometry are observed where
-the exact typed error, no completed batch/partial publication/cache mutation,
-and deterministic retry are required. A source-shape test must also fail because
-the ordinary inherited estimator and orphan helper remain. Stop if an accepted
-characterization fails for any other reason.
+transpose, both axes inherited, sparse/dense row/column flow, automatic spans
+within capacity, definite overlap, holes, leading/trailing demand, and f32/f64;
+it must pass on the task base and freeze exact geometry, completed batches, and
+cold/warm cache equivalence. The overflow matrix uses four-track inherited axes
+and automatic span five in both transposes, on either axis of a both-inherited
+grid, and in both scalar lanes; it must fail on the task base because success
+and zero geometry are observed where the exact typed error, no completed batch,
+partial publication, or cache mutation, and deterministic retry are required.
+A source-shape test must also fail because the ordinary inherited estimator and
+orphan helper remain. Stop if an accepted characterization fails for any other
+reason.
 
-**Acceptance:** every accepted characterization is byte-for-byte equivalent
-after the edit. Every inherited-capacity overflow returns the exact existing
-typed error atomically and deterministically. No ordinary request publishes
-sentinel zero geometry. Canonical demand receives inherited-axis bounds and
-settles every ordinary in-flow area before collapse and sizing. `src/grid/mod.rs`
+**Acceptance:** every accepted one- and both-inherited-axis characterization is
+byte-for-byte equivalent after the edit, including exact successful geometry,
+completed batches, and cold/warm cache equivalence in both scalar lanes. Every
+inherited-capacity overflow on either axis returns the exact existing typed
+error atomically and deterministically, including retry. No ordinary request
+publishes sentinel zero geometry. Canonical demand receives inherited-axis
+bounds and settles every ordinary in-flow area before collapse and sizing.
+`src/grid/mod.rs`
 contains no non-lanes child-count, total-cell-count, `placement_cell_span`,
 `auto_fit_limit`, or `div_ceil` demand calculation, and no orphaned estimator
 helper remains in `src/grid/placement.rs`. Grid-lanes retains its separate
@@ -172,10 +178,11 @@ publication, readback, and cleanup lifecycle applies. C06R acceptance is:
 
 1. canonical placement demand owns every ordinary grid, including inherited
    axes, and the residual estimator/helper is absent;
-2. accepted inherited-axis matrices preserve exact geometry in all required
-   flows and scalars;
-3. inherited-capacity overflow returns the existing typed error with atomic
-   publication/cache semantics and deterministic retry;
+2. accepted one- and both-inherited-axis matrices preserve exact geometry,
+   completed batches, and cold/warm cache behavior in all required flows and
+   scalars;
+3. inherited-capacity overflow on either inherited axis returns the existing
+   typed error with atomic publication/cache semantics and deterministic retry;
 4. GRID-001, composed GRID-010, all eight finding closures, C06 gutters, all 72
    owned rows, FRI-09/F10 controls, centralized provenance, and frozen artifacts
    remain correct;
