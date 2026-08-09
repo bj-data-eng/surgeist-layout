@@ -73,7 +73,10 @@ MSRV, artifacts, and observable layout: unchanged. Helpers are crate-private or
 test-private and encode policy with named types rather than booleans or sentinel
 optionality.
 
-No browser or generator command is authorized. Frozen SHA-256 values are:
+No browser execution or artifact-generating/writing generator command is
+authorized. Browser-free generator-feature tests plus read-only corpus and Taffy
+validation are required and do not authorize `generate`, `generate-existing`,
+acquisition, or artifact cleanup. Frozen SHA-256 values are:
 
 - `corpus.toml`:
   `c6e6f1422e14a5e4aa474c143998063ce0de4d0a9123b69875b35a4ed009a8f6`;
@@ -107,6 +110,19 @@ Each task additionally proves exact assigned-file scope, no new `allow` or
 `expect`, zero unsafe matches across the repository-owned Rust manifest, and a
 clean worktree after its logical commit. A required edit outside the exact write
 envelope is a blocker returned before that edit.
+
+Each worker receives its exact full `TASK_BASE` SHA and newline-delimited
+`TASK_FILES` from the task assignment and runs these executable proofs:
+
+```sh
+test -z "$(comm -23 <(git diff --name-only "$TASK_BASE"..HEAD | LC_ALL=C sort) <(printf '%s\n' "$TASK_FILES" | LC_ALL=C sort))"
+if git diff -U0 "$TASK_BASE"..HEAD -- '*.rs' | rg '^\+.*#\[(allow|expect)\('; then exit 1; fi
+if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '(^|[^[:alnum:]_])(unsafe[[:space:]]*\{|unsafe[[:space:]]+fn|unsafe[[:space:]]+impl|unsafe[[:space:]]+trait|unsafe[[:space:]]+extern|extern[[:space:]]+"[^"]+"|#\[[[:space:]]*unsafe)'; then exit 1; fi
+```
+
+The first command emits nothing and exits zero only when every changed file is
+inside the assignment envelope. The second and third commands must find no
+match. `TASK_FILES` contains one path per line, not a shell glob.
 
 ## 4 Tasks
 
@@ -289,6 +305,17 @@ Also prove exact task scopes, unchanged generator/browser tree, frozen artifact
 and input hashes, 5,776 comment-free XML files, exact report buckets, no new
 `allow`/`expect`, zero unsafe across owned Rust, and a clean worktree. A fresh
 holistic reviewer must return clean for the exact C07 cycle range.
+
+Final executable scope, suppression, and unsafe proofs are:
+
+```sh
+git diff --name-only dc71a5582ab0ef3925826dce09b93ee9fa6f49a1..HEAD
+if git diff -U0 dc71a5582ab0ef3925826dce09b93ee9fa6f49a1..HEAD -- '*.rs' | rg '^\+.*#\[(allow|expect)\('; then exit 1; fi
+if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '(^|[^[:alnum:]_])(unsafe[[:space:]]*\{|unsafe[[:space:]]+fn|unsafe[[:space:]]+impl|unsafe[[:space:]]+trait|unsafe[[:space:]]+extern|extern[[:space:]]+"[^"]+"|#\[[[:space:]]*unsafe)'; then exit 1; fi
+```
+
+The final changed-file list must equal the union of the reviewed planning/status
+files and five reviewed task envelopes; both scans must find no match.
 
 C07 completes only after `SP-002`, `SP-003`, `SP-004`, `SP-005`, and `SP-011`
 each have one implemented and characterized disposition; all eight FRI-08
