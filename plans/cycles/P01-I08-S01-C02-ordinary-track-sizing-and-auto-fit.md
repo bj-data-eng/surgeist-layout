@@ -66,12 +66,25 @@ no second collapse predicate or uniform-gap fallback may reconstruct them. When
 a collapsed track lies between two active tracks, both gutters adjacent to the
 collapsed track are zero.
 
+The collapsed mask and boundary-gutter vector also exist before scalar sizes
+settle as the ordinary sizing-time carrier. Every initial and rerun sizing
+phase, non-spanning and spanning contribution, constrained or cyclic-percentage
+intrinsic area, flex/free-space total, track-content extent, inherited
+intrinsic traversal, and baseline envelope receives it. Generic scalar-gap
+helpers remain valid only for lanes and pre-collapse topology; no ordinary
+post-collapse caller may use them.
+
 Inherited ordinary-subgrid contexts carry the same used-axis geometry rather
 than reducing it to `tracks + uniform gap`. `src/grid/child.rs` passes the
 carrier into `src/grid/subgrid.rs`, which slices or reverses sizes, boundary
 gutters, and line offsets together when projecting an inherited axis. This is
 geometry propagation only: C02 does not change standalone/nested traversal,
 intrinsic flattening, baseline grouping, or any C03/C04 subgrid policy.
+
+Ordinary alignment distributes extra space over active topology boundaries and
+returns boundary-aware geometry; it cannot reduce the result to a replacement
+scalar gap. Inherited geometry remains authoritative even when its slice has no
+collapsed track.
 
 The existing shared track-sizing entry receives an explicit private
 `GridTrackSizingPolicy::{Ordinary, Lanes}`-equivalent from its formatting-context
@@ -175,10 +188,13 @@ policy and used axis geometry in `src/grid/tracks.rs`; placement-to-collapse
 orchestration in `src/grid/mod.rs`; `src/grid/placement.rs` as the sole consumer
 for definite, automatic, span, and absolute used-axis geometry;
 `src/grid/child.rs` for ordinary child and inherited-context carriage;
-`src/grid/subgrid.rs` only to slice and reverse the same geometry carrier across
-an already-supported inherited axis; and focused tracked tests in
-`src/grid_tests.rs`. T01 sizing phases and policy dispatch may be consumed but
-not redesigned. Standalone/nested traversal and contribution policy are frozen.
+`src/grid/subgrid.rs` to slice and reverse the same geometry carrier across an
+already-supported inherited axis and carry it through existing intrinsic and
+baseline traversal; `src/grid/alignment.rs` only for boundary-aware ordinary
+alignment distribution; and focused tracked tests in `src/grid_tests.rs`. T01
+sizing phases and policy dispatch may be consumed but not redesigned.
+Standalone/nested traversal and contribution policy remain frozen except for
+transporting the same carrier through their existing paths.
 
 **Outcome:** After C01 placement, mark each ordinary auto-fit repeated track
 occupied when any in-flow settled area spans it, then collapse every other such
@@ -190,6 +206,12 @@ offset consumes `UsedGridAxisGeometryOf` methods rather than sizes plus uniform
 gap. An inherited subgrid receives the same boundary gutters and line offsets,
 including reversed-axis order, without reconstructing a scalar gap. Auto-fill
 and the `Lanes` policy do not use this collapse.
+
+Thread the sizing-time carrier through every ordinary initial and rerun phase,
+including constrained and cyclic-percentage intrinsic sizing, inherited
+intrinsic traversal, content-extent queries, flex/free-space accounting,
+baseline envelopes, and alignment. Scalar-gap helpers remain available only to
+their frozen lanes or pre-collapse callers.
 
 **Required behavioral RED prefix:** `fri08_c02_auto_fit_` proves at least:
 
@@ -203,6 +225,13 @@ and the `Lanes` policy do not use this collapse.
 - an ordinary inherited subgrid crossing collapsed repetitions preserves zero
   adjacent gutters in forward and reversed axes, including baseline and
   scroll-overflow projection;
+- a public intrinsic crossing span over active repeats and a collapsed repeat
+  contributes only active boundary gutters, and public flexible free-space
+  sizing subtracts only the active-gutter total;
+- a real `PublicLayoutTree` ordinary auto-fit parent with decreasing inherited
+  progression and an explicit `20px` subgrid gap observes baseline target `17`
+  together with the expected location and overflow, without private geometry
+  construction;
 - names and positive/negative lines still address retained collapsed lines;
 - auto-fill remains expanded, and row/column flow plus f32/f64 are symmetric.
 
@@ -213,13 +242,17 @@ or later stretch growth. Existing area geometry, absolute placement, baseline,
 overflow, names, order, cache, error, and rollback tests remain green. Public
 crossing-span, absolute-item, inherited-subgrid reversal, baseline, and
 scroll-overflow controls prove that every downstream consumer uses the same
-boundary gutters and offsets.
+boundary gutters and offsets. No ordinary initial/rerun phase, constrained or
+cyclic intrinsic path, inherited intrinsic traversal, content-extent query,
+flex/free-space total, baseline envelope, or alignment path falls back to a
+scalar reconstructed gap.
 
 **Verification:**
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c02_auto_fit_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout auto_fit
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout intrinsic_span
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout named_grid
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout grid_auto_placement
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c02_lanes_negative_
@@ -300,8 +333,9 @@ The unsafe scan passes only with no match across every tracked and non-ignored
 Rust source. Also inspect the complete C02 diff for new allow/expect attributes,
 parallel sizing/collapse/gap owners, stale fit-content early return, exact
 `auto/auto` stretch matching, scalar-gap reconstruction in ordinary or inherited
-subgrid geometry, fixture dispatch, and later-cycle policy. Verify the frozen
-hashes/counts in section 3 without browser acquisition or generation.
+subgrid sizing, intrinsic traversal, alignment, or final geometry, fixture
+dispatch, and later-cycle policy. Verify the frozen hashes/counts in section 3
+without browser acquisition or generation.
 
 The C02 candidate is publication-ready only when all three task ranges and
 reviews are clean; one state pipeline owns ordinary base/growth/fit/flex facts;
