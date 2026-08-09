@@ -1,6 +1,6 @@
 # P01-I08-S01-C03 Grid-Lanes Containing Blocks And Intrinsic Projection
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `P01/I08/S01/C03`
 
