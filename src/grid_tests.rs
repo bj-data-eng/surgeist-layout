@@ -47,6 +47,554 @@ fn fri08_c01_placement_compute<S: LayoutScalar>(
     compute_layout(tree, 1, fri08_c01_placement_request()).expect("valid grid placement")
 }
 
+fn fri08_c05_composition_output<S: LayoutScalar>(
+    batch: &CompletedLayoutBatchOf<u32, S>,
+    node: u32,
+) -> NodeOutputOf<S> {
+    batch
+        .final_entries()
+        .iter()
+        .find(|entry| entry.node() == node)
+        .unwrap_or_else(|| panic!("composition output for source node {node}"))
+        .output()
+}
+
+fn fri08_c05_composition_grid001_placement_topology_order<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 4, 5])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(PreferredSizeOf::px(scalar(120.0)), PreferredSizeOf::AUTO),
+                grid_template_columns: vec![
+                    TrackComponentOf::px(scalar(40.0)),
+                    TrackComponentOf::px(scalar(40.0)),
+                    TrackComponentOf::px(scalar(40.0)),
+                ],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(20.0))],
+                grid_auto_rows: vec![TrackComponentOf::px(scalar(20.0))],
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                grid_column: GridPlacement::try_line(2).expect("middle explicit column"),
+                grid_row: GridPlacement::try_line(1).expect("first explicit row"),
+                item_order: ItemOrder::new(9),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                grid_column: GridPlacement::try_span(2).expect("two-column automatic span"),
+                item_order: ItemOrder::new(-9),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(80.0)),
+                    PreferredSizeOf::px(scalar(20.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                display: Display::None,
+                item_order: ItemOrder::new(-20),
+                grid_column: GridPlacement::try_span(8).expect("excluded large span"),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            5,
+            NodeInputOf {
+                position: Position::Absolute,
+                item_order: ItemOrder::new(-30),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(7.0)),
+                    PreferredSizeOf::px(scalar(5.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(240.0))))
+            .expect("finite composition viewport"),
+    )
+    .expect("GRID-001 public composition succeeds");
+
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 1).size,
+        Size::new(scalar(120.0), scalar(40.0))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 2).location,
+        Point::new(scalar(40.0), S::ZERO)
+    );
+    let spanning = fri08_c05_composition_output(&batch, 3);
+    assert_eq!(spanning.source_index, SourceIndex::new(1));
+    assert_eq!(spanning.location, Point::new(S::ZERO, scalar(20.0)));
+    assert_eq!(spanning.size, Size::new(scalar(80.0), scalar(20.0)));
+    assert_eq!(spanning.content_size, Size::new(scalar(80.0), scalar(20.0)));
+    assert_eq!(fri08_c05_composition_output(&batch, 4).size, Size::ZERO);
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 5).size,
+        Size::new(scalar(7.0), scalar(5.0))
+    );
+}
+
+#[test]
+fn fri08_c05_composition_grid001_span_after_occupied_keeps_exact_demand_and_source_identity() {
+    fri08_c05_composition_grid001_placement_topology_order::<f32>();
+    fri08_c05_composition_grid001_placement_topology_order::<f64>();
+}
+
+#[test]
+fn fri08_c05_composition_grid002_lanes_percentages_use_hybrid_boxes_in_all_flows() {
+    assert_fri08_c03_containing_block_percentage_children::<f32>();
+    assert_fri08_c03_containing_block_percentage_children::<f64>();
+    assert_fri08_c03_containing_block_percentage_controls::<f32>();
+    assert_fri08_c03_containing_block_percentage_controls::<f64>();
+}
+
+#[test]
+fn fri08_c05_composition_grid003_fit_content_flex_and_stretch_share_one_sizing_result() {
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for axis in [Fri08C02TrackAxis::Columns, Fri08C02TrackAxis::Rows] {
+            assert_fri08_c02_fit_content_flex_composes::<f32>(axis, writing_mode);
+            assert_fri08_c02_fit_content_flex_composes::<f64>(axis, writing_mode);
+        }
+    }
+    assert_fri08_c02_stretch_intrinsic_minimums::<f32>();
+    assert_fri08_c02_stretch_intrinsic_minimums::<f64>();
+}
+
+fn fri08_c05_composition_grid005_area_only_topology<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_auto_columns: vec![
+                    TrackComponentOf::px(scalar(40.0)),
+                    TrackComponentOf::px(scalar(20.0)),
+                ],
+                grid_auto_rows: vec![TrackComponentOf::px(scalar(15.0))],
+                grid_template_areas: GridTemplateAreas {
+                    rows: vec![GridTemplateAreaRow {
+                        cells: vec![
+                            Some("main".to_string()),
+                            Some("main".to_string()),
+                            Some("main".to_string()),
+                        ],
+                    }],
+                },
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                raw_grid_column: RawGridPlacement::new(
+                    RawGridLine::BareIdent("main".to_string()),
+                    RawGridLine::BareIdent("main".to_string()),
+                ),
+                raw_grid_row: RawGridPlacement::new(
+                    RawGridLine::BareIdent("main".to_string()),
+                    RawGridLine::BareIdent("main".to_string()),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("area-only intrinsic viewport"),
+    )
+    .expect("GRID-005 public composition succeeds");
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 1).size,
+        Size::new(scalar(100.0), scalar(15.0))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 2).location,
+        Point::ZERO
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 2).size,
+        Size::new(scalar(100.0), scalar(15.0))
+    );
+}
+
+#[test]
+fn fri08_c05_composition_grid005_area_only_topology_uses_auto_pattern_and_area_edges() {
+    fri08_c05_composition_grid005_area_only_topology::<f32>();
+    fri08_c05_composition_grid005_area_only_topology::<f64>();
+}
+
+fn fri08_c05_composition_grid006_auto_fit_overlap<S: LayoutScalar>(display: Display) {
+    let scalar = S::from_f64;
+    let repeat = TrackComponentOf::Repeat(
+        TrackRepetitionOf::auto_fit_components(vec![
+            TrackComponentOf::line_names(["slot"]),
+            TrackComponentOf::px(scalar(40.0)),
+        ])
+        .expect("finite named auto-fit repeat"),
+    );
+    let named_first = RawGridPlacement::new(
+        RawGridLine::NamedLine {
+            name: "slot".to_string(),
+            index: 1,
+        },
+        RawGridLine::Auto,
+    );
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInputOf {
+                display,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(190.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
+                grid_template_columns: vec![repeat],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
+                gap: Size::new(LengthOf::px(scalar(10.0)), LengthOf::ZERO),
+                justify_content: Some(AlignContent::Center),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                raw_grid_column: named_first.clone(),
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                raw_grid_column: named_first,
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(190.0)),
+            AvailableOf::definite(scalar(40.0)),
+        ))
+        .expect("finite auto-fit viewport"),
+    )
+    .expect("GRID-006 public composition succeeds");
+    assert_eq!(
+        (
+            fri08_c05_composition_output(&batch, 2).location.x,
+            fri08_c05_composition_output(&batch, 2).size.width,
+        ),
+        (scalar(75.0), scalar(40.0))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 3).location.x,
+        scalar(75.0)
+    );
+}
+
+#[test]
+fn fri08_c05_composition_grid006_ordinary_and_lanes_auto_fit_keep_distinct_occupancy_policies() {
+    for display in [Display::Grid, Display::GridLanes] {
+        fri08_c05_composition_grid006_auto_fit_overlap::<f32>(display);
+        fri08_c05_composition_grid006_auto_fit_overlap::<f64>(display);
+    }
+}
+
+#[test]
+fn fri08_c05_composition_grid007_auto_max_stretch_preserves_floors_in_all_axes() {
+    assert_fri08_c02_stretch_intrinsic_minimums::<f32>();
+    assert_fri08_c02_stretch_intrinsic_minimums::<f64>();
+}
+
+fn fri08_c05_composition_grid008_named_area_collision<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(80.0)),
+                    PreferredSizeOf::px(scalar(20.0)),
+                ),
+                grid_template_columns: vec![
+                    TrackComponentOf::line_names(["zone-start", "zone-start"]),
+                    TrackComponentOf::px(scalar(40.0)),
+                    TrackComponentOf::line_names(["zone-start"]),
+                    TrackComponentOf::px(scalar(40.0)),
+                ],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(20.0))],
+                grid_template_areas: GridTemplateAreas {
+                    rows: vec![GridTemplateAreaRow {
+                        cells: vec![Some("zone".to_string()), Some("zone".to_string())],
+                    }],
+                },
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                raw_grid_column: RawGridPlacement::new(
+                    RawGridLine::NamedLine {
+                        name: "zone-start".to_string(),
+                        index: 2,
+                    },
+                    RawGridLine::Auto,
+                ),
+                raw_grid_row: RawGridPlacement::new(
+                    RawGridLine::BareIdent("zone".to_string()),
+                    RawGridLine::BareIdent("zone".to_string()),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(80.0)),
+            AvailableOf::definite(scalar(20.0)),
+        ))
+        .expect("finite named-area viewport"),
+    )
+    .expect("GRID-008 public composition succeeds");
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 2).location,
+        Point::new(scalar(40.0), S::ZERO)
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 2).size,
+        Size::new(scalar(40.0), scalar(20.0))
+    );
+}
+
+#[test]
+fn fri08_c05_composition_grid008_duplicate_names_and_area_origins_count_one_line() {
+    fri08_c05_composition_grid008_named_area_collision::<f32>();
+    fri08_c05_composition_grid008_named_area_collision::<f64>();
+}
+
+#[test]
+fn fri08_c05_composition_grid010_standalone_and_inherited_boundaries_keep_baseline_roles() {
+    assert_fri08_c04_standalone_nested_flows::<f32>();
+    assert_fri08_c04_standalone_nested_flows::<f64>();
+    assert_fri08_c04_baseline_area_topology_controls::<f32>();
+    assert_fri08_c04_baseline_area_topology_controls::<f64>();
+}
+
+fn fri08_c05_composition_fractional_rounding<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.5))),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(100.5))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(100.5))],
+                justify_items: Some(AlignItems::End),
+                align_items: Some(AlignItems::End),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(10.25)),
+                    PreferredSizeOf::px(scalar(20.25)),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    let request = LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.5))))
+        .expect("finite fractional viewport");
+    let first = compute_layout(&tree, 1, request).expect("first fractional grid layout");
+    let second = compute_layout(&tree, 1, request).expect("second fractional grid layout");
+    assert_eq!(first.final_entries(), second.final_entries());
+    assert_eq!(
+        first
+            .unrounded_entries()
+            .iter()
+            .find(|entry| entry.node() == 2)
+            .expect("unrounded fractional child")
+            .output()
+            .location,
+        Point::new(scalar(90.25), scalar(80.25))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&first, 2).location,
+        Point::new(scalar(90.0), scalar(80.0))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&first, 2).size,
+        Size::new(scalar(11.0), scalar(21.0))
+    );
+}
+
+#[test]
+fn fri08_c05_composition_reliability_cache_errors_transactions_and_rounding_are_stable() {
+    assert_fri08_c04_standalone_cache_and_failures_are_atomic::<f32>();
+    assert_fri08_c04_standalone_cache_and_failures_are_atomic::<f64>();
+    assert_fri08_c04_overflow_atomic_failures::<f32>();
+    assert_fri08_c04_overflow_atomic_failures::<f64>();
+    fri08_c05_composition_fractional_rounding::<f32>();
+    fri08_c05_composition_fractional_rounding::<f64>();
+}
+
+#[test]
+fn fri08_c05_composition_overflow_scrollbar_settles_once_in_both_scalar_lanes() {
+    assert_fri08_c04_overflow_inline_scroll_range::<f32>();
+    assert_fri08_c04_overflow_inline_scroll_range::<f64>();
+}
+
+#[test]
+fn fri08_c05_composition_fri09_negative_control_keeps_existing_baseline_roles() {
+    assert_fri08_c04_baseline_area_topology_controls::<f32>();
+    assert_fri08_c04_baseline_area_topology_controls::<f64>();
+}
+
+fn fri08_c05_composition_fri10_absolute_control<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponentOf::px(scalar(40.0))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(20.0))],
+                grid_auto_rows: vec![TrackComponentOf::px(scalar(20.0))],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                position: Position::Absolute,
+                grid_column: GridPlacement::try_span(4).expect("out-of-flow span control"),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(7.0)),
+                    PreferredSizeOf::px(scalar(5.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(3, NodeInputOf::default());
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("absolute-control viewport"),
+    )
+    .expect("FRI-10 negative control remains outside implicit demand");
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 1).size,
+        Size::new(scalar(40.0), scalar(20.0))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 2).size,
+        Size::new(scalar(7.0), scalar(5.0))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 3).location,
+        Point::ZERO
+    );
+}
+
+#[test]
+fn fri08_c05_composition_fri10_negative_control_absolute_item_creates_no_grid_demand() {
+    fri08_c05_composition_fri10_absolute_control::<f32>();
+    fri08_c05_composition_fri10_absolute_control::<f64>();
+}
+
+fn fri08_c05_composition_non_grid_block_control<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(PreferredSizeOf::px(scalar(60.0)), PreferredSizeOf::AUTO),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(20.0)),
+                    PreferredSizeOf::px(scalar(12.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("non-grid control viewport"),
+    )
+    .expect("default block composition succeeds");
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 1).size,
+        Size::new(scalar(60.0), scalar(12.0))
+    );
+    assert_eq!(
+        fri08_c05_composition_output(&batch, 2).size,
+        Size::new(scalar(20.0), scalar(12.0))
+    );
+}
+
+#[test]
+fn fri08_c05_composition_non_grid_default_block_behavior_is_unchanged() {
+    fri08_c05_composition_non_grid_block_control::<f32>();
+    fri08_c05_composition_non_grid_block_control::<f64>();
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Fri08C03LanesTracks {
     Rows,
