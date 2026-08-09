@@ -2328,7 +2328,7 @@ pub(super) fn subgrid_eligibility<S: LayoutScalar>(
         Some(SubgridIneligibleReason::ExcludedFromNormalLayout)
     } else if !subgrid_container_display_supported(input.child_style.display) {
         Some(SubgridIneligibleReason::UnsupportedDisplay)
-    } else if parent_is_lanes_in_resolved_axis(input.parent_style, input.axis) {
+    } else if parent_is_lanes_in_resolved_axis(input.parent_style, input.child_style, input.axis) {
         Some(SubgridIneligibleReason::ParentIsLanesInResolvedAxis)
     } else {
         None
@@ -2387,12 +2387,21 @@ const fn establishes_independent_formatting_context<S: LayoutScalar>(
 
 fn parent_is_lanes_in_resolved_axis<S: LayoutScalar>(
     parent_style: &NodeInputOf<S>,
-    axis: GridAxisKind,
+    child_style: &NodeInputOf<S>,
+    child_axis: GridAxisKind,
 ) -> bool {
-    parent_style
+    if !parent_style
         .display
         .establishes_grid_lanes_formatting_context()
-        && lane_axis(parent_style.grid_auto_flow) == axis
+    {
+        return false;
+    }
+    map_grid_axis(GridAxisMappingInput {
+        queried_axis: child_axis,
+        parent_style,
+        child_style,
+    })
+    .is_ok_and(|mapping| lane_axis(parent_style.grid_auto_flow) == mapping.parent_axis)
 }
 
 #[cfg(test)]

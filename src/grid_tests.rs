@@ -1155,6 +1155,577 @@ fn fri08_c03_nested_candidate_bounds_edges_and_reversal_are_scalar_stable() {
     assert_fri08_c03_nested_candidate_bounds_edges_and_reversal::<f64>();
 }
 
+#[derive(Clone, Copy)]
+struct Fri08C03NestedFlowCase {
+    root_direction: Direction,
+    first_wrapper_mode: WritingMode,
+    first_wrapper_direction: Direction,
+    second_wrapper_mode: WritingMode,
+    second_wrapper_direction: Direction,
+    inherited_axis: GridAxisKind,
+}
+
+fn fri08_c03_nested_subgrid_component<S: LayoutScalar>() -> Vec<TrackComponentOf<S>> {
+    vec![TrackComponentOf::Subgrid(SubgridTrack::new(Vec::new()))]
+}
+
+fn fri08_c03_nested_axis_placement(
+    axis: GridAxisKind,
+    start: isize,
+    span: usize,
+) -> (GridPlacement, GridPlacement) {
+    let inherited = GridPlacement::try_line_span(start, span).expect("valid nested test span");
+    let companion = GridPlacement::try_line(1).expect("valid nested companion line");
+    match axis {
+        GridAxisKind::Column => (inherited, companion),
+        GridAxisKind::Row => (companion, inherited),
+    }
+}
+
+fn fri08_c03_nested_wrapper_style<S: LayoutScalar>(
+    mode: WritingMode,
+    direction: Direction,
+    axis: GridAxisKind,
+    gap: f64,
+    placement: (GridPlacement, GridPlacement),
+    physical_edges: (f64, f64),
+) -> NodeInputOf<S> {
+    let scalar = S::from_f64;
+    let (columns, rows, auto_flow) = match axis {
+        GridAxisKind::Column => (
+            fri08_c03_nested_subgrid_component(),
+            vec![TrackComponentOf::px(scalar(10.0))],
+            GridAutoFlow::Row,
+        ),
+        GridAxisKind::Row => (
+            vec![TrackComponentOf::px(scalar(10.0))],
+            fri08_c03_nested_subgrid_component(),
+            GridAutoFlow::Column,
+        ),
+    };
+    let (left, right) = physical_edges;
+    let has_physical_edges = left != 0.0 || right != 0.0;
+    NodeInputOf {
+        display: Display::GridLanes,
+        writing_mode: mode,
+        direction,
+        grid_auto_flow: auto_flow,
+        grid_template_columns: columns,
+        grid_template_rows: rows,
+        grid_column: placement.0,
+        grid_row: placement.1,
+        gap: Size::new(LengthOf::px(scalar(gap)), LengthOf::ZERO),
+        margin: Edges::new(
+            LengthAutoOf::ZERO,
+            LengthAutoOf::px(scalar(if has_physical_edges { right - 6.0 } else { 0.0 })),
+            LengthAutoOf::ZERO,
+            LengthAutoOf::px(scalar(if has_physical_edges { left - 4.0 } else { 0.0 })),
+        ),
+        padding: Edges::new(
+            LengthOf::ZERO,
+            LengthOf::px(scalar(if has_physical_edges { 5.0 } else { 0.0 })),
+            LengthOf::ZERO,
+            LengthOf::px(scalar(if has_physical_edges { 3.0 } else { 0.0 })),
+        ),
+        border: Edges::new(
+            LengthOf::ZERO,
+            LengthOf::px(scalar(if has_physical_edges { 1.0 } else { 0.0 })),
+            LengthOf::ZERO,
+            LengthOf::px(scalar(if has_physical_edges { 1.0 } else { 0.0 })),
+        ),
+        ..NodeInputOf::default()
+    }
+}
+
+fn fri08_c03_nested_projection_tree<S: LayoutScalar>(
+    flow: Fri08C03NestedFlowCase,
+    tolerance: GridFlowToleranceOf<S>,
+    with_edges: bool,
+) -> PublicLayoutTreeOf<S> {
+    let scalar = S::from_f64;
+    let root_gap = if with_edges { 10.0 } else { 0.0 };
+    let first_gap = if with_edges { 14.0 } else { 0.0 };
+    let second_gap = if with_edges { 22.0 } else { 0.0 };
+    let first_edges = if with_edges { (6.0, 10.0) } else { (0.0, 0.0) };
+    let second_edges = if with_edges { (12.0, 16.0) } else { (0.0, 0.0) };
+    let root_wrapper_placement = fri08_c03_nested_axis_placement(GridAxisKind::Column, 1, 3);
+    let nested_wrapper_placement = fri08_c03_nested_axis_placement(flow.inherited_axis, 1, 3);
+    let first_leaf_placement = fri08_c03_nested_axis_placement(flow.inherited_axis, 1, 1);
+    let last_leaf_placement = fri08_c03_nested_axis_placement(flow.inherited_axis, 3, 1);
+
+    let mut tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 6, 7, 8])
+        .children(2, [3])
+        .children(3, [4, 5])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::GridLanes,
+                direction: flow.root_direction,
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
+                grid_template_columns: vec![
+                    TrackComponentOf::AUTO,
+                    TrackComponentOf::AUTO,
+                    TrackComponentOf::AUTO,
+                ],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(10.0))],
+                gap: Size::new(LengthOf::px(scalar(root_gap)), LengthOf::ZERO),
+                grid_flow_tolerance: tolerance,
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            fri08_c03_nested_wrapper_style(
+                flow.first_wrapper_mode,
+                flow.first_wrapper_direction,
+                flow.inherited_axis,
+                first_gap,
+                root_wrapper_placement,
+                first_edges,
+            ),
+        )
+        .style(
+            3,
+            fri08_c03_nested_wrapper_style(
+                flow.second_wrapper_mode,
+                flow.second_wrapper_direction,
+                flow.inherited_axis,
+                second_gap,
+                nested_wrapper_placement,
+                second_edges,
+            ),
+        );
+    for (node, placement, measurement, order) in [
+        (4, first_leaf_placement, 20.0, 7),
+        (5, last_leaf_placement, 40.0, -7),
+    ] {
+        tree = tree
+            .style(
+                node,
+                NodeInputOf {
+                    grid_column: placement.0,
+                    grid_row: placement.1,
+                    item_order: ItemOrder::new(order),
+                    item_is_replaced: true,
+                    justify_self: Some(AlignItems::Start),
+                    align_self: Some(AlignItems::Start),
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(node, Size::new(scalar(measurement), scalar(10.0)));
+    }
+    for (index, node) in [6, 7, 8].into_iter().enumerate() {
+        let placement =
+            GridPlacement::try_line(isize::try_from(index + 1).unwrap()).expect("valid probe line");
+        tree = tree
+            .style(
+                node,
+                NodeInputOf {
+                    grid_column: placement,
+                    grid_row: GridPlacement::try_line(1).expect("valid probe row"),
+                    min_size: Size::ZERO.map(MinSizeOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(node, Size::ZERO);
+    }
+    tree
+}
+
+fn fri08_c03_nested_projection_outputs<S: LayoutScalar>(
+    tree: &PublicLayoutTreeOf<S>,
+) -> [NodeOutputOf<S>; 4] {
+    let batch = compute_layout(
+        tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("nested max-content viewport"),
+    )
+    .expect("nested production projection succeeds");
+    [
+        fri08_c01_placement_output(&batch, 1),
+        fri08_c01_placement_output(&batch, 6),
+        fri08_c01_placement_output(&batch, 7),
+        fri08_c01_placement_output(&batch, 8),
+    ]
+}
+
+fn assert_fri08_c03_nested_recursive_edges_gaps_reversal<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    for tolerance in [
+        GridFlowToleranceOf::Length(LengthOf::<S>::ZERO),
+        GridFlowToleranceOf::<S>::Infinite,
+    ] {
+        let ltr = fri08_c03_nested_projection_outputs(&fri08_c03_nested_projection_tree(
+            Fri08C03NestedFlowCase {
+                root_direction: Direction::Ltr,
+                first_wrapper_mode: WritingMode::HorizontalTb,
+                first_wrapper_direction: Direction::Ltr,
+                second_wrapper_mode: WritingMode::HorizontalTb,
+                second_wrapper_direction: Direction::Ltr,
+                inherited_axis: GridAxisKind::Column,
+            },
+            tolerance,
+            true,
+        ));
+        assert_eq!(
+            [
+                ltr[0].size.width,
+                ltr[1].size.width,
+                ltr[2].size.width,
+                ltr[3].size.width,
+            ],
+            [scalar(156.0), scalar(56.0), S::ZERO, scalar(80.0)]
+        );
+        assert_eq!(ltr[1].location.x, S::ZERO);
+        assert_eq!(ltr[3].location.x, scalar(76.0));
+
+        let rtl = fri08_c03_nested_projection_outputs(&fri08_c03_nested_projection_tree(
+            Fri08C03NestedFlowCase {
+                root_direction: Direction::Rtl,
+                first_wrapper_mode: WritingMode::HorizontalTb,
+                first_wrapper_direction: Direction::Ltr,
+                second_wrapper_mode: WritingMode::HorizontalTb,
+                second_wrapper_direction: Direction::Ltr,
+                inherited_axis: GridAxisKind::Column,
+            },
+            tolerance,
+            true,
+        ));
+        assert_eq!(rtl[0].size.width, scalar(156.0));
+        assert_eq!(rtl[1].size.width, scalar(80.0));
+        assert_eq!(rtl[2].size.width, S::ZERO);
+        assert_eq!(rtl[3].size.width, scalar(56.0));
+        assert_eq!(rtl[1].location.x, scalar(76.0));
+        assert_eq!(rtl[3].location.x, S::ZERO);
+    }
+}
+
+#[test]
+fn fri08_c03_nested_recursive_edges_gaps_reversal_and_order_are_scalar_stable() {
+    assert_fri08_c03_nested_recursive_edges_gaps_reversal::<f32>();
+    assert_fri08_c03_nested_recursive_edges_gaps_reversal::<f64>();
+}
+
+fn assert_fri08_c03_nested_vertical_sideways_row_axis_mapping<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let vertical = fri08_c03_nested_projection_outputs(&fri08_c03_nested_projection_tree(
+        Fri08C03NestedFlowCase {
+            root_direction: Direction::Ltr,
+            first_wrapper_mode: WritingMode::VerticalRl,
+            first_wrapper_direction: Direction::Ltr,
+            second_wrapper_mode: WritingMode::VerticalRl,
+            second_wrapper_direction: Direction::Ltr,
+            inherited_axis: GridAxisKind::Row,
+        },
+        GridFlowToleranceOf::Length(LengthOf::<S>::ZERO),
+        false,
+    ));
+    assert_eq!(
+        [
+            vertical[0].size.width,
+            vertical[1].size.width,
+            vertical[2].size.width,
+            vertical[3].size.width,
+        ],
+        [scalar(60.0), scalar(40.0), S::ZERO, scalar(20.0)]
+    );
+
+    let sideways = fri08_c03_nested_projection_outputs(&fri08_c03_nested_projection_tree(
+        Fri08C03NestedFlowCase {
+            root_direction: Direction::Ltr,
+            first_wrapper_mode: WritingMode::VerticalRl,
+            first_wrapper_direction: Direction::Ltr,
+            second_wrapper_mode: WritingMode::SidewaysLr,
+            second_wrapper_direction: Direction::Ltr,
+            inherited_axis: GridAxisKind::Row,
+        },
+        GridFlowToleranceOf::<S>::Infinite,
+        false,
+    ));
+    assert_eq!(sideways[1].size.width, scalar(20.0));
+    assert_eq!(sideways[2].size.width, S::ZERO);
+    assert_eq!(sideways[3].size.width, scalar(40.0));
+}
+
+#[test]
+fn fri08_c03_nested_vertical_and_sideways_flows_map_descendants_through_row_axis() {
+    assert_fri08_c03_nested_vertical_sideways_row_axis_mapping::<f32>();
+    assert_fri08_c03_nested_vertical_sideways_row_axis_mapping::<f64>();
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri08C03NestedMeasureMode {
+    Values,
+    ProviderError,
+    NonFinite,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri08C03NestedMeasureError {
+    Provider,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Fri08C03NestedRetained<S: LayoutScalar> {
+    unrounded: HashMap<u32, NodeOutputOf<S>>,
+    final_outputs: HashMap<u32, NodeOutputOf<S>>,
+    caches: HashMap<u32, CacheOf<S>>,
+}
+
+#[derive(Clone, Debug)]
+struct Fri08C03NestedAtomicTree<S: LayoutScalar> {
+    tree: PublicLayoutTreeOf<S>,
+    measure_mode: std::cell::Cell<Fri08C03NestedMeasureMode>,
+    measurement_requests: std::cell::RefCell<Vec<(u32, LeafMeasureInputOf<S>)>>,
+    cache_queries: std::cell::RefCell<Vec<(u32, bool)>>,
+    retained: Fri08C03NestedRetained<S>,
+}
+
+impl<S: LayoutScalar> Fri08C03NestedAtomicTree<S> {
+    fn new() -> Self {
+        Self {
+            tree: fri08_c03_nested_projection_tree(
+                Fri08C03NestedFlowCase {
+                    root_direction: Direction::Ltr,
+                    first_wrapper_mode: WritingMode::HorizontalTb,
+                    first_wrapper_direction: Direction::Ltr,
+                    second_wrapper_mode: WritingMode::HorizontalTb,
+                    second_wrapper_direction: Direction::Ltr,
+                    inherited_axis: GridAxisKind::Column,
+                },
+                GridFlowToleranceOf::Length(LengthOf::ZERO),
+                false,
+            ),
+            measure_mode: std::cell::Cell::new(Fri08C03NestedMeasureMode::Values),
+            measurement_requests: std::cell::RefCell::new(Vec::new()),
+            cache_queries: std::cell::RefCell::new(Vec::new()),
+            retained: Fri08C03NestedRetained::default(),
+        }
+    }
+
+    fn request() -> LayoutRootRequestOf<S> {
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("nested atomic max-content viewport")
+    }
+
+    fn apply_cache_entry(
+        retained: &mut Fri08C03NestedRetained<S>,
+        entry: &LayoutCacheStoreEntryOf<u32, S>,
+    ) {
+        retained
+            .caches
+            .entry(entry.node())
+            .or_default()
+            .store_with_context(entry.input(), entry.context(), entry.output());
+    }
+}
+
+impl<S: LayoutScalar> Traverse for Fri08C03NestedAtomicTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = <PublicLayoutTreeOf<S> as Traverse>::Children<'a>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        Traverse::children(&self.tree, node)
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.tree.child_count(node)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.tree.child(node, index)
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri08C03NestedAtomicTree<S> {
+    type MeasureError = Fri08C03NestedMeasureError;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        self.tree.node_input(node)
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.tree.layout_input(node)
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        matches!(node, 4 | 5)
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        input: LeafMeasureInputOf<S>,
+    ) -> Option<Result<Size<S>, Self::MeasureError>> {
+        if !matches!(node, 4 | 5) {
+            return None;
+        }
+        self.measurement_requests.borrow_mut().push((node, input));
+        match self.measure_mode.get() {
+            Fri08C03NestedMeasureMode::ProviderError if node == 4 => {
+                Some(Err(Fri08C03NestedMeasureError::Provider))
+            }
+            Fri08C03NestedMeasureMode::NonFinite if node == 4 => {
+                Some(Ok(Size::new(S::from_f64(f64::NAN), S::from_f64(10.0))))
+            }
+            _ => Some(Ok(Size::new(
+                S::from_f64(if node == 4 { 20.0 } else { 40.0 }),
+                S::from_f64(10.0),
+            ))),
+        }
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<S>,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<S>> {
+        let output = self
+            .retained
+            .caches
+            .get(&node)
+            .and_then(|cache| cache.get_with_context(input, context));
+        self.cache_queries
+            .borrow_mut()
+            .push((node, output.is_some()));
+        output
+    }
+
+    fn unrounded_layout(&self, node: Self::Node) -> Option<NodeOutputOf<S>> {
+        self.retained.unrounded.get(&node).copied()
+    }
+}
+
+impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri08C03NestedAtomicTree<S> {
+    type Error = core::convert::Infallible;
+    type Prepared = Fri08C03NestedRetained<S>;
+
+    fn prepare_layout_batch(
+        &self,
+        batch: &CompletedLayoutBatchOf<u32, S>,
+    ) -> Result<Self::Prepared, Self::Error> {
+        let mut prepared = self.retained.clone();
+        for node in batch.invalidated_nodes() {
+            prepared.unrounded.remove(node);
+            prepared.final_outputs.remove(node);
+            prepared.caches.remove(node);
+        }
+        for entry in batch.unrounded_entries() {
+            prepared.unrounded.insert(entry.node(), entry.output());
+        }
+        for entry in batch.final_entries() {
+            prepared.final_outputs.insert(entry.node(), entry.output());
+        }
+        for entry in batch.cache_clear_entries() {
+            prepared.caches.remove(&entry.node());
+        }
+        for entry in batch.cache_store_entries() {
+            Self::apply_cache_entry(&mut prepared, entry);
+        }
+        Ok(prepared)
+    }
+
+    fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
+        self.retained = prepared;
+    }
+}
+
+fn assert_fri08_c03_nested_cache_and_failures_are_atomic<S: LayoutScalar>() {
+    let mut tree = Fri08C03NestedAtomicTree::<S>::new();
+    let request = Fri08C03NestedAtomicTree::<S>::request();
+    let cold = compute_layout(&tree, 1, request).expect("cold recursive lanes layout succeeds");
+    assert_eq!(
+        fri08_c01_placement_output(&cold, 1).size.width,
+        S::from_f64(60.0)
+    );
+    assert_eq!(
+        cold.final_entries()
+            .iter()
+            .map(LayoutOutputEntryOf::node)
+            .collect::<Vec<_>>(),
+        [1, 2, 3, 4, 5, 6, 7, 8],
+        "recursive collection and item order preserve source-associated publication"
+    );
+    let cold_unrounded = cold.unrounded_entries().to_vec();
+    let cold_final = cold.final_entries().to_vec();
+    cold.apply_to(&mut tree)
+        .expect("recursive lanes batch commit is infallible");
+
+    tree.cache_queries.borrow_mut().clear();
+    tree.measurement_requests.borrow_mut().clear();
+    let warm = compute_layout(&tree, 1, request).expect("warm recursive lanes layout succeeds");
+    assert_eq!(warm.unrounded_entries(), cold_unrounded);
+    assert_eq!(warm.final_entries(), cold_final);
+    assert!(
+        tree.cache_queries
+            .borrow()
+            .iter()
+            .any(|(node, hit)| matches!(node, 4 | 5) && *hit),
+        "warm recursive layout must reuse a committed descendant cache entry"
+    );
+
+    for mode in [
+        Fri08C03NestedMeasureMode::ProviderError,
+        Fri08C03NestedMeasureMode::NonFinite,
+    ] {
+        tree.measure_mode.set(mode);
+        tree.measurement_requests.borrow_mut().clear();
+        let retained_before_failure = tree.retained.clone();
+        let error = compute_layout_invalidated(&tree, 1, request, &[4])
+            .expect_err("recursive descendant failure returns no partial batch");
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(4));
+        assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+        match mode {
+            Fri08C03NestedMeasureMode::ProviderError => assert!(matches!(
+                error.kind(),
+                LayoutErrorKindOf::Measurement(Fri08C03NestedMeasureError::Provider)
+            )),
+            Fri08C03NestedMeasureMode::NonFinite => {
+                let LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::MeasurementOutput(
+                    invalid,
+                )) = error.kind()
+                else {
+                    panic!("expected invalid recursive measurement output, got {error:?}");
+                };
+                assert_eq!(invalid.axis(), PhysicalAxis::Horizontal);
+            }
+            Fri08C03NestedMeasureMode::Values => unreachable!("failure loop excludes values"),
+        }
+        assert_eq!(tree.retained, retained_before_failure);
+        assert!(
+            tree.measurement_requests
+                .borrow()
+                .iter()
+                .any(|(node, _)| *node == 4),
+            "the invalidated recursive descendant reached its failing provider"
+        );
+    }
+
+    tree.measure_mode.set(Fri08C03NestedMeasureMode::Values);
+    let recovered = compute_layout_invalidated(&tree, 1, request, &[4])
+        .expect("recursive layout remains retryable after both failures");
+    assert_eq!(recovered.final_entries(), cold_final);
+    recovered
+        .apply_to(&mut tree)
+        .expect("recovered recursive lanes batch commits atomically");
+    assert_eq!(tree.retained.final_outputs.len(), 8);
+}
+
+#[test]
+fn fri08_c03_nested_cache_cold_warm_provider_non_finite_and_rollback_are_scalar_stable() {
+    assert_fri08_c03_nested_cache_and_failures_are_atomic::<f32>();
+    assert_fri08_c03_nested_cache_and_failures_are_atomic::<f64>();
+}
+
 fn assert_fri08_c03_intrinsic_fixed_content_gap_distribution<S: LayoutScalar>() {
     let scalar = S::from_f64;
     let input = LaneIntrinsicSizingInputOf::<S> {
