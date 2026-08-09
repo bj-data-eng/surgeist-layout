@@ -348,7 +348,8 @@ holistic reviews are clean without browser execution or generation.
 
 **Handoff:** Publish and remotely verify the first sprawl-containment candidate,
 then author the C08 plan against that immutable base. Carry the untouched finite
-report rows and the explicit generator exclusion forward exactly.
+report rows, including the explicitly authorized bounded generator traversal
+consolidation, forward exactly.
 
 ### 3.10 `P01/I08/S01/C08` Whole-Crate Sprawl Containment II And Final Candidate
 
@@ -365,28 +366,29 @@ arithmetic, grid-settlement, and shared scroll-fixture opportunities without
 behavior or artifact drift. The remaining finite set is browser expression and
 family-harness duplication, grid retained-state and comparison-walk test
 duplication, impossible grid-axis/subgrid scaffolding, and unowned source
-suppressions. Duplicate generator fixture traversal remains confirmed but is
-outside the immutable initiative envelope: generator changes are allowed only
-for parser updates, new fixtures, or confirmed genuine bugs.
+suppressions, plus the confirmed duplicate generator fixture traversal. The user
+has explicitly authorized implementation of that exact sprawl finding; it does
+not authorize a reusable generator layer, new generator path, fixture or artifact
+change, browser execution, generation, or unrelated generator cleanup.
 
 **Bounded outcome:** Implement every authorized remaining mechanical
 opportunity and both lint-policy corrections with characterization evidence.
 The browser expression parser update may change only test-side parser structure;
 fixture-family consolidation changes only the test harness. Remove impossible
 production grid states and the fourteen reported bare source suppressions.
-Record the generator traversal opportunity as an exact deferred generator-owned
-handoff without editing generator production. No new architecture search,
-behavior, API, fixture, artifact, dependency, feature, or later-owned scope
-enters C08.
+Replace only the two identified recursive fixture collectors with one
+deterministic internal traversal owner while preserving path projection,
+filtering, sorting, diagnostics, corpus identity, and generated output. No new
+architecture search, behavior, API, fixture, artifact, dependency, feature, or
+later-owned scope enters C08.
 
 **Observable exit evidence:** Every row in the accepted whole-crate report and
 both prior behavior findings has exactly one final disposition. All authorized
-opportunities and escalations are closed; the generator-only row is preserved
-as an explicit out-of-envelope handoff. All structural invariants, eight finding
-closures, 72 owned rows, centralized provenance, public API removal, FRI-09/F10
-controls, dependencies, features, and artifact hashes remain exact. Full final
-verification and fresh holistic review are clean without browser execution or
-generation.
+opportunities and escalations, including the bounded generator traversal row,
+are closed. All structural invariants, eight finding closures, 72 owned rows,
+centralized provenance, public API removal, FRI-09/F10 controls, dependencies,
+features, and artifact hashes remain exact. Full final verification and fresh
+holistic review are clean without browser execution or generation.
 
 **Handoff:** Publish and remotely verify the final FRI-08 leaf candidate, then
 return the complete 59-finding audit, whole-crate sprawl dispositions, artifact
