@@ -57,12 +57,23 @@ zero gutter on both adjacent edges.
 
 `src/grid/tracks.rs` owns the resulting used axis geometry: settled sizes plus
 line offsets derived from the topology's collapsed mask and the authored gap.
-All ordinary-grid span sums and child-area offsets consume that geometry; no
-second collapse predicate or uniform-gap fallback may reconstruct it. When a
-collapsed track lies between two active tracks, both gutters adjacent to the
-collapsed track are zero. Grid-lanes keeps its current path until C03 and may
-consume shared inert track facts only; it does not inherit ordinary occupancy
-collapse.
+The private `UsedGridAxisGeometryOf<S>`-equivalent contains settled sizes, the
+collapsed mask, one gutter-after value per track boundary, and line offsets. It
+alone answers active-gap total, total extent, half-open span extent, and line
+offset. `src/grid/placement.rs`, child layout, intrinsic span accounting,
+absolute placement, baseline collection, and overflow consume those methods;
+no second collapse predicate or uniform-gap fallback may reconstruct them. When
+a collapsed track lies between two active tracks, both gutters adjacent to the
+collapsed track are zero.
+
+The existing shared track-sizing entry receives an explicit private
+`GridTrackSizingPolicy::{Ordinary, Lanes}`-equivalent from its formatting-context
+caller. `Ordinary` selects the C02 state/phases. `Lanes` preserves the published
+pre-C02 lanes resolver and accepts only sizing functions and other inert shared
+facts until C03 replaces its policy. Display checks are confined to this one
+orchestration boundary; no phase contains scattered ordinary/lanes conditionals.
+Focused negative controls freeze lanes fit-content, stretch, auto-fit, and
+placement behavior throughout C02.
 
 C02 integrates fit-content as a per-track growth cap inside intrinsic,
 spanning, and flexible phases. It then stretches every non-collapsed track whose
@@ -102,9 +113,9 @@ commit, and a fresh exact-range task review before the next task starts.
 
 ### 4.1 `P01/I08/S01/C02/T01` Unify Fit-Content With Ordinary Track Phases
 
-**Owned files:** `src/grid/tracks.rs`; only narrowly required ordinary sizing
-orchestration in `src/grid/mod.rs`; and focused tracked tests in
-`src/grid_tests.rs`. No topology collapse or stretch-policy change.
+**Owned files:** `src/grid/tracks.rs`; the single private ordinary/lanes policy
+dispatch in `src/grid/mod.rs`; and focused tracked tests in `src/grid_tests.rs`.
+No topology collapse or ordinary stretch-policy change.
 
 **Outcome:** Replace the collection-wide fit-content branch with one private
 ordinary track state and phase pipeline. Initialize distinct base and growth
@@ -113,7 +124,9 @@ intrinsic contributions to those facts, cap fit-content growth only when its
 argument becomes limiting, and resolve flex tracks from remaining definite
 space without bypass. Use the same implementation for rows/columns and f32/f64.
 Existing external helper signatures may become thin adapters only when they do
-not own a parallel solver.
+not own a parallel ordinary solver. The pre-C02 shared resolver becomes the
+explicit `Lanes` policy path; C02 fit-content phases are unreachable from that
+path until C03.
 
 **Required behavioral RED prefix:** `fri08_c02_fit_content_` runs through public
 layout and proves at least:
@@ -126,6 +139,8 @@ layout and proves at least:
 - definite/indefinite percentage limits, min/max-content companions, and
   sub-one flex factors retain their existing typed semantics;
 - vertical/sideways projection and f32/f64 agree within existing tolerance.
+- rows-only and columns-only grid-lanes fit-content controls retain their exact
+  published pre-C02 geometry.
 
 **Acceptance:** No fit-content maximum causes an early return from
 `resolve_inline_tracks` or any replacement entry point. One state transition
@@ -140,6 +155,7 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c02_fit_cont
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fit_content
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout intrinsic_span
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout flex_track
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c02_lanes_negative_
 cargo fmt --check
 ```
 
@@ -149,9 +165,11 @@ cargo fmt --check
 
 **Owned files:** collapse state in `src/grid/topology.rs`; ordinary auto-fit
 policy and used axis geometry in `src/grid/tracks.rs`; placement-to-collapse
-orchestration in `src/grid/mod.rs`; `src/grid/child.rs` only where required to
-consume canonical offsets; and focused tracked tests in `src/grid_tests.rs`.
-T01 sizing phases may be consumed but not redesigned.
+orchestration in `src/grid/mod.rs`; `src/grid/placement.rs` as the sole consumer
+for definite, automatic, span, and absolute used-axis geometry;
+`src/grid/child.rs` only where required to consume canonical geometry; and
+focused tracked tests in `src/grid_tests.rs`. T01 sizing phases and policy
+dispatch may be consumed but not redesigned.
 
 **Outcome:** After C01 placement, mark each ordinary auto-fit repeated track
 occupied when any in-flow settled area spans it, then collapse every other such
@@ -159,8 +177,8 @@ track. Retain track count, line names, negative-line behavior, repeat-group and
 repetition identity. Feed collapsed bits into the T01 state as fixed zero and
 derive one axis geometry whose adjacent collapsed gutters are zero. Every
 ordinary child, span contribution, baseline, overflow, and absolute-placement
-offset consumes those sizes/offsets. Auto-fill and grid-lanes do not use this
-policy.
+offset consumes `UsedGridAxisGeometryOf` methods rather than sizes plus uniform
+gap. Auto-fill and the `Lanes` policy do not use this collapse.
 
 **Required behavioral RED prefix:** `fri08_c02_auto_fit_` proves at least:
 
@@ -169,6 +187,8 @@ policy.
 - an item spanning a repeated track prevents that track from collapsing;
 - an all-empty repetition collapses all repeated tracks and adjacent gutters;
 - active tracks separated by collapsed repetitions receive no ghost gutter;
+- an in-flow span and an absolute item crossing collapsed repetitions consume
+  canonical line/span geometry with no uniform-gap reconstruction;
 - names and positive/negative lines still address retained collapsed lines;
 - auto-fill remains expanded, and row/column flow plus f32/f64 are symmetric.
 
@@ -176,7 +196,9 @@ policy.
 No child-count cap, deletion of track identity, second occupancy walk, or gap
 reconstruction remains. Collapsed tracks receive no intrinsic, spanning, flex,
 or later stretch growth. Existing area geometry, absolute placement, baseline,
-overflow, names, order, cache, error, and rollback tests remain green.
+overflow, names, order, cache, error, and rollback tests remain green. Public
+crossing-span, absolute-item, baseline, and scroll-overflow controls prove that
+every downstream consumer uses the same boundary gutters and offsets.
 
 **Verification:**
 
@@ -185,6 +207,7 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c02_auto_fit
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout auto_fit
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout named_grid
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout grid_auto_placement
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c02_lanes_negative_
 cargo fmt --check
 ```
 
@@ -213,6 +236,8 @@ nonpositive remainder receive no stretch.
 - flex and fit-content use is subtracted before the equal share;
 - normal/stretch versus other distribution, gaps, writing modes, and f32/f64
   preserve logical/physical equivalence.
+- grid-lanes fit-content/stretch and auto-fit negative controls retain the
+  published pre-C02 result through the explicit `Lanes` policy.
 
 **Acceptance:** Exact `auto/auto` matching is absent from stretch eligibility.
 One auto-maximum predicate is consumed by both ordinary sizing paths. Stretch
@@ -227,6 +252,7 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c02_stretch_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout stretch_auto
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout grid_stretch
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c02_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri08_c02_lanes_negative_
 CARGO_NET_OFFLINE=true just verify
 cargo fmt --check
 ```
