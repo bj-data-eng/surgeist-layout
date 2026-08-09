@@ -311,41 +311,87 @@ dependency/feature, unsafe, and artifact evidence remains green.
 repeat the fresh full-range sprawl assessment before authoring the replacement
 C07 plan.
 
-### 3.9 `P01/I08/S01/C07` Validated Sprawl Containment And Final Candidate
+### 3.9 `P01/I08/S01/C07` Whole-Crate Sprawl Containment I
 
 **Specification sources:** the finite structural invariants in `FRI-08.14`;
 final verification, responsibility, finding-closure, handoff, and acceptance
 portions of `FRI-08.15` through `FRI-08.19`.
 
 **Prerequisites:** C02R complete, published, and remotely verified; a fresh
-holistic sprawl assessment has reviewed the exact FRI-08 implementation range
-from the immutable initiative base through C02R and returned one finite,
-identified finding set.
+initiative sprawl review has inventoried the entire owning crate at the accepted
+C02R source and returned one finite, identified finding set. Commit-range
+holistic review does not substitute for this whole-crate prerequisite.
 
 **Entry state:** All eight findings, including inherited-capacity error and
 grid-lanes track-phase corrections, and their bounded artifact lineage are
-closed in the immutable C02R candidate. Only the exact reviewed sprawl findings
-remain for source validation and disposition.
+closed in the immutable C02R candidate. The accepted whole-crate report contains
+eleven mechanical opportunities and two lint-policy escalations. The cycle task
+bound requires two ordered sprawl-containment cycles rather than compressing
+unrelated findings behind broad write envelopes.
 
-**Bounded outcome:** Validate each assessed finding against current source.
-Implement every confirmed in-initiative mechanical consolidation with
-characterization evidence, or disprove it with an exact counterexample. Work is
-limited to the finite assessment set and `FRI-08.14`; no new architecture
-search, behavior, API, fixture, artifact, dependency, feature, or later-owned
-scope enters C07. A genuine behavior/input/artifact defect reopens its exact
-owning cycle rather than being hidden as refactoring.
+**Bounded outcome:** Validate and implement the first coherent partition of the
+accepted report: visible inline-run transition ownership, canonical scroll
+source/reconstruction ownership, optional layout arithmetic, grid scrollbar
+settlement, and shared scroll-geometry test fixtures. Every change is
+characterization-first and behavior-preserving. Work is limited to those exact
+report rows and `FRI-08.14`; no new architecture search, behavior, API, fixture,
+artifact, dependency, feature, or later-owned scope enters C07. A genuine
+behavior/input/artifact defect reopens its exact owning cycle rather than being
+hidden as refactoring.
 
-**Observable exit evidence:** Every assessed finding has one recorded
-disposition; all structural invariants hold; all eight finding closures, 72
+**Observable exit evidence:** Every C07-owned report row has one recorded
+disposition; its characterization, configured tests, strict lint, scope,
+suppression, unsafe, and artifact gates pass. All eight finding closures, 72
 owned rows, centralized provenance, public API removal, FRI-09/F10 controls,
-dependencies, features, and artifact hashes remain unchanged unless an owning
-contract was explicitly reopened. Full final verification and fresh holistic
-review are clean without an unneeded generation run.
+dependencies, features, and artifact hashes remain unchanged. Fresh task and
+holistic reviews are clean without browser execution or generation.
 
-**Handoff:** Return the final FRI-08 leaf candidate, eight-finding closure,
-finite sprawl dispositions, exact artifact lineage, public/root boundary, and
-later-P01 continuation state.
+**Handoff:** Publish and remotely verify the first sprawl-containment candidate,
+then author the C08 plan against that immutable base. Carry the untouched finite
+report rows and the explicit generator exclusion forward exactly.
+
+### 3.10 `P01/I08/S01/C08` Whole-Crate Sprawl Containment II And Final Candidate
+
+**Specification sources:** the finite structural invariants in `FRI-08.14`;
+final verification, responsibility, finding-closure, handoff, and acceptance
+portions of `FRI-08.15` through `FRI-08.19`.
+
+**Prerequisites:** C07 complete, independently reviewed, published, and remotely
+verified; exact C07 dispositions and the remaining accepted whole-crate report
+rows are available at the immutable C07 candidate.
+
+**Entry state:** C07 has closed the production-wide inline, scroll, optional
+arithmetic, grid-settlement, and shared scroll-fixture opportunities without
+behavior or artifact drift. The remaining finite set is browser expression and
+family-harness duplication, grid retained-state and comparison-walk test
+duplication, impossible grid-axis/subgrid scaffolding, and unowned source
+suppressions. Duplicate generator fixture traversal remains confirmed but is
+outside the immutable initiative envelope: generator changes are allowed only
+for parser updates, new fixtures, or confirmed genuine bugs.
+
+**Bounded outcome:** Implement every authorized remaining mechanical
+opportunity and both lint-policy corrections with characterization evidence.
+The browser expression parser update may change only test-side parser structure;
+fixture-family consolidation changes only the test harness. Remove impossible
+production grid states and the fourteen reported bare source suppressions.
+Record the generator traversal opportunity as an exact deferred generator-owned
+handoff without editing generator production. No new architecture search,
+behavior, API, fixture, artifact, dependency, feature, or later-owned scope
+enters C08.
+
+**Observable exit evidence:** Every row in the accepted whole-crate report and
+both prior behavior findings has exactly one final disposition. All authorized
+opportunities and escalations are closed; the generator-only row is preserved
+as an explicit out-of-envelope handoff. All structural invariants, eight finding
+closures, 72 owned rows, centralized provenance, public API removal, FRI-09/F10
+controls, dependencies, features, and artifact hashes remain exact. Full final
+verification and fresh holistic review are clean without browser execution or
+generation.
+
+**Handoff:** Publish and remotely verify the final FRI-08 leaf candidate, then
+return the complete 59-finding audit, whole-crate sprawl dispositions, artifact
+lineage, public/root boundary, and later-P01 continuation state.
 
 ## 4 Sequence Completion
 
-This sequence ends at `P01/I08/S01/C07`; no later cycle is represented.
+This sequence ends at `P01/I08/S01/C08`; no later cycle is represented.
