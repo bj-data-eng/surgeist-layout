@@ -116,13 +116,16 @@ Each worker receives its exact full `TASK_BASE` SHA and newline-delimited
 
 ```sh
 test -z "$(comm -23 <(git diff --name-only "$TASK_BASE"..HEAD | LC_ALL=C sort) <(printf '%s\n' "$TASK_FILES" | LC_ALL=C sort))"
-if git diff -U0 "$TASK_BASE"..HEAD -- '*.rs' | rg '^\+.*#\[(allow|expect)\('; then exit 1; fi
+if git diff --word-diff=porcelain --word-diff-regex='[[:alpha:]_][[:alnum:]_]*' "$TASK_BASE"..HEAD -- '*.rs' | rg '^\+.*\b(allow|expect)\b'; then exit 1; fi
 if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '(^|[^[:alnum:]_])(unsafe[[:space:]]*\{|unsafe[[:space:]]+fn|unsafe[[:space:]]+impl|unsafe[[:space:]]+trait|unsafe[[:space:]]+extern|extern[[:space:]]+"[^"]+"|#\[[[:space:]]*unsafe)'; then exit 1; fi
+if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U '#\[[^]]*\b(unsafe|no_mangle|export_name|link_section|naked)\b'; then exit 1; fi
 ```
 
-The first command emits nothing and exits zero only when every changed file is
-inside the assignment envelope. The second and third commands must find no
-match. `TASK_FILES` contains one path per line, not a shell glob.
+The first command exits zero only when every changed file is inside the
+assignment envelope. The conservative word-diff scan rejects any newly added
+`allow` or `expect` token regardless of direct, multiline, or `cfg_attr` nesting.
+Both unsafe scans must find no executable construct or direct/nested unsafe
+attribute. `TASK_FILES` contains one path per line, not a shell glob.
 
 ## 4 Tasks
 
@@ -309,13 +312,30 @@ holistic reviewer must return clean for the exact C07 cycle range.
 Final executable scope, suppression, and unsafe proofs are:
 
 ```sh
-git diff --name-only dc71a5582ab0ef3925826dce09b93ee9fa6f49a1..HEAD
-if git diff -U0 dc71a5582ab0ef3925826dce09b93ee9fa6f49a1..HEAD -- '*.rs' | rg '^\+.*#\[(allow|expect)\('; then exit 1; fi
+expected_paths='plans/cycles/P01-I08-S01-C07-validated-sprawl-containment-and-final-candidate.md
+plans/sequences/P01-I08-S01-grid-subgrid-and-grid-lanes-completeness.md
+src/block.rs
+src/block_tests.rs
+src/compute.rs
+src/flex.rs
+src/flex_tests.rs
+src/grid/mod.rs
+src/grid_tests.rs
+src/layout_math.rs
+src/leaf_tests.rs
+src/lib_tests.rs
+src/root_tests.rs
+src/scroll.rs
+src/test_support/mod.rs
+src/test_support/scroll_geometry.rs'
+test "$(git diff --name-only dc71a5582ab0ef3925826dce09b93ee9fa6f49a1..HEAD | LC_ALL=C sort)" = "$(printf '%s\n' "$expected_paths" | LC_ALL=C sort)"
+if git diff --word-diff=porcelain --word-diff-regex='[[:alpha:]_][[:alnum:]_]*' dc71a5582ab0ef3925826dce09b93ee9fa6f49a1..HEAD -- '*.rs' | rg '^\+.*\b(allow|expect)\b'; then exit 1; fi
 if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '(^|[^[:alnum:]_])(unsafe[[:space:]]*\{|unsafe[[:space:]]+fn|unsafe[[:space:]]+impl|unsafe[[:space:]]+trait|unsafe[[:space:]]+extern|extern[[:space:]]+"[^"]+"|#\[[[:space:]]*unsafe)'; then exit 1; fi
+if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U '#\[[^]]*\b(unsafe|no_mangle|export_name|link_section|naked)\b'; then exit 1; fi
 ```
 
-The final changed-file list must equal the union of the reviewed planning/status
-files and five reviewed task envelopes; both scans must find no match.
+The final changed-file list must equal the explicit set in both directions; the
+suppression scan and both unsafe scans must find no match.
 
 C07 completes only after `SP-002`, `SP-003`, `SP-004`, `SP-005`, and `SP-011`
 each have one implemented and characterized disposition; all eight FRI-08
