@@ -54,7 +54,7 @@ scoped = []
 
 [generation_reports.full]
 file = "all.json"
-generated = 5736
+generated = 5776
 unsupported = 16
 expected_fail = 3
 quarantined = 0

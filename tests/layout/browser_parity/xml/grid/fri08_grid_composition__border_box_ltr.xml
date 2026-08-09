@@ -1,0 +1,19 @@
+<test name="fri08_grid_composition__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="ltr" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15" align-content="start" justify-content="start" width="130px" height="45px" row-gap="5px" column-gap="5px" grid-auto-flow="row dense" grid-template-rows="20px" grid-template-columns="40px 40px 40px" grid-template-areas="head head side" grid-auto-rows="20px">
+      <div source-tag="div" display="flex" direction="ltr" width="40px" height="20px" grid-row-start="side" grid-row-end="side" grid-column-start="side" grid-column-end="side"/>
+      <div source-tag="div" display="flex" direction="ltr" order="-1" width="85px" height="20px" grid-column-start="span 2"/>
+      <div source-tag="div" display="flex" direction="ltr" width="40px" height="20px"/>
+      <div source-tag="div" display="flex" direction="ltr" position="absolute" width="7px" height="5px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="130" height="45" scroll_width="0" scroll_height="0">
+      <node x="90" y="0" width="40" height="20"/>
+      <node x="0" y="0" width="85" height="20"/>
+      <node x="0" y="25" width="40" height="20"/>
+      <node x="0" y="0" width="7" height="5"/>
+    </node>
+  </expectations>
+</test>

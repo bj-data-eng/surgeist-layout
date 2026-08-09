@@ -1,0 +1,15 @@
+<test name="fri08_stretch_minmax_auto__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" align-content="start" justify-content="stretch" width="200px" height="20px" grid-template-rows="20px" grid-template-columns="minmax(30px,auto) minmax(min-content,auto)">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="30px" height="20px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px" height="20px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="20">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="90" y="0" width="50" height="20"/>
+    </node>
+  </expectations>
+</test>

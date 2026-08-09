@@ -388,7 +388,7 @@ fn fri08_c05_inputs_exact_new_source_inventory_and_finite_structure_are_settled(
 }
 
 #[test]
-fn fri08_c05_inputs_manifest_has_exact_active_rows_without_suppression() {
+fn fri08_c06_manifest_has_exact_active_rows_without_suppression() {
     let manifest =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/corpus.toml");
     let raw = std::fs::read_to_string(&manifest)
@@ -407,11 +407,11 @@ fn fri08_c05_inputs_manifest_has_exact_active_rows_without_suppression() {
         );
         assert_eq!(raw.matches(&record).count(), 1, "manifest row for {source}");
     }
-    assert!(raw.contains("generated = 5736"));
+    assert!(raw.contains("generated = 5776"));
 }
 
 #[test]
-fn fri08_c05_inputs_prospective_rows_are_unique_with_only_control_xml_present() {
+fn fri08_c06_owned_rows_are_unique_and_adopt_exact_control_inventory() {
     let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
     let raw = std::fs::read_to_string(corpus.join("corpus.toml")).expect("corpus manifest");
     let active_new = fri08_c05_inputs_active_new_manifest_sources(&raw);
@@ -421,11 +421,51 @@ fn fri08_c05_inputs_prospective_rows_are_unique_with_only_control_xml_present() 
         .chain(active_new)
         .collect::<BTreeSet<_>>();
     let paths = fri08_c05_inputs_prospective_paths(&corpus, owned.iter().map(String::as_str));
+    let controls = fri08_c05_inputs_prospective_paths(&corpus, fri08_c05_inputs_control_sources());
 
     assert_eq!(owned.len(), 18);
     assert_eq!(paths.len(), 72);
-    assert_eq!(paths.iter().filter(|path| path.is_file()).count(), 32);
-    assert_eq!(paths.iter().filter(|path| !path.exists()).count(), 40);
+    assert_eq!(controls.len(), 32);
+    assert!(controls.iter().all(|path| path.is_file()));
+}
+
+fn fri08_c06_owned_output_paths() -> BTreeSet<PathBuf> {
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+    fri08_c05_inputs_prospective_paths(
+        &corpus,
+        fri08_c05_inputs_new_sources()
+            .into_iter()
+            .chain(fri08_c05_inputs_control_sources()),
+    )
+}
+
+#[test]
+fn fri08_c06_exact_seventy_two_owned_rows_exist_parse_and_are_comment_free() {
+    let paths = fri08_c06_owned_output_paths();
+    assert_eq!(paths.len(), 72);
+    let missing = paths
+        .iter()
+        .filter(|path| !path.is_file())
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>();
+    assert!(
+        missing.is_empty(),
+        "FRI-08 requires 72 generated rows; {} are absent:\n{}",
+        missing.len(),
+        missing.join("\n")
+    );
+
+    for path in paths {
+        let raw = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("{} should read: {error}", path.display()));
+        assert!(
+            !raw.contains("<!--"),
+            "{} contains an XML comment",
+            path.display()
+        );
+        support::Golden::parse(&raw)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", path.display()));
+    }
 }
 
 fn fri07_c04_fixture_input_xml(name: &str, root_width: &str, first_width: &str) -> String {
@@ -621,7 +661,7 @@ fn fri07_c04_browser_parity_exact_twelve_chrome_variants_reproduce_reviewed_sign
 }
 
 #[test]
-fn fri07_c04_browser_parity_final_inventory_and_report_are_closed() {
+fn fri08_c06_final_inventory_preserves_fri07_expected_fail_contract() {
     let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
     assert_eq!(
         support::fixture_files_in(&corpus.join("html"), "html")
@@ -633,7 +673,7 @@ fn fri07_c04_browser_parity_final_inventory_and_report_are_closed() {
         support::fixture_files_in(&corpus.join("xml"), "xml")
             .expect("XML corpus inventory")
             .len(),
-        5_736
+        5_776
     );
 
     let report: serde_json::Value = serde_json::from_str(
@@ -644,7 +684,7 @@ fn fri07_c04_browser_parity_final_inventory_and_report_are_closed() {
     assert_eq!(report["metadata"]["schema_version"], 3);
     assert!(report["filter"].is_null());
     for (bucket, count) in [
-        ("generated", 5_736),
+        ("generated", 5_776),
         ("unsupported", 16),
         ("expected_fail", 3),
         ("quarantined", 0),
@@ -1027,7 +1067,7 @@ fn fri04_c05_fixture_outputs_parse_and_match_surgeist_layout() {
 }
 
 #[test]
-fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
+fn fri08_c06_final_inventory_preserves_fri04_fixture_contract() {
     let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
     let html_root = corpus_root.join("html");
     let html = support::fixture_files_in(&html_root, "html")
@@ -1048,12 +1088,12 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
 
     let xml = support::fixture_files_in(&corpus_root.join("xml"), "xml")
         .expect("XML parity fixtures should be readable");
-    assert_eq!(xml.len(), 5736);
+    assert_eq!(xml.len(), 5776);
 
     let manifest_path = corpus_root.join("corpus.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("{} should read: {error}", manifest_path.display()));
-    assert!(manifest.contains("generated = 5736"));
+    assert!(manifest.contains("generated = 5776"));
     for source in sources {
         let case = format!(
             "id = \"{}\"\nsource_root = \"surgeist\"\nsource = \"{source}\"\ngenerator = \"constrained-html\"\nstatus = \"active\"",
@@ -1082,7 +1122,7 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
             .unwrap_or_else(|error| panic!("{} should read: {error}", report_path.display())),
     )
     .unwrap_or_else(|error| panic!("{} should parse: {error}", report_path.display()));
-    assert_eq!(report["summary"]["generated"], 5736);
+    assert_eq!(report["summary"]["generated"], 5776);
     assert_eq!(report["summary"]["unsupported"], 16);
     assert_eq!(report["summary"]["expected_fail"], 3);
     assert_eq!(report["summary"]["quarantined"], 0);
@@ -3433,7 +3473,7 @@ fn browser_parity_html_provenance_does_not_reference_local_temp_checkouts() {
 }
 
 #[test]
-fn browser_parity_generation_report_counts_full_scope() {
+fn fri08_c06_generation_report_counts_full_scope() {
     let report = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/layout/browser_parity/xml/generation-reports/all.json");
     let raw = std::fs::read_to_string(&report)
@@ -3443,7 +3483,7 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5736);
+    assert_eq!(report_json["summary"]["generated"], 5776);
     assert_eq!(report_json["summary"]["unsupported"], 16);
     assert_eq!(report_json["summary"]["expected_fail"], 3);
     assert_eq!(report_json["summary"]["quarantined"], 0);
@@ -3454,7 +3494,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5736,
+        5776,
         "generated bucket length must match its summary"
     );
     assert_eq!(
