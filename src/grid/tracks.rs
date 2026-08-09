@@ -1821,14 +1821,13 @@ where
         return tree.compute_child(child, input);
     }
 
-    Ok(compute_grid_with_context_result(
+    compute_grid_with_context_and_standalone_intrinsic_minimum(
         tree,
         child,
         input,
         child_context,
-        GridMeasurementBoundary::Ordinary,
-    )?
-    .output)
+        sizing.standalone_intrinsic_minimum,
+    )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -5274,6 +5273,7 @@ mod tests {
                     unresolved_margin: Edges::ZERO.map(Some),
                     justify_self: AlignItems::Stretch,
                     align_self: AlignItems::Stretch,
+                    standalone_intrinsic_minimum: Size::NONE,
                 },
                 [Some(outer_constraint), None],
             );
@@ -5298,6 +5298,7 @@ mod tests {
                     unresolved_margin: Edges::ZERO.map(Some),
                     justify_self: AlignItems::Stretch,
                     align_self: AlignItems::Stretch,
+                    standalone_intrinsic_minimum: Size::NONE,
                 },
                 [Some(inner_constraint), None],
             );

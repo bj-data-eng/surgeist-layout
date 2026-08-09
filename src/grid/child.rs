@@ -1037,7 +1037,13 @@ where
             // Subgrid layout depends on the parent grid's used tracks, so this
             // intentionally bypasses the generic child layout cache until that
             // cache can include context-sensitive grid keys.
-            compute_grid_with_context(tree, child, child_input, child_context)?
+            compute_grid_with_context_and_standalone_intrinsic_minimum(
+                tree,
+                child,
+                child_input,
+                child_context,
+                item.standalone_intrinsic_minimum,
+            )?
         } else {
             tree.compute_child(child, child_input)?
         };
@@ -1524,12 +1530,12 @@ where
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         )
         .with_containing_auto_scrollbar_pass(input.containing_auto_scrollbar_pass);
-        let result = compute_grid_with_context_settled(
+        let result = compute_grid_with_context_settled_and_standalone_intrinsic_minimum(
             tree,
             item.node,
             child_input,
             child_context,
-            GridMeasurementBoundary::Ordinary,
+            sizing.standalone_intrinsic_minimum,
         )?;
         let GridComputeResult {
             mut output,
@@ -3209,6 +3215,28 @@ pub(super) struct GridItemSizing<S: LayoutScalar = Scalar> {
     pub(super) unresolved_margin: Edges<Option<S>>,
     pub(super) justify_self: AlignItems,
     pub(super) align_self: AlignItems,
+    pub(super) standalone_intrinsic_minimum: Size<Option<StandaloneIntrinsicMinimum>>,
+}
+
+enum GridItemMinimum<S: LayoutScalar> {
+    Resolved(Option<S>),
+    StandaloneIntrinsic(StandaloneIntrinsicMinimum),
+}
+
+impl<S: LayoutScalar> GridItemMinimum<S> {
+    const fn resolved(&self) -> Option<S> {
+        match self {
+            Self::Resolved(value) => *value,
+            Self::StandaloneIntrinsic(_) => None,
+        }
+    }
+
+    const fn standalone_intrinsic(&self) -> Option<StandaloneIntrinsicMinimum> {
+        match self {
+            Self::Resolved(_) => None,
+            Self::StandaloneIntrinsic(minimum) => Some(*minimum),
+        }
+    }
 }
 
 pub(super) fn grid_item_sizing_for_grid_flow<Tree, M>(
@@ -3293,7 +3321,7 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
     )
     .apply_aspect_ratio(child_style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
-    let min_size = Size::new(
+    let minimum = Size::new(
         resolve_standalone_subgrid_item_minimum_optional(
             &child_style.min_size.width,
             child_style,
@@ -3310,11 +3338,16 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
             area_parent.height,
             true,
         )?,
-    )
-    .add_optional(box_sizing_adjustment)
-    .or((padding + border).sum_axes().map(Some))
-    .max_optional((padding + border).sum_axes().map(Some))
-    .apply_aspect_ratio(child_style.aspect_ratio);
+    );
+    let standalone_intrinsic_minimum = Size::new(
+        minimum.width.standalone_intrinsic(),
+        minimum.height.standalone_intrinsic(),
+    );
+    let min_size = Size::new(minimum.width.resolved(), minimum.height.resolved())
+        .add_optional(box_sizing_adjustment)
+        .or((padding + border).sum_axes().map(Some))
+        .max_optional((padding + border).sum_axes().map(Some))
+        .apply_aspect_ratio(child_style.aspect_ratio);
     let max_size = Size::new(
         resolve_maximum_optional(
             &child_style.max_size.width,
@@ -3404,6 +3437,7 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
         unresolved_margin,
         justify_self,
         align_self,
+        standalone_intrinsic_minimum,
     })
 }
 
@@ -3414,7 +3448,7 @@ fn resolve_standalone_subgrid_item_minimum_optional<S: LayoutScalar>(
     physical_axis: PhysicalAxis,
     basis: Option<S>,
     missing_basis_is_indefinite: bool,
-) -> Result<Option<S>, SizingResolutionError<S>> {
+) -> Result<GridItemMinimum<S>, SizingResolutionError<S>> {
     let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
     let queried_axis =
         if grid_axis_physical_axis(child_flow_axes, GridAxisKind::Column) == physical_axis {
@@ -3430,7 +3464,12 @@ fn resolve_standalone_subgrid_item_minimum_optional<S: LayoutScalar>(
         && !subgrid_requested(child_style, queried_axis)
         && subgrid_requested(child_style, other_axis)
     {
-        return Ok(None);
+        let minimum = if value.is_min_content() {
+            StandaloneIntrinsicMinimum::MinContent
+        } else {
+            StandaloneIntrinsicMinimum::MaxContent
+        };
+        return Ok(GridItemMinimum::StandaloneIntrinsic(minimum));
     }
     resolve_minimum_optional(
         value,
@@ -3439,6 +3478,7 @@ fn resolve_standalone_subgrid_item_minimum_optional<S: LayoutScalar>(
         basis,
         missing_basis_is_indefinite,
     )
+    .map(GridItemMinimum::Resolved)
 }
 
 pub(crate) fn resolve_grid_item_normal_alignment(

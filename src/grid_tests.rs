@@ -945,6 +945,184 @@ fn fri08_c04_standalone_column_autoflow_measures_the_local_grid_container() {
     }
 }
 
+#[derive(Clone, Debug)]
+struct Fri08C04StandaloneIntrinsicMinimumTree<S: LayoutScalar> {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInputOf<S>>,
+}
+
+impl<S: LayoutScalar> Fri08C04StandaloneIntrinsicMinimumTree<S> {
+    fn new(minimum: MinSizeOf<S>) -> Self {
+        let mut children = HashMap::new();
+        children.insert(1, vec![2]);
+        children.insert(2, vec![3]);
+        children.insert(3, vec![4, 5]);
+        children.insert(4, Vec::new());
+        children.insert(5, Vec::new());
+
+        let mut styles = HashMap::new();
+        styles.insert(
+            1,
+            NodeInputOf {
+                display: Display::InlineGrid,
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO],
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        );
+        styles.insert(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: subgrid_track_of(),
+                grid_template_rows: vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO],
+                grid_column: GridPlacement::try_line(1).expect("single inherited column"),
+                grid_row: GridPlacement::try_line_span(1, 2).expect("two root rows"),
+                ..NodeInputOf::default()
+            },
+        );
+        styles.insert(
+            3,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: subgrid_track_of(),
+                grid_template_areas: GridTemplateAreas {
+                    rows: vec![
+                        GridTemplateAreaRow {
+                            cells: vec![Some("first".to_string())],
+                        },
+                        GridTemplateAreaRow {
+                            cells: vec![Some("second".to_string())],
+                        },
+                    ],
+                },
+                grid_column: GridPlacement::try_line(1).expect("single inherited column"),
+                grid_row: GridPlacement::try_line_span(1, 2).expect("two inherited rows"),
+                grid_auto_flow: GridAutoFlow::Column,
+                min_size: Size::new(minimum, MinSizeOf::AUTO),
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        );
+        for (node, area) in [(4, "first"), (5, "second")] {
+            styles.insert(
+                node,
+                NodeInputOf {
+                    item_is_replaced: true,
+                    grid_column: GridPlacement::try_line(1).expect("standalone local column"),
+                    raw_grid_row: RawGridPlacement::new(
+                        RawGridLine::BareIdent(area.to_string()),
+                        RawGridLine::BareIdent(area.to_string()),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            );
+        }
+
+        Self { children, styles }
+    }
+}
+
+impl<S: LayoutScalar> Traverse for Fri08C04StandaloneIntrinsicMinimumTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri08C04StandaloneIntrinsicMinimumTree<S> {
+    type MeasureError = core::convert::Infallible;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<Self::Scalar> {
+        self.styles
+            .get(&node)
+            .unwrap_or_else(|| panic!("standalone intrinsic node {node} must have style"))
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        LayoutInputOf::box_input(self.node_input(node).clone())
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        matches!(node, 4 | 5)
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        input: LeafMeasureInputOf<Self::Scalar>,
+    ) -> Option<Result<Size<Self::Scalar>, Self::MeasureError>> {
+        if !matches!(node, 4 | 5) {
+            return None;
+        }
+        let width = match input.available_content_size().width {
+            MeasurementAvailableOf::MinContent => Self::Scalar::from_f64(20.0),
+            MeasurementAvailableOf::MaxContent => Self::Scalar::from_f64(80.0),
+            MeasurementAvailableOf::Definite(value) => {
+                value.get().min(Self::Scalar::from_f64(80.0))
+            }
+        };
+        Some(Ok(Size::new(width, Self::Scalar::from_f64(50.0))))
+    }
+}
+
+fn fri08_c04_standalone_intrinsic_minimum_width<S: LayoutScalar>(minimum: MinSizeOf<S>) -> S {
+    let tree = Fri08C04StandaloneIntrinsicMinimumTree::new(minimum);
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MIN_CONTENT))
+            .expect("min-content standalone viewport"),
+    )
+    .expect("one-axis subgrid intrinsic minimum layout succeeds");
+    fri08_c01_placement_output(&batch, 1).size.width
+}
+
+#[test]
+fn fri08_c04_standalone_intrinsic_minimum_preserves_min_and_max_content_phases() {
+    for (minimum, expected) in [
+        (MinSizeOf::<f32>::MIN_CONTENT, 20.0),
+        (MinSizeOf::<f32>::MAX_CONTENT, 80.0),
+    ] {
+        assert_eq!(
+            fri08_c04_standalone_intrinsic_minimum_width(minimum.clone()),
+            expected,
+            "{minimum:?} must retain its standalone measurement phase"
+        );
+    }
+}
+
+#[test]
+fn fri08_c04_standalone_ordinary_one_axis_subgrid_keeps_automatic_minimum() {
+    assert_eq!(
+        fri08_c04_standalone_intrinsic_minimum_width(MinSize::AUTO),
+        20.0
+    );
+}
+
 fn fri08_c04_standalone_nested_tree<S: LayoutScalar>(
     writing_mode: WritingMode,
     root_direction: Direction,

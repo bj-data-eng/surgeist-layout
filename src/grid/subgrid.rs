@@ -1990,10 +1990,15 @@ where
         ),
     };
     let available = Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT);
+    let intrinsic_minimum = standalone_intrinsic_minimum_phases(style, &parent_context);
+    let traversal_style = standalone_intrinsic_minimum_probe_style(
+        style,
+        intrinsic_minimum.map(|minimum| minimum.is_some()),
+    );
     let constants = Constants::new_with_reservation::<Tree, M>(
         tree,
         node,
-        style,
+        &traversal_style,
         ComputeInputOf::for_child(
             RunMode::ComputeSize,
             SizingMode::InherentSize,
@@ -2007,11 +2012,7 @@ where
             available,
         ),
         false,
-        standalone_intrinsic_minimum_axes(
-            style,
-            &parent_context,
-            GridMeasurementBoundary::Ordinary,
-        ),
+        Size::NONE,
     )?;
     let initialized = initialize_grid_tracks::<Tree, M>(
         tree,

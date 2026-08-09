@@ -196,30 +196,70 @@ fn sizing_algorithm_for_grid_display(display: Display) -> SizingAlgorithm {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum GridMeasurementBoundary {
-    Ordinary,
-    Standalone,
+enum StandaloneIntrinsicMinimum {
+    MinContent,
+    MaxContent,
 }
 
-fn standalone_intrinsic_minimum_axes<S: LayoutScalar, Node>(
+impl StandaloneIntrinsicMinimum {
+    fn from_minimum<S: LayoutScalar>(minimum: &MinSizeOf<S>) -> Option<Self> {
+        if minimum.is_min_content() {
+            Some(Self::MinContent)
+        } else if minimum.is_max_content() {
+            Some(Self::MaxContent)
+        } else {
+            None
+        }
+    }
+
+    const fn available<S: LayoutScalar>(self) -> AvailableOf<S> {
+        match self {
+            Self::MinContent => AvailableOf::MIN_CONTENT,
+            Self::MaxContent => AvailableOf::MAX_CONTENT,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum GridMeasurementBoundary<S: LayoutScalar> {
+    Ordinary,
+    StandaloneIntrinsicMinimumProbe(Size<bool>),
+    Standalone(Size<Option<S>>),
+}
+
+fn standalone_intrinsic_minimum_phases<S: LayoutScalar, Node>(
     style: &NodeInputOf<S>,
     parent_context: &GridParentContext<S, Node>,
-    measurement_boundary: GridMeasurementBoundary,
-) -> Size<bool> {
+) -> Size<Option<StandaloneIntrinsicMinimum>> {
     let style_flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
     let standalone_physical_axes = style_flow_axes.physical_size(LogicalSizeOf::new(
         parent_context.columns.is_none(),
         parent_context.rows.is_none(),
     ));
-    let has_inherited_axis = parent_context.has_inherited_axis();
     Size::new(
-        (style.min_size.width.is_min_content() || style.min_size.width.is_max_content())
-            && standalone_physical_axes.width
-            && (measurement_boundary == GridMeasurementBoundary::Standalone || has_inherited_axis),
-        (style.min_size.height.is_min_content() || style.min_size.height.is_max_content())
-            && standalone_physical_axes.height
-            && (measurement_boundary == GridMeasurementBoundary::Standalone || has_inherited_axis),
+        standalone_physical_axes
+            .width
+            .then(|| StandaloneIntrinsicMinimum::from_minimum(&style.min_size.width))
+            .flatten(),
+        standalone_physical_axes
+            .height
+            .then(|| StandaloneIntrinsicMinimum::from_minimum(&style.min_size.height))
+            .flatten(),
     )
+}
+
+fn standalone_intrinsic_minimum_probe_style<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    axes: Size<bool>,
+) -> NodeInputOf<S> {
+    let mut probe_style = style.clone();
+    if axes.width {
+        probe_style.min_size.width = MinSizeOf::AUTO;
+    }
+    if axes.height {
+        probe_style.min_size.height = MinSizeOf::AUTO;
+    }
+    probe_style
 }
 
 fn intrinsic_container_available<S: LayoutScalar>(
@@ -318,14 +358,72 @@ fn compute_grid_with_context<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    Ok(compute_grid_with_context_settled(
+    let style = tree.node_input(node).clone();
+    let intrinsic_minimum = standalone_intrinsic_minimum_phases(&style, &parent_context);
+    compute_grid_with_context_and_standalone_intrinsic_minimum(
         tree,
         node,
         input,
         parent_context,
-        GridMeasurementBoundary::Ordinary,
-    )?
-    .output)
+        intrinsic_minimum,
+    )
+}
+
+fn compute_grid_with_context_and_standalone_intrinsic_minimum<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<Tree::Scalar>,
+    parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
+    intrinsic_minimum: Size<Option<StandaloneIntrinsicMinimum>>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    Ok(
+        compute_grid_with_context_settled_and_standalone_intrinsic_minimum(
+            tree,
+            node,
+            input,
+            parent_context,
+            intrinsic_minimum,
+        )?
+        .output,
+    )
+}
+
+fn compute_grid_with_context_settled_and_standalone_intrinsic_minimum<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<Tree::Scalar>,
+    parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
+    intrinsic_minimum: Size<Option<StandaloneIntrinsicMinimum>>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    let style = tree.node_input(node).clone();
+    let contextual_minimum = standalone_intrinsic_minimum_phases(&style, &parent_context);
+    let intrinsic_minimum = Size::new(
+        intrinsic_minimum.width.or(contextual_minimum.width),
+        intrinsic_minimum.height.or(contextual_minimum.height),
+    );
+    if intrinsic_minimum.width.is_some() || intrinsic_minimum.height.is_some() {
+        compute_standalone_grid_with_context_settled(
+            tree,
+            node,
+            input,
+            parent_context,
+            intrinsic_minimum,
+        )
+    } else {
+        compute_grid_with_context_settled(
+            tree,
+            node,
+            input,
+            parent_context,
+            GridMeasurementBoundary::Ordinary,
+        )
+    }
 }
 
 fn compute_standalone_grid_with_context<Tree, M>(
@@ -337,14 +435,86 @@ fn compute_standalone_grid_with_context<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    Ok(compute_grid_with_context_settled(
+    let style = tree.node_input(node).clone();
+    let intrinsic_minimum = standalone_intrinsic_minimum_phases(&style, &parent_context);
+    Ok(compute_standalone_grid_with_context_settled(
         tree,
         node,
         input,
         parent_context,
-        GridMeasurementBoundary::Standalone,
+        intrinsic_minimum,
     )?
     .output)
+}
+
+fn compute_standalone_grid_with_context_settled<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<Tree::Scalar>,
+    parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
+    intrinsic_minimum: Size<Option<StandaloneIntrinsicMinimum>>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    let intrinsic_axes = intrinsic_minimum.map(|minimum| minimum.is_some());
+    let resolved_intrinsic_minimum = if intrinsic_axes.width || intrinsic_axes.height {
+        let available = Size::new(
+            intrinsic_minimum.width.map_or(
+                input.available().width,
+                StandaloneIntrinsicMinimum::available,
+            ),
+            intrinsic_minimum.height.map_or(
+                input.available().height,
+                StandaloneIntrinsicMinimum::available,
+            ),
+        );
+        let known = Size::new(
+            if intrinsic_axes.width {
+                None
+            } else {
+                input.known().width
+            },
+            if intrinsic_axes.height {
+                None
+            } else {
+                input.known().height
+            },
+        );
+        let probe_input = ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            input.sizing_mode(),
+            input.requested_axis(),
+            known,
+            input.parent(),
+            input.containing_layout_context(),
+            available,
+        )
+        .with_settled_auto_scrollbars(input.settled_auto_scrollbars())
+        .with_containing_auto_scrollbar_pass(input.containing_auto_scrollbar_pass());
+        let measured = compute_grid_with_context_settled(
+            tree,
+            node,
+            probe_input,
+            parent_context.clone(),
+            GridMeasurementBoundary::StandaloneIntrinsicMinimumProbe(intrinsic_axes),
+        )?
+        .output
+        .size;
+        Size::new(
+            intrinsic_axes.width.then_some(measured.width),
+            intrinsic_axes.height.then_some(measured.height),
+        )
+    } else {
+        Size::NONE
+    };
+    compute_grid_with_context_settled(
+        tree,
+        node,
+        input,
+        parent_context,
+        GridMeasurementBoundary::Standalone(resolved_intrinsic_minimum),
+    )
 }
 
 fn compute_grid_with_context_settled<Tree, M>(
@@ -352,7 +522,7 @@ fn compute_grid_with_context_settled<Tree, M>(
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
     parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
-    measurement_boundary: GridMeasurementBoundary,
+    measurement_boundary: GridMeasurementBoundary<Tree::Scalar>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -391,14 +561,20 @@ fn compute_grid_with_context_result<Tree, M>(
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
     parent_context: GridParentContext<Tree::Scalar, <Tree as Traverse>::Node>,
-    measurement_boundary: GridMeasurementBoundary,
+    measurement_boundary: GridMeasurementBoundary<Tree::Scalar>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
 {
-    let style = tree.node_input(node).clone();
-    let standalone_intrinsic_minimum =
-        standalone_intrinsic_minimum_axes(&style, &parent_context, measurement_boundary);
+    let mut style = tree.node_input(node).clone();
+    let standalone_intrinsic_minimum = match measurement_boundary {
+        GridMeasurementBoundary::Ordinary => Size::NONE,
+        GridMeasurementBoundary::StandaloneIntrinsicMinimumProbe(axes) => {
+            style = standalone_intrinsic_minimum_probe_style(&style, axes);
+            Size::NONE
+        }
+        GridMeasurementBoundary::Standalone(minimum) => minimum,
+    };
     let constants = Constants::new_with_reservation::<Tree, M>(
         tree,
         node,
@@ -2623,14 +2799,7 @@ impl<S: LayoutScalar> Constants<S> {
     where
         Tree: Compute<M, Scalar = S>,
     {
-        Self::new_with_reservation::<Tree, M>(
-            tree,
-            node,
-            style,
-            input,
-            false,
-            Size::new(false, false),
-        )
+        Self::new_with_reservation::<Tree, M>(tree, node, style, input, false, Size::NONE)
     }
 
     fn new_with_reservation<Tree, M>(
@@ -2639,7 +2808,7 @@ impl<S: LayoutScalar> Constants<S> {
         style: &NodeInputOf<S>,
         input: ComputeInputOf<S>,
         canonical_ordinary_reservation: bool,
-        standalone_intrinsic_minimum: Size<bool>,
+        standalone_intrinsic_minimum: Size<Option<S>>,
     ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
     where
         Tree: Compute<M, Scalar = S>,
@@ -2695,34 +2864,46 @@ impl<S: LayoutScalar> Constants<S> {
         } else {
             Size::NONE
         };
-        let min_size = Size::new(
-            if standalone_intrinsic_minimum.width {
-                Ok(None)
+        let minimum_for_numeric_resolution = Size::new(
+            if standalone_intrinsic_minimum.width.is_some() {
+                MinSizeOf::AUTO
             } else {
-                resolve_minimum_optional(
-                    &style.min_size.width,
-                    algorithm,
-                    PhysicalAxis::Horizontal,
-                    input.parent().width,
-                    true,
-                )
-            }
+                style.min_size.width.clone()
+            },
+            if standalone_intrinsic_minimum.height.is_some() {
+                MinSizeOf::AUTO
+            } else {
+                style.min_size.height.clone()
+            },
+        );
+        let resolved_min_size = Size::new(
+            resolve_minimum_optional(
+                &minimum_for_numeric_resolution.width,
+                algorithm,
+                PhysicalAxis::Horizontal,
+                input.parent().width,
+                true,
+            )
             .map_err(|error| sizing_resolution_error(node, error))?,
-            if standalone_intrinsic_minimum.height {
-                Ok(None)
-            } else {
-                resolve_minimum_optional(
-                    &style.min_size.height,
-                    algorithm,
-                    PhysicalAxis::Vertical,
-                    input.parent().height,
-                    true,
-                )
-            }
+            resolve_minimum_optional(
+                &minimum_for_numeric_resolution.height,
+                algorithm,
+                PhysicalAxis::Vertical,
+                input.parent().height,
+                true,
+            )
             .map_err(|error| sizing_resolution_error(node, error))?,
         )
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
+        let min_size = Size::new(
+            standalone_intrinsic_minimum
+                .width
+                .or(resolved_min_size.width),
+            standalone_intrinsic_minimum
+                .height
+                .or(resolved_min_size.height),
+        );
         let max_size = Size::new(
             resolve_maximum_optional(
                 &style.max_size.width,
