@@ -1099,6 +1099,100 @@ fn fri08_c02_auto_fit_public_parent_projects_reversed_subgrid_baseline_and_overf
     );
 }
 
+#[test]
+fn fri08_c02_auto_fit_public_parent_decreasing_baseline_uses_collapsed_boundary_gutter() {
+    let owner_group = AncestorBaselineGroup::reduce(
+        1_u32,
+        GridAxisKind::Column,
+        PhysicalAxis::Horizontal,
+        4,
+        [inherited_placement_member(
+            91,
+            GridAxisKind::Column,
+            AncestorBaselineRole::First,
+            2,
+            17.0,
+        )],
+    );
+    let ancestor_groups = final_ancestor_baseline_groups_for_transport_test(
+        AncestorBaselineGroup::reduce(
+            1_u32,
+            GridAxisKind::Row,
+            PhysicalAxis::Vertical,
+            1,
+            Vec::<AncestorBaselineMember<u32>>::new(),
+        ),
+        owner_group,
+    );
+    let parent_style = NodeInput {
+        display: Display::Grid,
+        direction: Direction::Rtl,
+        grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+        gap: Size::new(Length::px(10.0), Length::ZERO),
+        ..NodeInput::DEFAULT
+    };
+    let child_style = NodeInput {
+        display: Display::Grid,
+        writing_mode: WritingMode::VerticalRl,
+        grid_template_columns: vec![TrackComponent::px(40.0)],
+        grid_template_rows: vec![empty_subgrid_track()],
+        gap: Size::new(Length::px(20.0), Length::ZERO),
+        ..NodeInput::DEFAULT
+    };
+    let parent_geometry = UsedGridAxisGeometryOf::new(
+        vec![40.0, 0.0, 40.0, 40.0],
+        vec![false, true, false, false],
+        10.0,
+    );
+    let context = subgrid_child_parent_context_from_ancestor_groups_with_geometry(
+        SubgridChildParentContextInput {
+            item: SubgridItemReport {
+                node: 7_u32,
+                column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
+                row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+            },
+            child_style: &child_style,
+            area: GridArea {
+                column: 2,
+                row: 0,
+                column_end: 3,
+                row_end: 1,
+                size: LogicalSizeOf::new(40.0, 40.0),
+            },
+            content_box_size: Size::new(40.0, 40.0),
+            columns: parent_geometry.sizes(),
+            rows: &[40.0],
+            gap: LogicalSizeOf::new(10.0, 0.0),
+            parent_named_columns: &NamedGridLines::new(GridAxisKind::Column, 4),
+            parent_named_rows: &NamedGridLines::new(GridAxisKind::Row, 1),
+            parent_area_facts: None,
+            parent_baseline_groups: &GridBaselineGroups {
+                columns: vec![TrackBaselineGroup::default(); 4],
+                rows: vec![TrackBaselineGroup::default()],
+            },
+            margin: Edges::all(Some(0.0)),
+            border: Edges::ZERO,
+            padding: Edges::ZERO,
+        },
+        &ancestor_groups,
+        1_u32,
+        Some(&parent_geometry),
+        None,
+    )
+    .expect("ordinary auto-fit geometry remains inheritable");
+
+    assert_eq!(
+        context
+            .rows
+            .expect("inherited decreasing row")
+            .major_baselines[0]
+            .expect("transported first baseline")
+            .coordinate(),
+        17.0,
+        "the adjacent collapsed gutter has no scalar subgrid-gap translation",
+    );
+}
+
 fn assert_fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row<S: LayoutScalar>() {
     let scalar = S::from_f64;
     let tree = PublicLayoutTreeOf::new()

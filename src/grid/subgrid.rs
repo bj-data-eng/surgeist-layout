@@ -1289,11 +1289,21 @@ impl<S: LayoutScalar> ChildBaselineEnvelopeView<S> {
             subtract_baseline(baseline, edge_translation, input.physical_axis);
         }
         if !input.reversed && input.ancestor_progression_decreasing {
-            let half_gap = (input.subgrid_gap - input.parent_gap) / S::from_f64(2.0);
-            for baseline in &mut major {
+            let half_gap_after = |track| {
+                input
+                    .subgrid_boundary_gutters
+                    .get(track)
+                    .zip(input.parent_boundary_gutters.get(track))
+                    .map_or(S::ZERO, |(subgrid, parent)| {
+                        (*subgrid - *parent) / S::from_f64(2.0)
+                    })
+            };
+            for (track, baseline) in major.iter_mut().enumerate() {
+                let half_gap = half_gap_after(track);
                 subtract_baseline(baseline, half_gap, input.physical_axis);
             }
-            for baseline in &mut minor {
+            for (track, baseline) in minor.iter_mut().enumerate() {
+                let half_gap = track.checked_sub(1).map_or(S::ZERO, half_gap_after);
                 subtract_baseline(baseline, -half_gap, input.physical_axis);
             }
         }
