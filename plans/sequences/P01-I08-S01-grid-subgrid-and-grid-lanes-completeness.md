@@ -36,7 +36,7 @@ authoritative run exposes a production mismatch while its artifacts validate,
 the exact owning product contract is corrected browser-free and the valid
 artifacts are retained; no unchanged-input replacement run is permitted.
 
-Repository-wide `just parity-all` remains the FRI-13 aggregate release gate.
+The repository-wide aggregate parity release gate remains owned by FRI-13.
 FRI-08 runs its exact owned rows and keeps FRI-09 baseline and FRI-10 positioned
 negative controls visible without claiming or suppressing them.
 
