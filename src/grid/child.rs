@@ -2965,7 +2965,8 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
         )
     };
 
-    let (layout_tracks, layout_gap) = if inherited.collapsed.iter().any(|collapsed| *collapsed) {
+    let has_collapsed_track = inherited.collapsed.iter().any(|collapsed| *collapsed);
+    let (layout_tracks, layout_gap) = if has_collapsed_track {
         (
             inherited.final_tracks.clone(),
             inherited.resolved_subgrid_gap,
@@ -2973,10 +2974,17 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
     } else {
         inherited_subgrid_layout_tracks(input.axis, &inherited)
     };
-    let geometry = UsedGridAxisGeometryOf::new(
+    let layout_boundary_gutters = if !has_collapsed_track
+        && uses_shifted_column_subgrid_layout_tracks(input.axis, &inherited)
+    {
+        vec![S::ZERO; layout_tracks.len().saturating_sub(1)]
+    } else {
+        inherited.final_boundary_gutters.clone()
+    };
+    let geometry = UsedGridAxisGeometryOf::from_boundary_gutters(
         layout_tracks.clone(),
         inherited.collapsed.clone(),
-        layout_gap,
+        layout_boundary_gutters,
     );
 
     Ok(Some(InheritedGridAxis {
@@ -3087,19 +3095,18 @@ pub(super) fn inherited_subgrid_layout_tracks<S: LayoutScalar>(
     axis: GridAxisKind,
     inherited: &SubgridTrackInheritanceReport<S>,
 ) -> (Vec<S>, S) {
-    if axis == GridAxisKind::Column
-        && inherited.gap_difference > S::ZERO
-        && inherited.final_tracks.len() >= 2
-        && inherited.final_tracks.contains(&S::ZERO)
-    {
+    if uses_shifted_column_subgrid_layout_tracks(axis, inherited) {
         let mut lines = Vec::with_capacity(inherited.end_mbp_removed.len() + 1);
         let mut cursor = S::ZERO;
         lines.push(cursor);
         for (index, track) in inherited.end_mbp_removed.iter().copied().enumerate() {
             cursor = cursor + track;
-            if index + 1 < inherited.end_mbp_removed.len() {
-                cursor = cursor + inherited.parent_gap;
-                lines.push(cursor + inherited.gap_difference);
+            if let (Some(parent_gutter), Some(final_gutter)) = (
+                inherited.parent_boundary_gutters.get(index).copied(),
+                inherited.final_boundary_gutters.get(index).copied(),
+            ) {
+                cursor = cursor + parent_gutter;
+                lines.push(cursor + (final_gutter - parent_gutter) / S::from_f64(2.0));
             }
         }
         lines.push(cursor);
@@ -3117,6 +3124,16 @@ pub(super) fn inherited_subgrid_layout_tracks<S: LayoutScalar>(
         inherited.final_tracks.clone(),
         inherited.resolved_subgrid_gap,
     )
+}
+
+fn uses_shifted_column_subgrid_layout_tracks<S: LayoutScalar>(
+    axis: GridAxisKind,
+    inherited: &SubgridTrackInheritanceReport<S>,
+) -> bool {
+    axis == GridAxisKind::Column
+        && inherited.gap_difference > S::ZERO
+        && inherited.final_tracks.len() >= 2
+        && inherited.final_tracks.contains(&S::ZERO)
 }
 
 fn parent_baseline_groups<S: LayoutScalar>(

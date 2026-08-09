@@ -1195,6 +1195,85 @@ fn fri08_c02_auto_fit_public_decreasing_subgrid_preserves_baseline_location_and_
 }
 
 #[test]
+fn fri08_c02_auto_fit_public_active_subgrid_preserves_space_between_boundary_geometry() {
+    let repeat = TrackComponent::Repeat(
+        TrackRepetition::auto_fit_components(vec![TrackComponent::px(100.0)])
+            .expect("valid fixed auto-fit repetition"),
+    );
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .children(2, [3, 4])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(500.0), PreferredSize::px(40.0)),
+                grid_template_columns: vec![repeat],
+                grid_template_rows: vec![TrackComponent::px(40.0)],
+                justify_content: Some(AlignContent::SpaceBetween),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Grid,
+                grid_column: GridPlacement::try_lines(1, 4).expect("all active parent tracks"),
+                grid_row: GridPlacement::try_line(1).expect("single parent row"),
+                grid_template_columns: vec![empty_subgrid_track()],
+                grid_template_rows: vec![TrackComponent::px(40.0)],
+                gap: Size::new(Length::px(250.0), Length::ZERO),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
+                grid_column: GridPlacement::try_line(2).expect("second inherited track"),
+                grid_row: GridPlacement::try_line(1).expect("single inherited row"),
+                justify_self: Some(AlignItems::Start),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(10.0)),
+                grid_column: GridPlacement::try_line(3).expect("third inherited track"),
+                grid_row: GridPlacement::try_line(1).expect("single inherited row"),
+                justify_self: Some(AlignItems::Start),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequest::viewport(Size::new(
+            Available::Definite(500.0),
+            Available::Definite(40.0),
+        ))
+        .expect("finite active inherited-axis viewport"),
+    )
+    .expect("active inherited-axis layout");
+    let subgrid = fri08_c01_placement_output(&batch, 2);
+    let second_track_child = fri08_c01_placement_output(&batch, 3);
+    let overflowing_child = fri08_c01_placement_output(&batch, 4);
+    let overflow = subgrid
+        .scroll_geometry
+        .expect("active inherited-axis scroll overflow")
+        .physical_range()
+        .x();
+
+    assert_eq!((subgrid.location.x, subgrid.size.width), (0.0, 500.0));
+    assert_eq!(second_track_child.location.x, 275.0);
+    assert_eq!(overflowing_child.location.x, 475.0);
+    assert_eq!((overflow.minimum(), overflow.maximum()), (0.0, 75.0));
+}
+
+#[test]
 fn fri08_c02_auto_fit_public_intrinsic_span_counts_only_active_boundary_gutters() {
     let tree = PublicLayoutTreeOf::<f32>::new()
         .children(1, [2])
