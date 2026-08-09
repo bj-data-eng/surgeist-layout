@@ -2751,6 +2751,7 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
             if transported.mapping.boundary_count() == 0
                 && !mapping.reversed
                 && end_mbp != S::ZERO
+                && (input.parent_area_facts.is_none() || uniform_parent_track_frames)
                 && let Some(last) = current_first_frame_origins.last_mut()
             {
                 *last = *last + gap_difference;

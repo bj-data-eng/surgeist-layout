@@ -2285,6 +2285,835 @@ fn fri08_c04_standalone_cache_retry_order_provider_nonfinite_and_rollback_are_sc
     assert_fri08_c04_standalone_cache_and_failures_are_atomic::<f64>();
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri08C04BaselineMeasureMode {
+    Values,
+    ProviderError,
+    NonFinite,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri08C04BaselineMeasureError {
+    Provider,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Fri08C04BaselineRetained<S: LayoutScalar> {
+    unrounded: HashMap<u32, NodeOutputOf<S>>,
+    final_outputs: HashMap<u32, NodeOutputOf<S>>,
+    caches: HashMap<u32, CacheOf<S>>,
+}
+
+#[derive(Clone, Debug)]
+struct Fri08C04BaselineTree<S: LayoutScalar> {
+    tree: PublicLayoutTreeOf<S>,
+    measurements: HashMap<u32, Size<S>>,
+    failing_node: u32,
+    measure_mode: std::cell::Cell<Fri08C04BaselineMeasureMode>,
+    measurement_requests: std::cell::RefCell<Vec<u32>>,
+    cache_queries: std::cell::RefCell<Vec<(u32, bool)>>,
+    retained: Fri08C04BaselineRetained<S>,
+}
+
+impl<S: LayoutScalar> Traverse for Fri08C04BaselineTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = <PublicLayoutTreeOf<S> as Traverse>::Children<'a>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        Traverse::children(&self.tree, node)
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.tree.child_count(node)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.tree.child(node, index)
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri08C04BaselineTree<S> {
+    type MeasureError = Fri08C04BaselineMeasureError;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        self.tree.node_input(node)
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.tree.layout_input(node)
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        self.measurements.contains_key(&node)
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        _input: LeafMeasureInputOf<S>,
+    ) -> Option<Result<Size<S>, Self::MeasureError>> {
+        let measured = self.measurements.get(&node).copied()?;
+        self.measurement_requests.borrow_mut().push(node);
+        Some(match self.measure_mode.get() {
+            Fri08C04BaselineMeasureMode::ProviderError if node == self.failing_node => {
+                Err(Fri08C04BaselineMeasureError::Provider)
+            }
+            Fri08C04BaselineMeasureMode::NonFinite if node == self.failing_node => {
+                Ok(Size::new(S::from_f64(f64::NAN), measured.height))
+            }
+            _ => Ok(measured),
+        })
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<S>,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<S>> {
+        let output = self
+            .retained
+            .caches
+            .get(&node)
+            .and_then(|cache| cache.get_with_context(input, context));
+        self.cache_queries
+            .borrow_mut()
+            .push((node, output.is_some()));
+        output
+    }
+
+    fn unrounded_layout(&self, node: Self::Node) -> Option<NodeOutputOf<S>> {
+        self.retained.unrounded.get(&node).copied()
+    }
+}
+
+impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri08C04BaselineTree<S> {
+    type Error = core::convert::Infallible;
+    type Prepared = Fri08C04BaselineRetained<S>;
+
+    fn prepare_layout_batch(
+        &self,
+        batch: &CompletedLayoutBatchOf<u32, S>,
+    ) -> Result<Self::Prepared, Self::Error> {
+        let mut prepared = self.retained.clone();
+        for node in batch.invalidated_nodes() {
+            prepared.unrounded.remove(node);
+            prepared.final_outputs.remove(node);
+            prepared.caches.remove(node);
+        }
+        for entry in batch.unrounded_entries() {
+            prepared.unrounded.insert(entry.node(), entry.output());
+        }
+        for entry in batch.final_entries() {
+            prepared.final_outputs.insert(entry.node(), entry.output());
+        }
+        for entry in batch.cache_clear_entries() {
+            prepared.caches.remove(&entry.node());
+        }
+        for entry in batch.cache_store_entries() {
+            prepared
+                .caches
+                .entry(entry.node())
+                .or_default()
+                .store_with_context(entry.input(), entry.context(), entry.output());
+        }
+        Ok(prepared)
+    }
+
+    fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
+        self.retained = prepared;
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri08C04BaselineParentAxis {
+    Column,
+    Row,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Fri08C04BaselineFlowCase {
+    parent_axis: Fri08C04BaselineParentAxis,
+    root_writing_mode: WritingMode,
+    root_direction: Direction,
+    child_writing_mode: WritingMode,
+    child_direction: Direction,
+}
+
+fn fri08_c04_baseline_area_implicit_tree<S: LayoutScalar>(
+    case: Fri08C04BaselineFlowCase,
+    alignment: AlignItems,
+) -> Fri08C04BaselineTree<S> {
+    let scalar = S::from_f64;
+    let root_axes = FlowAxes::new(case.root_writing_mode, case.root_direction);
+    let child_axes = FlowAxes::new(case.child_writing_mode, case.child_direction);
+    let (direct_writing_mode, direct_direction) = match case.parent_axis {
+        Fri08C04BaselineParentAxis::Row => (case.root_writing_mode, case.root_direction),
+        Fri08C04BaselineParentAxis::Column => (case.child_writing_mode, case.child_direction),
+    };
+    let direct_axes = FlowAxes::new(direct_writing_mode, direct_direction);
+    let root_gap = root_axes.physical_size(LogicalSizeOf::new(scalar(12.0), scalar(10.0)));
+    let composed_edges = case.root_writing_mode == WritingMode::HorizontalTb
+        && case.parent_axis == Fri08C04BaselineParentAxis::Row;
+    let child_gap = child_axes.physical_size(LogicalSizeOf::new(scalar(6.0), scalar(20.0)));
+    let (direct_column, direct_row, nested_column, nested_row, implicit_column, implicit_row) =
+        match case.parent_axis {
+            Fri08C04BaselineParentAxis::Row => (
+                GridPlacement::try_line(1).expect("direct area column"),
+                GridPlacement::try_line(2).expect("direct baseline row"),
+                GridPlacement::try_line(2).expect("subgrid area column"),
+                GridPlacement::try_line_span(1, 2).expect("subgrid inherited rows"),
+                GridPlacement::try_line(3).expect("implicit column"),
+                GridPlacement::try_line(1).expect("implicit row"),
+            ),
+            Fri08C04BaselineParentAxis::Column => (
+                GridPlacement::try_line(2).expect("direct baseline column"),
+                GridPlacement::try_line(1).expect("direct area row"),
+                GridPlacement::try_line_span(1, 2).expect("subgrid inherited columns"),
+                GridPlacement::try_line(2).expect("subgrid area row"),
+                GridPlacement::try_line(1).expect("implicit column"),
+                GridPlacement::try_line(3).expect("implicit row"),
+            ),
+        };
+    let direct_alignment = match case.parent_axis {
+        Fri08C04BaselineParentAxis::Column => (Some(alignment), Some(AlignItems::Start)),
+        Fri08C04BaselineParentAxis::Row => (Some(AlignItems::Start), Some(alignment)),
+    };
+    let areas = GridTemplateAreas {
+        rows: vec![
+            GridTemplateAreaRow {
+                cells: vec![Some("alpha".to_string()), Some("beta".to_string())],
+            },
+            GridTemplateAreaRow {
+                cells: vec![Some("gamma".to_string()), Some("delta".to_string())],
+            },
+        ],
+    };
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 4, 3])
+        .children(2, [])
+        .children(3, [5])
+        .children(4, [6])
+        .children(5, [7])
+        .children(6, [])
+        .children(7, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: case.root_writing_mode,
+                direction: case.root_direction,
+                size: root_axes
+                    .physical_size(LogicalSizeOf::new(scalar(220.0), scalar(150.0)))
+                    .map(PreferredSizeOf::px),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(60.0))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
+                grid_template_areas: areas,
+                grid_auto_columns: vec![TrackComponentOf::px(scalar(if composed_edges {
+                    70.0
+                } else {
+                    60.0
+                }))],
+                grid_auto_rows: vec![TrackComponentOf::px(scalar(if composed_edges {
+                    50.0
+                } else {
+                    40.0
+                }))],
+                gap: root_gap.map(LengthOf::px),
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                writing_mode: case.root_writing_mode,
+                direction: case.root_direction,
+                grid_column: implicit_column,
+                grid_row: implicit_row,
+                item_order: ItemOrder::new(0),
+                size: root_axes
+                    .physical_size(LogicalSizeOf::new(scalar(8.0), scalar(8.0)))
+                    .map(PreferredSizeOf::px),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: direct_writing_mode,
+                direction: direct_direction,
+                grid_column: direct_column,
+                grid_row: direct_row,
+                item_order: ItemOrder::new(7),
+                justify_self: direct_alignment.0,
+                align_self: direct_alignment.1,
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO],
+                justify_items: Some(AlignItems::Start),
+                align_items: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: case.child_writing_mode,
+                direction: case.child_direction,
+                grid_column: nested_column,
+                grid_row: nested_row,
+                item_order: ItemOrder::new(-7),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(32.0))],
+                grid_template_rows: subgrid_track_of(),
+                gap: child_gap.map(LengthOf::px),
+                margin: if composed_edges {
+                    Edges::new(
+                        LengthAutoOf::px(scalar(3.0)),
+                        LengthAutoOf::px(scalar(5.0)),
+                        LengthAutoOf::px(scalar(7.0)),
+                        LengthAutoOf::px(scalar(11.0)),
+                    )
+                } else {
+                    Edges::all(LengthAutoOf::ZERO)
+                },
+                border: if composed_edges {
+                    Edges::new(
+                        LengthOf::px(scalar(2.0)),
+                        LengthOf::px(scalar(1.0)),
+                        LengthOf::px(scalar(4.0)),
+                        LengthOf::px(scalar(3.0)),
+                    )
+                } else {
+                    Edges::all(LengthOf::ZERO)
+                },
+                padding: if composed_edges {
+                    Edges::new(
+                        LengthOf::px(scalar(5.0)),
+                        LengthOf::px(scalar(2.0)),
+                        LengthOf::px(scalar(6.0)),
+                        LengthOf::px(scalar(4.0)),
+                    )
+                } else {
+                    Edges::all(LengthOf::ZERO)
+                },
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            5,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: case.child_writing_mode,
+                direction: case.child_direction,
+                grid_column: GridPlacement::try_line(1).expect("standalone local column"),
+                grid_row: GridPlacement::try_line(2).expect("inherited local row"),
+                item_order: ItemOrder::new(-9),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(alignment),
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO],
+                justify_items: Some(AlignItems::Start),
+                align_items: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            6,
+            NodeInputOf {
+                writing_mode: direct_writing_mode,
+                direction: direct_direction,
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            7,
+            NodeInputOf {
+                writing_mode: case.child_writing_mode,
+                direction: case.child_direction,
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        );
+    let measurements = HashMap::from([
+        (
+            6,
+            direct_axes.physical_size(LogicalSizeOf::new(scalar(20.0), scalar(30.0))),
+        ),
+        (
+            7,
+            child_axes.physical_size(LogicalSizeOf::new(scalar(18.0), scalar(12.0))),
+        ),
+    ]);
+    Fri08C04BaselineTree {
+        tree,
+        measurements,
+        failing_node: 7,
+        measure_mode: std::cell::Cell::new(Fri08C04BaselineMeasureMode::Values),
+        measurement_requests: std::cell::RefCell::new(Vec::new()),
+        cache_queries: std::cell::RefCell::new(Vec::new()),
+        retained: Fri08C04BaselineRetained::default(),
+    }
+}
+
+fn fri08_c04_baseline_physical_edge<S: LayoutScalar>(
+    output: NodeOutputOf<S>,
+    flow_axes: FlowAxes,
+    alignment: AlignItems,
+) -> S {
+    let decreasing = flow_axes
+        .logical_axis_progression(LogicalAxis::Block)
+        .is_decreasing();
+    let (origin, extent) = match flow_axes.block_axis() {
+        PhysicalAxis::Horizontal => (output.location.x, output.size.width),
+        PhysicalAxis::Vertical => (output.location.y, output.size.height),
+    };
+    match alignment {
+        AlignItems::Baseline if decreasing => origin,
+        AlignItems::Baseline => origin + extent,
+        AlignItems::LastBaseline if decreasing => origin + extent,
+        AlignItems::LastBaseline => origin,
+        _ => unreachable!("baseline edge helper requires a first/last role"),
+    }
+}
+
+fn fri08_c04_baseline_world_coordinate<S: LayoutScalar>(
+    batch: &CompletedLayoutBatchOf<u32, S>,
+    case: Fri08C04BaselineFlowCase,
+    alignment: AlignItems,
+) -> (S, S) {
+    let nested = fri08_c01_placement_output(batch, 3);
+    let direct_container = fri08_c01_placement_output(batch, 4);
+    let direct_leaf = fri08_c01_placement_output(batch, 6);
+    let descendant_container = fri08_c01_placement_output(batch, 5);
+    let descendant_leaf = fri08_c01_placement_output(batch, 7);
+    let direct_axes = match case.parent_axis {
+        Fri08C04BaselineParentAxis::Row => {
+            FlowAxes::new(case.root_writing_mode, case.root_direction)
+        }
+        Fri08C04BaselineParentAxis::Column => {
+            FlowAxes::new(case.child_writing_mode, case.child_direction)
+        }
+    };
+    let child_axes = FlowAxes::new(case.child_writing_mode, case.child_direction);
+    let nested_origin = match child_axes.block_axis() {
+        PhysicalAxis::Horizontal => nested.location.x,
+        PhysicalAxis::Vertical => nested.location.y,
+    };
+    let direct_origin = match direct_axes.block_axis() {
+        PhysicalAxis::Horizontal => direct_container.location.x,
+        PhysicalAxis::Vertical => direct_container.location.y,
+    };
+    let descendant_origin = match child_axes.block_axis() {
+        PhysicalAxis::Horizontal => descendant_container.location.x,
+        PhysicalAxis::Vertical => descendant_container.location.y,
+    };
+    (
+        direct_origin + fri08_c04_baseline_physical_edge(direct_leaf, direct_axes, alignment),
+        nested_origin
+            + descendant_origin
+            + fri08_c04_baseline_physical_edge(descendant_leaf, child_axes, alignment),
+    )
+}
+
+fn assert_fri08_c04_baseline_area_implicit_composition<S: LayoutScalar>() {
+    let cases = [
+        Fri08C04BaselineFlowCase {
+            parent_axis: Fri08C04BaselineParentAxis::Row,
+            root_writing_mode: WritingMode::HorizontalTb,
+            root_direction: Direction::Ltr,
+            child_writing_mode: WritingMode::HorizontalTb,
+            child_direction: Direction::Rtl,
+        },
+        Fri08C04BaselineFlowCase {
+            parent_axis: Fri08C04BaselineParentAxis::Row,
+            root_writing_mode: WritingMode::VerticalRl,
+            root_direction: Direction::Ltr,
+            child_writing_mode: WritingMode::VerticalLr,
+            child_direction: Direction::Rtl,
+        },
+        Fri08C04BaselineFlowCase {
+            parent_axis: Fri08C04BaselineParentAxis::Row,
+            root_writing_mode: WritingMode::SidewaysRl,
+            root_direction: Direction::Rtl,
+            child_writing_mode: WritingMode::SidewaysLr,
+            child_direction: Direction::Ltr,
+        },
+        Fri08C04BaselineFlowCase {
+            parent_axis: Fri08C04BaselineParentAxis::Column,
+            root_writing_mode: WritingMode::VerticalLr,
+            root_direction: Direction::Ltr,
+            child_writing_mode: WritingMode::HorizontalTb,
+            child_direction: Direction::Ltr,
+        },
+    ];
+    for (case_index, case) in cases.into_iter().enumerate() {
+        let mut role_coordinates = Vec::new();
+        for alignment in [AlignItems::Baseline, AlignItems::LastBaseline] {
+            let tree = fri08_c04_baseline_area_implicit_tree::<S>(case, alignment);
+            let request = LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+                .expect("baseline composition viewport");
+            let batch = compute_layout(&tree, 1, request)
+                .expect("area/implicit inherited baseline layout succeeds");
+            let (direct, inherited) = fri08_c04_baseline_world_coordinate(&batch, case, alignment);
+            if matches!(case_index, 0 | 3) {
+                assert!(
+                    (direct - inherited).abs() <= S::from_f64(0.001),
+                    "{case:?} {alignment:?} direct/current targets agree: direct={direct:?}, inherited={inherited:?}"
+                );
+            } else {
+                let expected = match alignment {
+                    AlignItems::Baseline => (70.0, 137.0),
+                    AlignItems::LastBaseline => (90.0, 100.0),
+                    _ => unreachable!("the role loop contains only first and last baseline"),
+                };
+                assert!(
+                    (direct - S::from_f64(expected.0)).abs() <= S::from_f64(0.001)
+                        && (inherited - S::from_f64(expected.1)).abs() <= S::from_f64(0.001),
+                    "{case:?} {alignment:?} preserves reversed physical projection: direct={direct:?}, inherited={inherited:?}"
+                );
+            }
+            assert_eq!(
+                batch
+                    .final_entries()
+                    .iter()
+                    .map(LayoutOutputEntryOf::node)
+                    .collect::<Vec<_>>(),
+                [1, 2, 4, 6, 3, 5, 7],
+                "item order changes placement traversal without changing source publication"
+            );
+            let implicit = fri08_c01_placement_output(&batch, 2);
+            let nested = fri08_c01_placement_output(&batch, 3);
+            assert_ne!(
+                implicit.location, nested.location,
+                "the implicit and area-created tracks remain distinct"
+            );
+            role_coordinates.push((direct, inherited));
+        }
+        assert_eq!(
+            role_coordinates.len(),
+            2,
+            "first and last roles both execute"
+        );
+    }
+}
+
+#[test]
+fn fri08_c04_baseline_area_created_implicit_standalone_roles_map_both_axes_and_scalars() {
+    assert_fri08_c04_baseline_area_implicit_composition::<f32>();
+    assert_fri08_c04_baseline_area_implicit_composition::<f64>();
+}
+
+fn fri08_c04_baseline_lanes_auto_fit_tree<S: LayoutScalar>(
+    alignment: AlignItems,
+) -> Fri08C04BaselineTree<S> {
+    let scalar = S::from_f64;
+    let child_axes = FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr);
+    let repeat = TrackRepetitionOf::auto_fit_components(vec![TrackComponentOf::px(scalar(40.0))])
+        .expect("finite lanes auto-fit component");
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 4, 3])
+        .children(2, [])
+        .children(3, [5])
+        .children(4, [6])
+        .children(5, [7])
+        .children(6, [])
+        .children(7, [8])
+        .children(8, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalLr,
+                direction: Direction::Ltr,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(160.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                ),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(30.0))],
+                grid_template_rows: vec![TrackComponentOf::Repeat(repeat)],
+                grid_auto_flow: GridAutoFlow::Column,
+                gap: Size::new(LengthOf::px(scalar(10.0)), LengthOf::px(scalar(7.0))),
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalLr,
+                direction: Direction::Ltr,
+                item_order: ItemOrder::new(0),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(8.0)),
+                    PreferredSizeOf::px(scalar(8.0)),
+                ),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalLr,
+                direction: Direction::Ltr,
+                grid_row: GridPlacement::try_line(2).expect("direct auto-fit row"),
+                item_order: ItemOrder::new(8),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(alignment),
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO],
+                justify_items: Some(AlignItems::Start),
+                align_items: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalLr,
+                direction: Direction::Ltr,
+                grid_row: GridPlacement::try_line_span(1, 2)
+                    .expect("lanes subgrid spans auto-fit rows"),
+                item_order: ItemOrder::new(-8),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(30.0))],
+                grid_template_rows: subgrid_track_of(),
+                grid_auto_flow: GridAutoFlow::Column,
+                gap: child_axes
+                    .physical_size(LogicalSizeOf::new(scalar(3.0), scalar(10.0)))
+                    .map(LengthOf::px),
+                margin: Edges::all(LengthAutoOf::ZERO),
+                border: Edges::all(LengthOf::ZERO),
+                padding: Edges::all(LengthOf::ZERO),
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            5,
+            NodeInputOf {
+                display: Display::GridLanes,
+                writing_mode: WritingMode::VerticalLr,
+                direction: Direction::Ltr,
+                grid_column: GridPlacement::try_line(1).expect("standalone lanes column"),
+                grid_row: GridPlacement::try_line(2).expect("inherited auto-fit track"),
+                item_order: ItemOrder::new(-9),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(alignment),
+                grid_template_columns: subgrid_track_of(),
+                grid_template_rows: vec![TrackComponentOf::AUTO],
+                justify_items: Some(AlignItems::Start),
+                align_items: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            6,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalLr,
+                direction: Direction::Ltr,
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            7,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalLr,
+                direction: Direction::Ltr,
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO],
+                justify_items: Some(AlignItems::Start),
+                align_items: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            8,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalLr,
+                direction: Direction::Ltr,
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        );
+    Fri08C04BaselineTree {
+        tree,
+        measurements: HashMap::from([
+            (
+                6,
+                child_axes.physical_size(LogicalSizeOf::new(scalar(18.0), scalar(28.0))),
+            ),
+            (
+                8,
+                child_axes.physical_size(LogicalSizeOf::new(scalar(16.0), scalar(12.0))),
+            ),
+        ]),
+        failing_node: 8,
+        measure_mode: std::cell::Cell::new(Fri08C04BaselineMeasureMode::Values),
+        measurement_requests: std::cell::RefCell::new(Vec::new()),
+        cache_queries: std::cell::RefCell::new(Vec::new()),
+        retained: Fri08C04BaselineRetained::default(),
+    }
+}
+
+fn assert_fri08_c04_baseline_lanes_auto_fit<S: LayoutScalar>() {
+    let flow_axes = FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr);
+    for alignment in [AlignItems::Baseline, AlignItems::LastBaseline] {
+        let tree = fri08_c04_baseline_lanes_auto_fit_tree::<S>(alignment);
+        let batch = compute_layout(
+            &tree,
+            1,
+            LayoutRootRequestOf::viewport(root_axes_size::<S>(160.0, 100.0))
+                .expect("lanes auto-fit viewport"),
+        )
+        .expect("lanes auto-fit subgrid baseline layout succeeds");
+        let direct = fri08_c01_placement_output(&batch, 4).location.x
+            + fri08_c04_baseline_physical_edge(
+                fri08_c01_placement_output(&batch, 6),
+                flow_axes,
+                alignment,
+            );
+        let inherited = fri08_c01_placement_output(&batch, 3).location.x
+            + fri08_c01_placement_output(&batch, 5).location.x
+            + fri08_c01_placement_output(&batch, 7).location.x
+            + fri08_c04_baseline_physical_edge(
+                fri08_c01_placement_output(&batch, 8),
+                flow_axes,
+                alignment,
+            );
+        let expected = match alignment {
+            AlignItems::Baseline => (78.0, 62.0),
+            AlignItems::LastBaseline => (44.0, 60.0),
+            _ => unreachable!("the role loop contains only first and last baseline"),
+        };
+        assert!(
+            (direct - S::from_f64(expected.0)).abs() <= S::from_f64(0.001)
+                && (inherited - S::from_f64(expected.1)).abs() <= S::from_f64(0.001),
+            "lanes {alignment:?} retains its published grid-axis projection: direct={direct:?}, inherited={inherited:?}"
+        );
+        assert_eq!(
+            batch
+                .final_entries()
+                .iter()
+                .map(LayoutOutputEntryOf::node)
+                .collect::<Vec<_>>(),
+            [1, 2, 4, 6, 3, 5, 7, 8]
+        );
+    }
+}
+
+fn root_axes_size<S: LayoutScalar>(inline: f64, block: f64) -> Size<AvailableOf<S>> {
+    Size::new(
+        AvailableOf::definite(S::from_f64(inline)),
+        AvailableOf::definite(S::from_f64(block)),
+    )
+}
+
+#[test]
+fn fri08_c04_baseline_lanes_auto_fit_consumes_inherited_first_and_last_targets() {
+    assert_fri08_c04_baseline_lanes_auto_fit::<f32>();
+    assert_fri08_c04_baseline_lanes_auto_fit::<f64>();
+}
+
+fn assert_fri08_c04_baseline_cache_and_failures_are_atomic<S: LayoutScalar>() {
+    let case = Fri08C04BaselineFlowCase {
+        parent_axis: Fri08C04BaselineParentAxis::Row,
+        root_writing_mode: WritingMode::HorizontalTb,
+        root_direction: Direction::Ltr,
+        child_writing_mode: WritingMode::HorizontalTb,
+        child_direction: Direction::Rtl,
+    };
+    let mut tree = fri08_c04_baseline_area_implicit_tree::<S>(case, AlignItems::Baseline);
+    let request = LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+        .expect("baseline atomic viewport");
+    let cold = compute_layout(&tree, 1, request).expect("cold baseline composition succeeds");
+    let cold_entries = cold.final_entries().to_vec();
+    let cold_coordinates = fri08_c04_baseline_world_coordinate(&cold, case, AlignItems::Baseline);
+    cold.apply_to(&mut tree)
+        .expect("baseline batch commit is infallible");
+
+    tree.cache_queries.borrow_mut().clear();
+    tree.measurement_requests.borrow_mut().clear();
+    let warm = compute_layout(&tree, 1, request).expect("warm baseline composition succeeds");
+    assert_eq!(warm.final_entries(), cold_entries);
+    assert_eq!(
+        fri08_c04_baseline_world_coordinate(&warm, case, AlignItems::Baseline),
+        cold_coordinates
+    );
+    assert!(
+        tree.cache_queries
+            .borrow()
+            .iter()
+            .any(|(node, hit)| matches!(node, 6 | 7) && *hit),
+        "warm composition reuses a committed baseline member cache"
+    );
+
+    for mode in [
+        Fri08C04BaselineMeasureMode::ProviderError,
+        Fri08C04BaselineMeasureMode::NonFinite,
+    ] {
+        tree.measure_mode.set(mode);
+        tree.measurement_requests.borrow_mut().clear();
+        let retained_before = tree.retained.clone();
+        let error = compute_layout_invalidated(&tree, 1, request, &[7])
+            .expect_err("baseline member failure returns no completed batch");
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(7));
+        assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+        match mode {
+            Fri08C04BaselineMeasureMode::ProviderError => assert!(matches!(
+                error.kind(),
+                LayoutErrorKindOf::Measurement(Fri08C04BaselineMeasureError::Provider)
+            )),
+            Fri08C04BaselineMeasureMode::NonFinite => assert!(matches!(
+                error.kind(),
+                LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::MeasurementOutput(_))
+            )),
+            Fri08C04BaselineMeasureMode::Values => unreachable!("failure modes are explicit"),
+        }
+        assert_eq!(tree.retained, retained_before);
+        assert!(tree.measurement_requests.borrow().contains(&7));
+    }
+
+    tree.measure_mode.set(Fri08C04BaselineMeasureMode::Values);
+    let retry = compute_layout_invalidated(&tree, 1, request, &[7])
+        .expect("baseline composition retries after provider failures");
+    assert_eq!(retry.final_entries(), cold_entries);
+    assert_eq!(
+        fri08_c04_baseline_world_coordinate(&retry, case, AlignItems::Baseline),
+        cold_coordinates
+    );
+}
+
+#[test]
+fn fri08_c04_baseline_cache_error_nonfinite_retry_and_rollback_are_scalar_stable() {
+    assert_fri08_c04_baseline_cache_and_failures_are_atomic::<f32>();
+    assert_fri08_c04_baseline_cache_and_failures_are_atomic::<f64>();
+}
+
 fn assert_fri08_c03_intrinsic_fixed_content_gap_distribution<S: LayoutScalar>() {
     let scalar = S::from_f64;
     let input = LaneIntrinsicSizingInputOf::<S> {
