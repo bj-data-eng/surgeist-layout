@@ -47,6 +47,739 @@ fn fri08_c01_placement_compute<S: LayoutScalar>(
     compute_layout(tree, 1, fri08_c01_placement_request()).expect("valid grid placement")
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri08C06RInheritedAxes {
+    Columns,
+    Rows,
+    Both,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Fri08C06RRetained<S: LayoutScalar> {
+    unrounded: HashMap<u32, NodeOutputOf<S>>,
+    final_outputs: HashMap<u32, NodeOutputOf<S>>,
+    caches: HashMap<u32, CacheOf<S>>,
+}
+
+#[derive(Clone, Debug)]
+struct Fri08C06RAtomicTree<S: LayoutScalar> {
+    tree: PublicLayoutTreeOf<S>,
+    cache_queries: std::cell::RefCell<Vec<(u32, bool)>>,
+    retained: Fri08C06RRetained<S>,
+}
+
+impl<S: LayoutScalar> Fri08C06RAtomicTree<S> {
+    fn new(tree: PublicLayoutTreeOf<S>) -> Self {
+        Self {
+            tree,
+            cache_queries: std::cell::RefCell::new(Vec::new()),
+            retained: Fri08C06RRetained::default(),
+        }
+    }
+
+    fn request() -> LayoutRootRequestOf<S> {
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(200.0))))
+            .expect("finite inherited-placement viewport")
+    }
+}
+
+impl<S: LayoutScalar> Traverse for Fri08C06RAtomicTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = <PublicLayoutTreeOf<S> as Traverse>::Children<'a>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        Traverse::children(&self.tree, node)
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.tree.child_count(node)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.tree.child(node, index)
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri08C06RAtomicTree<S> {
+    type MeasureError = core::convert::Infallible;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        self.tree.node_input(node)
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.tree.layout_input(node)
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        self.tree.has_leaf_measurement(node)
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        input: LeafMeasureInputOf<S>,
+    ) -> Option<Result<Size<S>, Self::MeasureError>> {
+        self.tree.measure_leaf(node, input)
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<S>,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<S>> {
+        let output = self
+            .retained
+            .caches
+            .get(&node)
+            .and_then(|cache| cache.get_with_context(input, context));
+        self.cache_queries
+            .borrow_mut()
+            .push((node, output.is_some()));
+        output
+    }
+
+    fn unrounded_layout(&self, node: Self::Node) -> Option<NodeOutputOf<S>> {
+        self.retained.unrounded.get(&node).copied()
+    }
+}
+
+impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri08C06RAtomicTree<S> {
+    type Error = core::convert::Infallible;
+    type Prepared = Fri08C06RRetained<S>;
+
+    fn prepare_layout_batch(
+        &self,
+        batch: &CompletedLayoutBatchOf<u32, S>,
+    ) -> Result<Self::Prepared, Self::Error> {
+        let mut prepared = self.retained.clone();
+        for node in batch.invalidated_nodes() {
+            prepared.unrounded.remove(node);
+            prepared.final_outputs.remove(node);
+            prepared.caches.remove(node);
+        }
+        for entry in batch.unrounded_entries() {
+            prepared.unrounded.insert(entry.node(), entry.output());
+        }
+        for entry in batch.final_entries() {
+            prepared.final_outputs.insert(entry.node(), entry.output());
+        }
+        for entry in batch.cache_clear_entries() {
+            prepared.caches.remove(&entry.node());
+        }
+        for entry in batch.cache_store_entries() {
+            prepared
+                .caches
+                .entry(entry.node())
+                .or_default()
+                .store_with_context(entry.input(), entry.context(), entry.output());
+        }
+        Ok(prepared)
+    }
+
+    fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
+        self.retained = prepared;
+    }
+}
+
+fn fri08_c06r_inherited_placement_flow_tree<S: LayoutScalar>(
+    inherited_axes: Fri08C06RInheritedAxes,
+    flow: GridAutoFlow,
+) -> PublicLayoutTreeOf<S> {
+    let scalar = S::from_f64;
+    let inherited_columns = matches!(
+        inherited_axes,
+        Fri08C06RInheritedAxes::Columns | Fri08C06RInheritedAxes::Both
+    );
+    let inherited_rows = matches!(
+        inherited_axes,
+        Fri08C06RInheritedAxes::Rows | Fri08C06RInheritedAxes::Both
+    );
+    let root_columns = if inherited_columns {
+        vec![TrackComponentOf::px(scalar(20.0)); 4]
+    } else {
+        vec![TrackComponentOf::px(scalar(100.0))]
+    };
+    let root_rows = if inherited_rows {
+        vec![TrackComponentOf::px(scalar(20.0)); 4]
+    } else {
+        vec![TrackComponentOf::px(scalar(100.0))]
+    };
+    let subgrid_columns = if inherited_columns {
+        subgrid_track_of()
+    } else {
+        vec![TrackComponentOf::px(scalar(20.0))]
+    };
+    let subgrid_rows = if inherited_rows {
+        subgrid_track_of()
+    } else {
+        vec![TrackComponentOf::px(scalar(20.0))]
+    };
+    let (occupied_column, occupied_row, span_column, span_row) = if flow.is_column() {
+        (
+            GridPlacement::try_line(1).expect("first column"),
+            GridPlacement::try_line(2).expect("second row"),
+            GridPlacement::AUTO,
+            GridPlacement::try_span(2).expect("two-row automatic span"),
+        )
+    } else {
+        (
+            GridPlacement::try_line(2).expect("second column"),
+            GridPlacement::try_line(1).expect("first row"),
+            GridPlacement::try_span(2).expect("two-column automatic span"),
+            GridPlacement::AUTO,
+        )
+    };
+    let definite = NodeInputOf {
+        grid_column: occupied_column,
+        grid_row: occupied_row,
+        ..NodeInputOf::default()
+    };
+
+    PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [3, 4, 5, 6])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(if inherited_columns {
+                        scalar(80.0)
+                    } else {
+                        scalar(100.0)
+                    }),
+                    PreferredSizeOf::px(if inherited_rows {
+                        scalar(80.0)
+                    } else {
+                        scalar(100.0)
+                    }),
+                ),
+                grid_template_columns: root_columns,
+                grid_template_rows: root_rows,
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: subgrid_columns,
+                grid_template_rows: subgrid_rows,
+                grid_auto_columns: vec![TrackComponentOf::px(scalar(20.0))],
+                grid_auto_rows: vec![TrackComponentOf::px(scalar(20.0))],
+                grid_column: if inherited_columns {
+                    GridPlacement::try_line_span(1, 4).expect("four inherited columns")
+                } else {
+                    GridPlacement::try_line(1).expect("standalone column")
+                },
+                grid_row: if inherited_rows {
+                    GridPlacement::try_line_span(1, 4).expect("four inherited rows")
+                } else {
+                    GridPlacement::try_line(1).expect("standalone row")
+                },
+                grid_auto_flow: flow,
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(3, definite.clone())
+        .style(4, definite)
+        .style(
+            5,
+            NodeInputOf {
+                grid_column: span_column,
+                grid_row: span_row,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(6, NodeInputOf::default())
+}
+
+fn fri08_c06r_assert_cold_warm<S: LayoutScalar>(
+    tree: PublicLayoutTreeOf<S>,
+    expected_nodes: &[u32],
+    assert_geometry: impl Fn(&CompletedLayoutBatchOf<u32, S>),
+) {
+    let mut tree = Fri08C06RAtomicTree::new(tree);
+    let request = Fri08C06RAtomicTree::<S>::request();
+    let cold = compute_layout(&tree, 1, request).expect("cold inherited placement succeeds");
+    assert_geometry(&cold);
+    assert_eq!(
+        cold.final_entries()
+            .iter()
+            .map(LayoutOutputEntryOf::node)
+            .collect::<Vec<_>>(),
+        expected_nodes,
+        "the successful batch publishes every source node exactly once"
+    );
+    let cold_unrounded = cold.unrounded_entries().to_vec();
+    let cold_final = cold.final_entries().to_vec();
+    cold.apply_to(&mut tree)
+        .expect("cold inherited-placement batch commits atomically");
+
+    tree.cache_queries.borrow_mut().clear();
+    let warm = compute_layout(&tree, 1, request).expect("warm inherited placement succeeds");
+    assert_geometry(&warm);
+    assert_eq!(warm.unrounded_entries(), cold_unrounded);
+    assert_eq!(warm.final_entries(), cold_final);
+    assert!(
+        tree.cache_queries.borrow().iter().any(|(_, hit)| *hit),
+        "warm inherited placement must reuse committed cache state"
+    );
+}
+
+fn assert_fri08_c06r_inherited_placement_flow_matrix<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    for (inherited_axes, flows) in [
+        (
+            Fri08C06RInheritedAxes::Columns,
+            [GridAutoFlow::Row, GridAutoFlow::RowDense].as_slice(),
+        ),
+        (
+            Fri08C06RInheritedAxes::Rows,
+            [GridAutoFlow::Column, GridAutoFlow::ColumnDense].as_slice(),
+        ),
+        (
+            Fri08C06RInheritedAxes::Both,
+            [
+                GridAutoFlow::Row,
+                GridAutoFlow::RowDense,
+                GridAutoFlow::Column,
+                GridAutoFlow::ColumnDense,
+            ]
+            .as_slice(),
+        ),
+    ] {
+        for &flow in flows {
+            let tree = fri08_c06r_inherited_placement_flow_tree(inherited_axes, flow);
+            fri08_c06r_assert_cold_warm(tree, &[1, 2, 3, 4, 5, 6], |batch| {
+                let root = fri08_c01_placement_output(batch, 1);
+                let subgrid = fri08_c01_placement_output(batch, 2);
+                let expected_size = match inherited_axes {
+                    Fri08C06RInheritedAxes::Columns => Size::new(scalar(80.0), scalar(100.0)),
+                    Fri08C06RInheritedAxes::Rows => Size::new(scalar(100.0), scalar(80.0)),
+                    Fri08C06RInheritedAxes::Both => Size::splat(scalar(80.0)),
+                };
+                assert_eq!(root.size, expected_size, "{inherited_axes:?} {flow:?}");
+                assert_eq!(subgrid.location, Point::ZERO, "{inherited_axes:?} {flow:?}");
+                assert_eq!(subgrid.size, expected_size, "{inherited_axes:?} {flow:?}");
+
+                let overlap = if flow.is_column() {
+                    Point::new(S::ZERO, scalar(20.0))
+                } else {
+                    Point::new(scalar(20.0), S::ZERO)
+                };
+                assert_eq!(
+                    fri08_c01_placement_output(batch, 3).location,
+                    overlap,
+                    "{inherited_axes:?} {flow:?} first definite overlap"
+                );
+                assert_eq!(
+                    fri08_c01_placement_output(batch, 4).location,
+                    overlap,
+                    "{inherited_axes:?} {flow:?} second definite overlap"
+                );
+                let spanning = fri08_c01_placement_output(batch, 5);
+                let expected_span_location = if flow.is_column() {
+                    Point::new(S::ZERO, scalar(40.0))
+                } else {
+                    Point::new(scalar(40.0), S::ZERO)
+                };
+                let expected_span_size = if flow.is_column() {
+                    Size::new(scalar(20.0), scalar(40.0))
+                } else {
+                    Size::new(scalar(40.0), scalar(20.0))
+                };
+                assert_eq!(
+                    spanning.location, expected_span_location,
+                    "{inherited_axes:?} {flow:?}"
+                );
+                assert_eq!(
+                    spanning.size, expected_span_size,
+                    "{inherited_axes:?} {flow:?}"
+                );
+
+                let final_location = if flow.is_dense() {
+                    Point::ZERO
+                } else if flow.is_column() {
+                    Point::new(scalar(20.0), S::ZERO)
+                } else {
+                    Point::new(S::ZERO, scalar(20.0))
+                };
+                assert_eq!(
+                    fri08_c01_placement_output(batch, 6).location,
+                    final_location,
+                    "{inherited_axes:?} {flow:?} sparse cursor versus dense hole"
+                );
+                for node in 3..=6 {
+                    assert_ne!(
+                        fri08_c01_placement_output(batch, node).size,
+                        Size::ZERO,
+                        "{inherited_axes:?} {flow:?} node {node} has settled geometry"
+                    );
+                }
+            });
+        }
+    }
+}
+
+#[test]
+fn fri08_c06r_inherited_placement_sparse_dense_row_column_flows_preserve_geometry_and_cache() {
+    assert_fri08_c06r_inherited_placement_flow_matrix::<f32>();
+    assert_fri08_c06r_inherited_placement_flow_matrix::<f64>();
+}
+
+fn fri08_c06r_inherited_placement_leading_trailing_tree<S: LayoutScalar>(
+    inherited_axes: Fri08C06RInheritedAxes,
+) -> PublicLayoutTreeOf<S> {
+    let scalar = S::from_f64;
+    let inherited_columns = inherited_axes == Fri08C06RInheritedAxes::Columns;
+    let root_columns = if inherited_columns {
+        vec![TrackComponentOf::px(scalar(20.0)); 4]
+    } else {
+        vec![TrackComponentOf::px(scalar(100.0))]
+    };
+    let root_rows = if inherited_columns {
+        vec![TrackComponentOf::px(scalar(100.0))]
+    } else {
+        vec![TrackComponentOf::px(scalar(20.0)); 4]
+    };
+
+    PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [3, 4])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: if inherited_columns {
+                    Size::new(
+                        PreferredSizeOf::px(scalar(80.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
+                    )
+                } else {
+                    Size::new(
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(80.0)),
+                    )
+                },
+                grid_template_columns: root_columns,
+                grid_template_rows: root_rows,
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: if inherited_columns {
+                    subgrid_track_of()
+                } else {
+                    vec![TrackComponentOf::px(scalar(40.0))]
+                },
+                grid_template_rows: if inherited_columns {
+                    vec![TrackComponentOf::px(scalar(40.0))]
+                } else {
+                    subgrid_track_of()
+                },
+                grid_auto_columns: vec![
+                    TrackComponentOf::px(scalar(10.0)),
+                    TrackComponentOf::px(scalar(20.0)),
+                ],
+                grid_auto_rows: vec![
+                    TrackComponentOf::px(scalar(10.0)),
+                    TrackComponentOf::px(scalar(20.0)),
+                ],
+                grid_column: if inherited_columns {
+                    GridPlacement::try_line_span(1, 4).expect("four inherited columns")
+                } else {
+                    GridPlacement::try_line(1).expect("standalone column")
+                },
+                grid_row: if inherited_columns {
+                    GridPlacement::try_line(1).expect("standalone row")
+                } else {
+                    GridPlacement::try_line_span(1, 4).expect("four inherited rows")
+                },
+                grid_auto_flow: if inherited_columns {
+                    GridAutoFlow::Row
+                } else {
+                    GridAutoFlow::Column
+                },
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                grid_column: if inherited_columns {
+                    GridPlacement::try_line(1).expect("first inherited column")
+                } else {
+                    GridPlacement::try_line(-3).expect("leading implicit column")
+                },
+                grid_row: if inherited_columns {
+                    GridPlacement::try_line(-3).expect("leading implicit row")
+                } else {
+                    GridPlacement::try_line(1).expect("first inherited row")
+                },
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                grid_column: if inherited_columns {
+                    GridPlacement::try_line(2).expect("second inherited column")
+                } else {
+                    GridPlacement::try_line(3).expect("trailing implicit column")
+                },
+                grid_row: if inherited_columns {
+                    GridPlacement::try_line(3).expect("trailing implicit row")
+                } else {
+                    GridPlacement::try_line(2).expect("second inherited row")
+                },
+                ..NodeInputOf::default()
+            },
+        )
+}
+
+fn assert_fri08_c06r_inherited_placement_leading_trailing<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    for inherited_axes in [
+        Fri08C06RInheritedAxes::Columns,
+        Fri08C06RInheritedAxes::Rows,
+    ] {
+        let tree = fri08_c06r_inherited_placement_leading_trailing_tree(inherited_axes);
+        fri08_c06r_assert_cold_warm(tree, &[1, 2, 3, 4], |batch| {
+            let leading = fri08_c01_placement_output(batch, 3);
+            let trailing = fri08_c01_placement_output(batch, 4);
+            if inherited_axes == Fri08C06RInheritedAxes::Columns {
+                assert_eq!(leading.location, Point::ZERO);
+                assert_eq!(leading.size, Size::new(scalar(20.0), scalar(20.0)));
+                assert_eq!(trailing.location, Point::new(scalar(20.0), scalar(70.0)));
+                assert_eq!(trailing.size, Size::new(scalar(20.0), scalar(20.0)));
+            } else {
+                assert_eq!(leading.location, Point::ZERO);
+                assert_eq!(leading.size, Size::new(scalar(20.0), scalar(20.0)));
+                assert_eq!(trailing.location, Point::new(scalar(70.0), scalar(20.0)));
+                assert_eq!(trailing.size, Size::new(scalar(20.0), scalar(20.0)));
+            }
+        });
+    }
+}
+
+#[test]
+fn fri08_c06r_inherited_placement_standalone_axes_preserve_leading_trailing_pattern_phase() {
+    assert_fri08_c06r_inherited_placement_leading_trailing::<f32>();
+    assert_fri08_c06r_inherited_placement_leading_trailing::<f64>();
+}
+
+fn fri08_c06r_inherited_placement_overflow_tree<S: LayoutScalar>(
+    inherited_axes: Fri08C06RInheritedAxes,
+    overflow_axis: GridAxisKind,
+    span: usize,
+) -> PublicLayoutTreeOf<S> {
+    let scalar = S::from_f64;
+    let inherited_columns = matches!(
+        inherited_axes,
+        Fri08C06RInheritedAxes::Columns | Fri08C06RInheritedAxes::Both
+    );
+    let inherited_rows = matches!(
+        inherited_axes,
+        Fri08C06RInheritedAxes::Rows | Fri08C06RInheritedAxes::Both
+    );
+    let child_column = if overflow_axis == GridAxisKind::Column {
+        GridPlacement::try_span(span).expect("nonzero inherited column span")
+    } else {
+        GridPlacement::AUTO
+    };
+    let child_row = if overflow_axis == GridAxisKind::Row {
+        GridPlacement::try_span(span).expect("nonzero inherited row span")
+    } else {
+        GridPlacement::AUTO
+    };
+
+    PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [3])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(if inherited_columns {
+                        scalar(80.0)
+                    } else {
+                        scalar(20.0)
+                    }),
+                    PreferredSizeOf::px(if inherited_rows {
+                        scalar(80.0)
+                    } else {
+                        scalar(20.0)
+                    }),
+                ),
+                grid_template_columns: if inherited_columns {
+                    vec![TrackComponentOf::px(scalar(20.0)); 4]
+                } else {
+                    vec![TrackComponentOf::px(scalar(20.0))]
+                },
+                grid_template_rows: if inherited_rows {
+                    vec![TrackComponentOf::px(scalar(20.0)); 4]
+                } else {
+                    vec![TrackComponentOf::px(scalar(20.0))]
+                },
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: if inherited_columns {
+                    subgrid_track_of()
+                } else {
+                    vec![TrackComponentOf::px(scalar(20.0))]
+                },
+                grid_template_rows: if inherited_rows {
+                    subgrid_track_of()
+                } else {
+                    vec![TrackComponentOf::px(scalar(20.0))]
+                },
+                grid_column: if inherited_columns {
+                    GridPlacement::try_line_span(1, 4).expect("four inherited columns")
+                } else {
+                    GridPlacement::try_line(1).expect("standalone column")
+                },
+                grid_row: if inherited_rows {
+                    GridPlacement::try_line_span(1, 4).expect("four inherited rows")
+                } else {
+                    GridPlacement::try_line(1).expect("standalone row")
+                },
+                grid_auto_flow: if overflow_axis == GridAxisKind::Column {
+                    GridAutoFlow::Row
+                } else {
+                    GridAutoFlow::Column
+                },
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                grid_column: child_column,
+                grid_row: child_row,
+                ..NodeInputOf::default()
+            },
+        )
+}
+
+fn assert_fri08_c06r_inherited_placement_capacity_overflow_is_atomic<S: LayoutScalar>() {
+    for (inherited_axes, overflow_axis) in [
+        (Fri08C06RInheritedAxes::Columns, GridAxisKind::Column),
+        (Fri08C06RInheritedAxes::Rows, GridAxisKind::Row),
+        (Fri08C06RInheritedAxes::Both, GridAxisKind::Column),
+        (Fri08C06RInheritedAxes::Both, GridAxisKind::Row),
+    ] {
+        let accepted =
+            fri08_c06r_inherited_placement_overflow_tree(inherited_axes, overflow_axis, 4);
+        let mut tree = Fri08C06RAtomicTree::new(accepted);
+        let request = Fri08C06RAtomicTree::<S>::request();
+        let baseline = compute_layout(&tree, 1, request)
+            .expect("an automatic span equal to inherited capacity succeeds");
+        assert_ne!(
+            fri08_c01_placement_output(&baseline, 3).size,
+            Size::ZERO,
+            "the within-capacity baseline publishes settled geometry"
+        );
+        baseline
+            .apply_to(&mut tree)
+            .expect("the accepted baseline commits atomically");
+        assert!(
+            !tree.retained.caches.is_empty(),
+            "the baseline commits cache state"
+        );
+
+        let overflowing =
+            fri08_c06r_inherited_placement_overflow_tree(inherited_axes, overflow_axis, 5);
+        tree.tree.insert_input(3, overflowing.layout_input(3));
+        let retained_before_failure = tree.retained.clone();
+
+        for attempt_index in 0..2 {
+            let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                compute_layout_invalidated(&tree, 1, request, &[3])
+            }));
+            let error = match attempt {
+                Ok(Err(error)) => error,
+                Ok(Ok(batch)) => panic!(
+                    "attempt {attempt_index}: inherited {overflow_axis:?} capacity overflow must not return a completed batch; child output was {:?}",
+                    fri08_c01_placement_output(&batch, 3)
+                ),
+                Err(_) => panic!(
+                    "attempt {attempt_index}: inherited {overflow_axis:?} capacity overflow must return the typed error instead of panicking"
+                ),
+            };
+            assert_eq!(
+                error.site(),
+                LayoutErrorSiteOf::Node(2),
+                "{inherited_axes:?} {overflow_axis:?} attempt {attempt_index}"
+            );
+            assert_eq!(error.operation(), LayoutOperation::ChildLayout);
+            assert_eq!(
+                error.kind(),
+                &LayoutErrorKindOf::InternalInvariant(
+                    LayoutInternalInvariant::InvalidBlockScrollGeometry,
+                )
+            );
+            assert_eq!(
+                tree.retained, retained_before_failure,
+                "{inherited_axes:?} {overflow_axis:?} attempt {attempt_index}: failure publishes no outputs and mutates no committed cache"
+            );
+        }
+    }
+}
+
+#[test]
+fn fri08_c06r_inherited_placement_capacity_overflow_is_typed_atomic_and_retryable() {
+    assert_fri08_c06r_inherited_placement_capacity_overflow_is_atomic::<f32>();
+    assert_fri08_c06r_inherited_placement_capacity_overflow_is_atomic::<f64>();
+}
+
+#[test]
+fn fri08_c06r_inherited_placement_architecture_has_no_residual_ordinary_estimator() {
+    let orchestration = include_str!("grid/mod.rs");
+    for residual in [
+        "visible_cell_count",
+        "placement_cell_span",
+        "auto_fit_limit",
+        ".div_ceil(",
+    ] {
+        assert!(
+            !orchestration.contains(residual),
+            "FRI-08.14 forbids residual ordinary-grid demand estimator `{residual}`"
+        );
+    }
+    assert!(
+        !include_str!("grid/placement.rs").contains("fn placement_cell_span"),
+        "the estimator-only placement span helper must be absent"
+    );
+}
+
 fn fri08_c05_composition_output<S: LayoutScalar>(
     batch: &CompletedLayoutBatchOf<u32, S>,
     node: u32,
@@ -14965,9 +15698,27 @@ fn row_subgrid_child_inherits_parent_baseline_group() {
             },
         )
         .style(2, NodeInput::default())
-        .style(5, NodeInput::default())
-        .style(6, NodeInput::default())
-        .style(7, NodeInput::default())
+        .style(
+            5,
+            NodeInput {
+                display: Display::None,
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            6,
+            NodeInput {
+                display: Display::None,
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            7,
+            NodeInput {
+                display: Display::None,
+                ..NodeInput::default()
+            },
+        )
         .measure(2, baseline_measure(30.0, 20.0, Some(14.0), None))
         .measure(4, baseline_measure(30.0, 20.0, Some(8.0), None));
 
@@ -15456,7 +16207,7 @@ fn fri06_c12_t08_fully_inherited_baseline_root_stays_out_of_ancestor_group() {
 }
 
 #[test]
-fn fri06_c12_t08_extra_row_keeps_direct_descendant_in_ancestor_baseline() {
+fn fri06_c12_t08_second_inherited_row_keeps_direct_descendant_in_ancestor_baseline() {
     let mut tree = OracleTree::new()
         .children(1, [2, 3])
         .children(2, [])
@@ -15501,7 +16252,7 @@ fn fri06_c12_t08_extra_row_keeps_direct_descendant_in_ancestor_baseline() {
         .style(
             5,
             NodeInput {
-                grid_row: GridPlacement::try_line(3).expect("valid implicit row placement"),
+                grid_row: GridPlacement::try_line(2).expect("second inherited row placement"),
                 align_self: Some(AlignItems::Baseline),
                 ..NodeInput::default()
             },
@@ -15519,7 +16270,7 @@ fn fri06_c12_t08_extra_row_keeps_direct_descendant_in_ancestor_baseline() {
             final_y(&tree, 4),
             final_y(&tree, 5)
         ),
-        (21.0, 0.0, 0.0, 0.0),
+        (21.0, 0.0, 0.0, 40.0),
     );
 }
 
@@ -26170,7 +26921,7 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
                 display: Display::Grid,
                 size: Size::new(PreferredSize::MIN_CONTENT, PreferredSize::AUTO),
                 grid_template_columns: vec![TrackComponent::AUTO],
-                grid_template_rows: vec![TrackComponent::AUTO],
+                grid_template_rows: vec![TrackComponent::AUTO; 4],
                 ..NodeInput::DEFAULT
             },
         )

@@ -1503,9 +1503,7 @@ where
     report.merge_named_grid(placement_report);
     let inherited_columns = parent_context.columns.is_some();
     let inherited_rows = parent_context.rows.is_some();
-    let ordinary_settled_placement = !style.display.establishes_grid_lanes_formatting_context()
-        && !inherited_columns
-        && !inherited_rows;
+    let ordinary_settled_placement = !style.display.establishes_grid_lanes_formatting_context();
     let (column_tracks, row_tracks, leading_columns, leading_rows) = if ordinary_settled_placement {
         derive_grid_placement_demand(&mut topology, &mut placements, style.grid_auto_flow)
             .map_err(|error| grid_placement_demand_error(node, error))?;
@@ -1529,24 +1527,9 @@ where
             topology.row_explicit_start,
         )
     } else {
-        // Inherited subgrid axes and grid-lanes retain their separately sequenced
-        // placement policies; ordinary grids never enter this pre-sizing path.
+        // Grid-lanes retains its separately sequenced pre-sizing and auto-fit policy.
         let mut column_tracks = topology.column_tracks.clone();
         let mut row_tracks = topology.row_tracks.clone();
-        let grid_lanes = style.display.establishes_grid_lanes_formatting_context();
-        let visible_cell_count = if grid_lanes {
-            0
-        } else {
-            placements
-                .checked_child_placements(&children)
-                .filter(|(child, _)| is_in_flow_grid_child(tree.node_input(*child)))
-                .map(|(_, placement)| {
-                    placement_cell_span(placement.column, explicit_columns)
-                        * placement_cell_span(placement.row, explicit_rows)
-                })
-                .sum::<usize>()
-        };
-        let auto_fit_limit = (!grid_lanes).then_some(visible_cell_count);
         let leading_columns = if inherited_columns {
             0
         } else {
@@ -1572,7 +1555,7 @@ where
                 percent_basis.inline,
                 gap.inline,
                 leading_columns,
-                auto_fit_limit,
+                None,
             )
             .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
@@ -1583,123 +1566,58 @@ where
                 percent_basis.block,
                 gap.block,
                 leading_rows,
-                auto_fit_limit,
+                None,
             )
             .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
         let track_requirement = grid_track_requirement_from_placements(&placements.items);
-        if grid_lanes {
-            if !inherited_columns {
-                let required_columns = (leading_columns + track_requirement.inline)
-                    .max(1)
-                    .max(column_tracks.len());
-                extend_auto_tracks(
-                    &mut column_tracks,
-                    &style.grid_auto_columns,
-                    percent_basis.inline,
-                    gap.inline,
-                    required_columns,
-                )
-                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
-            }
-            if !inherited_rows {
-                let required_rows = (leading_rows + track_requirement.block)
-                    .max(1)
-                    .max(row_tracks.len());
-                extend_auto_tracks(
-                    &mut row_tracks,
-                    &style.grid_auto_rows,
-                    percent_basis.block,
-                    gap.block,
-                    required_rows,
-                )
-                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
-            }
-        } else if style.grid_auto_flow.is_column() {
-            if !inherited_rows {
-                extend_auto_tracks(
-                    &mut row_tracks,
-                    &style.grid_auto_rows,
-                    percent_basis.block,
-                    gap.block,
-                    track_requirement.block.max(1),
-                )
-                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
-            }
-            if !inherited_columns {
-                let required_columns = if row_tracks.is_empty() {
-                    0
-                } else {
-                    visible_cell_count.div_ceil(row_tracks.len())
-                };
-                let required_columns = required_columns
-                    .max(leading_columns + track_requirement.inline)
-                    .max(column_tracks.len());
-                extend_auto_tracks(
-                    &mut column_tracks,
-                    &style.grid_auto_columns,
-                    percent_basis.inline,
-                    gap.inline,
-                    required_columns,
-                )
-                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
-            }
-        } else {
-            if !inherited_columns {
-                let required_columns = (leading_columns + track_requirement.inline)
-                    .max(1)
-                    .max(column_tracks.len());
-                extend_auto_tracks(
-                    &mut column_tracks,
-                    &style.grid_auto_columns,
-                    percent_basis.inline,
-                    gap.inline,
-                    required_columns,
-                )
-                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
-            }
-            if !inherited_rows {
-                let required_rows = if column_tracks.is_empty() {
-                    0
-                } else {
-                    visible_cell_count.div_ceil(column_tracks.len())
-                };
-                let required_rows = required_rows
-                    .max(leading_rows + track_requirement.block)
-                    .max(row_tracks.len());
-                extend_auto_tracks(
-                    &mut row_tracks,
-                    &style.grid_auto_rows,
-                    percent_basis.block,
-                    gap.block,
-                    required_rows,
-                )
-                .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+        if !inherited_columns {
+            let required_columns = (leading_columns + track_requirement.inline)
+                .max(1)
+                .max(column_tracks.len());
+            extend_auto_tracks(
+                &mut column_tracks,
+                &style.grid_auto_columns,
+                percent_basis.inline,
+                gap.inline,
+                required_columns,
+            )
+            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+        }
+        if !inherited_rows {
+            let required_rows = (leading_rows + track_requirement.block)
+                .max(1)
+                .max(row_tracks.len());
+            extend_auto_tracks(
+                &mut row_tracks,
+                &style.grid_auto_rows,
+                percent_basis.block,
+                gap.block,
+                required_rows,
+            )
+            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+        }
+        let grid_axis = grid_axis_for_grid_lanes(style);
+        let (track_count, explicit_start) = match grid_axis {
+            GridAxisKind::Column => (column_tracks.len(), leading_columns),
+            GridAxisKind::Row => (row_tracks.len(), leading_rows),
+        };
+        apply_grid_lanes_auto_fit_policy(
+            style,
+            &mut topology,
+            &placements,
+            track_count,
+            explicit_start,
+        )
+        .map_err(|error| grid_placement_demand_error(node, error))?;
+        for (track, collapsed) in column_tracks.iter_mut().zip(&topology.collapsed_columns) {
+            if *collapsed {
+                *track = TrackSizingOf::px(Tree::Scalar::ZERO);
             }
         }
-        if grid_lanes {
-            let grid_axis = grid_axis_for_grid_lanes(style);
-            let (track_count, explicit_start) = match grid_axis {
-                GridAxisKind::Column => (column_tracks.len(), leading_columns),
-                GridAxisKind::Row => (row_tracks.len(), leading_rows),
-            };
-            apply_grid_lanes_auto_fit_policy(
-                style,
-                &mut topology,
-                &placements,
-                track_count,
-                explicit_start,
-            )
-            .map_err(|error| grid_placement_demand_error(node, error))?;
-            for (track, collapsed) in column_tracks.iter_mut().zip(&topology.collapsed_columns) {
-                if *collapsed {
-                    *track = TrackSizingOf::px(Tree::Scalar::ZERO);
-                }
-            }
-            for (track, collapsed) in row_tracks.iter_mut().zip(&topology.collapsed_rows) {
-                if *collapsed {
-                    *track = TrackSizingOf::px(Tree::Scalar::ZERO);
-                }
+        for (track, collapsed) in row_tracks.iter_mut().zip(&topology.collapsed_rows) {
+            if *collapsed {
+                *track = TrackSizingOf::px(Tree::Scalar::ZERO);
             }
         }
         (column_tracks, row_tracks, leading_columns, leading_rows)

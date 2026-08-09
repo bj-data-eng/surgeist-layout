@@ -767,33 +767,6 @@ pub(super) fn placement_track_requirement(placement: super::GridPlacement) -> us
     }
 }
 
-pub(super) fn placement_cell_span(
-    placement: super::GridPlacement,
-    explicit_track_count: usize,
-) -> usize {
-    if let Some(span) = placement.span() {
-        return span.get();
-    }
-
-    match (placement.start(), placement.end()) {
-        (Some(start), Some(end)) if start == end => 1,
-        (Some(start), Some(end)) => {
-            let start = explicit_grid_line_to_absolute(start.get(), explicit_track_count);
-            let end = explicit_grid_line_to_absolute(end.get(), explicit_track_count);
-            start.abs_diff(end).max(1)
-        }
-        _ => 1,
-    }
-}
-
-fn explicit_grid_line_to_absolute(line: isize, explicit_track_count: usize) -> isize {
-    if line > 0 {
-        line
-    } else {
-        explicit_track_count as isize + 2 + line
-    }
-}
-
 pub(super) fn mark_occupied<S: LayoutScalar>(
     occupancy: &mut [bool],
     column_count: usize,
