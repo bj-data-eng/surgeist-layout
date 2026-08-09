@@ -847,15 +847,33 @@ pub(super) fn absolute_grid_area<S: LayoutScalar>(
         row,
         columns,
         rows,
+        gap,
+        column_geometry,
+        row_geometry,
         column_offsets,
         row_offsets,
-        gap,
         constants,
         lines,
     } = input;
+    let fallback_column_geometry;
+    let column_geometry = if let Some(geometry) = column_geometry {
+        geometry
+    } else {
+        fallback_column_geometry =
+            UsedGridAxisGeometryOf::new(columns.to_vec(), vec![false; columns.len()], gap.inline);
+        &fallback_column_geometry
+    };
+    let fallback_row_geometry;
+    let row_geometry = if let Some(geometry) = row_geometry {
+        geometry
+    } else {
+        fallback_row_geometry =
+            UsedGridAxisGeometryOf::new(rows.to_vec(), vec![false; rows.len()], gap.block);
+        &fallback_row_geometry
+    };
     let flow_axes = constants.flow_axes;
     let content_size =
-        LogicalSizeOf::new(track_sum(columns, gap.inline), track_sum(rows, gap.block));
+        LogicalSizeOf::new(column_geometry.total_extent(), row_geometry.total_extent());
     let padding = flow_axes.logical_edges(constants.padding);
     let border = flow_axes.logical_edges(constants.border);
     let padding_size = LogicalSizeOf::new(padding.inline_sum(), padding.block_sum());
@@ -886,7 +904,7 @@ pub(super) fn absolute_grid_area<S: LayoutScalar>(
         placement: column,
         tracks: columns,
         offsets: column_offsets,
-        gap: gap.inline,
+        geometry: column_geometry,
         padding_box_location: border.inline_start,
         padding_box_size: padding_box_size.inline,
         is_reverse: false,
@@ -897,7 +915,7 @@ pub(super) fn absolute_grid_area<S: LayoutScalar>(
         placement: row,
         tracks: rows,
         offsets: row_offsets,
-        gap: gap.block,
+        geometry: row_geometry,
         padding_box_location: border.block_start,
         padding_box_size: padding_box_size.block,
         is_reverse: false,
@@ -944,7 +962,7 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
         placement,
         tracks,
         offsets,
-        gap,
+        geometry,
         padding_box_location,
         padding_box_size,
         is_reverse,
@@ -953,10 +971,9 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
     } = input;
     let padding_box_end = padding_box_location + padding_box_size;
     if let (Some(start), None, None) = (placement.start(), placement.end(), placement.span())
-        && let Some(line) = grid_line_offset(
+        && let Some(line) = used_grid_line_offset(
             start.get(),
-            tracks,
-            offsets,
+            geometry,
             is_reverse,
             explicit_start,
             explicit_count,
@@ -975,10 +992,9 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
     }
 
     if let (None, Some(end), None) = (placement.start(), placement.end(), placement.span())
-        && let Some(line) = grid_line_offset(
+        && let Some(line) = used_grid_line_offset(
             end.get(),
-            tracks,
-            offsets,
+            geometry,
             is_reverse,
             explicit_start,
             explicit_count,
@@ -999,18 +1015,16 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
     if let (Some(start_line), Some(end_line), None) =
         (placement.start(), placement.end(), placement.span())
         && let (Some(start), Some(end)) = (
-            grid_line_offset(
+            used_grid_line_offset(
                 start_line.get(),
-                tracks,
-                offsets,
+                geometry,
                 is_reverse,
                 explicit_start,
                 explicit_count,
             ),
-            grid_line_offset(
+            used_grid_line_offset(
                 end_line.get(),
-                tracks,
-                offsets,
+                geometry,
                 is_reverse,
                 explicit_start,
                 explicit_count,
@@ -1045,38 +1059,24 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
 
     AbsoluteGridAxisArea {
         location,
-        size: track_span_sum(tracks, start, end, gap),
+        size: geometry.span_extent(start, end),
     }
 }
 
-pub(super) fn grid_line_offset<S: LayoutScalar>(
+fn used_grid_line_offset<S: LayoutScalar>(
     line: isize,
-    tracks: &[S],
-    offsets: &[S],
+    geometry: &UsedGridAxisGeometryOf<S>,
     is_reverse: bool,
     explicit_start: usize,
     explicit_count: usize,
 ) -> Option<S> {
-    let index = grid_line_to_index(line, tracks.len(), explicit_start, explicit_count)?;
+    let index = grid_line_to_index(line, geometry.sizes().len(), explicit_start, explicit_count)?;
+    let offset = geometry.line_offset(index)?;
     if is_reverse {
-        if index == 0 && !tracks.is_empty() {
-            return Some(offsets[0] + tracks[0]);
-        }
-        if index > 0 && index <= tracks.len() {
-            return Some(offsets[index - 1]);
-        }
-
-        return None;
+        Some(geometry.line_offset(geometry.sizes().len())? - offset)
+    } else {
+        Some(offset)
     }
-
-    if index < offsets.len() {
-        return Some(offsets[index]);
-    }
-    if index == tracks.len() && !tracks.is_empty() {
-        return Some(offsets[tracks.len() - 1] + tracks[tracks.len() - 1]);
-    }
-
-    None
 }
 
 pub(super) fn definite_area<S: LayoutScalar>(
@@ -1232,6 +1232,14 @@ pub(super) fn next_auto_area<S: LayoutScalar>(
 pub(super) fn resolve_grid_child_areas<Node, S: LayoutScalar>(
     input: ResolveGridChildAreasInput<'_, Node, S>,
 ) -> Vec<Option<GridArea<S>>> {
+    resolve_grid_child_areas_with_geometry(input, None, None)
+}
+
+pub(super) fn resolve_grid_child_areas_with_geometry<Node, S: LayoutScalar>(
+    input: ResolveGridChildAreasInput<'_, Node, S>,
+    column_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+    row_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+) -> Vec<Option<GridArea<S>>> {
     let ResolveGridChildAreasInput {
         children,
         placements,
@@ -1254,8 +1262,21 @@ pub(super) fn resolve_grid_child_areas<Node, S: LayoutScalar>(
                     column_end: area.column_end,
                     row_end: area.row_end,
                     size: LogicalSizeOf::new(
-                        track_span_sum(columns, area.column_start, area.column_end, gap.inline),
-                        track_span_sum(rows, area.row_start, area.row_end, gap.block),
+                        column_geometry.map_or_else(
+                            || {
+                                track_span_sum(
+                                    columns,
+                                    area.column_start,
+                                    area.column_end,
+                                    gap.inline,
+                                )
+                            },
+                            |geometry| geometry.span_extent(area.column_start, area.column_end),
+                        ),
+                        row_geometry.map_or_else(
+                            || track_span_sum(rows, area.row_start, area.row_end, gap.block),
+                            |geometry| geometry.span_extent(area.row_start, area.row_end),
+                        ),
                     ),
                 })
             })

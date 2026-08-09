@@ -1,4 +1,128 @@
 use super::*;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct UsedGridAxisGeometryOf<S: LayoutScalar = Scalar> {
+    sizes: Vec<S>,
+    collapsed: Vec<bool>,
+    gutter_after: Vec<S>,
+    line_offsets: Vec<S>,
+}
+
+impl<S: LayoutScalar> UsedGridAxisGeometryOf<S> {
+    pub(super) fn new(sizes: Vec<S>, collapsed: Vec<bool>, gap: S) -> Self {
+        let mut collapsed = collapsed;
+        collapsed.resize(sizes.len(), false);
+        let gutter_after = (0..sizes.len().saturating_sub(1))
+            .map(|index| {
+                if collapsed[index] || collapsed[index + 1] {
+                    S::ZERO
+                } else {
+                    gap
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut line_offsets = Vec::with_capacity(sizes.len() + 1);
+        let mut cursor = S::ZERO;
+        line_offsets.push(cursor);
+        for (index, size) in sizes.iter().copied().enumerate() {
+            cursor = cursor + size;
+            if let Some(gutter) = gutter_after.get(index) {
+                cursor = cursor + *gutter;
+            }
+            line_offsets.push(cursor);
+        }
+        Self {
+            sizes,
+            collapsed,
+            gutter_after,
+            line_offsets,
+        }
+    }
+
+    pub(super) fn sizes(&self) -> &[S] {
+        &self.sizes
+    }
+
+    pub(super) fn collapsed(&self) -> &[bool] {
+        &self.collapsed
+    }
+
+    pub(super) fn active_track_count(&self) -> usize {
+        self.collapsed
+            .iter()
+            .filter(|collapsed| !**collapsed)
+            .count()
+    }
+
+    pub(super) fn active_gap_total(&self) -> S {
+        self.gutter_after
+            .iter()
+            .copied()
+            .fold(S::ZERO, |sum, gutter| sum + gutter)
+    }
+
+    pub(super) fn total_extent(&self) -> S {
+        self.sizes
+            .iter()
+            .copied()
+            .fold(S::ZERO, |sum, size| sum + size)
+            + self.active_gap_total()
+    }
+
+    pub(super) fn span_extent(&self, start: usize, end: usize) -> S {
+        if start >= end || end > self.sizes.len() {
+            return S::ZERO;
+        }
+        self.sizes[start..end]
+            .iter()
+            .copied()
+            .fold(S::ZERO, |sum, size| sum + size)
+            + self.gutter_after[start..end.saturating_sub(1)]
+                .iter()
+                .copied()
+                .fold(S::ZERO, |sum, gutter| sum + gutter)
+    }
+
+    pub(super) fn line_offset(&self, line: usize) -> Option<S> {
+        self.line_offsets.get(line).copied()
+    }
+
+    pub(super) fn translated(mut self, offset: S) -> Self {
+        for line_offset in &mut self.line_offsets {
+            *line_offset = *line_offset + offset;
+        }
+        self
+    }
+
+    pub(super) fn sliced_reversed(&self, start: usize, end: usize, reversed: bool) -> Self {
+        let end = end.min(self.sizes.len());
+        let start = start.min(end);
+        let mut sizes = self.sizes[start..end].to_vec();
+        let mut collapsed = self.collapsed[start..end].to_vec();
+        let mut gutter_after = self.gutter_after[start..end.saturating_sub(1)].to_vec();
+        if reversed {
+            sizes.reverse();
+            collapsed.reverse();
+            gutter_after.reverse();
+        }
+        let mut line_offsets = Vec::with_capacity(sizes.len() + 1);
+        let mut cursor = S::ZERO;
+        line_offsets.push(cursor);
+        for (index, size) in sizes.iter().copied().enumerate() {
+            cursor = cursor + size;
+            if let Some(gutter) = gutter_after.get(index) {
+                cursor = cursor + *gutter;
+            }
+            line_offsets.push(cursor);
+        }
+        Self {
+            sizes,
+            collapsed,
+            gutter_after,
+            line_offsets,
+        }
+    }
+}
 use crate::geometry::{FlowAxes, LogicalSizeOf};
 use crate::scroll::{UsedOverflow, UsedOverflowAxis};
 use crate::{
@@ -4514,6 +4638,7 @@ pub(super) fn offsets<S: LayoutScalar>(sizes: &[S], start: S, gap: S) -> Vec<S> 
         .collect()
 }
 
+#[cfg(test)]
 pub(super) fn rtl_offsets<S: LayoutScalar>(
     sizes: &[S],
     content_box_left: S,

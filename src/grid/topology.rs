@@ -42,6 +42,8 @@ pub(super) struct ExpandedGridTopology<S: LayoutScalar = Scalar> {
     pub(super) area_facts: Option<GridAreaNameFacts>,
     pub(super) column_origins: Vec<ExplicitTrackOrigin>,
     pub(super) row_origins: Vec<ExplicitTrackOrigin>,
+    pub(super) collapsed_columns: Vec<bool>,
+    pub(super) collapsed_rows: Vec<bool>,
     column_auto_pattern: Vec<TrackSizingOf<S>>,
     row_auto_pattern: Vec<TrackSizingOf<S>>,
     inherited_columns: bool,
@@ -101,9 +103,11 @@ impl<S: LayoutScalar> ExpandedGridTopology<S> {
         )?;
         let row_auto_pattern =
             expand_track_components(input.auto_rows, input.row_basis, input.row_gap, None)?;
+        let explicit_columns = columns.tracks.len();
+        let explicit_rows = rows.tracks.len();
         let topology = Self {
-            explicit_columns: columns.tracks.len(),
-            explicit_rows: rows.tracks.len(),
+            explicit_columns,
+            explicit_rows,
             column_explicit_start: 0,
             row_explicit_start: 0,
             column_tracks: columns.tracks,
@@ -113,6 +117,8 @@ impl<S: LayoutScalar> ExpandedGridTopology<S> {
             area_facts,
             column_origins: columns.origins,
             row_origins: rows.origins,
+            collapsed_columns: vec![false; explicit_columns],
+            collapsed_rows: vec![false; explicit_rows],
             column_auto_pattern,
             row_auto_pattern,
             inherited_columns: input.inherited_columns,
@@ -172,6 +178,8 @@ impl<S: LayoutScalar> ExpandedGridTopology<S> {
                 };
                 explicit_rows
             ],
+            collapsed_columns: vec![false; explicit_columns],
+            collapsed_rows: vec![false; explicit_rows],
             column_auto_pattern: vec![TrackSizingOf::AUTO],
             row_auto_pattern: vec![TrackSizingOf::AUTO],
             inherited_columns: false,
@@ -237,10 +245,51 @@ impl<S: LayoutScalar> ExpandedGridTopology<S> {
             column_growth,
         );
         apply_axis_growth(&mut self.row_tracks, &mut self.row_origins, row_growth);
+        self.collapsed_columns
+            .resize(self.column_tracks.len(), false);
+        self.collapsed_rows.resize(self.row_tracks.len(), false);
         self.column_explicit_start = column_explicit_start;
         self.row_explicit_start = row_explicit_start;
         debug_assert!(self.has_complete_origin_evidence());
         Ok(())
+    }
+
+    pub(super) fn collapse_ordinary_auto_fit(&mut self, settled_areas: &[Option<PlacedGridArea>]) {
+        collapse_auto_fit_axis(
+            &self.column_origins,
+            settled_areas,
+            super::GridAxisKind::Column,
+            &mut self.collapsed_columns,
+        );
+        collapse_auto_fit_axis(
+            &self.row_origins,
+            settled_areas,
+            super::GridAxisKind::Row,
+            &mut self.collapsed_rows,
+        );
+    }
+}
+
+fn collapse_auto_fit_axis(
+    origins: &[ExplicitTrackOrigin],
+    settled_areas: &[Option<PlacedGridArea>],
+    axis: super::GridAxisKind,
+    collapsed: &mut Vec<bool>,
+) {
+    collapsed.clear();
+    collapsed.resize(origins.len(), false);
+    for (index, origin) in origins.iter().enumerate() {
+        if !origin
+            .auto_repeat
+            .is_some_and(|origin| origin.kind == crate::TrackRepeat::AutoFit)
+        {
+            continue;
+        }
+        let occupied = settled_areas.iter().flatten().any(|area| match axis {
+            super::GridAxisKind::Column => area.column_start <= index && index < area.column_end,
+            super::GridAxisKind::Row => area.row_start <= index && index < area.row_end,
+        });
+        collapsed[index] = !occupied;
     }
 }
 

@@ -1995,6 +1995,11 @@ pub(super) fn intrinsic_subgrid_axis_parent_context<Node, S: LayoutScalar>(
         offset: S::ZERO,
         gap: parent_gap,
         tracks: vec![S::ZERO; track_count],
+        geometry: UsedGridAxisGeometryOf::new(
+            vec![S::ZERO; track_count],
+            vec![false; track_count],
+            parent_gap,
+        ),
         named_lines: named_lines.clone(),
         area_facts: area_facts
             .filter(|facts| facts.is_valid_for_axis(mapping.parent_axis))

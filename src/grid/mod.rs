@@ -931,6 +931,7 @@ struct InheritedGridAxis<S: LayoutScalar = Scalar, Node = ()> {
     offset: S,
     gap: S,
     tracks: Vec<S>,
+    geometry: UsedGridAxisGeometryOf<S>,
     named_lines: NamedGridLines,
     area_facts: Option<GridAreaNameFacts>,
     major_baselines: Vec<Option<PhysicalBaseline<S>>>,
@@ -947,6 +948,7 @@ impl<S: LayoutScalar, Node> InheritedGridAxis<S, Node> {
             offset: self.offset,
             gap: self.gap,
             tracks: self.tracks.clone(),
+            geometry: self.geometry.clone(),
             named_lines: self.named_lines.clone(),
             area_facts: self.area_facts.clone(),
             major_baselines: self.major_baselines.clone(),
@@ -1041,6 +1043,10 @@ impl<Node> GridPlacementContext<Node> {
         );
         self.order_modified_indexes = order_modified_indexes;
         self
+    }
+
+    fn settled_areas(&self) -> &[Option<PlacedGridArea>] {
+        self.settled_areas.as_deref().unwrap_or(&[])
     }
 }
 
@@ -1198,6 +1204,12 @@ where
         inherited_rows: parent_context.rows.is_some(),
     })
     .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+    if let Some(columns) = &parent_context.columns {
+        topology.collapsed_columns = columns.geometry.collapsed().to_vec();
+    }
+    if let Some(rows) = &parent_context.rows {
+        topology.collapsed_rows = rows.geometry.collapsed().to_vec();
+    }
     let explicit_columns = topology.explicit_columns;
     let explicit_rows = topology.explicit_rows;
     let (mut placements, placement_report) = resolve_grid_child_placements(
@@ -1216,9 +1228,22 @@ where
     let (column_tracks, row_tracks, leading_columns, leading_rows) = if ordinary_settled_placement {
         derive_grid_placement_demand(&mut topology, &mut placements, style.grid_auto_flow)
             .map_err(|error| grid_placement_demand_error(node, error))?;
+        topology.collapse_ordinary_auto_fit(placements.settled_areas());
+        let mut column_tracks = topology.column_tracks.clone();
+        let mut row_tracks = topology.row_tracks.clone();
+        for (track, collapsed) in column_tracks.iter_mut().zip(&topology.collapsed_columns) {
+            if *collapsed {
+                *track = TrackSizingOf::px(Tree::Scalar::ZERO);
+            }
+        }
+        for (track, collapsed) in row_tracks.iter_mut().zip(&topology.collapsed_rows) {
+            if *collapsed {
+                *track = TrackSizingOf::px(Tree::Scalar::ZERO);
+            }
+        }
         (
-            topology.column_tracks.clone(),
-            topology.row_tracks.clone(),
+            column_tracks,
+            row_tracks,
             topology.column_explicit_start,
             topology.row_explicit_start,
         )
@@ -2024,6 +2049,8 @@ where
         named_columns,
         named_rows,
         area_facts,
+        collapsed_columns,
+        collapsed_rows,
         ..
     } = topology;
     let column_basis = container_percent_basis.inline;
@@ -2190,6 +2217,8 @@ where
             container_content_size: layout_content_box_size,
             columns: &layout_columns,
             rows: &layout_rows,
+            collapsed_columns: &collapsed_columns,
+            collapsed_rows: &collapsed_rows,
             row_tracks,
             gap: layout_gap,
             lines,
@@ -2225,6 +2254,8 @@ struct GridLayoutContext<'a, Node, S: LayoutScalar = Scalar> {
     container_content_size: Size<S>,
     columns: &'a [S],
     rows: &'a [S],
+    collapsed_columns: &'a [bool],
+    collapsed_rows: &'a [bool],
     row_tracks: &'a [TrackSizingOf<S>],
     gap: LogicalSizeOf<S>,
     lines: GridLines,

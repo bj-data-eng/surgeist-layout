@@ -357,6 +357,7 @@ pub(super) fn baseline_aligned_block_offset<Node: Copy, S: LayoutScalar>(
     Some(margin_box_offset + container_flow_axes.logical_edges(item.margin).block_start)
 }
 
+#[cfg(test)]
 pub(super) fn spanned_track_size<S: LayoutScalar>(
     tracks: &[S],
     start: usize,
@@ -460,8 +461,7 @@ struct BaselineAlignedAxisInput<'a, Node, S: LayoutScalar = Scalar> {
     container_style: &'a NodeInputOf<S>,
     group: &'a AncestorBaselineGroup<Node, S>,
     axis: GridAxisKind,
-    tracks: &'a [S],
-    gap: S,
+    geometry: &'a UsedGridAxisGeometryOf<S>,
     row_tracks: &'a [TrackSizingOf<S>],
     subgrid_item: Option<SubgridItemReport<Node>>,
     container_flow_axes: FlowAxes,
@@ -480,8 +480,7 @@ fn baseline_aligned_axis_offset<Node: Copy + PartialEq, S: LayoutScalar>(
         container_style,
         group,
         axis,
-        tracks,
-        gap,
+        geometry,
         row_tracks,
         subgrid_item,
         container_flow_axes,
@@ -585,12 +584,12 @@ fn baseline_aligned_axis_offset<Node: Copy + PartialEq, S: LayoutScalar>(
         return Ok(group.synthesized_opposite_placement_offset(
             member,
             opposite_member,
-            spanned_track_size(tracks, start, end, gap),
+            geometry.span_extent(start, end),
             start_margin,
             end_margin,
         ));
     }
-    let available_span_size = spanned_track_size(tracks, start, end, gap);
+    let available_span_size = geometry.span_extent(start, end);
     let margin_box_size = item_size + start_margin + end_margin;
     let offset = if let Some(owner_targets) = inherited_owner_targets
         .filter(|targets| targets.mapping.owner() != targets.mapping.current_grid())
@@ -685,6 +684,8 @@ where
         container_content_size,
         columns,
         rows,
+        collapsed_columns,
+        collapsed_rows,
         row_tracks,
         gap,
         lines,
@@ -731,8 +732,35 @@ where
         });
     }
 
-    let logical_content_size =
-        LogicalSizeOf::new(track_sum(columns, gap.inline), track_sum(rows, gap.block));
+    let inherited_collapsed_column_geometry = parent_context
+        .columns
+        .as_ref()
+        .map(|axis| &axis.geometry)
+        .filter(|geometry| geometry.collapsed().iter().any(|collapsed| *collapsed));
+    let inherited_collapsed_row_geometry = parent_context
+        .rows
+        .as_ref()
+        .map(|axis| &axis.geometry)
+        .filter(|geometry| geometry.collapsed().iter().any(|collapsed| *collapsed));
+    let intrinsic_column_geometry =
+        inherited_collapsed_column_geometry
+            .cloned()
+            .unwrap_or_else(|| {
+                UsedGridAxisGeometryOf::new(
+                    columns.to_vec(),
+                    collapsed_columns.to_vec(),
+                    gap.inline,
+                )
+            });
+    let intrinsic_row_geometry = inherited_collapsed_row_geometry
+        .cloned()
+        .unwrap_or_else(|| {
+            UsedGridAxisGeometryOf::new(rows.to_vec(), collapsed_rows.to_vec(), gap.block)
+        });
+    let logical_content_size = LogicalSizeOf::new(
+        intrinsic_column_geometry.total_extent(),
+        intrinsic_row_geometry.total_extent(),
+    );
     let physical_content_size = grid_area_physical_size(constants.flow_axes, logical_content_size);
     let legacy_content_box_size =
         constants
@@ -754,33 +782,52 @@ where
     let alignment_free_space = logical_content_box_size - logical_content_size;
     let column_alignment = grid_alignment(
         alignment_free_space.inline,
-        columns.len(),
+        intrinsic_column_geometry.active_track_count(),
         gap.inline,
         style.justify_content.unwrap_or(AlignContent::Stretch),
     );
     let row_alignment = grid_alignment(
         alignment_free_space.block,
-        rows.len(),
+        intrinsic_row_geometry.active_track_count(),
         gap.block,
         style.align_content.unwrap_or(AlignContent::Stretch),
     );
-    let logical_column_offsets = grid_axis_logical_offsets(
-        columns,
-        inherited_column_offset,
-        logical_content_box_inset.inline_start,
-        column_alignment,
+    let column_geometry = inherited_collapsed_column_geometry
+        .cloned()
+        .unwrap_or_else(|| {
+            UsedGridAxisGeometryOf::new(
+                columns.to_vec(),
+                collapsed_columns.to_vec(),
+                column_alignment.gap,
+            )
+        });
+    let row_geometry = inherited_collapsed_row_geometry
+        .cloned()
+        .unwrap_or_else(|| {
+            UsedGridAxisGeometryOf::new(rows.to_vec(), collapsed_rows.to_vec(), row_alignment.gap)
+        });
+    let logical_column_geometry = column_geometry.clone().translated(
+        inherited_column_offset.unwrap_or(Tree::Scalar::ZERO)
+            + logical_content_box_inset.inline_start
+            + column_alignment.start,
     );
-    let logical_row_offsets = grid_axis_logical_offsets(
-        rows,
-        inherited_row_offset,
-        logical_content_box_inset.block_start,
-        row_alignment,
+    let logical_row_geometry = row_geometry.clone().translated(
+        inherited_row_offset.unwrap_or(Tree::Scalar::ZERO)
+            + logical_content_box_inset.block_start
+            + row_alignment.start,
     );
+    let logical_column_offsets = (0..columns.len())
+        .filter_map(|line| logical_column_geometry.line_offset(line))
+        .collect::<Vec<_>>();
+    let logical_row_offsets = (0..rows.len())
+        .filter_map(|line| logical_row_geometry.line_offset(line))
+        .collect::<Vec<_>>();
     let content_box_left = effective_content_box_left(constants, container_content_size);
     let row_offsets = grid_axis_offsets(GridAxisOffsetsInput {
         style,
         axis: GridAxisKind::Row,
         tracks: rows,
+        geometry: &row_geometry,
         inherited_offset: inherited_row_offset,
         content_box_left,
         content_box_size: legacy_content_box_size,
@@ -788,15 +835,19 @@ where
         alignment: row_alignment,
     });
     let children = tree.children(node).collect::<Vec<_>>();
-    let placed_areas = resolve_grid_child_areas(ResolveGridChildAreasInput {
-        children: &children,
-        placements,
-        style,
-        columns,
-        rows,
-        gap,
-        lines,
-    });
+    let placed_areas = resolve_grid_child_areas_with_geometry(
+        ResolveGridChildAreasInput {
+            children: &children,
+            placements,
+            style,
+            columns,
+            rows,
+            gap,
+            lines,
+        },
+        Some(&column_geometry),
+        Some(&row_geometry),
+    );
     let empty_baseline_groups = GridBaselineGroups {
         rows: vec![TrackBaselineGroup::default(); rows.len()],
         columns: vec![TrackBaselineGroup::default(); columns.len()],
@@ -833,19 +884,23 @@ where
                 child,
                 source_index,
                 &child_style,
-                AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
-                    container_style: style,
-                    constants,
-                    containing_size,
-                    column: placement.absolute_column,
-                    row: placement.absolute_row,
-                    column_offsets: &logical_column_offsets,
-                    row_offsets: &logical_row_offsets,
-                    columns,
-                    rows,
-                    gap,
-                    lines,
-                })
+                AbsoluteGridContext::ordinary_with_geometry(
+                    OrdinaryAbsoluteGridGeometryContextInput {
+                        container_style: style,
+                        constants,
+                        containing_size,
+                        column: placement.absolute_column,
+                        row: placement.absolute_row,
+                        column_offsets: &logical_column_offsets,
+                        row_offsets: &logical_row_offsets,
+                        columns,
+                        rows,
+                        gap,
+                        column_geometry: &logical_column_geometry,
+                        row_geometry: &logical_row_geometry,
+                        lines,
+                    },
+                )
                 .with_containing_auto_scrollbar_pass(containing_auto_scrollbar_pass),
             )?);
             continue;
@@ -913,22 +968,26 @@ where
             - padding.sum_axes()
             - border.sum_axes())
         .max(Size::ZERO);
-        let child_context = subgrid_child_parent_context(SubgridChildParentContextInput {
-            item: *subgrid_item,
-            child_style: &child_style,
-            area,
-            content_box_size: subgrid_content_box_size,
-            columns,
-            rows,
-            gap,
-            parent_named_columns: &named_columns,
-            parent_named_rows: &named_rows,
-            parent_area_facts: area_facts.as_ref(),
-            parent_baseline_groups: &empty_baseline_groups,
-            margin: item.unresolved_margin,
-            border,
-            padding,
-        })
+        let child_context = subgrid_child_parent_context_with_geometry(
+            SubgridChildParentContextInput {
+                item: *subgrid_item,
+                child_style: &child_style,
+                area,
+                content_box_size: subgrid_content_box_size,
+                columns,
+                rows,
+                gap,
+                parent_named_columns: &named_columns,
+                parent_named_rows: &named_rows,
+                parent_area_facts: area_facts.as_ref(),
+                parent_baseline_groups: &empty_baseline_groups,
+                margin: item.unresolved_margin,
+                border,
+                padding,
+            },
+            Some(&column_geometry),
+            Some(&row_geometry),
+        )
         .map_err(|error| subgrid_child_context_container_error(node, child, error))?;
         let child_input = ComputeInputOf::for_child(
             RunMode::PerformLayout,
@@ -1058,6 +1117,8 @@ where
             container_style: style,
             columns,
             rows,
+            column_geometry: &column_geometry,
+            row_geometry: &row_geometry,
             row_tracks,
             gap,
             children: &children,
@@ -1078,6 +1139,8 @@ where
             container_style: style,
             columns,
             rows,
+            column_geometry: &column_geometry,
+            row_geometry: &row_geometry,
             row_tracks,
             gap,
             named_columns: named_columns.clone(),
@@ -1118,8 +1181,7 @@ where
             container_style: style,
             group: column_group,
             axis: GridAxisKind::Column,
-            tracks: columns,
-            gap: gap.inline,
+            geometry: &column_geometry,
             row_tracks,
             subgrid_item,
             container_flow_axes: constants.flow_axes,
@@ -1146,8 +1208,7 @@ where
             container_style: style,
             group: row_baseline_group,
             axis: GridAxisKind::Row,
-            tracks: rows,
-            gap: gap.block,
+            geometry: &row_geometry,
             row_tracks,
             subgrid_item,
             container_flow_axes: constants.flow_axes,
@@ -1309,6 +1370,8 @@ struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
     container_style: &'a NodeInputOf<S>,
     columns: &'a [S],
     rows: &'a [S],
+    column_geometry: &'a UsedGridAxisGeometryOf<S>,
+    row_geometry: &'a UsedGridAxisGeometryOf<S>,
     row_tracks: &'a [TrackSizingOf<S>],
     gap: LogicalSizeOf<S>,
     named_columns: NamedGridLines,
@@ -1390,7 +1453,7 @@ where
             - padding.sum_axes()
             - border.sum_axes())
         .max(Size::ZERO);
-        let child_context = subgrid_child_parent_context_from_ancestor_groups(
+        let child_context = subgrid_child_parent_context_from_ancestor_groups_with_geometry(
             SubgridChildParentContextInput {
                 item: subgrid_item,
                 child_style: &child_style,
@@ -1409,6 +1472,8 @@ where
             },
             input.ancestor_baseline_groups,
             input.node,
+            Some(input.column_geometry),
+            Some(input.row_geometry),
         )
         .map_err(|error| subgrid_child_context_container_error(input.node, item.node, error))?;
         if !child_context.has_inherited_axis() {
@@ -1604,6 +1669,7 @@ pub(super) struct GridAxisOffsetsInput<'a, S: LayoutScalar = Scalar> {
     pub(super) style: &'a NodeInputOf<S>,
     pub(super) axis: GridAxisKind,
     pub(super) tracks: &'a [S],
+    pub(super) geometry: &'a UsedGridAxisGeometryOf<S>,
     pub(super) inherited_offset: Option<S>,
     pub(super) content_box_left: S,
     pub(super) content_box_size: Size<S>,
@@ -1645,19 +1711,24 @@ pub(super) fn grid_axis_offsets<S: LayoutScalar>(input: GridAxisOffsetsInput<'_,
         .logical_axis_progression(logical_axis)
         .is_decreasing()
     {
-        rtl_offsets(
-            input.tracks,
-            start,
-            extent,
-            input.alignment.start,
-            input.alignment.gap,
-        )
+        input
+            .tracks
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(index, size)| {
+                start + extent
+                    - input.alignment.start
+                    - input.geometry.line_offset(index).unwrap_or(S::ZERO)
+                    - size
+            })
+            .collect()
     } else {
-        offsets(
-            input.tracks,
-            start + input.alignment.start,
-            input.alignment.gap,
-        )
+        (0..input.tracks.len())
+            .map(|index| {
+                start + input.alignment.start + input.geometry.line_offset(index).unwrap_or(S::ZERO)
+            })
+            .collect()
     }
 }
 
@@ -1843,6 +1914,8 @@ struct FinalAncestorBaselineGroupsInput<'a, Node, S: LayoutScalar = Scalar> {
     container_style: &'a NodeInputOf<S>,
     columns: &'a [S],
     rows: &'a [S],
+    column_geometry: &'a UsedGridAxisGeometryOf<S>,
+    row_geometry: &'a UsedGridAxisGeometryOf<S>,
     row_tracks: &'a [TrackSizingOf<S>],
     gap: LogicalSizeOf<S>,
     children: &'a [Node],
@@ -1867,8 +1940,8 @@ where
         .map(|track| track.min.is_intrinsic())
         .collect::<Vec<_>>();
     let definite_available = LogicalSizeOf::new(
-        AvailableOf::Definite(track_sum(input.columns, input.gap.inline)),
-        AvailableOf::Definite(track_sum(input.rows, input.gap.block)),
+        AvailableOf::Definite(input.column_geometry.total_extent()),
+        AvailableOf::Definite(input.row_geometry.total_extent()),
     );
     let direct_members = direct_ancestor_baseline_members::<Tree, M>(
         tree,
@@ -2346,9 +2419,27 @@ pub(super) fn subgrid_child_parent_context<Node, S: LayoutScalar>(
 where
     Node: Copy + PartialEq,
 {
-    subgrid_child_parent_context_with_ancestor_groups(input, None, None)
+    subgrid_child_parent_context_with_ancestor_groups(input, None, None, None, None)
 }
 
+pub(super) fn subgrid_child_parent_context_with_geometry<Node, S: LayoutScalar>(
+    input: SubgridChildParentContextInput<'_, Node, S>,
+    column_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+    row_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+) -> Result<GridParentContext<S, Node>, SubgridChildContextError<S>>
+where
+    Node: Copy + PartialEq,
+{
+    subgrid_child_parent_context_with_ancestor_groups(
+        input,
+        None,
+        None,
+        column_geometry,
+        row_geometry,
+    )
+}
+
+#[cfg(test)]
 pub(super) fn subgrid_child_parent_context_from_ancestor_groups<Node, S: LayoutScalar>(
     input: SubgridChildParentContextInput<'_, Node, S>,
     ancestor_baseline_groups: &FinalAncestorBaselineGroups<Node, S>,
@@ -2361,6 +2452,30 @@ where
         input,
         Some(ancestor_baseline_groups),
         Some(parent_grid),
+        None,
+        None,
+    )
+}
+
+pub(super) fn subgrid_child_parent_context_from_ancestor_groups_with_geometry<
+    Node,
+    S: LayoutScalar,
+>(
+    input: SubgridChildParentContextInput<'_, Node, S>,
+    ancestor_baseline_groups: &FinalAncestorBaselineGroups<Node, S>,
+    parent_grid: Node,
+    column_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+    row_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+) -> Result<GridParentContext<S, Node>, SubgridChildContextError<S>>
+where
+    Node: Copy + PartialEq,
+{
+    subgrid_child_parent_context_with_ancestor_groups(
+        input,
+        Some(ancestor_baseline_groups),
+        Some(parent_grid),
+        column_geometry,
+        row_geometry,
     )
 }
 
@@ -2368,6 +2483,8 @@ fn subgrid_child_parent_context_with_ancestor_groups<Node, S: LayoutScalar>(
     input: SubgridChildParentContextInput<'_, Node, S>,
     ancestor_baseline_groups: Option<&FinalAncestorBaselineGroups<Node, S>>,
     parent_grid: Option<Node>,
+    column_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+    row_geometry: Option<&UsedGridAxisGeometryOf<S>>,
 ) -> Result<GridParentContext<S, Node>, SubgridChildContextError<S>>
 where
     Node: Copy + PartialEq,
@@ -2383,6 +2500,8 @@ where
             content_box_size: input.content_box_size,
             parent_columns: input.columns,
             parent_rows: input.rows,
+            parent_column_geometry: column_geometry,
+            parent_row_geometry: row_geometry,
             parent_gap: input.gap,
             parent_named_columns: input.parent_named_columns,
             parent_named_rows: input.parent_named_rows,
@@ -2403,6 +2522,8 @@ where
             content_box_size: input.content_box_size,
             parent_columns: input.columns,
             parent_rows: input.rows,
+            parent_column_geometry: column_geometry,
+            parent_row_geometry: row_geometry,
             parent_gap: input.gap,
             parent_named_columns: input.parent_named_columns,
             parent_named_rows: input.parent_named_rows,
@@ -2427,6 +2548,8 @@ struct SubgridChildAxisContextInput<'a, Node, S: LayoutScalar = Scalar> {
     content_box_size: Size<S>,
     parent_columns: &'a [S],
     parent_rows: &'a [S],
+    parent_column_geometry: Option<&'a UsedGridAxisGeometryOf<S>>,
+    parent_row_geometry: Option<&'a UsedGridAxisGeometryOf<S>>,
     parent_gap: LogicalSizeOf<S>,
     parent_named_columns: &'a NamedGridLines,
     parent_named_rows: &'a NamedGridLines,
@@ -2760,12 +2883,26 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
         )
     };
 
-    let (layout_tracks, layout_gap) = inherited_subgrid_layout_tracks(input.axis, &inherited);
+    let (mut layout_tracks, layout_gap) = inherited_subgrid_layout_tracks(input.axis, &inherited);
+    let geometry = parent_axis.geometry.map_or_else(
+        || {
+            UsedGridAxisGeometryOf::new(
+                layout_tracks.clone(),
+                vec![false; layout_tracks.len()],
+                layout_gap,
+            )
+        },
+        |geometry| geometry.sliced_reversed(start_line - 1, end_line - 1, mapping.reversed),
+    );
+    if geometry.collapsed().iter().any(|collapsed| *collapsed) {
+        layout_tracks = geometry.sizes().to_vec();
+    }
 
     Ok(Some(InheritedGridAxis {
         offset: S::ZERO,
         gap: layout_gap,
         tracks: layout_tracks,
+        geometry,
         named_lines: parent_axis.named_lines.clone(),
         area_facts: input
             .parent_area_facts
@@ -2837,6 +2974,7 @@ where
 
 struct SubgridParentAxisData<'a, S: LayoutScalar = Scalar> {
     tracks: &'a [S],
+    geometry: Option<&'a UsedGridAxisGeometryOf<S>>,
     gap: S,
     named_lines: &'a NamedGridLines,
     baseline_groups: &'a [TrackBaselineGroup<S>],
@@ -2849,12 +2987,14 @@ fn subgrid_parent_axis_data<'a, Node, S: LayoutScalar>(
     match axis {
         GridAxisKind::Column => SubgridParentAxisData {
             tracks: input.parent_columns,
+            geometry: input.parent_column_geometry,
             gap: input.parent_gap.inline,
             named_lines: input.parent_named_columns,
             baseline_groups: &input.parent_baseline_groups.columns,
         },
         GridAxisKind::Row => SubgridParentAxisData {
             tracks: input.parent_rows,
+            geometry: input.parent_row_geometry,
             gap: input.parent_gap.block,
             named_lines: input.parent_named_rows,
             baseline_groups: &input.parent_baseline_groups.rows,
@@ -3364,6 +3504,8 @@ struct OrdinaryAbsoluteGridContext<'a, S: LayoutScalar> {
     columns: &'a [S],
     rows: &'a [S],
     gap: LogicalSizeOf<S>,
+    column_geometry: Option<&'a UsedGridAxisGeometryOf<S>>,
+    row_geometry: Option<&'a UsedGridAxisGeometryOf<S>>,
     lines: GridLines,
     containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
 }
@@ -3382,6 +3524,22 @@ pub(super) struct OrdinaryAbsoluteGridContextInput<'a, S: LayoutScalar> {
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
     pub(super) gap: LogicalSizeOf<S>,
+    pub(super) lines: GridLines,
+}
+
+pub(super) struct OrdinaryAbsoluteGridGeometryContextInput<'a, S: LayoutScalar> {
+    pub(super) container_style: &'a NodeInputOf<S>,
+    pub(super) constants: &'a Constants<S>,
+    pub(super) containing_size: Size<S>,
+    pub(super) column: super::GridPlacement,
+    pub(super) row: super::GridPlacement,
+    pub(super) column_offsets: &'a [S],
+    pub(super) row_offsets: &'a [S],
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: LogicalSizeOf<S>,
+    pub(super) column_geometry: &'a UsedGridAxisGeometryOf<S>,
+    pub(super) row_geometry: &'a UsedGridAxisGeometryOf<S>,
     pub(super) lines: GridLines,
 }
 
@@ -3411,6 +3569,44 @@ impl<'a, S: LayoutScalar> AbsoluteGridContext<'a, S> {
             columns,
             rows,
             gap,
+            column_geometry: None,
+            row_geometry: None,
+            lines,
+            containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState::INITIAL,
+        })
+    }
+
+    pub(super) fn ordinary_with_geometry(
+        input: OrdinaryAbsoluteGridGeometryContextInput<'a, S>,
+    ) -> Self {
+        let OrdinaryAbsoluteGridGeometryContextInput {
+            container_style,
+            constants,
+            containing_size,
+            column,
+            row,
+            column_offsets,
+            row_offsets,
+            columns,
+            rows,
+            gap,
+            column_geometry,
+            row_geometry,
+            lines,
+        } = input;
+        Self(OrdinaryAbsoluteGridContext {
+            container_style,
+            constants,
+            containing_size,
+            column,
+            row,
+            column_offsets,
+            row_offsets,
+            columns,
+            rows,
+            gap,
+            column_geometry: Some(column_geometry),
+            row_geometry: Some(row_geometry),
             lines,
             containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState::INITIAL,
         })
@@ -3431,9 +3627,11 @@ pub(super) struct AbsoluteGridAreaInput<'a, S: LayoutScalar> {
     pub(super) row: super::GridPlacement,
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
+    pub(super) gap: LogicalSizeOf<S>,
+    pub(super) column_geometry: Option<&'a UsedGridAxisGeometryOf<S>>,
+    pub(super) row_geometry: Option<&'a UsedGridAxisGeometryOf<S>>,
     pub(super) column_offsets: &'a [S],
     pub(super) row_offsets: &'a [S],
-    pub(super) gap: LogicalSizeOf<S>,
     pub(super) constants: &'a Constants<S>,
     pub(super) lines: GridLines,
 }
@@ -3443,7 +3641,7 @@ pub(super) struct AbsoluteGridAxisInput<'a, S: LayoutScalar = Scalar> {
     pub(super) placement: super::GridPlacement,
     pub(super) tracks: &'a [S],
     pub(super) offsets: &'a [S],
-    pub(super) gap: S,
+    pub(super) geometry: &'a UsedGridAxisGeometryOf<S>,
     pub(super) padding_box_location: S,
     pub(super) padding_box_size: S,
     pub(super) is_reverse: bool,
@@ -3509,9 +3707,11 @@ where
         row: context.row,
         columns: context.columns,
         rows: context.rows,
+        gap: context.gap,
+        column_geometry: context.column_geometry,
+        row_geometry: context.row_geometry,
         column_offsets: context.column_offsets,
         row_offsets: context.row_offsets,
-        gap: context.gap,
         constants,
         lines: context.lines,
     });

@@ -355,6 +355,546 @@ fn fri08_c02_lanes_negative_rows_only_fit_content_retains_published_geometry() {
     assert_fri08_c02_lanes_fit_content_characterization(Fri08C02TrackAxis::Rows);
 }
 
+#[test]
+fn fri08_c02_lanes_negative_auto_fit_retains_pre_c02_expanded_geometry() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("first lane track"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("overlapping lane track"),
+                ..NodeInput::DEFAULT
+            },
+        );
+    let output = fri08_c02_auto_fit_output(&tree, Size::new(120.0, 20.0), 2);
+    assert_eq!((output.location.x, output.size.width), (0.0, 40.0));
+}
+
+#[test]
+fn fri08_c02_lanes_negative_stretch_retains_pre_c02_auto_track_geometry() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![TrackComponent::AUTO],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                justify_content: Some(AlignContent::Stretch),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(2, NodeInput::DEFAULT);
+    let output = fri08_c02_auto_fit_output(&tree, Size::new(100.0, 20.0), 2);
+    assert_eq!((output.location.x, output.size.width), (0.0, 100.0));
+}
+
+fn fri08_c02_auto_fit_repeat<S: LayoutScalar>() -> TrackComponentOf<S> {
+    TrackComponentOf::Repeat(
+        TrackRepetitionOf::auto_fit_components(vec![TrackComponentOf::px(S::from_f64(40.0))])
+            .expect("valid fixed auto-fit repetition"),
+    )
+}
+
+fn fri08_c02_auto_fill_repeat<S: LayoutScalar>() -> TrackComponentOf<S> {
+    TrackComponentOf::Repeat(
+        TrackRepetitionOf::auto_fill_components(vec![TrackComponentOf::px(S::from_f64(40.0))])
+            .expect("valid fixed auto-fill repetition"),
+    )
+}
+
+fn fri08_c02_auto_fit_output<S: LayoutScalar>(
+    tree: &PublicLayoutTreeOf<S>,
+    viewport: Size<S>,
+    node: u32,
+) -> NodeOutputOf<S> {
+    let batch = compute_layout(
+        tree,
+        1,
+        LayoutRootRequestOf::viewport(viewport.map(AvailableOf::definite))
+            .expect("finite auto-fit viewport"),
+    )
+    .expect("valid auto-fit grid layout");
+    fri08_c01_placement_output(&batch, node)
+}
+
+fn assert_fri08_c02_auto_fit_overlap_collapses_to_centered_track<S: LayoutScalar>(
+    axis: Fri08C02TrackAxis,
+) {
+    let scalar = S::from_f64;
+    let (size, columns, rows) = match axis {
+        Fri08C02TrackAxis::Columns => (
+            Size::new(
+                PreferredSizeOf::px(scalar(120.0)),
+                PreferredSizeOf::px(scalar(20.0)),
+            ),
+            vec![fri08_c02_auto_fit_repeat()],
+            vec![TrackComponentOf::px(scalar(20.0))],
+        ),
+        Fri08C02TrackAxis::Rows => (
+            Size::new(
+                PreferredSizeOf::px(scalar(20.0)),
+                PreferredSizeOf::px(scalar(120.0)),
+            ),
+            vec![TrackComponentOf::px(scalar(20.0))],
+            vec![fri08_c02_auto_fit_repeat()],
+        ),
+    };
+    let first_line = GridPlacement::try_line(1).expect("first repeated track");
+    let mut tree = PublicLayoutTreeOf::new().children(1, [2, 3]).style(
+        1,
+        NodeInputOf {
+            display: Display::Grid,
+            size,
+            grid_template_columns: columns,
+            grid_template_rows: rows,
+            justify_content: Some(AlignContent::Center),
+            align_content: Some(AlignContent::Center),
+            ..NodeInputOf::default()
+        },
+    );
+    for node in [2, 3] {
+        let (grid_column, grid_row) = match axis {
+            Fri08C02TrackAxis::Columns => {
+                (first_line, GridPlacement::try_line(1).expect("single row"))
+            }
+            Fri08C02TrackAxis::Rows => (
+                GridPlacement::try_line(1).expect("single column"),
+                first_line,
+            ),
+        };
+        tree = tree.style(
+            node,
+            NodeInputOf {
+                grid_column,
+                grid_row,
+                ..NodeInputOf::default()
+            },
+        );
+    }
+    let viewport = match axis {
+        Fri08C02TrackAxis::Columns => Size::new(scalar(120.0), scalar(20.0)),
+        Fri08C02TrackAxis::Rows => Size::new(scalar(20.0), scalar(120.0)),
+    };
+    let output = fri08_c02_auto_fit_output(&tree, viewport, 2);
+    match axis {
+        Fri08C02TrackAxis::Columns => {
+            assert_eq!(output.location.x, scalar(40.0));
+            assert_eq!(output.size.width, scalar(40.0));
+        }
+        Fri08C02TrackAxis::Rows => {
+            assert_eq!(output.location.y, scalar(40.0));
+            assert_eq!(output.size.height, scalar(40.0));
+        }
+    }
+}
+
+#[test]
+fn fri08_c02_auto_fit_overlap_collapses_columns_and_rows_in_both_scalar_lanes() {
+    assert_fri08_c02_auto_fit_overlap_collapses_to_centered_track::<f32>(
+        Fri08C02TrackAxis::Columns,
+    );
+    assert_fri08_c02_auto_fit_overlap_collapses_to_centered_track::<f32>(Fri08C02TrackAxis::Rows);
+    assert_fri08_c02_auto_fit_overlap_collapses_to_centered_track::<f64>(
+        Fri08C02TrackAxis::Columns,
+    );
+    assert_fri08_c02_auto_fit_overlap_collapses_to_centered_track::<f64>(Fri08C02TrackAxis::Rows);
+}
+
+#[test]
+fn fri08_c02_auto_fit_spanning_item_keeps_every_covered_repetition_open() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_lines(2, 4).expect("second through third tracks"),
+                grid_row: GridPlacement::try_line(1).expect("single row"),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let output = fri08_c02_auto_fit_output(&tree, Size::new(120.0, 20.0), 2);
+    assert_eq!(output.location.x, 20.0);
+    assert_eq!(output.size.width, 80.0);
+}
+
+#[test]
+fn fri08_c02_auto_fit_all_empty_repetitions_and_adjacent_gutters_collapse() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                position: Position::Absolute,
+                grid_column: GridPlacement::try_lines(1, 4).expect("all retained lines"),
+                grid_row: GridPlacement::try_lines(1, 2).expect("single row"),
+                inset: Edges::all(LengthAuto::ZERO),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let output = fri08_c02_auto_fit_output(&tree, Size::new(140.0, 20.0), 2);
+    assert_eq!(output.location.x, 70.0);
+    assert_eq!(output.size.width, 0.0);
+}
+
+#[test]
+fn fri08_c02_auto_fit_interior_collapse_removes_both_ghost_gutters() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("first repetition"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_line(3).expect("third repetition"),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let first = fri08_c02_auto_fit_output(&tree, Size::new(140.0, 20.0), 2);
+    let third = fri08_c02_auto_fit_output(&tree, Size::new(140.0, 20.0), 3);
+    assert_eq!((first.location.x, first.size.width), (30.0, 40.0));
+    assert_eq!((third.location.x, third.size.width), (70.0, 40.0));
+}
+
+#[test]
+fn fri08_c02_auto_fit_absolute_span_crosses_collapsed_lines_with_canonical_extent() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c02_auto_fit_repeat()],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                gap: Size::new(Length::px(10.0), Length::ZERO),
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(3).expect("only occupied repetition"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                position: Position::Absolute,
+                grid_column: GridPlacement::try_lines(1, 4).expect("cross collapsed lines"),
+                grid_row: GridPlacement::try_lines(1, 2).expect("single row"),
+                inset: Edges::all(LengthAuto::ZERO),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let in_flow = fri08_c02_auto_fit_output(&tree, Size::new(140.0, 20.0), 2);
+    let absolute = fri08_c02_auto_fit_output(&tree, Size::new(140.0, 20.0), 3);
+    assert_eq!((in_flow.location.x, in_flow.size.width), (50.0, 40.0));
+    assert_eq!((absolute.location.x, absolute.size.width), (50.0, 40.0));
+}
+
+#[test]
+fn fri08_c02_auto_fit_named_positive_and_negative_lines_keep_collapsed_identity() {
+    let repeated = TrackComponent::Repeat(
+        TrackRepetition::auto_fit_components(vec![
+            TrackComponent::line_names(["slot"]),
+            TrackComponent::px(40.0),
+        ])
+        .expect("valid named auto-fit repetition"),
+    );
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![repeated],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                raw_grid_column: RawGridPlacement::new(
+                    RawGridLine::NamedLine {
+                        name: "slot".to_string(),
+                        index: 1,
+                    },
+                    RawGridLine::Auto,
+                ),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_line(-2).expect("third retained track"),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let named = fri08_c02_auto_fit_output(&tree, Size::new(120.0, 20.0), 2);
+    let negative = fri08_c02_auto_fit_output(&tree, Size::new(120.0, 20.0), 3);
+    assert_eq!((named.location.x, named.size.width), (20.0, 40.0));
+    assert_eq!((negative.location.x, negative.size.width), (60.0, 40.0));
+}
+
+#[test]
+fn fri08_c02_auto_fit_auto_fill_remains_expanded_and_does_not_collapse() {
+    let tree = PublicLayoutTreeOf::<f32>::new()
+        .children(1, [2, 3])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
+                grid_template_columns: vec![fri08_c02_auto_fill_repeat()],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("first repetition"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_line(1).expect("overlap first repetition"),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let output = fri08_c02_auto_fit_output(&tree, Size::new(120.0, 20.0), 2);
+    assert_eq!((output.location.x, output.size.width), (0.0, 40.0));
+}
+
+fn fri08_c02_auto_fit_inherited_context(reversed: bool) -> GridParentContext<f32, u32> {
+    let parent_style = NodeInput {
+        display: Display::Grid,
+        ..NodeInput::DEFAULT
+    };
+    let child_style = NodeInput {
+        display: Display::Grid,
+        direction: if reversed {
+            Direction::Rtl
+        } else {
+            Direction::Ltr
+        },
+        overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
+        grid_template_columns: vec![empty_subgrid_track()],
+        grid_template_rows: vec![TrackComponent::px(20.0)],
+        align_items: Some(AlignItems::Baseline),
+        ..NodeInput::DEFAULT
+    };
+    let item = SubgridItemReport {
+        node: 1_u32,
+        column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
+        row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+    };
+    assert_eq!(
+        item.column.mapping.expect("column mapping").reversed,
+        reversed
+    );
+    let parent_geometry = UsedGridAxisGeometryOf::new(
+        vec![40.0, 0.0, 40.0, 40.0],
+        vec![false, true, false, false],
+        10.0,
+    );
+    subgrid_child_parent_context_with_geometry(
+        SubgridChildParentContextInput {
+            item,
+            child_style: &child_style,
+            area: GridArea {
+                column: 0,
+                row: 0,
+                column_end: 4,
+                row_end: 1,
+                size: LogicalSizeOf::new(130.0, 20.0),
+            },
+            content_box_size: Size::new(130.0, 20.0),
+            columns: parent_geometry.sizes(),
+            rows: &[20.0],
+            gap: LogicalSizeOf::new(10.0, 0.0),
+            parent_named_columns: &NamedGridLines::new(GridAxisKind::Column, 4),
+            parent_named_rows: &NamedGridLines::new(GridAxisKind::Row, 1),
+            parent_area_facts: None,
+            parent_baseline_groups: &GridBaselineGroups {
+                columns: vec![
+                    tagged_group(PhysicalAxis::Horizontal, Some(7.0), Some(3.0)),
+                    TrackBaselineGroup::default(),
+                    tagged_group(PhysicalAxis::Horizontal, Some(11.0), Some(5.0)),
+                    tagged_group(PhysicalAxis::Horizontal, Some(13.0), Some(6.0)),
+                ],
+                rows: vec![TrackBaselineGroup::default()],
+            },
+            margin: Edges::all(Some(0.0)),
+            border: Edges::ZERO,
+            padding: Edges::ZERO,
+        },
+        Some(&parent_geometry),
+        None,
+    )
+    .expect("collapsed used geometry remains inheritable")
+}
+
+#[test]
+fn fri08_c02_auto_fit_inherited_subgrid_slices_and_reverses_geometry_with_baseline_and_scroll_overflow()
+ {
+    for reversed in [false, true] {
+        let context = fri08_c02_auto_fit_inherited_context(reversed);
+        let columns = context.columns.as_ref().expect("column subgrid context");
+        assert_eq!(columns.geometry.total_extent(), 130.0);
+        assert_eq!(columns.geometry.span_extent(0, 4), 130.0);
+        assert_eq!(columns.geometry.active_gap_total(), 10.0);
+        assert_eq!(
+            columns.geometry.collapsed(),
+            if reversed {
+                &[false, false, true, false]
+            } else {
+                &[false, true, false, false]
+            }
+        );
+        let inherited_baselines = columns
+            .major_baselines
+            .iter()
+            .filter_map(|baseline| baseline.map(|baseline| baseline.coordinate()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            inherited_baselines,
+            if reversed {
+                vec![13.0, 11.0, 7.0]
+            } else {
+                vec![7.0, 11.0, 13.0]
+            }
+        );
+
+        let mut tree = OracleTree::new()
+            .children(1, [2])
+            .style(
+                1,
+                NodeInput {
+                    display: Display::Grid,
+                    direction: if reversed {
+                        Direction::Rtl
+                    } else {
+                        Direction::Ltr
+                    },
+                    overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
+                    grid_template_columns: vec![empty_subgrid_track()],
+                    grid_template_rows: vec![TrackComponent::px(20.0)],
+                    align_items: Some(AlignItems::Baseline),
+                    ..NodeInput::DEFAULT
+                },
+            )
+            .style(
+                2,
+                NodeInput {
+                    grid_column: GridPlacement::try_lines(1, 5).expect("full inherited span"),
+                    overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
+                    ..NodeInput::DEFAULT
+                },
+            )
+            .measure(2, baseline_measure(130.0, 20.0, Some(7.0), None));
+        let output = compute_grid_with_context(
+            &mut tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::new(Some(130.0), Some(20.0)),
+                Size::new(Some(130.0), Some(20.0)),
+                ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::Grid,
+                ),
+                Size::new(Available::Definite(130.0), Available::Definite(20.0)),
+            ),
+            context,
+        )
+        .expect("inherited collapsed geometry layout");
+        assert_eq!(
+            tree.layout(2).expect("subgrid child layout").size.width,
+            130.0
+        );
+        assert!(output.scroll_geometry.is_some());
+        assert_eq!(output.first_baselines.y, Some(7.0));
+    }
+}
+
 fn assert_fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row<S: LayoutScalar>() {
     let scalar = S::from_f64;
     let tree = PublicLayoutTreeOf::new()
@@ -8078,6 +8618,7 @@ fn vertical_intrinsic_subgrid_final_sizing_keeps_definite_physical_height() {
             offset: 0.0,
             gap: 0.0,
             tracks: vec![100.0],
+            geometry: UsedGridAxisGeometryOf::new(vec![100.0], vec![false], 0.0),
             named_lines: named::NamedGridLines::new(GridAxisKind::Row, 1),
             area_facts: None,
             major_baselines: vec![None],
@@ -20499,6 +21040,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         offset: 0.25,
         gap: 1.5,
         tracks: vec![10.0, 20.0],
+        geometry: UsedGridAxisGeometryOf::new(vec![10.0, 20.0], vec![false, false], 1.5),
         named_lines: named_lines.clone(),
         area_facts: None,
         major_baselines: vec![Some(tagged_baseline(PhysicalAxis::Horizontal, 2.0))],
@@ -20619,6 +21161,8 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         container_content_size: Size::new(100.0, 100.0),
         columns: &[10.0],
         rows: &[20.0],
+        collapsed_columns: &[false],
+        collapsed_rows: &[false],
         row_tracks: &tracks,
         gap: LogicalSizeOf::new(1.0, 2.0),
         lines,
@@ -20838,10 +21382,12 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
     assert_eq!(layout_gap, 10.0);
 
     let offset_style = NodeInputOf::<f64>::default();
+    let offset_geometry = UsedGridAxisGeometryOf::new(vec![12.5, 17.5], vec![false, false], 3.25);
     let offsets = grid_axis_offsets(GridAxisOffsetsInput::<f64> {
         style: &offset_style,
         axis: GridAxisKind::Column,
         tracks: &[12.5, 17.5],
+        geometry: &offset_geometry,
         inherited_offset: Some(1.25),
         content_box_left: 0.0,
         content_box_size: Size::new(60.0, 20.0),
@@ -22570,6 +23116,11 @@ fn test_inherited_axis(
         offset: 0.0,
         gap: 0.0,
         tracks: vec![0.0; track_count],
+        geometry: UsedGridAxisGeometryOf::new(
+            vec![0.0; track_count],
+            vec![false; track_count],
+            0.0,
+        ),
         named_lines,
         area_facts,
         major_baselines: vec![None; track_count],
@@ -23309,6 +23860,7 @@ where
             offset: S::ZERO,
             gap: S::ZERO,
             tracks: vec![S::from_f64(80.0)],
+            geometry: UsedGridAxisGeometryOf::new(vec![S::from_f64(80.0)], vec![false], S::ZERO),
             named_lines: named::NamedGridLines::new(GridAxisKind::Row, 1),
             area_facts: None,
             major_baselines: vec![Some(tagged_baseline(
@@ -23416,6 +23968,7 @@ where
             offset: S::ZERO,
             gap: S::ZERO,
             tracks: vec![S::from_f64(80.0)],
+            geometry: UsedGridAxisGeometryOf::new(vec![S::from_f64(80.0)], vec![false], S::ZERO),
             named_lines: named::NamedGridLines::new(GridAxisKind::Row, 1),
             area_facts: None,
             major_baselines: vec![Some(tagged_baseline(
@@ -24105,11 +24658,13 @@ fn vertical_grid_axis_offsets_add_local_inset_to_inherited_offsets() {
         top: 13.0,
         bottom: 0.0,
     };
+    let geometry = UsedGridAxisGeometryOf::new(tracks.to_vec(), vec![false; tracks.len()], 5.0);
 
     let column_offsets = grid_axis_offsets(GridAxisOffsetsInput {
         style: &style,
         axis: GridAxisKind::Column,
         tracks: &tracks,
+        geometry: &geometry,
         inherited_offset: Some(100.0),
         content_box_left: 0.0,
         content_box_size: Size::new(300.0, 400.0),
@@ -24120,6 +24675,7 @@ fn vertical_grid_axis_offsets_add_local_inset_to_inherited_offsets() {
         style: &style,
         axis: GridAxisKind::Row,
         tracks: &tracks,
+        geometry: &geometry,
         inherited_offset: Some(200.0),
         content_box_left: 0.0,
         content_box_size: Size::new(300.0, 400.0),
@@ -24151,12 +24707,13 @@ fn absolute_grid_item_axis_placement_preserves_end_only_first_line() {
 fn absolute_grid_axis_area_uses_left_edge_for_definite_rtl_range() {
     let tracks = vec![30.0; 8];
     let offsets = rtl_offsets(&tracks, 0.0, 240.0, 0.0, 0.0);
+    let geometry = UsedGridAxisGeometryOf::new(tracks.clone(), vec![false; tracks.len()], 0.0);
 
     let area = absolute_grid_axis_area(AbsoluteGridAxisInput {
         placement: GridPlacement::try_lines(3, 5).expect("valid grid lines"),
         tracks: &tracks,
         offsets: &offsets,
-        gap: 0.0,
+        geometry: &geometry,
         padding_box_location: 0.0,
         padding_box_size: 240.0,
         is_reverse: true,
