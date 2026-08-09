@@ -5556,6 +5556,171 @@ fn assert_fri06_mr02_geometry_error_flex_child<S: LayoutScalar>() {
     );
 }
 
+fn assert_fri08_c07_t02_scroll_source_flex_paths<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let size = Size::new(scalar(100.0), scalar(80.0));
+    let flow_axes = FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl);
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
+    let scroll_margin =
+        ScrollMarginOf::try_new(scalar(-1.0), scalar(2.0), scalar(-3.0), scalar(4.0)).unwrap();
+    let mut tree = OracleTreeOf::<S>::new()
+        .children(0, [1, 2])
+        .children(1, [])
+        .children(2, [])
+        .style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                flex_direction: FlexDirection::RowReverse,
+                flex_wrap: FlexWrap::WrapReverse,
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                overflow_clip_margin: OverflowClipMarginOf::try_new(
+                    OverflowClipBox::ContentBox,
+                    scalar(2.0),
+                )
+                .unwrap(),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.0)).unwrap(),
+                size: size.map(PreferredSizeOf::px),
+                padding: Edges::all(LengthOf::px(scalar(3.0))),
+                scroll_padding: ScrollPaddingOf::new(
+                    ScrollPaddingValueOf::value(LengthPercentageOf::px(scalar(1.0)).unwrap()),
+                    ScrollPaddingValueOf::AUTO,
+                    ScrollPaddingValueOf::AUTO,
+                    ScrollPaddingValueOf::value(LengthPercentageOf::px(scalar(4.0)).unwrap()),
+                ),
+                scroll_snap_type: ScrollSnapType::Enabled {
+                    axis: ScrollSnapAxis::Inline,
+                    strictness: ScrollSnapStrictness::Proximity,
+                },
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(140.0)),
+                    PreferredSizeOf::px(scalar(90.0)),
+                ),
+                min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+                flex_shrink: FlexShrinkOf::try_new(S::ZERO).unwrap(),
+                scroll_margin,
+                scroll_snap_align: snap_align,
+                scroll_snap_stop: ScrollSnapStop::Always,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                position: Position::Absolute,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(30.0)),
+                    PreferredSizeOf::px(scalar(20.0)),
+                ),
+                inset: Edges::new(
+                    LengthAutoOf::px(scalar(5.0)),
+                    LengthAutoOf::AUTO,
+                    LengthAutoOf::AUTO,
+                    LengthAutoOf::px(scalar(6.0)),
+                ),
+                scroll_margin,
+                scroll_snap_align: snap_align,
+                scroll_snap_stop: ScrollSnapStop::Always,
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(
+            2,
+            ComputeOutputOf::from_sizes(
+                Size::new(scalar(30.0), scalar(20.0)),
+                Size::new(scalar(42.0), scalar(31.0)),
+            ),
+        );
+
+    let output = compute_flex(
+        &mut tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            size.map(Some),
+            ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+            size.map(AvailableOf::definite),
+        ),
+    )
+    .unwrap();
+
+    let container = output.scroll_geometry.unwrap();
+    assert_eq!(container.flow_axes(), flow_axes);
+    assert!(container.overflow_clip().x().is_some());
+    assert!(container.overflow_clip().y().is_some());
+    assert_ne!(container.scrollbar_size(), Size::ZERO);
+    assert_eq!(container.resolved_scroll_padding().top, scalar(1.0));
+    assert_eq!(container.resolved_scroll_padding().left, scalar(4.0));
+    assert_eq!(
+        container.scroll_snap_type(),
+        ScrollSnapType::Enabled {
+            axis: ScrollSnapAxis::Inline,
+            strictness: ScrollSnapStrictness::Proximity,
+        }
+    );
+    let container_range = container.physical_range();
+    assert!(container_range.x().minimum() <= S::ZERO);
+    assert!(container_range.y().minimum() <= S::ZERO);
+
+    let existing = tree.layout(1).unwrap();
+    let existing_geometry = existing.scroll_geometry.unwrap();
+    assert_eq!(existing_geometry.border_box().size(), existing.size);
+    assert_eq!(existing_geometry.target().flow_axes(), flow_axes);
+    assert_eq!(existing_geometry.target().scroll_margin(), scroll_margin);
+    assert_eq!(existing_geometry.target().snap_align(), snap_align);
+
+    let reconstructed = tree.layout(2).unwrap();
+    let reconstructed_geometry = reconstructed.scroll_geometry.unwrap();
+    assert_eq!(reconstructed_geometry.flow_axes(), flow_axes);
+    assert_eq!(
+        reconstructed_geometry.target().border_box().size(),
+        reconstructed.size
+    );
+    assert_eq!(
+        reconstructed_geometry.target().scroll_margin(),
+        scroll_margin
+    );
+    assert_eq!(reconstructed_geometry.target().snap_align(), snap_align);
+    assert_eq!(
+        reconstructed_geometry.target().snap_stop(),
+        ScrollSnapStop::Always
+    );
+    assert_eq!(
+        reconstructed_geometry.scrollable_overflow().size(),
+        Size::new(scalar(42.0), scalar(31.0))
+    );
+}
+
+#[test]
+fn fri08_c07_t02_scroll_source_flex_preserves_existing_reconstruction_and_origins() {
+    assert_fri08_c07_t02_scroll_source_flex_paths::<f32>();
+    assert_fri08_c07_t02_scroll_source_flex_paths::<f64>();
+}
+
+#[test]
+fn fri08_c07_t02_scroll_source_flex_preserves_caller_local_errors() {
+    assert_fri06_mr02_geometry_error_flex_own::<f32>();
+    assert_fri06_mr02_geometry_error_flex_own::<f64>();
+    assert_fri06_mr02_geometry_error_flex_child::<f32>();
+    assert_fri06_mr02_geometry_error_flex_child::<f64>();
+}
+
 #[test]
 fn fri06_mr02_geometry_error_flex_own_preserves_root_and_child_mapping_both_scalars() {
     assert_fri06_mr02_geometry_error_flex_own::<f32>();

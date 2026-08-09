@@ -196,6 +196,160 @@ fn assert_fri06_mr02_geometry_error_block_inline_child<S: LayoutScalar>() {
     assert_eq!(largest + largest, S::INFINITY);
 }
 
+fn assert_fri08_c07_t02_scroll_source_block_paths<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let container_size = Size::new(scalar(100.0), scalar(80.0));
+    let flow_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::Center, ScrollSnapAlignValue::End);
+    let scroll_margin =
+        ScrollMarginOf::try_new(scalar(1.0), scalar(-2.0), scalar(3.0), scalar(-4.0)).unwrap();
+    let scroll_padding = ScrollPaddingOf::new(
+        ScrollPaddingValueOf::value(LengthPercentageOf::px(scalar(2.0)).unwrap()),
+        ScrollPaddingValueOf::AUTO,
+        ScrollPaddingValueOf::value(LengthPercentageOf::px(scalar(4.0)).unwrap()),
+        ScrollPaddingValueOf::AUTO,
+    );
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(0, [1, 2])
+        .children(1, [])
+        .children(2, [])
+        .style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                overflow_clip_margin: OverflowClipMarginOf::try_new(
+                    OverflowClipBox::PaddingBox,
+                    scalar(3.0),
+                )
+                .unwrap(),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(6.0)).unwrap(),
+                size: container_size.map(PreferredSizeOf::px),
+                padding: Edges::all(LengthOf::px(scalar(2.0))),
+                scroll_padding,
+                scroll_snap_type: ScrollSnapType::Enabled {
+                    axis: ScrollSnapAxis::Both,
+                    strictness: ScrollSnapStrictness::Mandatory,
+                },
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(130.0)),
+                    PreferredSizeOf::px(scalar(90.0)),
+                ),
+                scroll_margin,
+                scroll_snap_align: snap_align,
+                scroll_snap_stop: ScrollSnapStop::Always,
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(5.0)).unwrap(),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(40.0)),
+                    PreferredSizeOf::px(scalar(30.0)),
+                ),
+                scroll_margin,
+                scroll_snap_align: snap_align,
+                scroll_snap_stop: ScrollSnapStop::Always,
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(
+            2,
+            ComputeOutputOf::from_sizes(Size::new(scalar(40.0), scalar(30.0)), Size::ZERO),
+        );
+
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            container_size.map(Some),
+            container_size.map(Some),
+            ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+            container_size.map(AvailableOf::definite),
+        ),
+    )
+    .unwrap();
+
+    let container = output.scroll_geometry.unwrap();
+    assert_eq!(container.flow_axes(), flow_axes);
+    assert_eq!(container.resolved_scroll_padding().top, scalar(2.0));
+    assert_eq!(container.resolved_scroll_padding().bottom, scalar(4.0));
+    assert!(container.overflow_clip().x().is_some());
+    assert!(container.overflow_clip().y().is_some());
+    assert_ne!(container.scrollbar_size(), Size::ZERO);
+    assert_eq!(
+        container.scroll_snap_type(),
+        ScrollSnapType::Enabled {
+            axis: ScrollSnapAxis::Both,
+            strictness: ScrollSnapStrictness::Mandatory,
+        }
+    );
+
+    let existing = tree.layout(1).unwrap();
+    let existing_geometry = existing.scroll_geometry.unwrap();
+    assert_eq!(existing_geometry.border_box().size(), existing.size);
+    assert_eq!(existing_geometry.target().flow_axes(), flow_axes);
+    assert_eq!(existing_geometry.target().scroll_margin(), scroll_margin);
+    assert_eq!(existing_geometry.target().snap_align(), snap_align);
+    assert_eq!(
+        existing_geometry.target().snap_stop(),
+        ScrollSnapStop::Always
+    );
+
+    let reconstructed = tree.layout(2).unwrap();
+    let reconstructed_geometry = reconstructed.scroll_geometry.unwrap();
+    assert_eq!(reconstructed_geometry.flow_axes(), flow_axes);
+    assert_eq!(
+        reconstructed_geometry.target().border_box().size(),
+        reconstructed.size
+    );
+    assert_eq!(
+        reconstructed_geometry.target().scroll_margin(),
+        scroll_margin
+    );
+    assert_eq!(reconstructed_geometry.target().snap_align(), snap_align);
+    let range = reconstructed_geometry.physical_range();
+    assert_eq!(range.x().minimum(), S::ZERO);
+    assert_eq!(range.x().maximum(), S::ZERO);
+    assert_eq!(range.y().minimum(), S::ZERO);
+    assert_eq!(range.y().maximum(), S::ZERO);
+}
+
+#[test]
+fn fri08_c07_t02_scroll_source_block_preserves_existing_reconstruction_and_gutter_policy() {
+    assert_fri08_c07_t02_scroll_source_block_paths::<f32>();
+    assert_fri08_c07_t02_scroll_source_block_paths::<f64>();
+}
+
+#[test]
+fn fri08_c07_t02_scroll_source_block_preserves_caller_local_errors() {
+    assert_fri06_mr02_geometry_error_block_own::<f32>();
+    assert_fri06_mr02_geometry_error_block_own::<f64>();
+    assert_fri06_mr02_geometry_error_block_child::<f32>();
+    assert_fri06_mr02_geometry_error_block_child::<f64>();
+}
+
 #[test]
 fn fri06_mr02_geometry_error_block_own_preserves_root_and_child_mapping_both_scalars() {
     assert_fri06_mr02_geometry_error_block_own::<f32>();

@@ -11,12 +11,11 @@ use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::layout_math::{MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt, OptionalSizeExt};
 use crate::scalar::round_layout_coordinate;
 use crate::scroll::{
-    CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
-    ClipMarginSourceOf, MeasuredLeafContentBoxInsetSourceOf, MeasuredLeafScrollGeometrySourceOf,
-    OptimalRegionInsetOf, OptimalRegionInsetsOf, ScrollContributionAccumulatorOf, ScrollOriginAxes,
-    ScrollOriginProgression, SettledAutoScrollbarState, canonical_measured_leaf_scroll_geometry,
-    canonical_scroll_box_from_source, canonical_scroll_geometry_from_source,
-    measured_leaf_content_box_inset, rebuild_canonical_scroll_geometry_for_border_box,
+    CanonicalRetainedScrollSourceOf, CanonicalScrollGeometryErrorOf,
+    CanonicalScrollRangeSeedPolicy, CanonicalScrollSourceBuilderOf, ClipMarginSourceOf,
+    MeasuredLeafContentBoxInsetSourceOf, MeasuredLeafScrollGeometrySourceOf, OptimalRegionInsetOf,
+    OptimalRegionInsetsOf, ScrollOriginAxes, ScrollOriginProgression, SettledAutoScrollbarState,
+    canonical_measured_leaf_scroll_geometry, measured_leaf_content_box_inset,
     rebuild_rounded_canonical_scroll_geometry,
 };
 use crate::sizing::{
@@ -1651,75 +1650,30 @@ where
         return Ok(None);
     }
 
-    if let Some(geometry) = output.scroll_geometry {
-        if geometry.border_box().origin() == Point::ZERO
-            && geometry.border_box().size() == output.size
-        {
-            return Ok(Some(geometry));
-        }
-        return rebuild_canonical_scroll_geometry_for_border_box(
-            geometry,
-            output.size,
-            edges.border,
-            edges.padding,
-        )
-        .map(Some)
-        .map_err(|error| root_scroll_error(node, error));
-    }
-
     let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
     let settled_auto_scrollbars = SettledAutoScrollbarState::INITIAL;
-    let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+    let source = match output.scroll_geometry {
+        Some(ref geometry) => CanonicalRetainedScrollSourceOf::Existing(geometry),
+        None => CanonicalRetainedScrollSourceOf::Reconstruct {
+            content_size: output.content_size,
+        },
+    };
+    CanonicalScrollSourceBuilderOf::for_node(
+        style,
         flow_axes,
-        computed_overflow: style.overflow,
-        item_is_replaced: style.item_is_replaced,
-        border_box_size: output.size,
-        border: edges.border,
-        padding: edges.padding,
-        scrollbar_gutter: style.scrollbar_gutter,
-        scrollbar_width: style.scrollbar_width,
+        output.size,
+        edges.border,
+        edges.padding,
         settled_auto_scrollbars,
-    })
-    .map_err(|error| root_scroll_error(node, error))?;
-    let content_box = scroll_box.content_box();
-    let direct_content = crate::ScrollRectOf::try_new(
-        content_box.origin(),
-        Size::new(
-            content_box.size().width.max(output.content_size.width),
-            content_box.size().height.max(output.content_size.height),
+        ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
         ),
     )
-    .map_err(|error| root_scroll_error(node, error))?;
-    let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
-    contributions.include_direct_line(direct_content);
-
-    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
-        flow_axes,
-        computed_overflow: style.overflow,
-        item_is_replaced: style.item_is_replaced,
-        border_box_size: output.size,
-        border: edges.border,
-        padding: edges.padding,
-        scrollbar_gutter: style.scrollbar_gutter,
-        scrollbar_width: style.scrollbar_width,
-        settled_auto_scrollbars,
-        clip_margin: ClipMarginSourceOf::new(
-            style.overflow_clip_margin.clip_box(),
-            style.overflow_clip_margin.margin(),
-        ),
-        scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
-        contributions,
-        origin_axes: ScrollOriginAxes::new(
-            ScrollOriginProgression::FlowEndward,
-            ScrollOriginProgression::FlowEndward,
-        ),
-        scroll_snap_type: style.scroll_snap_type,
-        target_border_box: scroll_box.border_box(),
-        target_scroll_margin: style.scroll_margin,
-        target_flow_axes: flow_axes,
-        target_snap_align: style.scroll_snap_align,
-        target_snap_stop: style.scroll_snap_stop,
-    })
+    .geometry_from_retained_source(
+        source,
+        CanonicalScrollRangeSeedPolicy::IncludeReservedGutter,
+    )
     .map(Some)
     .map_err(|error| root_scroll_error(node, error))
 }

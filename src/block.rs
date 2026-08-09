@@ -29,11 +29,10 @@ use crate::layout_math::{
     OptionalSizeExt, resolution_optional, resolution_or_zero, resolve_containing_padding_border,
 };
 use crate::scroll::{
-    CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
-    ClipMarginSourceOf, OptimalRegionInsetsOf, ScrollContributionAccumulatorOf, ScrollOriginAxes,
-    ScrollOriginProgression, UsedOverflow, canonical_scroll_box_from_source,
-    canonical_scroll_geometry_from_source, rebuild_canonical_scroll_geometry_for_border_box,
-    scrollbar_size_from_overflow,
+    CanonicalRetainedScrollSourceOf, CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf,
+    CanonicalScrollRangeSeedPolicy, CanonicalScrollSourceBuilderOf,
+    ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression, UsedOverflow,
+    canonical_scroll_box_from_source, scrollbar_size_from_overflow,
 };
 
 pub(crate) fn compute_block<Tree, M>(
@@ -2980,33 +2979,19 @@ where
 {
     let target_border_box = super::ScrollRectOf::try_new(Point::ZERO, output_size)
         .map_err(|error| layout_own_geometry_error(node, run_mode, error))?;
-    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
-        flow_axes: constants.flow_axes,
-        computed_overflow: style.overflow,
-        item_is_replaced: style.item_is_replaced,
-        border_box_size: output_size,
-        border: constants.border,
-        padding: constants.padding,
-        scrollbar_gutter: style.scrollbar_gutter,
-        scrollbar_width: style.scrollbar_width,
-        settled_auto_scrollbars: constants.settled_auto_scrollbars,
-        clip_margin: ClipMarginSourceOf::new(
-            style.overflow_clip_margin.clip_box(),
-            style.overflow_clip_margin.margin(),
-        ),
-        scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
-        contributions,
-        origin_axes: ScrollOriginAxes::new(
+    CanonicalScrollSourceBuilderOf::for_node(
+        style,
+        constants.flow_axes,
+        output_size,
+        constants.border,
+        constants.padding,
+        constants.settled_auto_scrollbars,
+        ScrollOriginAxes::new(
             ScrollOriginProgression::FlowEndward,
             ScrollOriginProgression::FlowEndward,
         ),
-        scroll_snap_type: style.scroll_snap_type,
-        target_border_box,
-        target_scroll_margin: style.scroll_margin,
-        target_flow_axes: constants.flow_axes,
-        target_snap_align: style.scroll_snap_align,
-        target_snap_stop: style.scroll_snap_stop,
-    })
+    )
+    .geometry_from_contributions(contributions, target_border_box)
     .map_err(|error| layout_own_geometry_error(node, run_mode, error))
 }
 
@@ -3033,66 +3018,28 @@ fn retained_child_scroll_geometry<S: LayoutScalar>(
     border: Edges<S>,
     child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
 ) -> Result<super::ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {
-    if let Some(geometry) = child_compute_geometry {
-        if geometry.border_box().origin() == Point::ZERO && geometry.border_box().size() == size {
-            return Ok(geometry);
-        }
-        return rebuild_canonical_scroll_geometry_for_border_box(geometry, size, border, padding);
-    }
-
     let flow_axes = crate::FlowAxes::new(style.writing_mode, style.direction);
     let settled_auto_scrollbars = crate::scroll::SettledAutoScrollbarState::INITIAL;
-    let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+    let source = match child_compute_geometry {
+        Some(ref geometry) => CanonicalRetainedScrollSourceOf::Existing(geometry),
+        None => CanonicalRetainedScrollSourceOf::Reconstruct { content_size },
+    };
+    CanonicalScrollSourceBuilderOf::for_node(
+        style,
         flow_axes,
-        computed_overflow: style.overflow,
-        item_is_replaced: style.item_is_replaced,
-        border_box_size: size,
+        size,
         border,
         padding,
-        scrollbar_gutter: style.scrollbar_gutter,
-        scrollbar_width: style.scrollbar_width,
         settled_auto_scrollbars,
-    })?;
-    let content_box = scroll_box.content_box();
-    let direct_content = super::ScrollRectOf::try_new(
-        content_box.origin(),
-        Size::new(
-            content_box.size().width.max(content_size.width),
-            content_box.size().height.max(content_size.height),
+        ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
         ),
     )
-    .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)?;
-    let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
-    contributions.exclude_reserved_gutter_from_range();
-    contributions.include_direct_line(direct_content);
-
-    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
-        flow_axes,
-        computed_overflow: style.overflow,
-        item_is_replaced: style.item_is_replaced,
-        border_box_size: size,
-        border,
-        padding,
-        scrollbar_gutter: style.scrollbar_gutter,
-        scrollbar_width: style.scrollbar_width,
-        settled_auto_scrollbars,
-        clip_margin: ClipMarginSourceOf::new(
-            style.overflow_clip_margin.clip_box(),
-            style.overflow_clip_margin.margin(),
-        ),
-        scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
-        contributions,
-        origin_axes: ScrollOriginAxes::new(
-            ScrollOriginProgression::FlowEndward,
-            ScrollOriginProgression::FlowEndward,
-        ),
-        scroll_snap_type: style.scroll_snap_type,
-        target_border_box: scroll_box.border_box(),
-        target_scroll_margin: style.scroll_margin,
-        target_flow_axes: flow_axes,
-        target_snap_align: style.scroll_snap_align,
-        target_snap_stop: style.scroll_snap_stop,
-    })
+    .geometry_from_retained_source(
+        source,
+        CanonicalScrollRangeSeedPolicy::ExcludeReservedGutter,
+    )
 }
 
 fn max_content_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {

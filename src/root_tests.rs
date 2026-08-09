@@ -77,6 +77,120 @@ fn root_test_scroll_geometry<S: LayoutScalar>(
     .expect("canonical root-test source facts produce geometry")
 }
 
+fn assert_fri08_c07_t02_scroll_source_root_paths<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let size = Size::new(scalar(90.0), scalar(60.0));
+    let flow_axes = FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl);
+    let scroll_margin =
+        ScrollMarginOf::try_new(scalar(1.0), scalar(-2.0), scalar(3.0), scalar(-4.0)).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::Center, ScrollSnapAlignValue::End);
+    let style = NodeInputOf {
+        display: Display::Block,
+        writing_mode: flow_axes.writing_mode(),
+        direction: flow_axes.direction(),
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+        overflow_clip_margin: OverflowClipMarginOf::try_new(
+            OverflowClipBox::BorderBox,
+            scalar(2.0),
+        )
+        .unwrap(),
+        scrollbar_width: ScrollbarWidthOf::try_new(scalar(5.0)).unwrap(),
+        size: size.map(PreferredSizeOf::px),
+        border: Edges::all(LengthOf::px(scalar(2.0))),
+        padding: Edges::all(LengthOf::px(scalar(3.0))),
+        scroll_padding: ScrollPaddingOf::new(
+            ScrollPaddingValueOf::value(LengthPercentageOf::px(scalar(1.0)).unwrap()),
+            ScrollPaddingValueOf::AUTO,
+            ScrollPaddingValueOf::value(LengthPercentageOf::px(scalar(4.0)).unwrap()),
+            ScrollPaddingValueOf::AUTO,
+        ),
+        scroll_margin,
+        scroll_snap_type: ScrollSnapType::Enabled {
+            axis: ScrollSnapAxis::Block,
+            strictness: ScrollSnapStrictness::Mandatory,
+        },
+        scroll_snap_align: snap_align,
+        scroll_snap_stop: ScrollSnapStop::Always,
+        ..NodeInputOf::default()
+    };
+
+    let mut reconstructed_tree = OracleTreeOf::<S>::new()
+        .children(7, [])
+        .style(7, style.clone())
+        .measure(
+            7,
+            ComputeOutputOf::from_sizes(size, Size::new(scalar(120.0), scalar(95.0))),
+        );
+    compute_root(&mut reconstructed_tree, 7, size.map(AvailableOf::definite)).unwrap();
+    let reconstructed = reconstructed_tree
+        .output(7)
+        .and_then(|output| output.scroll_geometry)
+        .unwrap();
+    assert_eq!(reconstructed.flow_axes(), flow_axes);
+    assert_eq!(reconstructed.border_box().size(), size);
+    assert_eq!(
+        reconstructed.target().border_box(),
+        reconstructed.border_box()
+    );
+    assert_eq!(reconstructed.target().scroll_margin(), scroll_margin);
+    assert_eq!(reconstructed.target().flow_axes(), flow_axes);
+    assert_eq!(reconstructed.target().snap_align(), snap_align);
+    assert_eq!(reconstructed.target().snap_stop(), ScrollSnapStop::Always);
+    assert!(reconstructed.overflow_clip().x().is_some());
+    assert!(reconstructed.overflow_clip().y().is_some());
+    assert_eq!(reconstructed.resolved_scroll_padding().top, scalar(1.0));
+    assert_eq!(reconstructed.resolved_scroll_padding().bottom, scalar(4.0));
+    assert_eq!(
+        reconstructed.scroll_snap_type(),
+        ScrollSnapType::Enabled {
+            axis: ScrollSnapAxis::Block,
+            strictness: ScrollSnapStrictness::Mandatory,
+        }
+    );
+
+    let existing = root_test_scroll_geometry(RootTestScrollGeometryFacts {
+        flow_axes,
+        overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: size,
+        padding: Edges::all(scalar(3.0)),
+        border: Edges::all(scalar(2.0)),
+        scrollbar_width: scalar(5.0),
+        scrollable_overflow: ScrollRectOf::try_new(
+            Point::new(scalar(-7.0), scalar(-3.0)),
+            Size::new(scalar(130.0), scalar(100.0)),
+        )
+        .unwrap(),
+    });
+    let mut child_output =
+        ComputeOutputOf::from_sizes(size, Size::new(scalar(120.0), scalar(95.0)));
+    child_output.scroll_geometry = Some(existing);
+    let mut existing_tree = OracleTreeOf::<S>::new()
+        .children(7, [])
+        .style(7, style)
+        .measure(7, child_output);
+    compute_root(&mut existing_tree, 7, size.map(AvailableOf::definite)).unwrap();
+    assert_eq!(
+        existing_tree
+            .output(7)
+            .and_then(|output| output.scroll_geometry),
+        Some(existing),
+        "matching existing geometry remains byte-for-byte canonical"
+    );
+}
+
+#[test]
+fn fri08_c07_t02_scroll_source_root_preserves_existing_reconstruction_and_metadata() {
+    assert_fri08_c07_t02_scroll_source_root_paths::<f32>();
+    assert_fri08_c07_t02_scroll_source_root_paths::<f64>();
+}
+
+#[test]
+fn fri08_c07_t02_scroll_source_root_preserves_error_identity_without_batch() {
+    assert_fri06_mr02_geometry_error_public_root_has_no_batch::<f32>();
+    assert_fri06_mr02_geometry_error_public_root_has_no_batch::<f64>();
+}
+
 #[test]
 fn root_and_hidden_contexts_are_explicit_in_both_scalar_lanes() {
     fn assert_lane<S: LayoutScalar>() {
