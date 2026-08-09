@@ -2288,6 +2288,10 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/scalar.rs", include_str!("scalar.rs")),
         ("src/scroll.rs", include_str!("scroll.rs")),
         ("src/sizing.rs", include_str!("sizing.rs")),
+        (
+            "src/test_support/scroll_geometry.rs",
+            include_str!("test_support/scroll_geometry.rs"),
+        ),
         ("src/traits.rs", include_str!("traits.rs")),
         ("src/value.rs", include_str!("value.rs")),
     ];
@@ -2321,11 +2325,12 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
         &mut inventoried,
     );
+    inventoried.push("src/test_support/scroll_geometry.rs".to_owned());
     inventoried.sort();
     let declared = sources.iter().map(|(path, ..)| *path).collect::<Vec<_>>();
     assert_eq!(
         inventoried, declared,
-        "every non-test production Rust source must have an exact scrollbar classification"
+        "every production source and shared scroll fixture must have an exact scrollbar classification"
     );
 
     let mut observed = Vec::new();

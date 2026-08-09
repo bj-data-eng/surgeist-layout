@@ -5,6 +5,12 @@ use std::sync::Mutex;
 
 use crate::block::{FloatExclusions, FloatLedgerSide, resolve_logical_in_flow_margin};
 use crate::test_support::layout_tree::OracleTree;
+use crate::test_support::scroll_geometry::{
+    assert_geometry_error as fri06_mr02_geometry_error_assert, assert_scroll_padding_inputs_exact,
+    geometry_error_input as fri06_mr02_geometry_error_input,
+    geometry_error_largest_finite as fri06_mr02_geometry_error_largest_finite,
+    scroll_padding_inputs,
+};
 use crate::*;
 
 type BlockTree = OracleTree;
@@ -15,42 +21,43 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
 
-fn fri06_mr02_geometry_error_largest_finite<S: LayoutScalar>() -> S {
-    if core::mem::size_of::<S>() == core::mem::size_of::<f32>() {
-        S::from_f64(f32::MAX.into())
-    } else {
-        S::from_f64(f64::MAX)
+fn assert_fri08_c07_t05_geometry_error_input_fields<S: LayoutScalar>() {
+    let largest = fri06_mr02_geometry_error_largest_finite::<S>();
+    let context = ContainingLayoutContext::new(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ParentFormattingContext::NoParent,
+    );
+
+    for run_mode in [RunMode::PerformRootLayout, RunMode::PerformLayout] {
+        let input = fri06_mr02_geometry_error_input::<S>(run_mode);
+
+        assert_eq!(input.run_mode(), run_mode);
+        assert_eq!(input.sizing_mode(), SizingMode::InherentSize);
+        assert_eq!(input.requested_axis(), RequestedAxis::Both);
+        assert_eq!(input.known(), Size::NONE);
+        assert_eq!(input.parent(), Size::splat(Some(largest)));
+        assert_eq!(input.containing_layout_context(), context);
+        assert_eq!(
+            input.available(),
+            Size::splat(AvailableOf::definite(largest))
+        );
+        assert_eq!(
+            input.settled_auto_scrollbars(),
+            crate::scroll::SettledAutoScrollbarState::INITIAL
+        );
+        assert_eq!(
+            input.containing_auto_scrollbar_pass(),
+            crate::scroll::SettledAutoScrollbarState::INITIAL
+        );
     }
 }
 
-fn fri06_mr02_geometry_error_input<S: LayoutScalar>(run_mode: RunMode) -> ComputeInputOf<S> {
-    let largest = fri06_mr02_geometry_error_largest_finite::<S>();
-    ComputeInputOf::for_child(
-        run_mode,
-        SizingMode::InherentSize,
-        RequestedAxis::Both,
-        Size::NONE,
-        Size::splat(Some(largest)),
-        ContainingLayoutContext::new(
-            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-            ParentFormattingContext::NoParent,
-        ),
-        Size::splat(AvailableOf::definite(largest)),
-    )
-}
-
-fn fri06_mr02_geometry_error_assert<S: LayoutScalar, M>(
-    error: LayoutErrorOf<u32, S, M>,
-    site: LayoutErrorSiteOf<u32>,
-    operation: LayoutOperation,
-    invariant: LayoutInternalInvariant,
-) {
-    assert_eq!(error.site(), site);
-    assert_eq!(error.operation(), operation);
-    assert!(matches!(
-        error.kind(),
-        LayoutErrorKindOf::InternalInvariant(actual) if *actual == invariant
-    ));
+#[test]
+fn fri08_c07_t05_scroll_fixture_selects_scalar_and_preserves_every_compute_input_field() {
+    assert_eq!(fri06_mr02_geometry_error_largest_finite::<f32>(), f32::MAX);
+    assert_eq!(fri06_mr02_geometry_error_largest_finite::<f64>(), f64::MAX);
+    assert_fri08_c07_t05_geometry_error_input_fields::<f32>();
+    assert_fri08_c07_t05_geometry_error_input_fields::<f64>();
 }
 
 fn assert_fri06_mr02_geometry_error_block_own<S: LayoutScalar>() {
@@ -368,30 +375,26 @@ fn fri06_mr02_geometry_error_block_inline_child_preserves_subject_both_scalars()
     assert_fri06_mr02_geometry_error_block_inline_child::<f64>();
 }
 
+#[test]
+fn fri08_c07_t05_scroll_fixture_block_assertion_preserves_error_identity() {
+    assert_fri06_mr02_geometry_error_block_own::<f32>();
+    assert_fri06_mr02_geometry_error_block_own::<f64>();
+    assert_fri06_mr02_geometry_error_block_child::<f32>();
+    assert_fri06_mr02_geometry_error_block_child::<f64>();
+    assert_fri06_mr02_geometry_error_block_inline_child::<f32>();
+    assert_fri06_mr02_geometry_error_block_inline_child::<f64>();
+}
+
 fn fri06_mr02_scroll_padding_cases<S: LayoutScalar>() -> [(ScrollPaddingOf<S>, Edges<S>); 2] {
-    let value = |value| {
-        ScrollPaddingValueOf::value(
-            LengthPercentageOf::px(S::from_f64(value)).expect("test scroll padding is finite"),
-        )
-    };
+    let [first, second] = scroll_padding_inputs();
 
     [
         (
-            ScrollPaddingOf::new(
-                value(11.0),
-                ScrollPaddingValueOf::AUTO,
-                value(33.0),
-                ScrollPaddingValueOf::AUTO,
-            ),
+            first,
             Edges::new(S::from_f64(11.0), S::ZERO, S::from_f64(33.0), S::ZERO),
         ),
         (
-            ScrollPaddingOf::new(
-                ScrollPaddingValueOf::AUTO,
-                value(22.0),
-                ScrollPaddingValueOf::AUTO,
-                value(44.0),
-            ),
+            second,
             Edges::new(S::ZERO, S::from_f64(22.0), S::ZERO, S::from_f64(44.0)),
         ),
     ]
@@ -441,6 +444,23 @@ fn assert_fri06_mr02_scroll_padding_block<S: LayoutScalar>() {
 fn fri06_mr02_scroll_padding_block_preserves_auto_and_value_on_each_physical_edge() {
     assert_fri06_mr02_scroll_padding_block::<f32>();
     assert_fri06_mr02_scroll_padding_block::<f64>();
+}
+
+#[test]
+fn fri08_c07_t05_scroll_fixture_block_rows_preserve_exact_auto_and_value_edges() {
+    fn assert_rows<S: LayoutScalar>() {
+        assert_scroll_padding_inputs_exact::<S>();
+        assert_eq!(
+            fri06_mr02_scroll_padding_cases::<S>().map(|(_, expected)| expected),
+            [
+                Edges::new(S::from_f64(11.0), S::ZERO, S::from_f64(33.0), S::ZERO,),
+                Edges::new(S::ZERO, S::from_f64(22.0), S::ZERO, S::from_f64(44.0)),
+            ]
+        );
+    }
+
+    assert_rows::<f32>();
+    assert_rows::<f64>();
 }
 
 fn fri06_atomic_participation<S: LayoutScalar>() -> AtomicInlineParticipationOf<S> {

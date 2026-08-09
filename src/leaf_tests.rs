@@ -1,3 +1,6 @@
+use crate::test_support::scroll_geometry::{
+    assert_scroll_padding_inputs_exact, scroll_padding_inputs,
+};
 use crate::*;
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
@@ -5,29 +8,15 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
 }
 
 fn fri06_mr02_scroll_padding_cases<S: LayoutScalar>() -> [(ScrollPaddingOf<S>, Edges<S>); 2] {
-    let value = |value| {
-        ScrollPaddingValueOf::value(
-            LengthPercentageOf::px(S::from_f64(value)).expect("test scroll padding is finite"),
-        )
-    };
+    let [first, second] = scroll_padding_inputs();
 
     [
         (
-            ScrollPaddingOf::new(
-                value(11.0),
-                ScrollPaddingValueOf::AUTO,
-                value(33.0),
-                ScrollPaddingValueOf::AUTO,
-            ),
+            first,
             Edges::new(S::from_f64(11.0), S::ZERO, S::from_f64(33.0), S::ZERO),
         ),
         (
-            ScrollPaddingOf::new(
-                ScrollPaddingValueOf::AUTO,
-                value(22.0),
-                ScrollPaddingValueOf::AUTO,
-                value(44.0),
-            ),
+            second,
             Edges::new(S::ZERO, S::from_f64(22.0), S::ZERO, S::from_f64(44.0)),
         ),
     ]
@@ -68,6 +57,23 @@ fn assert_fri06_mr02_scroll_padding_leaf<S: LayoutScalar>() {
 fn fri06_mr02_scroll_padding_leaf_preserves_auto_and_value_on_each_physical_edge() {
     assert_fri06_mr02_scroll_padding_leaf::<f32>();
     assert_fri06_mr02_scroll_padding_leaf::<f64>();
+}
+
+#[test]
+fn fri08_c07_t05_scroll_fixture_leaf_rows_preserve_exact_auto_and_value_edges() {
+    fn assert_rows<S: LayoutScalar>() {
+        assert_scroll_padding_inputs_exact::<S>();
+        assert_eq!(
+            fri06_mr02_scroll_padding_cases::<S>().map(|(_, expected)| expected),
+            [
+                Edges::new(S::from_f64(11.0), S::ZERO, S::from_f64(33.0), S::ZERO,),
+                Edges::new(S::ZERO, S::from_f64(22.0), S::ZERO, S::from_f64(44.0)),
+            ]
+        );
+    }
+
+    assert_rows::<f32>();
+    assert_rows::<f64>();
 }
 
 fn assert_measured_leaf_block_margin_collapse_uses_own_logical_block_extent<S: LayoutScalar>() {
