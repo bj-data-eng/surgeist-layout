@@ -730,6 +730,7 @@ where
         named_columns,
         named_rows,
         area_facts,
+        template_area_expanded_axes,
         inherited_column_offset,
         inherited_row_offset,
         subgrid_report,
@@ -1179,6 +1180,7 @@ where
             named_columns: named_columns.clone(),
             named_rows: named_rows.clone(),
             area_facts: area_facts.clone(),
+            template_area_expanded_axes,
             subgrid_report,
             ancestor_baseline_groups: &ancestor_baseline_groups,
             containing_auto_scrollbar_pass,
@@ -1410,6 +1412,7 @@ struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
     named_columns: NamedGridLines,
     named_rows: NamedGridLines,
     area_facts: Option<GridAreaNameFacts>,
+    template_area_expanded_axes: TemplateAreaExpandedAxes,
     subgrid_report: &'a GridSubgridReport<Node>,
     ancestor_baseline_groups: &'a FinalAncestorBaselineGroups<Node, S>,
     containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
@@ -1504,6 +1507,7 @@ where
                 padding,
             },
             input.ancestor_baseline_groups,
+            input.template_area_expanded_axes,
             input.node,
             Some(input.column_geometry),
             Some(input.row_geometry),
@@ -2461,7 +2465,14 @@ pub(super) fn subgrid_child_parent_context<Node, S: LayoutScalar>(
 where
     Node: Copy + PartialEq,
 {
-    subgrid_child_parent_context_with_ancestor_groups(input, None, None, None, None)
+    subgrid_child_parent_context_with_ancestor_groups(
+        input,
+        None,
+        TemplateAreaExpandedAxes::default(),
+        None,
+        None,
+        None,
+    )
 }
 
 pub(super) fn subgrid_child_parent_context_with_geometry<Node, S: LayoutScalar>(
@@ -2475,6 +2486,7 @@ where
     subgrid_child_parent_context_with_ancestor_groups(
         input,
         None,
+        TemplateAreaExpandedAxes::default(),
         None,
         column_geometry,
         row_geometry,
@@ -2493,6 +2505,7 @@ where
     subgrid_child_parent_context_with_ancestor_groups(
         input,
         Some(ancestor_baseline_groups),
+        TemplateAreaExpandedAxes::default(),
         Some(parent_grid),
         None,
         None,
@@ -2505,6 +2518,7 @@ pub(super) fn subgrid_child_parent_context_from_ancestor_groups_with_geometry<
 >(
     input: SubgridChildParentContextInput<'_, Node, S>,
     ancestor_baseline_groups: &FinalAncestorBaselineGroups<Node, S>,
+    parent_template_area_expanded_axes: TemplateAreaExpandedAxes,
     parent_grid: Node,
     column_geometry: Option<&UsedGridAxisGeometryOf<S>>,
     row_geometry: Option<&UsedGridAxisGeometryOf<S>>,
@@ -2515,6 +2529,7 @@ where
     subgrid_child_parent_context_with_ancestor_groups(
         input,
         Some(ancestor_baseline_groups),
+        parent_template_area_expanded_axes,
         Some(parent_grid),
         column_geometry,
         row_geometry,
@@ -2524,6 +2539,7 @@ where
 fn subgrid_child_parent_context_with_ancestor_groups<Node, S: LayoutScalar>(
     input: SubgridChildParentContextInput<'_, Node, S>,
     ancestor_baseline_groups: Option<&FinalAncestorBaselineGroups<Node, S>>,
+    parent_template_area_expanded_axes: TemplateAreaExpandedAxes,
     parent_grid: Option<Node>,
     column_geometry: Option<&UsedGridAxisGeometryOf<S>>,
     row_geometry: Option<&UsedGridAxisGeometryOf<S>>,
@@ -2548,6 +2564,7 @@ where
             parent_named_columns: input.parent_named_columns,
             parent_named_rows: input.parent_named_rows,
             parent_area_facts: input.parent_area_facts,
+            parent_template_area_expanded_axes,
             parent_baseline_groups: input.parent_baseline_groups,
             ancestor_baseline_groups,
             margin: input.margin,
@@ -2570,6 +2587,7 @@ where
             parent_named_columns: input.parent_named_columns,
             parent_named_rows: input.parent_named_rows,
             parent_area_facts: input.parent_area_facts,
+            parent_template_area_expanded_axes,
             parent_baseline_groups: input.parent_baseline_groups,
             ancestor_baseline_groups,
             margin: input.margin,
@@ -2596,6 +2614,7 @@ struct SubgridChildAxisContextInput<'a, Node, S: LayoutScalar = Scalar> {
     parent_named_columns: &'a NamedGridLines,
     parent_named_rows: &'a NamedGridLines,
     parent_area_facts: Option<&'a GridAreaNameFacts>,
+    parent_template_area_expanded_axes: TemplateAreaExpandedAxes,
     parent_baseline_groups: &'a GridBaselineGroups<S>,
     ancestor_baseline_groups: Option<&'a FinalAncestorBaselineGroups<Node, S>>,
     margin: Edges<Option<S>>,
@@ -2751,7 +2770,10 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
             if transported.mapping.boundary_count() == 0
                 && !mapping.reversed
                 && end_mbp != S::ZERO
-                && (input.parent_area_facts.is_none() || uniform_parent_track_frames)
+                && (!input
+                    .parent_template_area_expanded_axes
+                    .for_axis(mapping.parent_axis)
+                    || uniform_parent_track_frames)
                 && let Some(last) = current_first_frame_origins.last_mut()
             {
                 *last = *last + gap_difference;
@@ -3009,6 +3031,9 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
             .parent_area_facts
             .filter(|facts| facts.is_valid_for_axis(mapping.parent_axis))
             .cloned(),
+        template_area_expanded: input
+            .parent_template_area_expanded_axes
+            .for_axis(mapping.parent_axis),
         major_baselines,
         minor_baselines,
         owner_baseline_targets,

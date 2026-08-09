@@ -65,7 +65,7 @@ use named::{
 pub use named::{NamedGridErrorReport, NamedGridReport};
 use placement::*;
 use subgrid::*;
-use topology::{ExpandedGridTopology, ExpandedGridTopologyInput};
+use topology::{ExpandedGridTopology, ExpandedGridTopologyInput, TemplateAreaExpandedAxes};
 use tracks::*;
 
 pub struct GridComputationOf<S: LayoutScalar = DefaultScalar> {
@@ -1194,6 +1194,7 @@ struct InheritedGridAxis<S: LayoutScalar = Scalar, Node = ()> {
     geometry: UsedGridAxisGeometryOf<S>,
     named_lines: NamedGridLines,
     area_facts: Option<GridAreaNameFacts>,
+    template_area_expanded: bool,
     major_baselines: Vec<Option<PhysicalBaseline<S>>>,
     minor_baselines: Vec<Option<PhysicalBaseline<S>>>,
     owner_baseline_targets: Option<InheritedGridOwnerBaselineTargets<Node, S>>,
@@ -1211,6 +1212,7 @@ impl<S: LayoutScalar, Node> InheritedGridAxis<S, Node> {
             geometry: self.geometry.clone(),
             named_lines: self.named_lines.clone(),
             area_facts: self.area_facts.clone(),
+            template_area_expanded: self.template_area_expanded,
             major_baselines: self.major_baselines.clone(),
             minor_baselines: self.minor_baselines.clone(),
             owner_baseline_targets: None,
@@ -2396,6 +2398,25 @@ where
         inherited_row_offset,
         ..
     } = context;
+    let authored_template_area_expanded = topology.template_area_expanded_axes();
+    let template_area_expanded_axes = TemplateAreaExpandedAxes::new(
+        if topology.axis_is_inherited(GridAxisKind::Column) {
+            parent_context
+                .columns
+                .as_ref()
+                .is_some_and(|axis| axis.template_area_expanded)
+        } else {
+            authored_template_area_expanded.for_axis(GridAxisKind::Column)
+        },
+        if topology.axis_is_inherited(GridAxisKind::Row) {
+            parent_context
+                .rows
+                .as_ref()
+                .is_some_and(|axis| axis.template_area_expanded)
+        } else {
+            authored_template_area_expanded.for_axis(GridAxisKind::Row)
+        },
+    );
     let ExpandedGridTopology {
         named_columns,
         named_rows,
@@ -2595,6 +2616,7 @@ where
             named_columns,
             named_rows,
             area_facts,
+            template_area_expanded_axes,
             inherited_column_offset,
             inherited_row_offset,
             subgrid_report,
@@ -2635,6 +2657,7 @@ struct GridLayoutContext<'a, Node, S: LayoutScalar = Scalar> {
     named_columns: NamedGridLines,
     named_rows: NamedGridLines,
     area_facts: Option<GridAreaNameFacts>,
+    template_area_expanded_axes: TemplateAreaExpandedAxes,
     inherited_column_offset: Option<S>,
     inherited_row_offset: Option<S>,
     subgrid_report: &'a GridSubgridReport<Node>,

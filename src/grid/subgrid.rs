@@ -2251,6 +2251,7 @@ pub(super) fn intrinsic_subgrid_axis_parent_context<Node, S: LayoutScalar>(
         area_facts: area_facts
             .filter(|facts| facts.is_valid_for_axis(mapping.parent_axis))
             .cloned(),
+        template_area_expanded: false,
         major_baselines: vec![None; track_count],
         minor_baselines: vec![None; track_count],
         owner_baseline_targets: None,

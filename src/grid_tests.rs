@@ -2444,9 +2444,32 @@ struct Fri08C04BaselineFlowCase {
     child_direction: Direction,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri08C04BaselineAreaTopology {
+    ExpandedNonUniform,
+    NonAreaNonUniform,
+    NonAreaOrthogonalControl,
+    NonAreaUniform,
+    UniformAreaExpanded,
+    FullyExplicitNonUniformArea,
+    OrthogonalOnlyInheritedArea,
+}
+
 fn fri08_c04_baseline_area_implicit_tree<S: LayoutScalar>(
     case: Fri08C04BaselineFlowCase,
     alignment: AlignItems,
+) -> Fri08C04BaselineTree<S> {
+    fri08_c04_baseline_area_topology_tree(
+        case,
+        alignment,
+        Fri08C04BaselineAreaTopology::ExpandedNonUniform,
+    )
+}
+
+fn fri08_c04_baseline_area_topology_tree<S: LayoutScalar>(
+    case: Fri08C04BaselineFlowCase,
+    alignment: AlignItems,
+    topology: Fri08C04BaselineAreaTopology,
 ) -> Fri08C04BaselineTree<S> {
     let scalar = S::from_f64;
     let root_axes = FlowAxes::new(case.root_writing_mode, case.root_direction);
@@ -2483,7 +2506,7 @@ fn fri08_c04_baseline_area_implicit_tree<S: LayoutScalar>(
         Fri08C04BaselineParentAxis::Column => (Some(alignment), Some(AlignItems::Start)),
         Fri08C04BaselineParentAxis::Row => (Some(AlignItems::Start), Some(alignment)),
     };
-    let areas = GridTemplateAreas {
+    let two_by_two_areas = GridTemplateAreas {
         rows: vec![
             GridTemplateAreaRow {
                 cells: vec![Some("alpha".to_string()), Some("beta".to_string())],
@@ -2491,6 +2514,58 @@ fn fri08_c04_baseline_area_implicit_tree<S: LayoutScalar>(
             GridTemplateAreaRow {
                 cells: vec![Some("gamma".to_string()), Some("delta".to_string())],
             },
+        ],
+    };
+    let orthogonal_areas = GridTemplateAreas {
+        rows: vec![GridTemplateAreaRow {
+            cells: vec![Some("left".to_string()), Some("right".to_string())],
+        }],
+    };
+    let orthogonal_control = matches!(
+        topology,
+        Fri08C04BaselineAreaTopology::NonAreaOrthogonalControl
+            | Fri08C04BaselineAreaTopology::OrthogonalOnlyInheritedArea
+    );
+    let uniform_tracks = matches!(
+        topology,
+        Fri08C04BaselineAreaTopology::NonAreaUniform
+            | Fri08C04BaselineAreaTopology::UniformAreaExpanded
+    );
+    let root_areas = match topology {
+        Fri08C04BaselineAreaTopology::ExpandedNonUniform
+        | Fri08C04BaselineAreaTopology::UniformAreaExpanded
+        | Fri08C04BaselineAreaTopology::FullyExplicitNonUniformArea => two_by_two_areas,
+        Fri08C04BaselineAreaTopology::NonAreaNonUniform
+        | Fri08C04BaselineAreaTopology::NonAreaOrthogonalControl
+        | Fri08C04BaselineAreaTopology::NonAreaUniform
+        | Fri08C04BaselineAreaTopology::OrthogonalOnlyInheritedArea => GridTemplateAreas::default(),
+    };
+    let root_columns = match topology {
+        Fri08C04BaselineAreaTopology::ExpandedNonUniform
+        | Fri08C04BaselineAreaTopology::UniformAreaExpanded => {
+            vec![TrackComponentOf::px(scalar(60.0))]
+        }
+        Fri08C04BaselineAreaTopology::NonAreaNonUniform
+        | Fri08C04BaselineAreaTopology::NonAreaOrthogonalControl
+        | Fri08C04BaselineAreaTopology::NonAreaUniform
+        | Fri08C04BaselineAreaTopology::FullyExplicitNonUniformArea
+        | Fri08C04BaselineAreaTopology::OrthogonalOnlyInheritedArea => vec![
+            TrackComponentOf::px(scalar(60.0)),
+            TrackComponentOf::px(scalar(if uniform_tracks { 60.0 } else { 70.0 })),
+        ],
+    };
+    let root_rows = match topology {
+        Fri08C04BaselineAreaTopology::ExpandedNonUniform
+        | Fri08C04BaselineAreaTopology::UniformAreaExpanded => {
+            vec![TrackComponentOf::px(scalar(40.0))]
+        }
+        Fri08C04BaselineAreaTopology::NonAreaNonUniform
+        | Fri08C04BaselineAreaTopology::NonAreaOrthogonalControl
+        | Fri08C04BaselineAreaTopology::NonAreaUniform
+        | Fri08C04BaselineAreaTopology::FullyExplicitNonUniformArea
+        | Fri08C04BaselineAreaTopology::OrthogonalOnlyInheritedArea => vec![
+            TrackComponentOf::px(scalar(40.0)),
+            TrackComponentOf::px(scalar(if uniform_tracks { 40.0 } else { 50.0 })),
         ],
     };
     let tree = PublicLayoutTreeOf::new()
@@ -2510,16 +2585,16 @@ fn fri08_c04_baseline_area_implicit_tree<S: LayoutScalar>(
                 size: root_axes
                     .physical_size(LogicalSizeOf::new(scalar(220.0), scalar(150.0)))
                     .map(PreferredSizeOf::px),
-                grid_template_columns: vec![TrackComponentOf::px(scalar(60.0))],
-                grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
-                grid_template_areas: areas,
+                grid_template_columns: root_columns,
+                grid_template_rows: root_rows,
+                grid_template_areas: root_areas,
                 grid_auto_columns: vec![TrackComponentOf::px(scalar(if composed_edges {
-                    70.0
+                    if uniform_tracks { 60.0 } else { 70.0 }
                 } else {
                     60.0
                 }))],
                 grid_auto_rows: vec![TrackComponentOf::px(scalar(if composed_edges {
-                    50.0
+                    if uniform_tracks { 40.0 } else { 50.0 }
                 } else {
                     40.0
                 }))],
@@ -2572,8 +2647,22 @@ fn fri08_c04_baseline_area_implicit_tree<S: LayoutScalar>(
                 grid_column: nested_column,
                 grid_row: nested_row,
                 item_order: ItemOrder::new(-7),
-                grid_template_columns: vec![TrackComponentOf::px(scalar(32.0))],
+                grid_template_columns: if orthogonal_control {
+                    vec![
+                        TrackComponentOf::px(scalar(32.0)),
+                        TrackComponentOf::px(scalar(32.0)),
+                    ]
+                } else {
+                    vec![TrackComponentOf::px(scalar(32.0))]
+                },
                 grid_template_rows: subgrid_track_of(),
+                grid_template_areas: if topology
+                    == Fri08C04BaselineAreaTopology::OrthogonalOnlyInheritedArea
+                {
+                    orthogonal_areas
+                } else {
+                    GridTemplateAreas::default()
+                },
                 gap: child_gap.map(LengthOf::px),
                 margin: if composed_edges {
                     Edges::new(
@@ -2622,7 +2711,26 @@ fn fri08_c04_baseline_area_implicit_tree<S: LayoutScalar>(
                 justify_self: Some(AlignItems::Start),
                 align_self: Some(alignment),
                 grid_template_columns: vec![TrackComponentOf::AUTO],
-                grid_template_rows: vec![TrackComponentOf::AUTO],
+                grid_template_rows: if orthogonal_control {
+                    subgrid_track_of()
+                } else {
+                    vec![TrackComponentOf::AUTO]
+                },
+                margin: if orthogonal_control {
+                    Edges::all(LengthAutoOf::px(scalar(1.0)))
+                } else {
+                    Edges::all(LengthAutoOf::ZERO)
+                },
+                border: if orthogonal_control {
+                    Edges::all(LengthOf::px(scalar(1.0)))
+                } else {
+                    Edges::all(LengthOf::ZERO)
+                },
+                padding: if orthogonal_control {
+                    Edges::all(LengthOf::px(scalar(1.0)))
+                } else {
+                    Edges::all(LengthOf::ZERO)
+                },
                 justify_items: Some(AlignItems::Start),
                 align_items: Some(AlignItems::Start),
                 ..NodeInputOf::default()
@@ -2815,6 +2923,58 @@ fn assert_fri08_c04_baseline_area_implicit_composition<S: LayoutScalar>() {
 fn fri08_c04_baseline_area_created_implicit_standalone_roles_map_both_axes_and_scalars() {
     assert_fri08_c04_baseline_area_implicit_composition::<f32>();
     assert_fri08_c04_baseline_area_implicit_composition::<f64>();
+}
+
+fn assert_fri08_c04_baseline_area_topology_controls<S: LayoutScalar>() {
+    let case = Fri08C04BaselineFlowCase {
+        parent_axis: Fri08C04BaselineParentAxis::Row,
+        root_writing_mode: WritingMode::HorizontalTb,
+        root_direction: Direction::Ltr,
+        child_writing_mode: WritingMode::HorizontalTb,
+        child_direction: Direction::Rtl,
+    };
+    let request = LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+        .expect("baseline topology-control viewport");
+    for alignment in [AlignItems::Baseline, AlignItems::LastBaseline] {
+        for (reference, area_topology) in [
+            (
+                Fri08C04BaselineAreaTopology::NonAreaUniform,
+                Fri08C04BaselineAreaTopology::UniformAreaExpanded,
+            ),
+            (
+                Fri08C04BaselineAreaTopology::NonAreaNonUniform,
+                Fri08C04BaselineAreaTopology::FullyExplicitNonUniformArea,
+            ),
+            (
+                Fri08C04BaselineAreaTopology::NonAreaOrthogonalControl,
+                Fri08C04BaselineAreaTopology::OrthogonalOnlyInheritedArea,
+            ),
+        ] {
+            let reference = compute_layout(
+                &fri08_c04_baseline_area_topology_tree::<S>(case, alignment, reference),
+                1,
+                request,
+            )
+            .expect("non-area baseline topology control succeeds");
+            let area = compute_layout(
+                &fri08_c04_baseline_area_topology_tree::<S>(case, alignment, area_topology),
+                1,
+                request,
+            )
+            .expect("area baseline topology control succeeds");
+            assert_eq!(
+                area.final_entries(),
+                reference.final_entries(),
+                "{area_topology:?} naming facts do not change {alignment:?} production layout when they do not create a non-uniform mapped-axis track"
+            );
+        }
+    }
+}
+
+#[test]
+fn fri08_c04_baseline_area_topology_controls_preserve_first_and_last_roles() {
+    assert_fri08_c04_baseline_area_topology_controls::<f32>();
+    assert_fri08_c04_baseline_area_topology_controls::<f64>();
 }
 
 fn fri08_c04_baseline_lanes_auto_fit_tree<S: LayoutScalar>(
@@ -4428,6 +4588,7 @@ fn fri08_c02_auto_fit_inherited_baseline_crosses_collapsed_boundary_without_unif
                 padding: Edges::ZERO,
             },
             &ancestor_groups,
+            TemplateAreaExpandedAxes::default(),
             1_u32,
             Some(&parent_geometry),
             None,
@@ -4884,6 +5045,7 @@ fn fri08_c02_auto_fit_public_parent_decreasing_baseline_uses_collapsed_boundary_
             padding: Edges::ZERO,
         },
         &ancestor_groups,
+        TemplateAreaExpandedAxes::default(),
         1_u32,
         Some(&parent_geometry),
         None,
@@ -12663,6 +12825,7 @@ fn vertical_intrinsic_subgrid_final_sizing_keeps_definite_physical_height() {
             geometry: UsedGridAxisGeometryOf::new(vec![100.0], vec![false], 0.0),
             named_lines: named::NamedGridLines::new(GridAxisKind::Row, 1),
             area_facts: None,
+            template_area_expanded: false,
             major_baselines: vec![None],
             minor_baselines: vec![None],
             owner_baseline_targets: None,
@@ -25102,6 +25265,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         geometry: UsedGridAxisGeometryOf::new(vec![10.0, 20.0], vec![false, false], 1.5),
         named_lines: named_lines.clone(),
         area_facts: None,
+        template_area_expanded: false,
         major_baselines: vec![Some(tagged_baseline(PhysicalAxis::Horizontal, 2.0))],
         minor_baselines: vec![None],
         owner_baseline_targets: None,
@@ -25233,6 +25397,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         named_columns: named_lines,
         named_rows: named::NamedGridLines::new(GridAxisKind::Row, 1),
         area_facts: None,
+        template_area_expanded_axes: TemplateAreaExpandedAxes::default(),
         inherited_column_offset: Some(0.25),
         inherited_row_offset: None,
         subgrid_report: &subgrid_report,
@@ -27188,6 +27353,7 @@ fn test_inherited_axis(
         ),
         named_lines,
         area_facts,
+        template_area_expanded: false,
         major_baselines: vec![None; track_count],
         minor_baselines: vec![None; track_count],
         owner_baseline_targets: None,
@@ -27928,6 +28094,7 @@ where
             geometry: UsedGridAxisGeometryOf::new(vec![S::from_f64(80.0)], vec![false], S::ZERO),
             named_lines: named::NamedGridLines::new(GridAxisKind::Row, 1),
             area_facts: None,
+            template_area_expanded: false,
             major_baselines: vec![Some(tagged_baseline(
                 PhysicalAxis::Vertical,
                 S::from_f64(45.0),
@@ -28036,6 +28203,7 @@ where
             geometry: UsedGridAxisGeometryOf::new(vec![S::from_f64(80.0)], vec![false], S::ZERO),
             named_lines: named::NamedGridLines::new(GridAxisKind::Row, 1),
             area_facts: None,
+            template_area_expanded: false,
             major_baselines: vec![Some(tagged_baseline(
                 PhysicalAxis::Vertical,
                 S::from_f64(45.0),

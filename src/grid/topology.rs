@@ -29,6 +29,25 @@ pub(super) struct ExplicitTrackOrigin {
     pub(super) auto_repeat: Option<AutoRepeatTrackOrigin>,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) struct TemplateAreaExpandedAxes {
+    columns: bool,
+    rows: bool,
+}
+
+impl TemplateAreaExpandedAxes {
+    pub(super) const fn new(columns: bool, rows: bool) -> Self {
+        Self { columns, rows }
+    }
+
+    pub(super) const fn for_axis(self, axis: super::GridAxisKind) -> bool {
+        match axis {
+            super::GridAxisKind::Column => self.columns,
+            super::GridAxisKind::Row => self.rows,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ExpandedGridTopology<S: LayoutScalar = Scalar> {
     pub(super) column_tracks: Vec<TrackSizingOf<S>>,
@@ -194,6 +213,21 @@ impl<S: LayoutScalar> ExpandedGridTopology<S> {
         }
     }
 
+    pub(super) fn template_area_expanded_axes(&self) -> TemplateAreaExpandedAxes {
+        TemplateAreaExpandedAxes::new(
+            axis_was_expanded_by_template_areas(
+                &self.column_origins,
+                self.column_explicit_start,
+                self.explicit_columns,
+            ),
+            axis_was_expanded_by_template_areas(
+                &self.row_origins,
+                self.row_explicit_start,
+                self.explicit_rows,
+            ),
+        )
+    }
+
     pub(super) fn apply_placement_demand(
         &mut self,
         column_explicit_start: usize,
@@ -292,6 +326,24 @@ impl<S: LayoutScalar> ExpandedGridTopology<S> {
             collapsed,
         )
     }
+}
+
+fn axis_was_expanded_by_template_areas(
+    origins: &[ExplicitTrackOrigin],
+    explicit_start: usize,
+    explicit_count: usize,
+) -> bool {
+    explicit_start
+        .checked_add(explicit_count)
+        .and_then(|explicit_end| origins.get(explicit_start..explicit_end))
+        .is_some_and(|explicit_origins| {
+            explicit_origins.iter().any(|origin| {
+                matches!(
+                    origin.sizing,
+                    ExplicitTrackSizingOrigin::TemplateAreaAutoPattern { .. }
+                )
+            })
+        })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
