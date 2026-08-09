@@ -1492,37 +1492,38 @@ fn collect_relative_html(root: &Path) -> Result<Vec<PathBuf>, String> {
 
 fn collect_relative_files(root: &Path) -> Result<Vec<PathBuf>, String> {
     let mut files = Vec::new();
-    collect_relative_files_into(root, root, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn collect_relative_files_into(
-    root: &Path,
-    dir: &Path,
-    files: &mut Vec<PathBuf>,
-) -> Result<(), String> {
-    for entry in
-        fs::read_dir(dir).map_err(|error| format!("failed to read {}: {error}", dir.display()))?
-    {
-        let entry = entry.map_err(|error| format!("failed to read directory entry: {error}"))?;
-        let path = entry.path();
-        if path.is_dir() {
-            collect_relative_files_into(root, &path, files)?;
-        } else {
-            let rel = path
-                .strip_prefix(root)
+    collect_fixture_files_into(root, &mut files)?;
+    files
+        .into_iter()
+        .map(|path| {
+            path.strip_prefix(root)
                 .map_err(|error| {
                     format!(
                         "failed to make {} relative to {}: {error}",
                         path.display(),
                         root.display()
                     )
-                })?
-                .to_path_buf();
-            files.push(rel);
+                })
+                .map(Path::to_path_buf)
+        })
+        .collect()
+}
+
+fn collect_fixture_files_into(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    let mut entries = fs::read_dir(dir)
+        .map_err(|error| format!("failed to read {}: {error}", dir.display()))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("failed to read directory entry: {error}"))?;
+    entries.sort_by_key(|entry| entry.path());
+    for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_fixture_files_into(&path, files)?;
+        } else {
+            files.push(path);
         }
     }
+    files.sort();
     Ok(())
 }
 
@@ -2304,11 +2305,11 @@ fn fixture_base_url(fixture: &Path) -> Result<url::Url, String> {
 
 fn collect_html(root: &Path, filter: Option<&str>) -> Result<Vec<PathBuf>, String> {
     let mut files = Vec::new();
-    collect_html_into(root, &mut files)?;
+    collect_fixture_files_into(root, &mut files)?;
+    files.retain(|path| path.extension().and_then(|ext| ext.to_str()) == Some("html"));
     if let Some(filter) = filter {
         files.retain(|file| fixture_matches_filter(root, file, filter));
     }
-    files.sort();
     Ok(files)
 }
 
@@ -2401,21 +2402,6 @@ fn fixture_matches_filter(root: &Path, fixture: &Path, filter: &str) -> bool {
     } else {
         rel.starts_with(filter)
     }
-}
-
-fn collect_html_into(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
-    for entry in
-        fs::read_dir(path).map_err(|error| format!("failed to read {}: {error}", path.display()))?
-    {
-        let entry = entry.map_err(|error| format!("failed to read directory entry: {error}"))?;
-        let path = entry.path();
-        if path.is_dir() {
-            collect_html_into(&path, files)?;
-        } else if path.extension().and_then(|ext| ext.to_str()) == Some("html") {
-            files.push(path);
-        }
-    }
-    Ok(())
 }
 
 fn write_fixture_goldens(
@@ -5637,6 +5623,10 @@ mod tests {
         ));
         fs::create_dir_all(&root).expect("browser root");
         root
+    }
+
+    fn fri08_c08_t01_ok<T, E: std::fmt::Display>(result: Result<T, E>, context: &str) -> T {
+        result.unwrap_or_else(|error| panic!("{context}: {error}"))
     }
 
     fn centralized_provenance_report_fixture(
@@ -13337,6 +13327,197 @@ for (const [writingMode, direction, start, end, width, height] of [
     }
 
     #[test]
+    fn fri08_c08_t01_generator_traversal_preserves_nested_order_projection_and_html_filtering() {
+        let root = test_browser_root("fri08-c08-t01-order-projection-filter");
+        let fixture_root = root.join("fixtures");
+        fri08_c08_t01_ok(
+            fs::create_dir_all(fixture_root.join("nested/deeper")),
+            "nested fixture directories",
+        );
+        fri08_c08_t01_ok(
+            fs::write(fixture_root.join("zeta.html"), ""),
+            "root HTML fixture",
+        );
+        fri08_c08_t01_ok(
+            fs::write(fixture_root.join("nested/alpha.txt"), ""),
+            "non-HTML fixture",
+        );
+        fri08_c08_t01_ok(
+            fs::write(fixture_root.join("nested/beta.html"), ""),
+            "nested HTML fixture",
+        );
+        fri08_c08_t01_ok(
+            fs::write(fixture_root.join("nested/deeper/alpha.html"), ""),
+            "deeply nested HTML fixture",
+        );
+
+        assert_eq!(
+            fri08_c08_t01_ok(
+                collect_relative_files(&fixture_root),
+                "relative fixture traversal",
+            ),
+            [
+                PathBuf::from("nested/alpha.txt"),
+                PathBuf::from("nested/beta.html"),
+                PathBuf::from("nested/deeper/alpha.html"),
+                PathBuf::from("zeta.html"),
+            ]
+        );
+        assert_eq!(
+            fri08_c08_t01_ok(
+                collect_html(&fixture_root, None),
+                "absolute HTML fixture traversal",
+            ),
+            [
+                fixture_root.join("nested/beta.html"),
+                fixture_root.join("nested/deeper/alpha.html"),
+                fixture_root.join("zeta.html"),
+            ]
+        );
+        assert_eq!(
+            fri08_c08_t01_ok(
+                collect_html(&fixture_root, Some("nested/deeper")),
+                "filtered HTML fixture traversal",
+            ),
+            [fixture_root.join("nested/deeper/alpha.html")]
+        );
+
+        fri08_c08_t01_ok(fs::remove_dir_all(root), "fixture traversal test cleanup");
+    }
+
+    #[cfg(all(unix, not(target_vendor = "apple")))]
+    #[test]
+    fn fri08_c08_t01_generator_traversal_preserves_non_utf8_paths_without_misfiltering() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let root = test_browser_root("fri08-c08-t01-non-utf8");
+        let fixture_root = root.join("fixtures");
+        fri08_c08_t01_ok(fs::create_dir_all(&fixture_root), "fixture directory");
+        let html_name = OsString::from_vec(b"\xff-page.html".to_vec());
+        let other_name = OsString::from_vec(b"\xfe-page.bin".to_vec());
+        fri08_c08_t01_ok(
+            fs::write(fixture_root.join(&html_name), ""),
+            "non-UTF-8 HTML fixture",
+        );
+        fri08_c08_t01_ok(
+            fs::write(fixture_root.join(&other_name), ""),
+            "non-UTF-8 non-HTML fixture",
+        );
+
+        let mut expected_relative = vec![PathBuf::from(&html_name), PathBuf::from(&other_name)];
+        expected_relative.sort();
+        assert_eq!(
+            fri08_c08_t01_ok(
+                collect_relative_files(&fixture_root),
+                "relative non-UTF-8 traversal",
+            ),
+            expected_relative
+        );
+        assert_eq!(
+            fri08_c08_t01_ok(
+                collect_html(&fixture_root, None),
+                "absolute non-UTF-8 HTML traversal",
+            ),
+            [fixture_root.join(&html_name)]
+        );
+
+        fri08_c08_t01_ok(fs::remove_dir_all(root), "non-UTF-8 traversal test cleanup");
+    }
+
+    #[cfg(target_vendor = "apple")]
+    #[test]
+    fn fri08_c08_t01_generator_traversal_preserves_non_ascii_platform_paths_without_misfiltering() {
+        let root = test_browser_root("fri08-c08-t01-non-ascii");
+        let fixture_root = root.join("fixtures");
+        fri08_c08_t01_ok(fs::create_dir_all(&fixture_root), "fixture directory");
+        fri08_c08_t01_ok(
+            fs::write(fixture_root.join("café.html"), ""),
+            "non-ASCII HTML fixture",
+        );
+        fri08_c08_t01_ok(
+            fs::write(fixture_root.join("ébauche.htмl"), ""),
+            "non-HTML Unicode fixture",
+        );
+
+        assert_eq!(
+            fri08_c08_t01_ok(
+                collect_relative_files(&fixture_root),
+                "relative non-ASCII traversal",
+            ),
+            [PathBuf::from("café.html"), PathBuf::from("ébauche.htмl")]
+        );
+        assert_eq!(
+            fri08_c08_t01_ok(
+                collect_html(&fixture_root, None),
+                "absolute non-ASCII HTML traversal",
+            ),
+            [fixture_root.join("café.html")]
+        );
+
+        fri08_c08_t01_ok(fs::remove_dir_all(root), "non-ASCII traversal test cleanup");
+    }
+
+    #[test]
+    fn fri08_c08_t01_generator_traversal_reports_missing_directory_diagnostics() {
+        let root = test_browser_root("fri08-c08-t01-missing");
+        let missing = root.join("missing");
+        let expected_prefix = format!("failed to read {}: ", missing.display());
+
+        let relative_error =
+            collect_relative_files(&missing).expect_err("missing relative traversal should fail");
+        let html_error =
+            collect_html(&missing, None).expect_err("missing absolute HTML traversal should fail");
+
+        assert!(
+            relative_error.starts_with(&expected_prefix),
+            "{relative_error}"
+        );
+        assert!(html_error.starts_with(&expected_prefix), "{html_error}");
+        fri08_c08_t01_ok(
+            fs::remove_dir_all(root),
+            "missing-directory traversal test cleanup",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fri08_c08_t01_generator_traversal_reports_unreadable_directory_diagnostics() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = test_browser_root("fri08-c08-t01-unreadable");
+        let unreadable = root.join("unreadable");
+        fri08_c08_t01_ok(
+            fs::create_dir_all(&unreadable),
+            "unreadable fixture directory",
+        );
+        fri08_c08_t01_ok(
+            fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000)),
+            "remove fixture directory permissions",
+        );
+        let relative_result = collect_relative_files(&unreadable);
+        let html_result = collect_html(&unreadable, None);
+        fri08_c08_t01_ok(
+            fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o700)),
+            "restore fixture directory permissions",
+        );
+
+        let expected_prefix = format!("failed to read {}: ", unreadable.display());
+        let relative_error =
+            relative_result.expect_err("unreadable relative traversal should fail");
+        let html_error = html_result.expect_err("unreadable absolute HTML traversal should fail");
+        assert!(
+            relative_error.starts_with(&expected_prefix),
+            "{relative_error}"
+        );
+        assert!(html_error.starts_with(&expected_prefix), "{html_error}");
+        fri08_c08_t01_ok(
+            fs::remove_dir_all(root),
+            "unreadable-directory traversal test cleanup",
+        );
+    }
+
+    #[test]
     fn collect_html_filter_matches_fixture_folder() {
         let root = std::env::temp_dir().join(format!(
             "surgeist-layout-filter-folder-{}",
@@ -15257,7 +15438,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
             .0;
         assert_eq!(
             sha256_bytes(production.as_bytes()),
-            "9894fad1c36a1563317f985cc56d012ebad35cb9e7daa70c62297d53649f6458"
+            "cc8054c393b7ac8307c033b17bf4aea5eb6cca9a7a75200f58a6cce0de35b526"
         );
     }
 
@@ -15378,7 +15559,7 @@ mustReject("multiple fragments", () => layoutReadyTextNodeData(whitespace, paren
             .0;
         assert_eq!(
             sha256_bytes(production.as_bytes()),
-            "9894fad1c36a1563317f985cc56d012ebad35cb9e7daa70c62297d53649f6458"
+            "cc8054c393b7ac8307c033b17bf4aea5eb6cca9a7a75200f58a6cce0de35b526"
         );
     }
 
@@ -15994,7 +16175,7 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
 
         assert_eq!(
             sha256_bytes(production.as_bytes()),
-            "9894fad1c36a1563317f985cc56d012ebad35cb9e7daa70c62297d53649f6458",
+            "cc8054c393b7ac8307c033b17bf4aea5eb6cca9a7a75200f58a6cce0de35b526",
             "generator production source must match the reviewed C08R correction"
         );
         for (path, expected) in [
