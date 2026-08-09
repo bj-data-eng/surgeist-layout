@@ -1,6 +1,6 @@
-# P01-I08-S01-C07 Validated Whole-Crate Sprawl Containment And Final Candidate
+# P01-I08-S01-C07 Whole-Crate Sprawl Containment I
 
-Status: planned
+Status: draft
 
 Cycle ID: `P01/I08/S01/C07`
 
@@ -12,94 +12,68 @@ Reviewed specification:
 `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`, normalized
 semantic-content SHA-256
 `a636dd9c9b896e2986fd13ab303f8506fba7eec6b0ba909e542eee9dc39770e6`,
-commit `09bab4edc2bbff4aad42469937a328d0724989c0`: the finite structural
-invariants in `FRI-08.14`; verification, responsibility, finding closure,
+commit `09bab4edc2bbff4aad42469937a328d0724989c0`: finite structural
+invariants in `FRI-08.14` and verification, responsibility, finding closure,
 handoff, and acceptance in `FRI-08.15` through `FRI-08.19`.
 
 Reviewed implementation sequence:
 `plans/sequences/P01-I08-S01-grid-subgrid-and-grid-lanes-completeness.md`,
 normalized semantic-content SHA-256
-`b8efd9c6ac235fa167fa06d80c8155b2d494187dac46c06f28985de77b02cbe9`,
-commit `8778ae9487bc1880786a9710b00b7865755d8462`, entry
+`bcda6e13068a0424a9139b7d1933717c43263d23eb080ec39ef4d1e8fd331f94`,
+commit `b55c4db0eb20265f5bf086a50b8cc6f08a5ecf82`, entry
 `P01/I08/S01/C07`.
 
-Bounded outcome: disposition the complete accepted whole-crate sprawl report,
-implement every authorized confirmed mechanical opportunity and both required
-lint-policy corrections without changing behavior, retain the explicit
-generator-architecture exclusion, and publish the final remotely verified
-FRI-08 leaf candidate.
+Bounded outcome: implement the C07 partition of the accepted whole-crate sprawl
+report—`SP-002`, `SP-003`, `SP-004`, `SP-005`, and `SP-011`—with
+characterization-first behavior-preserving consolidation, then publish the
+first sprawl-containment candidate for just-in-time C08 planning.
 
 ## 1 Boundary
 
-The remotely verified C02R candidate at the cycle base is immutable. Local
-`main`, its tracking ref, and observed remote `main` equal the base and the
-worktree is clean. C01 through C06, C06R, and C02R close the eight FRI-08
-behavior findings and carry 1,448 HTML sources, 5,776 comment-free XML outputs,
-the exact 18-source/72-row FRI-08 browser surface, and the sole schema-3
-`all.json` with 5,776 generated, 16 unsupported, three unchanged FRI-07
-expected-fail, zero quarantined, and zero failed-to-generate rows.
+The remotely verified C02R candidate at the cycle base is immutable. It closes
+all eight FRI-08 behavior findings, including the C06R inherited-placement and
+C02R lanes-track-phase corrections, and carries 1,448 HTML inputs, 5,776
+comment-free XML outputs, 72 owned FRI-08 rows, and the schema-3 report with
+5,776 generated, 16 unsupported, three unchanged FRI-07 expected-fail, zero
+quarantined, and zero failed-to-generate rows.
 
-The final initiative sprawl review was a read-only whole-crate review at the
-cycle base, not a commit-range holistic review. It classified all 7,388 tracked
-files and every one of the 1,515 behavior-bearing targets: 53 production Rust
-files, six external test/generator Rust files, 1,448 authored HTML inputs, three
-shell scripts, one JavaScript helper, one CSS baseline, two TOML manifests, and
-the `Justfile`. Generated XML/report output, dependencies, build caches, and
-planning documents were classified but excluded as refactor targets. Both
-offline warning-denied Clippy feature rows passed; Advisory policy is absent;
-owned Rust contained zero unsafe constructs. The review returned
-`REPORT_WITH_ESCALATIONS` with eleven mechanical opportunities and two
-lint-policy escalations.
+The accepted initiative sprawl review classified every one of 7,388 tracked
+files and 1,515 behavior-bearing targets at the cycle base. Both offline
+warning-denied Clippy rows passed, owned Rust had zero unsafe constructs, and
+the verdict was `REPORT_WITH_ESCALATIONS`: eleven mechanical opportunities and
+two lint-policy escalations. Earlier commit-range “sprawl” verdicts are
+superseded because they did not cover the entire crate.
 
-The earlier ordinary inherited-placement estimator and alternate grid-lanes
-final sizing findings are `resolved`. Current ordinary placement enters
-`derive_grid_placement_demand`; the estimator helpers are absent. Ordinary and
-grid-lanes final sizing share one policy-free phase owner; lanes-only final
-sizing helpers and the collection-wide fit-content shortcut are absent. The
-earlier initiative-range “sprawl” verdicts are superseded and supply no closure
-evidence.
+The reviewed sequence provides the disjoint exhaustive partition:
 
-The accepted finite disposition set is:
+- C07 owns `SP-002`, `SP-003`, `SP-004`, `SP-005`, and `SP-011`;
+- future C08 owns `SP-006` through `SP-010`, `SP-012`, `ESC-001`, and
+  `ESC-002`.
 
-| ID | Category and source | C07 disposition |
-| --- | --- | --- |
-| `SP-002` | Repeated visible inline-run transitions in `src/block.rs` around the text, boundary, line-break, and inline-box start branches. | Confirm and consolidate behind one private transition owner after role-specific validation. |
-| `SP-003` | Repeated canonical scroll-source assembly and retained-child reconstruction in `src/block.rs`, `src/flex.rs`, and `src/compute.rs`; natural lower owner `src/scroll.rs`. | Confirm and introduce one policy-named crate-private builder while retaining algorithm-specific contributions and error mapping. |
-| `SP-004` | Duplicate policy-free optional-size/minimum arithmetic in block, flex, and compute; natural owner `src/layout_math.rs`. | Confirm and move the two exact sealed operations to layout math. |
-| `SP-005` | Duplicate root and contextual grid scrollbar-settlement loops in `src/grid/mod.rs`. | Confirm and consolidate through one settlement-loop helper while retaining caller-specific initial state and result projection. |
-| `SP-006` | Duplicate recursive fixture traversal inside `tests/bin/surgeist-layout-generate/generator.rs`. | Confirmed but not authorized for implementation: the immutable initiative envelope permits generator changes only for parser updates, new fixtures, or confirmed genuine bugs. Preserve as a precise deferred generator-owned handoff; do not edit generator production. |
-| `SP-007` | Duplicate ordinary and `calc-size` recursive expression structure in `tests/layout/browser_parity/support.rs`. | Confirm and parse one private structural operation representation with destination-specific lowering. This is an explicitly permitted parser update. |
-| `SP-008` | Duplicate retained-state sinks and atomic batch plumbing in `src/grid_tests.rs`. | Confirm and consolidate test-only retained state and batch preparation. |
-| `SP-009` | Independently reconstructed preorder node identities and duplicate recursive assertion walkers in `src/test_support/grid_layout_comparison.rs`. | Confirm and retain one construction-time identity map or one phase-parameterized walker. |
-| `SP-010` | Duplicate block/flex/grid browser-family discovery, validation, and runners beside existing generic grid-lanes/subgrid helpers in `tests/layout/browser_parity.rs`. | Confirm and route all five families through the existing generic harness without changing fixtures or expected geometry. |
-| `SP-011` | Exact duplicate scroll-geometry helpers and scroll-padding cases in block, flex, and leaf tests. | Confirm and move immutable generic fixture construction/invariant assertions to shared test support while keeping algorithm assertions local. |
-| `SP-012` | `establishes_independent_formatting_context` always returns false, making the matching production subgrid ineligibility variant unreachable. | Confirm and remove the unreachable predicate, branch, and production-only variant; retain oracle capability. |
-| `ESC-001` | `VerticalWritingModeUnsupported` is impossible, yet its `dead_code` expectation and error plumbing remain across grid axis/subgrid callers. | Correct by removing the impossible error/result plumbing and unsupported expectation while preserving every axis formula and eligibility result. |
-| `ESC-002` | Fourteen bare source suppressions exist without adopted central policy: three module-level `dead_code`, ten oracle facade `unused_imports`, and one grid-test `clippy::too_many_arguments`. | Correct by removing unused facade exports/dead scaffolding and replacing the oversized test helper with a typed input; do not add allowances or policy. |
+C07 does not pre-author C08. It preserves the remaining rows, including the
+user-authorized bounded generator traversal consolidation, for the C08 plan
+after this cycle is published. Existing bare source suppressions and impossible
+grid scaffolding are carried unchanged rather than silently accepted; C08 owns
+their correction.
 
-Every source change is behavior-preserving. If characterization exposes a
-behavior, correctness, public-contract, artifact, or input defect, stop that
-task and return it to the coordinator; do not hide it as mechanical cleanup.
+Every C07 edit is behavior-preserving. A characterization failure or evidence
+of a genuine behavior, correctness, public-contract, input, or artifact defect
+stops the owning task before refactoring and returns the exact evidence to the
+coordinator.
 
-Out of scope: new product behavior, public API or compatibility changes,
-authored CSS semantics, root adapters or artifacts, dependency/feature/lockfile/
-MSRV changes, browser execution, generation, HTML/XML/report/manifest edits,
-new fixtures, generator architecture or traversal changes, later FRI-09/F10
-behavior, new lint policy, unsafe, and unrelated cleanup.
+Out of scope: C08-owned rows; behavior or public API changes; dependencies,
+features, lockfile, MSRV, docs, authored fixtures, helper/adapter/generator,
+HTML/XML/report/manifest, browser execution, generation, root/sibling work,
+later FRI-09/F10 behavior, lint policy, unsafe, and unrelated cleanup.
 
 ## 2 Impacts
 
-Public API and observable behavior: unchanged. All new helpers are crate-private
-or test-private. Existing error identities remain unless the state is proven
-unconstructable by `ESC-001`; removing that impossible internal-only error path
-must not change any constructable result.
+Public API, errors, types, reexports, defaults, feature behavior, dependencies,
+MSRV, artifacts, and observable layout: unchanged. Helpers are crate-private or
+test-private and encode policy with named types rather than booleans or sentinel
+optionality.
 
-Dependencies, features, lockfile, MSRV, documentation, examples, root
-integration, finding ownership, authored fixtures, and generated artifacts:
-unchanged. No browser or generation command is authorized. `SP-006` records the
-only generator opportunity and deliberately makes no generator source change.
-
-Frozen artifact/input SHA-256 values are:
+No browser or generator command is authorized. Frozen SHA-256 values are:
 
 - `corpus.toml`:
   `c6e6f1422e14a5e4aa474c143998063ce0de4d0a9123b69875b35a4ed009a8f6`;
@@ -112,199 +86,189 @@ Frozen artifact/input SHA-256 values are:
 - complete XML hash lineage:
   `bad8e418caee72cc62a123dc93efe89fdb07bfb5dee4345f3df7d8fd6fe44fdf`.
 
-Owned Rust remains free of unsafe. C07 adds no `allow` or `expect`; every
-affected existing marker is either retained with current evidence or removed.
+Owned Rust remains free of unsafe. C07 adds no `allow` or `expect` and does not
+weaken or relocate the C08-owned suppression evidence.
 
-## 3 Tasks
+## 3 Shared Task Gate
 
-### 3.1 `P01/I08/S01/C07/T01` Unify Visible Inline-Run State Transitions
+Tasks run in the order below. Each worker first proves its new characterization
+passes on the task base, performs only the named mechanical edit, repeats the
+focused commands, and then runs:
 
-**Files/area:** `src/block.rs` and focused `src/block_tests.rs` characterization.
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
+CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
+CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --features layout-golden-generate --all-targets -- -F unsafe-code -D warnings
+cargo fmt --check
+git diff --check
+```
 
-**Outcome:** retain role-specific scan and validation, then route the four
-visible inline-run starts through one private transition that owns child layout,
-collapsed-margin advance, content/scroll maxima, baselines, cursor/static
-position, float transfer, and collapse-state reset.
+Each task additionally proves exact assigned-file scope, no new `allow` or
+`expect`, zero unsafe matches across the repository-owned Rust manifest, and a
+clean worktree after its logical commit. A required edit outside the exact write
+envelope is a blocker returned before that edit.
 
-**Evidence and acceptance:** first characterize text, explicit line break,
-inline boundary, and inline-box paths in both scalars, including hidden break,
-source indices, margins, floats, baselines, scroll, and invalid-input ordering.
-The characterization passes before and after the refactor. No branch loses a
-role-specific precondition and no new production surface is introduced.
+## 4 Tasks
+
+### 4.1 `P01/I08/S01/C07/T01` Unify Visible Inline-Run Transitions
+
+**Finding:** `SP-002`, high-impact functional duplication with repeated
+multi-responsibility transition plumbing at `src/block.rs:1206-1457`.
+
+**Write envelope:** exactly `src/block.rs` and `src/block_tests.rs`. Depends only
+on the reviewed C07 plan and cycle base. Stop before every other file.
+
+**Outcome:** retain role-specific scan, input validation, and preprocessing,
+then route text, inline boundary, explicit line break, and inline-box starts
+through one private transition owner for collapsed-margin advance, child layout,
+content/scroll maxima, baselines, cursor/static position, float transfer, and
+collapse-state reset.
+
+**Characterization and acceptance:** new `fri08_c07_t01_inline_transition_`
+public-front-door tests cover all four start roles, hidden breaks, source
+indices, margins, floats, baselines, scroll geometry, invalid-input ordering,
+and f32/f64. They pass before and after the edit with exact output/error
+identity. No role-specific precondition moves into the shared transition.
+
+**Focused commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c07_t01_inline_transition_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib block_tests::
+```
 
 **Intended commit:** `refactor(block): unify inline run transitions`.
 
-### 3.2 `P01/I08/S01/C07/T02` Centralize Canonical Scroll Source Assembly
+### 4.2 `P01/I08/S01/C07/T02` Centralize Canonical Scroll Source Assembly
 
-**Files/area:** `src/scroll.rs`, `src/block.rs`, `src/flex.rs`, `src/compute.rs`,
-and focused block/flex/root tests.
+**Finding:** `SP-003`, high-impact functional duplication and ripple coupling in
+`src/block.rs:2999-3126`, `src/flex.rs:3306-3411`,
+`src/compute.rs:1640-1724`, with the lower owner in `src/scroll.rs:2466-2697`.
 
-**Outcome:** add one crate-private retained/source builder parameterized by a
+**Write envelope:** exactly `src/scroll.rs`, `src/block.rs`, `src/flex.rs`,
+`src/compute.rs`, `src/block_tests.rs`, `src/flex_tests.rs`, and
+`src/root_tests.rs`. Depends on clean T01 because `src/block.rs` and its tests
+overlap. Stop before every other production or test file.
+
+**Outcome:** add one crate-private canonical retained/source builder with a
 named range-seed policy. Block, flex, and root retain contribution construction,
 block-only reserved-gutter exclusion, and caller-local error mapping.
 
-**Evidence and acceptance:** characterize existing-geometry fast paths, flow
-axes, settled scrollbars, clips, padding, targets, snapping, origins, child
-reconstruction, and both scalars. Exact public node output and failure identity
-remain unchanged. No policy disappears into booleans or optional sentinel data.
+**Characterization and acceptance:** new `fri08_c07_t02_scroll_source_` tests in
+the three owned test modules cover existing-geometry fast paths, retained-child
+reconstruction, flow axes, settled scrollbar state, clips, padding, targets,
+snapping, origins, block-only gutter exclusion, errors, and both scalars. Exact
+public node output and failure identity pass before and after. No policy becomes
+a boolean, zero sentinel, or ambiguous option.
+
+**Focused commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c07_t02_scroll_source_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib block_tests::
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib flex_tests::
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib root_tests::
+```
 
 **Intended commit:** `refactor(scroll): centralize geometry sources`.
 
-### 3.3 `P01/I08/S01/C07/T03` Consolidate Optional Layout Arithmetic
+### 4.3 `P01/I08/S01/C07/T03` Consolidate Optional Layout Arithmetic
 
-**Files/area:** `src/layout_math.rs`, `src/block.rs`, `src/flex.rs`,
-`src/compute.rs`, and directly affected tests.
+**Finding:** `SP-004`, medium-impact exact duplicate arithmetic in
+`src/block.rs:3923-3949`, `src/flex.rs:4507-4544`, and
+`src/compute.rs:2952-2967`; natural owner `src/layout_math.rs`.
 
-**Outcome:** move the exact componentwise `Size<Option<S>>` and optional-minimum
-operations to sealed layout-math extensions and delete local duplicate traits.
+**Write envelope:** exactly `src/layout_math.rs`, `src/block.rs`, `src/flex.rs`,
+`src/compute.rs`, `src/block_tests.rs`, `src/flex_tests.rs`, and
+`src/root_tests.rs`. Depends on clean T02 because all production files overlap.
+Stop before every other file.
 
-**Evidence and acceptance:** direct f32/f64 characterization proves `None`,
-componentwise maximum, absent-minimum, and finite/non-finite error behavior.
-Call sites retain identical results and evaluation order.
+**Outcome:** move the exact `Size<Option<S>>` componentwise operation and
+optional-minimum floor to sealed layout-math extensions; delete the local
+duplicate traits and retain all call-site evaluation order.
+
+**Characterization and acceptance:** new `fri08_c07_t03_optional_math_` tests
+cover `None`, componentwise maximum, absent minimum, finite/non-finite error
+identity, f32/f64, and direct algorithm results. They pass before and after with
+no public surface.
+
+**Focused commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c07_t03_optional_math_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib layout_math
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib block_tests::
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib flex_tests::
+```
 
 **Intended commit:** `refactor(math): centralize optional size floors`.
 
-### 3.4 `P01/I08/S01/C07/T04` Unify Grid Scrollbar Settlement
+### 4.4 `P01/I08/S01/C07/T04` Unify Grid Scrollbar Settlement
 
-**Files/area:** `src/grid/mod.rs` and focused `src/grid_tests.rs`.
+**Finding:** `SP-005`, medium-impact duplicated root/context settlement loops at
+`src/grid/mod.rs:126-168` and `src/grid/mod.rs:520-556`.
 
-**Outcome:** replace the root and contextual/subgrid settlement loops with one
-private helper accepting explicit initial state, parent context, and measurement
-boundary, returning `GridComputeResult`. Root result projection remains outside.
+**Write envelope:** exactly `src/grid/mod.rs` and `src/grid_tests.rs`. Depends on
+clean T03 only for ordered attribution and is otherwise independent. Stop before
+every other grid or test-support file.
 
-**Evidence and acceptance:** characterize caller-settled root state versus
-contextual `INITIAL`, geometry/no-geometry termination, error mapping, cache,
-both scalars, inherited contexts, and scrollbar convergence. Exact iteration and
-publication semantics remain unchanged.
+**Outcome:** replace both loops with one private helper accepting explicit
+initial state, parent context, and measurement boundary and returning
+`GridComputeResult`. Root result projection remains outside the helper.
+
+**Characterization and acceptance:** new `fri08_c07_t04_grid_settlement_` tests
+cover caller-settled root versus contextual `INITIAL`, geometry/no-geometry
+termination, exact error mapping, cache, both scalars, inherited contexts, and
+scrollbar convergence. Iteration, publication, and error identity pass unchanged
+before and after.
+
+**Focused commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c07_t04_grid_settlement_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c02_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c06_collapsed_gutter_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c06r_inherited_placement_
+```
 
 **Intended commit:** `refactor(grid): unify scrollbar settlement`.
 
-### 3.5 `P01/I08/S01/C07/T05` Unify Browser Expression And Family Harnesses
+### 4.5 `P01/I08/S01/C07/T05` Share Scroll Geometry Test Fixtures
 
-**Files/area:** `tests/layout/browser_parity/support.rs` and
-`tests/layout/browser_parity.rs`. Generator production and all fixtures are
-frozen.
+**Finding:** `SP-011`, low-impact exact duplicate test helpers at
+`src/block_tests.rs:18-54`, `src/flex_tests.rs:5433-5469`, and duplicate
+scroll-padding cases in block, flex, and leaf tests.
 
-**Outcome:** parse ordinary and `calc-size` recursive min/max/clamp structure
-through one private structural representation with destination-specific leaves;
-route block, flex, grid, grid-lanes, and subgrid fixture families through one
-generic discovery/validation/execution harness.
+**Write envelope:** exactly new `src/test_support/scroll_geometry.rs`,
+`src/test_support/mod.rs`, `src/lib_tests.rs`, `src/block_tests.rs`,
+`src/flex_tests.rs`, and `src/leaf_tests.rs`. Depends on clean T02 because the
+behavior-sensitive scroll characterization settles first. Stop before production
+code, another test-support module, or another test file.
 
-**Evidence and acceptance:** preserve keyword domains, recursion depth 64,
-affine and omitted-endpoint rules, arity and exact diagnostics, output types,
-canonical paths, duplicate/missing/misplaced rejection, family topology checks,
-and exact comparison. All 1,448 HTML inputs and 5,776 XML outputs remain
-byte-frozen; no generator/browser/generation command runs.
+**Outcome:** move immutable generic scroll input construction and invariant
+assertions to the new test-only module. Algorithm-specific runners, expected
+geometry, and behavior assertions remain local.
 
-**Intended commit:** `refactor(parity): unify parser and family harnesses`.
+**Characterization and acceptance:** new `fri08_c07_t05_scroll_fixture_` tests
+prove f32/f64 selection, every `ComputeInputOf` field, site/operation/invariant
+identity, Auto/value edge cases, and exact scroll-padding rows before extraction;
+the same tests and original cases pass afterward. Source inventory records the
+new owned Rust module. No production-visible surface or weakened assertion.
 
-### 3.6 `P01/I08/S01/C07/T06` Consolidate Atomic Grid Test Retention
+**Focused commands:**
 
-**Files/area:** `src/grid_tests.rs` only.
-
-**Outcome:** replace three duplicate retained-state stores and batch preparation
-paths with one private generic retained store and shared preparation helper;
-local trees retain measurement behavior and trait ownership.
-
-**Evidence and acceptance:** preserve invalidation-first order, source
-association, cache context, failure non-publication, commit replacement, and
-cold/warm reuse in both scalars. This is test support only and must not weaken
-assertions or expose production surface.
-
-**Intended commit:** `refactor(grid-tests): share retained batch state`.
-
-### 3.7 `P01/I08/S01/C07/T07` Retain One Grid Comparison Identity Walk
-
-**Files/area:** `src/test_support/grid_layout_comparison.rs` and focused grid
-comparison consumers in `src/grid_tests.rs` only when characterization requires.
-
-**Outcome:** retain construction-time node identity once or use one
-phase-parameterized recursive walker for unrounded and final expectations.
-
-**Evidence and acceptance:** preserve preorder IDs, measurement attachment,
-optional expectations, phase separation, tolerance, and diagnostics for nested
-trees. The helper remains test-only and every existing comparison assertion is
-equally strong.
-
-**Intended commit:** `refactor(test-support): unify grid comparison walk`.
-
-### 3.8 `P01/I08/S01/C07/T08` Share Scroll Geometry Test Fixtures
-
-**Files/area:** existing shared test support plus `src/block_tests.rs`,
-`src/flex_tests.rs`, and `src/leaf_tests.rs`.
-
-**Outcome:** move exact immutable scroll-geometry input construction and
-invariant assertions to shared generic test support while retaining each
-algorithm's runner and behavior assertions locally.
-
-**Evidence and acceptance:** preserve f32/f64 selection, every `ComputeInputOf`
-field, site/operation/invariant identity, Auto/value edge cases, and exact
-scroll-padding cases. No production code or behavior changes.
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri08_c07_t05_scroll_fixture_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib block_tests::
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib flex_tests::
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib leaf_tests::
+```
 
 **Intended commit:** `refactor(test-support): share scroll fixtures`.
 
-### 3.9 `P01/I08/S01/C07/T09` Remove Impossible Grid Scaffolding
+## 5 Final Verification And Completion
 
-**Files/area:** `src/grid/axis.rs`, `src/grid/subgrid.rs`, and only the direct
-grid callers/tests needed to remove impossible result plumbing; oracle capability
-remains frozen.
-
-**Outcome:** make `map_grid_axis` infallible, remove
-`VerticalWritingModeUnsupported`, its unsupported `dead_code` expectation, and
-all now-impossible propagation. Remove the always-false production independent-
-formatting-context predicate, branch, and production-only ineligibility variant.
-
-**Evidence and acceptance:** first characterize every horizontal, vertical, and
-sideways axis formula, both scalars, all current subgrid eligibility results, and
-error ordering around independent checks. Structural evidence proves the removed
-states are unconstructable. No oracle capability, public error, constructable
-result, or production eligibility changes.
-
-**Intended commit:** `refactor(grid): remove impossible axis states`.
-
-### 3.10 `P01/I08/S01/C07/T10` Remove Unowned Source Suppressions
-
-**Files/area:** `src/test_support/mod.rs`,
-`src/test_support/oracle/grid/mod.rs`, `src/grid_tests.rs`, and the smallest
-direct test-support consumers needed to eliminate the fourteen reported bare
-allows. Stop before production behavior.
-
-**Outcome:** delete unused oracle facade reexports and dead test scaffolding;
-replace the oversized test helper argument list with one typed test input. Do
-not add, move, narrow, or convert an `allow`; do not invent central policy.
-
-**Evidence and acceptance:** the exact fourteen bare allows are absent, no new
-allow/expect exists, the adopted Required matrix remains warning-free, and test
-coverage/diagnostics are not weakened. Any still-needed facade capability must
-be consumed directly rather than hidden by suppression.
-
-**Intended commit:** `refactor(test-support): remove source suppressions`.
-
-### 3.11 `P01/I08/S01/C07/T11` Final Disposition And Candidate Evidence
-
-**Files/area:** no production implementation. Coordinator-owned cycle status and
-final evidence only after T01 through T10 are reviewed and integrated.
-
-**Outcome:** prove every whole-crate report row has exactly one final disposition:
-implemented and characterized for `SP-002` through `SP-005` and `SP-007` through
-`SP-012`; corrected for `ESC-001` and `ESC-002`; explicitly deferred by the
-immutable generator boundary for `SP-006`; and resolved for the two prior
-behavior findings. No unrecorded sprawl item remains.
-
-**Acceptance:** full verification, task verdicts, one fresh holistic C07 review,
-artifact/input hashes, exact scope, suppression/unsafe evidence, clean worktree,
-publication, and remote readback all pass.
-
-## 4 Verification
-
-Each behavior-sensitive task proves pre-change characterization before source
-editing and repeats it afterward. Each task runs its focused selector, directly
-affected module controls, default package tests, strict warning-denied Clippy,
-format, diff, exact scope, no-new-suppression, and unsafe evidence. Browser
-parser/harness work additionally runs parser and layout parity tests without
-browser or generation.
-
-After every task review is clean and the cycle is integrated, run at minimum:
+After all five exact task ranges have clean independent task reviews, run:
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_c07_
@@ -321,31 +285,15 @@ cargo fmt --check
 git diff --check
 ```
 
-Also prove the exact reviewed task scopes, frozen browser tree and artifact/input
-hashes, all 5,776 XML files comment-free, the exact report buckets, absence of
-new `allow`/`expect`, removal of the fourteen reported bare allows and unsupported
-grid-axis marker, zero unsafe matches across every owned Rust file, and a clean
-worktree. No browser, generation, acquisition, artifact edit, dependency change,
-or generator production change is permitted.
+Also prove exact task scopes, unchanged generator/browser tree, frozen artifact
+and input hashes, 5,776 comment-free XML files, exact report buckets, no new
+`allow`/`expect`, zero unsafe across owned Rust, and a clean worktree. A fresh
+holistic reviewer must return clean for the exact C07 cycle range.
 
-## 5 Completion
-
-The canonical worker, task-review, correction/re-review, status, final-check,
-holistic-review, publication, readback, and cleanup lifecycle applies to every
-implementation task and the composed cycle. C07 acceptance is:
-
-1. the accepted whole-crate inventory has complete, durable disposition evidence;
-2. ten authorized task boundaries close all implementable opportunities and
-   both escalations without behavior, API, artifact, dependency, or feature drift;
-3. the sole generator opportunity is explicitly preserved as out-of-envelope
-   handoff rather than implemented or silently lost;
-4. every `FRI-08.14` invariant and all eight FRI-08 behavior closures remain true;
-5. all 72 owned rows, FRI-09/F10 controls, centralized provenance, public API
-   removal, and frozen C06 artifacts remain exact;
-6. full verification and a fresh holistic review are clean without browser or
-   generation; and
-7. the final candidate is published and local `main`, tracking, and observed
-   remote `main` are read back at one immutable SHA, followed by the complete
-   59-finding audit and leaf/root handoff.
-
-No blocker is currently known.
+C07 completes only after `SP-002`, `SP-003`, `SP-004`, `SP-005`, and `SP-011`
+each have one implemented and characterized disposition; all eight FRI-08
+behavior closures, 72 rows, FRI-09/F10 controls, public API removal, provenance,
+and artifacts remain exact; the candidate is published and local `main`, its
+tracking ref, and observed remote `main` are read back at one SHA. The handoff
+then carries the untouched C08 rows and exact reviewed evidence into the
+just-in-time C08 plan. No blocker is currently known.
