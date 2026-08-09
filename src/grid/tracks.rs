@@ -834,11 +834,12 @@ where
                 item_inherits_parent_axis(&child_style, *item, GridAxisKind::Row)
             });
         let contributes_column = !inherited_column_subgrid
-            && !scroll_container_auto_minimum_zero_for_grid_axis(
+            && (!scroll_container_auto_minimum_zero_for_grid_axis(
                 &child_style,
                 grid.sizing_flow_axes,
                 GridAxisKind::Column,
-            )
+            ) || (inherited_row_subgrid
+                && logical_available.inline == AvailableOf::MAX_CONTENT))
             && column_span_tracks
                 .is_some_and(|tracks| tracks.iter().any(track_accepts_intrinsic_contribution));
         let align_self = child_style
@@ -850,11 +851,12 @@ where
             .or(style.justify_items)
             .unwrap_or(AlignItems::Stretch);
         let contributes_row = !inherited_row_subgrid
-            && !scroll_container_auto_minimum_zero_for_grid_axis(
+            && (!scroll_container_auto_minimum_zero_for_grid_axis(
                 &child_style,
                 grid.sizing_flow_axes,
                 GridAxisKind::Row,
-            )
+            ) || (inherited_column_subgrid
+                && logical_available.block == AvailableOf::MAX_CONTENT))
             && row_span_tracks
                 .is_some_and(|tracks| tracks.iter().any(track_accepts_intrinsic_contribution));
         let row_baseline_candidate = !inherited_row_subgrid
@@ -2158,7 +2160,13 @@ where
         ) {
             continue;
         }
-        if scroll_container_auto_minimum_zero(&child_style, input.constants.flow_axes, input.axis) {
+        if axis_available(input.available, input.axis) != AvailableOf::MAX_CONTENT
+            && scroll_container_auto_minimum_zero(
+                &child_style,
+                input.constants.flow_axes,
+                input.axis,
+            )
+        {
             continue;
         }
         let start = leaf.ancestor_span.start - 1;

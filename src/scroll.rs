@@ -1262,6 +1262,7 @@ impl<S: LayoutScalar> From<ScrollRectErrorOf<S>> for ScrollContributionErrorOf<S
 enum ContainerRangeBasis {
     PaddingBox,
     Scrollport,
+    ScrollContainerAxes(UsedOverflow),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1419,6 +1420,10 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
         self.container_range_basis = ContainerRangeBasis::Scrollport;
     }
 
+    fn exclude_reserved_gutter_from_scroll_container_axes(&mut self, overflow: UsedOverflow) {
+        self.container_range_basis = ContainerRangeBasis::ScrollContainerAxes(overflow);
+    }
+
     pub(crate) fn record_final_in_flow_end(
         &mut self,
         flow_axes: FlowAxes,
@@ -1503,10 +1508,20 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
 
     #[must_use]
     fn range_overflow(self, scrollport: ScrollRectOf<S>) -> PhysicalContributionBoundsOf<S> {
-        let container_seed = match self.container_range_basis {
+        let mut container_seed = match self.container_range_basis {
             ContainerRangeBasis::PaddingBox => self.container_seed,
             ContainerRangeBasis::Scrollport => PhysicalContributionBoundsOf::from_rect(scrollport),
+            ContainerRangeBasis::ScrollContainerAxes(_) => self.container_seed,
         };
+        if let ContainerRangeBasis::ScrollContainerAxes(overflow) = self.container_range_basis {
+            let scrollport = PhysicalContributionBoundsOf::from_rect(scrollport);
+            if matches!(overflow.x().value(), Overflow::Scroll | Overflow::Auto) {
+                container_seed.x = scrollport.x;
+            }
+            if matches!(overflow.y().value(), Overflow::Scroll | Overflow::Auto) {
+                container_seed.y = scrollport.y;
+            }
+        }
         self.overflow_from_container_seed(container_seed)
     }
 
@@ -2634,6 +2649,7 @@ pub(crate) fn canonical_measured_leaf_scroll_geometry<S: LayoutScalar>(
     )
     .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)?;
     let mut contributions = ScrollContributionAccumulatorOf::new(boxes.padding_box);
+    contributions.exclude_reserved_gutter_from_scroll_container_axes(used_overflow);
     contributions.include_direct_line(measured_content);
     for axis in [LogicalAxis::Inline, LogicalAxis::Block] {
         let side = match axis {

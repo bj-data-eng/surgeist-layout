@@ -3274,6 +3274,452 @@ fn fri08_c04_baseline_cache_error_nonfinite_retry_and_rollback_are_scalar_stable
     assert_fri08_c04_baseline_cache_and_failures_are_atomic::<f64>();
 }
 
+#[test]
+fn fri08_c04_overflow_frozen_grid_and_subgrid_controls_match_public_layout() {
+    for (suite, source) in [
+        ("grid", "grid_overflow_inline_axis_scroll"),
+        ("subgrid", "subgrid_overflow_hidden_does_not_prohibit"),
+        (
+            "subgrid",
+            "subgrid_sibling_overflow_footer_second_matches_first",
+        ),
+        (
+            "subgrid",
+            "subgrid_sibling_overflow_footer_third_matches_first",
+        ),
+    ] {
+        for variant in [
+            "border_box_ltr",
+            "border_box_rtl",
+            "content_box_ltr",
+            "content_box_rtl",
+        ] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/layout/browser_parity/xml")
+                .join(suite)
+                .join(format!("{source}__{variant}.xml"));
+            let golden = fri06_c12_t08_browser_front_door::Golden::parse_file(&path)
+                .unwrap_or_else(|error| panic!("{} must parse: {error}", path.display()));
+            fri06_c12_t08_browser_front_door::assert_surgeist_matches(&golden)
+                .unwrap_or_else(|error| panic!("{} must match: {error}", path.display()));
+        }
+    }
+}
+
+fn fri08_c04_overflow_inline_scroll_output<S: LayoutScalar>() -> NodeOutputOf<S> {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(50.0)),
+                    PreferredSizeOf::px(scalar(50.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Flex,
+                overflow: ComputedOverflow::try_new(Overflow::Scroll, Overflow::Scroll)
+                    .expect("scroll pair is normalized"),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(15.0))
+                    .expect("finite scrollbar width"),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(2, Size::new(scalar(100.0), scalar(10.0)));
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("max-content viewport is valid"),
+    )
+    .expect("inline scroll grid layout succeeds");
+    fri08_c01_placement_output(&batch, 2)
+}
+
+fn assert_fri08_c04_overflow_inline_scroll_range<S: LayoutScalar>() {
+    let output = fri08_c04_overflow_inline_scroll_output::<S>();
+    let geometry = output
+        .scroll_geometry
+        .expect("performed grid child retains scroll geometry");
+    let range = geometry.physical_range();
+    assert_eq!(output.size, Size::splat(S::from_f64(50.0)));
+    assert_eq!(range.x().maximum() - range.x().minimum(), S::from_f64(65.0));
+    assert_eq!(
+        range.y().maximum() - range.y().minimum(),
+        S::ZERO,
+        "a horizontal overflow with forced gutters must not invent block-axis scroll range"
+    );
+}
+
+#[test]
+fn fri08_c04_overflow_inline_scrollbar_settles_without_block_range_in_both_scalars() {
+    assert_fri08_c04_overflow_inline_scroll_range::<f32>();
+    assert_fri08_c04_overflow_inline_scroll_range::<f64>();
+}
+
+fn assert_fri08_c04_overflow_non_grid_leaf_range<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(50.0)),
+                    PreferredSizeOf::px(scalar(50.0)),
+                ),
+                overflow: ComputedOverflow::try_new(Overflow::Scroll, Overflow::Scroll)
+                    .expect("scroll pair is normalized"),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(15.0))
+                    .expect("finite scrollbar width"),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(1, Size::new(scalar(100.0), scalar(10.0)));
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("max-content viewport is valid"),
+    )
+    .expect("non-grid measured leaf layout succeeds");
+    let geometry = fri08_c01_placement_output(&batch, 1)
+        .scroll_geometry
+        .expect("performed measured leaf retains geometry");
+    let range = geometry.physical_range();
+    assert_eq!(
+        range.y().maximum() - range.y().minimum(),
+        S::ZERO,
+        "forced horizontal gutter is not block-axis scrollable overflow"
+    );
+}
+
+#[test]
+fn fri08_c04_overflow_canonical_measured_leaf_defect_is_not_grid_specific() {
+    assert_fri08_c04_overflow_non_grid_leaf_range::<f32>();
+    assert_fri08_c04_overflow_non_grid_leaf_range::<f64>();
+}
+
+fn assert_fri08_c04_overflow_non_grid_container_child_range<S: LayoutScalar>(display: Display) {
+    let scalar = S::from_f64;
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(50.0)),
+                    PreferredSizeOf::px(scalar(50.0)),
+                ),
+                align_items: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(50.0)),
+                    PreferredSizeOf::px(scalar(50.0)),
+                ),
+                overflow: ComputedOverflow::try_new(Overflow::Scroll, Overflow::Scroll)
+                    .expect("scroll pair is normalized"),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(15.0))
+                    .expect("finite scrollbar width"),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(2, Size::new(scalar(100.0), scalar(10.0)));
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("max-content viewport is valid"),
+    )
+    .unwrap_or_else(|error| panic!("{display:?} child layout succeeds: {error:?}"));
+    let geometry = fri08_c01_placement_output(&batch, 2)
+        .scroll_geometry
+        .expect("performed non-grid child retains geometry");
+    let range = geometry.physical_range();
+    assert_eq!(
+        range.y().maximum() - range.y().minimum(),
+        S::ZERO,
+        "{display:?} consumes the canonical measured-leaf range"
+    );
+}
+
+#[test]
+fn fri08_c04_overflow_block_and_flex_consume_canonical_measured_leaf_range() {
+    for display in [Display::Block, Display::Flex] {
+        assert_fri08_c04_overflow_non_grid_container_child_range::<f32>(display);
+        assert_fri08_c04_overflow_non_grid_container_child_range::<f64>(display);
+    }
+}
+
+fn fri08_c04_overflow_ordinary_intrinsic_inline_size<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+    overflow: Overflow,
+    available_inline: AvailableOf<S>,
+) -> S {
+    let scalar = S::from_f64;
+    let flow_axes = FlowAxes::new(writing_mode, direction);
+    let measured = flow_axes.physical_size(LogicalSizeOf::new(scalar(50.0), scalar(10.0)));
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::InlineGrid,
+                writing_mode,
+                direction,
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO],
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                writing_mode,
+                direction,
+                overflow: ComputedOverflow::try_new(overflow, overflow)
+                    .expect("overflow pair is normalized"),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(2, measured);
+    let available = flow_axes.physical_size(LogicalSizeOf::new(
+        available_inline,
+        AvailableOf::MAX_CONTENT,
+    ));
+    let batch = compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(available).expect("intrinsic viewport is valid"),
+    )
+    .expect("ordinary intrinsic grid layout succeeds");
+    flow_axes
+        .logical_size(fri08_c01_placement_output(&batch, 1).size)
+        .inline
+}
+
+fn assert_fri08_c04_overflow_ordinary_intrinsic_phases<S: LayoutScalar>() {
+    let scalar = S::from_f64;
+    for writing_mode in [WritingMode::HorizontalTb, WritingMode::VerticalRl] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            for overflow in [
+                Overflow::Visible,
+                Overflow::Clip,
+                Overflow::Hidden,
+                Overflow::Scroll,
+                Overflow::Auto,
+            ] {
+                let expected_maximum = if matches!(overflow, Overflow::Visible | Overflow::Clip) {
+                    scalar(50.0)
+                } else {
+                    S::ZERO
+                };
+                assert_eq!(
+                    fri08_c04_overflow_ordinary_intrinsic_inline_size::<S>(
+                        writing_mode,
+                        direction,
+                        overflow,
+                        AvailableOf::MAX_CONTENT,
+                    ),
+                    expected_maximum,
+                    "{writing_mode:?} {direction:?} {overflow:?} ordinary automatic minimum"
+                );
+                let expected_minimum = if overflow == Overflow::Visible {
+                    scalar(50.0)
+                } else {
+                    S::ZERO
+                };
+                assert_eq!(
+                    fri08_c04_overflow_ordinary_intrinsic_inline_size::<S>(
+                        writing_mode,
+                        direction,
+                        overflow,
+                        AvailableOf::MIN_CONTENT,
+                    ),
+                    expected_minimum,
+                    "{writing_mode:?} {direction:?} {overflow:?} automatic minimum"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fri08_c04_overflow_ordinary_auto_minimum_and_max_content_eligibility_are_distinct() {
+    assert_fri08_c04_overflow_ordinary_intrinsic_phases::<f32>();
+    assert_fri08_c04_overflow_ordinary_intrinsic_phases::<f64>();
+}
+
+fn fri08_c04_overflow_hidden_subgrid_batch<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let scalar = S::from_f64;
+    let flow_axes = FlowAxes::new(writing_mode, direction);
+    let fixed = flow_axes
+        .physical_size(LogicalSizeOf::new(scalar(50.0), scalar(50.0)))
+        .map(PreferredSizeOf::px);
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [4])
+        .children(4, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::InlineGrid,
+                writing_mode,
+                direction,
+                grid_template_columns: vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO],
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                writing_mode,
+                direction,
+                size: fixed.clone(),
+                grid_column: GridPlacement::try_line(1).expect("first column"),
+                grid_row: GridPlacement::try_line(1).expect("first row"),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode,
+                direction,
+                overflow: ComputedOverflow::try_new(Overflow::Hidden, Overflow::Hidden)
+                    .expect("hidden pair is normalized"),
+                grid_template_rows: subgrid_track_of(),
+                grid_column: GridPlacement::try_line(2).expect("second column"),
+                grid_row: GridPlacement::try_line_span(1, 2).expect("two inherited rows"),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                writing_mode,
+                direction,
+                size: fixed,
+                grid_row: GridPlacement::try_line(2).expect("second inherited row"),
+                ..NodeInputOf::default()
+            },
+        );
+    compute_layout(
+        &tree,
+        1,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("max-content viewport is valid"),
+    )
+    .expect("hidden inherited subgrid layout succeeds")
+}
+
+fn assert_fri08_c04_overflow_hidden_subgrid_intrinsic_size<S: LayoutScalar>() {
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let batch = fri08_c04_overflow_hidden_subgrid_batch::<S>(writing_mode, direction);
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let root = fri08_c01_placement_output(&batch, 1);
+            let subgrid = fri08_c01_placement_output(&batch, 3);
+            assert_eq!(
+                flow_axes.logical_size(root.size),
+                LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(100.0)),
+                "hidden overflow preserves the standalone-axis max-content contribution"
+            );
+            assert_eq!(
+                flow_axes.logical_size(subgrid.size),
+                LogicalSizeOf::new(S::from_f64(50.0), S::from_f64(100.0))
+            );
+        }
+    }
+}
+
+#[test]
+fn fri08_c04_overflow_hidden_subgrid_preserves_standalone_intrinsic_size_all_flows_and_scalars() {
+    assert_fri08_c04_overflow_hidden_subgrid_intrinsic_size::<f32>();
+    assert_fri08_c04_overflow_hidden_subgrid_intrinsic_size::<f64>();
+}
+
+fn assert_fri08_c04_overflow_atomic_failures<S: LayoutScalar>() {
+    let mut tree = Fri08C03NestedAtomicTree::<S>::new();
+    for node in [2, 3, 4, 5] {
+        let mut style = tree.tree.node_input(node).clone();
+        style.overflow = match node {
+            2 => ComputedOverflow::try_new(Overflow::Visible, Overflow::Clip),
+            3 => ComputedOverflow::try_new(Overflow::Hidden, Overflow::Hidden),
+            4 => ComputedOverflow::try_new(Overflow::Scroll, Overflow::Scroll),
+            5 => ComputedOverflow::try_new(Overflow::Auto, Overflow::Auto),
+            _ => unreachable!("the overflow matrix has four selected nodes"),
+        }
+        .expect("overflow pair is normalized");
+        style.item_order = ItemOrder::new(if node % 2 == 0 { 7 } else { -7 });
+        tree.tree
+            .insert_input(node, LayoutInputOf::box_input(style));
+    }
+    let request = Fri08C03NestedAtomicTree::<S>::request();
+    let cold = compute_layout(&tree, 1, request).expect("cold overflow composition succeeds");
+    let cold_final = cold.final_entries().to_vec();
+    cold.apply_to(&mut tree)
+        .expect("cold overflow batch commits atomically");
+
+    tree.cache_queries.borrow_mut().clear();
+    let warm = compute_layout(&tree, 1, request).expect("warm overflow composition succeeds");
+    assert_eq!(warm.final_entries(), cold_final);
+    assert!(tree.cache_queries.borrow().iter().any(|(_, hit)| *hit));
+
+    for mode in [
+        Fri08C03NestedMeasureMode::ProviderError,
+        Fri08C03NestedMeasureMode::NonFinite,
+    ] {
+        tree.measure_mode.set(mode);
+        let retained = tree.retained.clone();
+        let error = compute_layout_invalidated(&tree, 1, request, &[4])
+            .expect_err("descendant failure returns no completed overflow batch");
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(4));
+        assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+        assert_eq!(tree.retained, retained, "failure rolls back retained state");
+    }
+}
+
+#[test]
+fn fri08_c04_overflow_order_cache_provider_nonfinite_and_rollback_are_scalar_stable() {
+    assert_fri08_c04_overflow_atomic_failures::<f32>();
+    assert_fri08_c04_overflow_atomic_failures::<f64>();
+}
+
 fn assert_fri08_c03_intrinsic_fixed_content_gap_distribution<S: LayoutScalar>() {
     let scalar = S::from_f64;
     let input = LaneIntrinsicSizingInputOf::<S> {
