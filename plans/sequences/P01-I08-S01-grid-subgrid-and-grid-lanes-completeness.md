@@ -8,8 +8,8 @@ Owning repository: `surgeist-layout`
 
 This sequence implements the independently reviewed specification at
 `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`, SHA-256
-`150c26e6c5b5fa703f090e861261ea2f03a7662caf4f83dfa52f49e40accb0ba`,
-committed as `c7d10c23c0cdfebfba6a6606d9ea5b89352572f5`.
+`a636dd9c9b896e2986fd13ab303f8506fba7eec6b0ba909e542eee9dc39770e6`,
+committed as `09bab4edc2bbff4aad42469937a328d0724989c0`.
 
 The specification owns behavior, public API, compatibility, ownership,
 artifacts, errors, and acceptance. This sequence owns only durable dependency
@@ -31,7 +31,10 @@ The exact eighteen-source, 72-row browser surface and the single unfiltered
 existing-pinned generation are owned by `FRI-08.13`. Scoped generation may
 diagnose settled input while an owning cycle is in progress, but it is not
 acceptance evidence and writes no report. All behavior, adapter, helper, HTML,
-manifest, and provenance inputs settle before the one full run in C06.
+manifest, and provenance inputs settle before the one full run in C06. If that
+authoritative run exposes a production mismatch while its artifacts validate,
+the exact owning product contract is corrected browser-free and the valid
+artifacts are retained; no unchanged-input replacement run is permitted.
 
 Repository-wide `just parity-all` remains the FRI-13 aggregate release gate.
 FRI-08 runs its exact owned rows and keeps FRI-09 baseline and FRI-10 positioned
@@ -88,7 +91,8 @@ minimums.
 **Bounded outcome:** Carry base size, growth limit, fit-content limit, flex
 factor, auto-max eligibility, and auto-fit origin through one row/column solver.
 Collapse ordinary auto-fit from placed occupancy with zero sizes and collapsed
-adjacent gutters. Integrate fit-content into ordinary intrinsic/spanning/flex
+adjacent gutters that coincide into one shared interior gap and no outer-edge
+gap. Integrate fit-content into ordinary intrinsic/spanning/flex
 phases and stretch every non-collapsed auto maximum from positive definite free
 space.
 
@@ -190,30 +194,36 @@ four variants derive 72 unique rows; no fixture-name or expected-geometry
 dispatch, new parser layer, dependency, feature, suppression, or generated
 artifact delta exists.
 
-**Handoff:** C06 receives behavior-complete, documented, immutable browser
-inputs whose only remaining operation is authoritative full generation and
-read-only validation.
+**Handoff:** C06 receives documented, immutable browser inputs for authoritative
+full generation and exact production comparison.
 
 ### 3.6 `P01/I08/S01/C06` Browser Artifact Candidate
 
-**Specification sources:** complete `FRI-08.13`; artifact, verification,
-architecture, finding, handoff, and acceptance portions of `FRI-08.14` through
-`FRI-08.19`.
+**Specification sources:** corrected `FRI-08.3.2`, `D-07`, and `FRI-08.8.1`;
+complete `FRI-08.13`; artifact, verification, architecture, finding, handoff,
+and acceptance portions of `FRI-08.14` through `FRI-08.19`.
 
-**Prerequisites:** C05 complete and remotely verified; production, helper,
-adapter, HTML, manifest, provenance schema, and expected geometry inputs are
-settled and frozen.
+**Prerequisites:** C05 complete and remotely verified; helper, adapter, HTML,
+case records, provenance schema, browser inputs, and expected geometry are
+settled and frozen. The sole C06 full generation has completed successfully
+under its first reviewed plan, and its generated state is preserved without a
+commit, cleanup, manual edit, or second invocation.
 
-**Entry state:** Ten new sources have no checked-in XML or report lineage; the
-base report still contains 5,736 generated rows and its old manifest/helper
-hashes.
+**Entry state:** The successful ExistingPinned run produced the exact 40 new
+outputs and a valid 5,776-row sole report. Exact owned parity then exposed one
+production defect: the interior collapsed auto-fit repetition erases the one
+coincident `10px` gutter required by corrected `D-07`, returning x `40` where
+the authoritative XML requires x `50`.
 
-**Bounded outcome:** Run exactly one unfiltered full existing-pinned generation
-through the authoritative generator, producing the 40 new outputs and the sole
-schema-3 report. Preserve comment-free XML and centralized provenance, the 16
-unrelated unsupported rows, and the three FRI-07 expected-fail records. Add no
-FRI-08 expected fail, quarantine, or failed-to-generate row. Validate all
-artifacts and the exact owned parity set read-only after generation.
+**Bounded outcome:** Adopt the already-derived exact 40 outputs and sole
+schema-3 report, then correct the ordinary boundary-gutter carrier so a
+contiguous interior collapsed run retains exactly one shared gap between its
+nearest non-collapsed tracks and outer collapsed runs retain none. Propagate the
+same carrier through sizing, alignment, spans, absolute areas, inherited and
+reversed subgrid views, baselines, and overflow. Add direct RED/GREEN and exact
+72-row evidence. Preserve comment-free centralized provenance, the 16 unrelated
+unsupported rows, and the three FRI-07 expected-fail records. Add no FRI-08
+exception. Do not alter browser inputs or invoke generation again.
 
 **Observable exit evidence:** Subject to the base-drift rule, the report has
 5,776 generated XML, 16 unsupported variants, three unchanged expected-fail
