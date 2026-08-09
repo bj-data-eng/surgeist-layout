@@ -274,21 +274,58 @@ remains green. The residual estimator is absent rather than deferred as sprawl.
 repeat the fresh full-range sprawl assessment before authoring the replacement
 C07 plan.
 
-### 3.8 `P01/I08/S01/C07` Validated Sprawl Containment And Final Candidate
+### 3.8 `P01/I08/S01/C02R` Grid-Lanes Track Phase Correction
+
+**Specification sources:** `FRI-08.5 D-09` through `D-11` and `D-21`;
+track-sizing and lanes portions of `FRI-08.8`, `FRI-08.10`, `FRI-08.12`, and
+`FRI-08.14` through `FRI-08.17`; `GRID-003`, `GRID-007`, and the lanes sizing
+composition of `GRID-002` and `GRID-010`.
+
+**Prerequisites:** C06R complete, published, and remotely verified; the fresh
+post-C06R full-range sprawl assessment has returned exactly one residual that
+changes grid-lanes sizing behavior and therefore cannot enter C07 as mechanical
+consolidation.
+
+**Entry state:** Grid-lanes still selects a collection-wide fit-content shortcut
+that skips flexible and stretch phases, and both lanes sizing paths duplicate
+the exact `min:auto/max:auto` stretch predicate. A negative characterization
+freezes `[30,0]` for mixed fit-content/flex instead of the specified composed
+track-phase result.
+
+**Bounded outcome:** Route grid-lanes fit-content, flex, and auto-maximum stretch
+through the canonical per-track phase model or one shared parameterized owner.
+Replace the contrary characterization with public behavior evidence for mixed
+fit-content/flex and `minmax(...,auto)` stretch in both lane axes and scalar
+lanes. Preserve the explicitly distinct grid-lanes auto-fit, placement,
+containing-block, intrinsic projection, and nested-subgrid policies. Remove any
+orphaned shortcut without changing artifacts or invoking generation.
+
+**Observable exit evidence:** No grid-lanes collection-wide fit-content return
+or exact-auto-only stretch predicate remains. Mixed fit-content/flex and
+auto-maximum stretch produce the specified phase-composed geometry in both
+axes/scalars, while all lanes auto-fit, placement, projection, nested-subgrid,
+72-row, FRI-09/F10, default, generator, corpus/Taffy, API,
+dependency/feature, unsafe, and artifact evidence remains green.
+
+**Handoff:** Publish and remotely verify the corrected sizing candidate, then
+repeat the fresh full-range sprawl assessment before authoring the replacement
+C07 plan.
+
+### 3.9 `P01/I08/S01/C07` Validated Sprawl Containment And Final Candidate
 
 **Specification sources:** the finite structural invariants in `FRI-08.14`;
 final verification, responsibility, finding-closure, handoff, and acceptance
 portions of `FRI-08.15` through `FRI-08.19`.
 
-**Prerequisites:** C06R complete, published, and remotely verified; a fresh
+**Prerequisites:** C02R complete, published, and remotely verified; a fresh
 holistic sprawl assessment has reviewed the exact FRI-08 implementation range
-from the immutable initiative base through C06R and returned one finite,
+from the immutable initiative base through C02R and returned one finite,
 identified finding set.
 
-**Entry state:** All eight findings, including inherited-capacity error
-correction, and their bounded artifact lineage are closed in the immutable C06R
-candidate. Only the exact reviewed sprawl findings remain for source validation
-and disposition.
+**Entry state:** All eight findings, including inherited-capacity error and
+grid-lanes track-phase corrections, and their bounded artifact lineage are
+closed in the immutable C02R candidate. Only the exact reviewed sprawl findings
+remain for source validation and disposition.
 
 **Bounded outcome:** Validate each assessed finding against current source.
 Implement every confirmed in-initiative mechanical consolidation with
