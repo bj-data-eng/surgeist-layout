@@ -1,6 +1,6 @@
 # P01-I08-S01-C07 Validated Sprawl Containment And Final Candidate
 
-Status: reviewed
+Status: in_progress
 
 Cycle ID: `P01/I08/S01/C07`
 
