@@ -602,6 +602,9 @@ fn place_automatic_item(
                 minor_end,
             );
             if occupancy.is_free(area) {
+                if !dense {
+                    *cursor = search;
+                }
                 return Ok(area);
             }
             search.major =

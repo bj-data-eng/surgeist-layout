@@ -21,15 +21,18 @@ mod fri06_c12_t08_browser_front_door {
     ));
 }
 
-fn fri08_c01_placement_request() -> LayoutRootRequest {
-    LayoutRootRequest::viewport(Size::new(
-        Available::Definite(240.0),
-        Available::Definite(240.0),
+fn fri08_c01_placement_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
+    LayoutRootRequestOf::viewport(Size::new(
+        AvailableOf::Definite(S::from_f64(240.0)),
+        AvailableOf::Definite(S::from_f64(240.0)),
     ))
     .expect("finite placement viewport")
 }
 
-fn fri08_c01_placement_output(batch: &CompletedLayoutBatch<u32>, node: u32) -> NodeOutput {
+fn fri08_c01_placement_output<S: LayoutScalar>(
+    batch: &CompletedLayoutBatchOf<u32, S>,
+    node: u32,
+) -> NodeOutputOf<S> {
     batch
         .final_entries()
         .iter()
@@ -38,42 +41,44 @@ fn fri08_c01_placement_output(batch: &CompletedLayoutBatch<u32>, node: u32) -> N
         .output()
 }
 
-fn fri08_c01_placement_compute(tree: &PublicLayoutTreeOf) -> CompletedLayoutBatch<u32> {
+fn fri08_c01_placement_compute<S: LayoutScalar>(
+    tree: &PublicLayoutTreeOf<S>,
+) -> CompletedLayoutBatchOf<u32, S> {
     compute_layout(tree, 1, fri08_c01_placement_request()).expect("valid grid placement")
 }
 
-#[test]
-fn fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row() {
+fn assert_fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row<S: LayoutScalar>() {
+    let scalar = S::from_f64;
     let tree = PublicLayoutTreeOf::new()
         .children(1, [2, 3])
         .style(
             1,
-            NodeInput {
+            NodeInputOf {
                 display: Display::Grid,
-                size: Size::new(PreferredSize::px(120.0), PreferredSize::AUTO),
+                size: Size::new(PreferredSizeOf::px(scalar(120.0)), PreferredSizeOf::AUTO),
                 grid_template_columns: vec![
-                    TrackComponent::px(40.0),
-                    TrackComponent::px(40.0),
-                    TrackComponent::px(40.0),
+                    TrackComponentOf::px(scalar(40.0)),
+                    TrackComponentOf::px(scalar(40.0)),
+                    TrackComponentOf::px(scalar(40.0)),
                 ],
-                grid_template_rows: vec![TrackComponent::px(20.0)],
-                grid_auto_rows: vec![TrackComponent::px(20.0)],
-                ..NodeInput::DEFAULT
+                grid_template_rows: vec![TrackComponentOf::px(scalar(20.0))],
+                grid_auto_rows: vec![TrackComponentOf::px(scalar(20.0))],
+                ..NodeInputOf::default()
             },
         )
         .style(
             2,
-            NodeInput {
+            NodeInputOf {
                 grid_column: GridPlacement::try_line(2).expect("middle column"),
                 grid_row: GridPlacement::try_line(1).expect("first row"),
-                ..NodeInput::DEFAULT
+                ..NodeInputOf::default()
             },
         )
         .style(
             3,
-            NodeInput {
+            NodeInputOf {
                 grid_column: GridPlacement::try_span(2).expect("two-column span"),
-                ..NodeInput::DEFAULT
+                ..NodeInputOf::default()
             },
         );
 
@@ -81,16 +86,21 @@ fn fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row() {
 
     assert_eq!(
         fri08_c01_placement_output(&batch, 1).size,
-        Size::new(120.0, 40.0)
+        Size::new(scalar(120.0), scalar(40.0))
     );
     assert_eq!(
         fri08_c01_placement_output(&batch, 3).location,
-        Point::new(0.0, 20.0)
+        Point::new(scalar(0.0), scalar(20.0))
     );
     assert_eq!(
         fri08_c01_placement_output(&batch, 3).size,
-        Size::new(80.0, 20.0)
+        Size::new(scalar(80.0), scalar(20.0))
     );
+}
+
+#[test]
+fn fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row() {
+    assert_fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row::<f32>();
 }
 
 #[test]
@@ -159,15 +169,16 @@ fn fri08_c01_placement_automatic_span_reserves_its_full_extent() {
     );
 }
 
-fn fri08_c01_placement_dense_tree(flow: GridAutoFlow) -> PublicLayoutTreeOf {
+fn fri08_c01_placement_dense_tree<S: LayoutScalar>(flow: GridAutoFlow) -> PublicLayoutTreeOf<S> {
+    let scalar = S::from_f64;
     let (columns, rows, occupied_column, occupied_row, span_column, span_row) = if flow.is_column()
     {
         (
-            vec![TrackComponent::px(10.0)],
+            vec![TrackComponentOf::px(scalar(10.0))],
             vec![
-                TrackComponent::px(10.0),
-                TrackComponent::px(10.0),
-                TrackComponent::px(10.0),
+                TrackComponentOf::px(scalar(10.0)),
+                TrackComponentOf::px(scalar(10.0)),
+                TrackComponentOf::px(scalar(10.0)),
             ],
             GridPlacement::try_line(1).expect("first column"),
             GridPlacement::try_line(2).expect("middle row"),
@@ -177,11 +188,11 @@ fn fri08_c01_placement_dense_tree(flow: GridAutoFlow) -> PublicLayoutTreeOf {
     } else {
         (
             vec![
-                TrackComponent::px(10.0),
-                TrackComponent::px(10.0),
-                TrackComponent::px(10.0),
+                TrackComponentOf::px(scalar(10.0)),
+                TrackComponentOf::px(scalar(10.0)),
+                TrackComponentOf::px(scalar(10.0)),
             ],
-            vec![TrackComponent::px(10.0)],
+            vec![TrackComponentOf::px(scalar(10.0))],
             GridPlacement::try_line(2).expect("middle column"),
             GridPlacement::try_line(1).expect("first row"),
             GridPlacement::try_span(2).expect("two-column span"),
@@ -192,57 +203,146 @@ fn fri08_c01_placement_dense_tree(flow: GridAutoFlow) -> PublicLayoutTreeOf {
         .children(1, [2, 3, 4])
         .style(
             1,
-            NodeInput {
+            NodeInputOf {
                 display: Display::Grid,
                 grid_auto_flow: flow,
                 grid_template_columns: columns,
                 grid_template_rows: rows,
-                grid_auto_columns: vec![TrackComponent::px(10.0)],
-                grid_auto_rows: vec![TrackComponent::px(10.0)],
-                ..NodeInput::DEFAULT
+                grid_auto_columns: vec![TrackComponentOf::px(scalar(10.0))],
+                grid_auto_rows: vec![TrackComponentOf::px(scalar(10.0))],
+                ..NodeInputOf::default()
             },
         )
         .style(
             2,
-            NodeInput {
+            NodeInputOf {
                 grid_column: occupied_column,
                 grid_row: occupied_row,
-                ..NodeInput::DEFAULT
+                ..NodeInputOf::default()
             },
         )
         .style(
             3,
-            NodeInput {
+            NodeInputOf {
                 grid_column: span_column,
                 grid_row: span_row,
-                ..NodeInput::DEFAULT
+                ..NodeInputOf::default()
             },
         )
-        .style(4, NodeInput::DEFAULT)
+        .style(4, NodeInputOf::default())
 }
 
-#[test]
-fn fri08_c01_placement_dense_backfills_but_sparse_cursors_remain_monotonic() {
+fn assert_fri08_c01_placement_dense_backfills_but_sparse_cursors_remain_monotonic<
+    S: LayoutScalar,
+>() {
+    let scalar = S::from_f64;
     for (sparse_flow, dense_flow, sparse_location) in [
         (
             GridAutoFlow::Row,
             GridAutoFlow::RowDense,
-            Point::new(20.0, 10.0),
+            Point::new(scalar(20.0), scalar(10.0)),
         ),
         (
             GridAutoFlow::Column,
             GridAutoFlow::ColumnDense,
-            Point::new(10.0, 20.0),
+            Point::new(scalar(10.0), scalar(20.0)),
         ),
     ] {
-        let sparse = fri08_c01_placement_compute(&fri08_c01_placement_dense_tree(sparse_flow));
-        let dense = fri08_c01_placement_compute(&fri08_c01_placement_dense_tree(dense_flow));
+        let sparse = fri08_c01_placement_compute(&fri08_c01_placement_dense_tree::<S>(sparse_flow));
+        let dense = fri08_c01_placement_compute(&fri08_c01_placement_dense_tree::<S>(dense_flow));
         assert_eq!(
             fri08_c01_placement_output(&sparse, 4).location,
             sparse_location
         );
-        assert_eq!(fri08_c01_placement_output(&dense, 4).location, Point::ZERO);
+        assert_eq!(
+            fri08_c01_placement_output(&dense, 4).location,
+            Point::new(scalar(0.0), scalar(0.0))
+        );
     }
+}
+
+#[test]
+fn fri08_c01_placement_dense_backfills_but_sparse_cursors_remain_monotonic() {
+    assert_fri08_c01_placement_dense_backfills_but_sparse_cursors_remain_monotonic::<f32>();
+}
+
+#[test]
+fn fri08_c01_placement_f64_covers_implicit_growth_and_sparse_dense_behavior() {
+    assert_fri08_c01_placement_span_after_occupied_cell_adds_one_exact_row::<f64>();
+    assert_fri08_c01_placement_dense_backfills_but_sparse_cursors_remain_monotonic::<f64>();
+}
+
+#[test]
+fn fri08_c01_placement_row_sparse_advances_after_definite_column() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 4])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![
+                    TrackComponent::px(10.0),
+                    TrackComponent::px(10.0),
+                    TrackComponent::px(10.0),
+                ],
+                grid_template_rows: vec![TrackComponent::px(10.0)],
+                grid_auto_rows: vec![TrackComponent::px(10.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(2, NodeInput::DEFAULT)
+        .style(
+            3,
+            NodeInput {
+                grid_column: GridPlacement::try_line(3).expect("third column"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(4, NodeInput::DEFAULT);
+
+    let batch = fri08_c01_placement_compute(&tree);
+
+    assert_eq!(
+        fri08_c01_placement_output(&batch, 4).location,
+        Point::new(0.0, 10.0)
+    );
+}
+
+#[test]
+fn fri08_c01_placement_column_sparse_advances_after_definite_row() {
+    let tree = PublicLayoutTreeOf::new()
+        .children(1, [2, 3, 4])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_auto_flow: GridAutoFlow::Column,
+                grid_template_columns: vec![TrackComponent::px(10.0)],
+                grid_template_rows: vec![
+                    TrackComponent::px(10.0),
+                    TrackComponent::px(10.0),
+                    TrackComponent::px(10.0),
+                ],
+                grid_auto_columns: vec![TrackComponent::px(10.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(2, NodeInput::DEFAULT)
+        .style(
+            3,
+            NodeInput {
+                grid_row: GridPlacement::try_line(3).expect("third row"),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(4, NodeInput::DEFAULT);
+
+    let batch = fri08_c01_placement_compute(&tree);
+
+    assert_eq!(
+        fri08_c01_placement_output(&batch, 4).location,
+        Point::new(10.0, 0.0)
+    );
 }
 
 #[test]
@@ -11216,6 +11316,7 @@ fn assert_published_baseline_group_order_keeps_compatible_axis<S: LayoutScalar>(
             NodeInputOf {
                 display: Display::Grid,
                 writing_mode: WritingMode::VerticalRl,
+                grid_row: GridPlacement::try_line(1).expect("first grid row"),
                 grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
                 grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
                     name_components: Vec::new(),
@@ -11228,6 +11329,7 @@ fn assert_published_baseline_group_order_keeps_compatible_axis<S: LayoutScalar>(
             NodeInputOf {
                 display: Display::Grid,
                 grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_line(1).expect("first grid row"),
                 grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
                 grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
                     name_components: Vec::new(),
@@ -13567,6 +13669,7 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
         2,
         NodeInput {
             grid_column: GridPlacement::try_lines(2, 3).expect("valid grid lines"),
+            grid_row: GridPlacement::try_line(1).expect("first grid row"),
             ..NodeInput::default()
         },
     );
@@ -14315,6 +14418,7 @@ fn grid_mixed_positive_negative_line_span_counts_actual_tracks_for_auto_growth()
             2,
             NodeInput {
                 grid_column: GridPlacement::try_lines(2, -1).expect("valid grid lines"),
+                grid_row: GridPlacement::try_line(1).expect("first grid row"),
                 ..NodeInput::DEFAULT
             },
         )
