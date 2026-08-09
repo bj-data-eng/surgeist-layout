@@ -329,26 +329,18 @@ eleven mechanical opportunities and two lint-policy escalations. The cycle task
 bound requires two ordered sprawl-containment cycles rather than compressing
 unrelated findings behind broad write envelopes.
 
-The finite report partition is disjoint and exhaustive:
-
-| Cycle | Accepted report rows |
-| --- | --- |
-| `P01/I08/S01/C07` | `SP-002`, `SP-003`, `SP-004`, `SP-005`, `SP-011` |
-| `P01/I08/S01/C08` | `SP-006`, `SP-007`, `SP-008`, `SP-009`, `SP-010`, `SP-012`, `ESC-001`, `ESC-002` |
-
-The two previously identified behavior findings are resolved prerequisites,
-not unassigned rows: inherited placement closed in C06R and grid-lanes final
+**Finite report partition:** C07 owns `SP-002`, `SP-003`, `SP-004`, `SP-005`,
+and `SP-011`. C08 owns `SP-006` through `SP-010`, `SP-012`, `ESC-001`, and
+`ESC-002`. The two prior behavior findings are resolved prerequisites rather
+than unassigned rows: inherited placement closed in C06R and grid-lanes final
 track phases closed in C02R.
 
-**Bounded outcome:** Validate and implement the first coherent partition of the
-accepted report: visible inline-run transition ownership, canonical scroll
-source/reconstruction ownership, optional layout arithmetic, grid scrollbar
-settlement, and shared scroll-geometry test fixtures. Every change is
-characterization-first and behavior-preserving. Work is limited to those exact
-report rows and `FRI-08.14`; no new architecture search, behavior, API, fixture,
-artifact, dependency, feature, or later-owned scope enters C07. A genuine
-behavior/input/artifact defect reopens its exact owning cycle rather than being
-hidden as refactoring.
+**Bounded outcome:** Implement C07's exact report rows characterization-first:
+visible inline-run transitions, canonical scroll source/reconstruction,
+optional layout arithmetic, grid scrollbar settlement, and shared scroll test
+fixtures. No new architecture search, behavior, API, fixture, artifact,
+dependency, feature, or later-owned scope enters C07; a genuine defect reopens
+its exact owning cycle rather than being hidden as refactoring.
 
 **Observable exit evidence:** Every C07-owned report row has one recorded
 disposition; its characterization, configured tests, strict lint, scope,
@@ -369,8 +361,7 @@ final verification, responsibility, finding-closure, handoff, and acceptance
 portions of `FRI-08.15` through `FRI-08.19`.
 
 **Prerequisites:** C07 complete, independently reviewed, published, and remotely
-verified; exact C07 dispositions and the remaining accepted whole-crate report
-rows are available at the immutable C07 candidate.
+verified, with exact dispositions and remaining report rows at its candidate.
 
 **Entry state:** C07 has closed the production-wide inline, scroll, optional
 arithmetic, grid-settlement, and shared scroll-fixture opportunities without
@@ -396,14 +387,13 @@ later-owned scope enters C08.
 **Observable exit evidence:** Every row in the accepted whole-crate report and
 both prior behavior findings has exactly one final disposition. All authorized
 opportunities and escalations, including the bounded generator traversal row,
-are closed. All structural invariants, eight finding closures, 72 owned rows,
-centralized provenance, public API removal, FRI-09/F10 controls, dependencies,
-features, and artifact hashes remain exact. Full final verification and fresh
-holistic review are clean without browser execution or generation.
+are closed. Structural invariants, eight finding closures, 72 owned rows,
+provenance, API removal, FRI-09/F10 controls, dependencies, features, and
+artifact hashes remain exact. Full verification and fresh holistic review are
+clean without browser execution or generation.
 
 **Handoff:** Publish and remotely verify the final FRI-08 leaf candidate, then
-return the complete 59-finding audit, whole-crate sprawl dispositions, artifact
-lineage, public/root boundary, and later-P01 continuation state.
+return the 59-finding audit, sprawl dispositions, artifact lineage, root boundary, and later-P01 continuation state.
 
 ## 4 Sequence Completion
 
