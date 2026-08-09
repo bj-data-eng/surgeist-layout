@@ -828,6 +828,80 @@ fn fri08_c03_auto_fit_ordinary_grid_and_lanes_auto_fill_remain_separate_controls
     }
 }
 
+#[test]
+fn fri08_c03_auto_fit_lanes_flexible_tracks_and_stretched_items_ignore_collapsed_gutters_on_both_axes()
+ {
+    let mut track_geometries = Vec::new();
+    for axis in [Fri08C02TrackAxis::Columns, Fri08C02TrackAxis::Rows] {
+        let repeat = TrackComponent::Repeat(
+            TrackRepetition::auto_fit_components(vec![TrackComponent::minmax(
+                MinTrackSizing::px(40.0),
+                MaxTrackSizing::flex(
+                    TrackFlexFactor::try_new(1.0).expect("finite auto-fit flex factor"),
+                ),
+            )])
+            .expect("valid flexible auto-fit repetition"),
+        );
+        let (columns, rows, auto_flow, size, gap, child_placement) = match axis {
+            Fri08C02TrackAxis::Columns => (
+                vec![repeat],
+                vec![TrackComponent::px(20.0)],
+                GridAutoFlow::Row,
+                Size::new(140.0, 20.0),
+                Size::new(Length::px(10.0), Length::ZERO),
+                (
+                    GridPlacement::try_line(1).expect("first repeated column"),
+                    GridPlacement::try_line(1).expect("single row"),
+                ),
+            ),
+            Fri08C02TrackAxis::Rows => (
+                vec![TrackComponent::px(20.0)],
+                vec![repeat],
+                GridAutoFlow::Column,
+                Size::new(20.0, 140.0),
+                Size::new(Length::ZERO, Length::px(10.0)),
+                (
+                    GridPlacement::try_line(1).expect("single column"),
+                    GridPlacement::try_line(1).expect("first repeated row"),
+                ),
+            ),
+        };
+        let tree = PublicLayoutTreeOf::<f32>::new()
+            .children(1, [2])
+            .style(
+                1,
+                NodeInput {
+                    display: Display::GridLanes,
+                    size: size.map(PreferredSize::px),
+                    grid_template_columns: columns,
+                    grid_template_rows: rows,
+                    grid_auto_flow: auto_flow,
+                    gap,
+                    justify_content: Some(AlignContent::Start),
+                    align_content: Some(AlignContent::Start),
+                    ..NodeInput::DEFAULT
+                },
+            )
+            .style(
+                2,
+                NodeInput {
+                    grid_column: child_placement.0,
+                    grid_row: child_placement.1,
+                    ..NodeInput::DEFAULT
+                },
+            );
+
+        let batch = fri08_c03_auto_fit_batch(&tree, size);
+        let child = fri08_c01_placement_output(&batch, 2);
+        let track_geometry = match axis {
+            Fri08C02TrackAxis::Columns => (child.location.x, child.size.width),
+            Fri08C02TrackAxis::Rows => (child.location.y, child.size.height),
+        };
+        track_geometries.push(track_geometry);
+    }
+    assert_eq!(track_geometries, [(0.0, 140.0), (0.0, 140.0)]);
+}
+
 #[derive(Clone, Copy)]
 enum Fri08C02TrackAxis {
     Columns,

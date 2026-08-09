@@ -1772,10 +1772,8 @@ where
         lines,
         ..
     } = context;
-    let ordinary_column_gutters =
-        matches!(sizing_policy, GridTrackSizingPolicy::Ordinary).then_some(&column_gutters);
-    let ordinary_row_gutters =
-        matches!(sizing_policy, GridTrackSizingPolicy::Ordinary).then_some(&row_gutters);
+    let active_column_gutters = Some(&column_gutters);
+    let active_row_gutters = Some(&row_gutters);
     let ExpandedGridTopology {
         named_columns,
         named_rows,
@@ -1797,8 +1795,8 @@ where
         column_tracks,
         row_tracks,
         gap,
-        column_gutters: ordinary_column_gutters,
-        row_gutters: ordinary_row_gutters,
+        column_gutters: active_column_gutters,
+        row_gutters: active_row_gutters,
         percent_basis: LogicalSizeOf::new(None, None),
         lines,
         named_columns: &named_columns,
@@ -1914,7 +1912,7 @@ where
             definite_size: logical_node_inner_size.inline,
             available_size: logical_available_inner_size.inline,
             gap: gap.inline,
-            gutters: ordinary_column_gutters,
+            gutters: active_column_gutters,
             alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
             stretch_empty_auto_to_available: intrinsic_max_available.inline
                 && logical_node_inner_size.inline.is_none()
@@ -1928,8 +1926,7 @@ where
     {
         let max_inner_inline =
             (max_inline - logical_content_box_inset_size.inline).max(Tree::Scalar::ZERO);
-        if track_sum_with_gutters(&columns, gap.inline, ordinary_column_gutters) > max_inner_inline
-        {
+        if track_sum_with_gutters(&columns, gap.inline, active_column_gutters) > max_inner_inline {
             columns = {
                 sizing_phases.resolve_inline(InlineTrackInput {
                     tracks: column_tracks,
@@ -1937,7 +1934,7 @@ where
                     definite_size: logical_node_inner_size.inline,
                     available_size: Some(max_inner_inline),
                     gap: gap.inline,
-                    gutters: ordinary_column_gutters,
+                    gutters: active_column_gutters,
                     alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
                     stretch_empty_auto_to_available: false,
                     min_intrinsic_sizes: &column_min_intrinsic_sizes,
@@ -1983,7 +1980,7 @@ where
             gap.block,
             style.align_content.unwrap_or(AlignContent::Stretch),
             &row_intrinsic_sizes,
-            ordinary_row_gutters,
+            active_row_gutters,
         )
     };
     let row_constrained_column_intrinsic_sizes =
@@ -2024,7 +2021,7 @@ where
                 definite_size: logical_node_inner_size.inline,
                 available_size: logical_available_inner_size.inline,
                 gap: gap.inline,
-                gutters: ordinary_column_gutters,
+                gutters: active_column_gutters,
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
                 stretch_empty_auto_to_available: intrinsic_max_available.inline
                     && logical_node_inner_size.inline.is_none()
@@ -2048,7 +2045,7 @@ where
                 gap.block,
                 style.align_content.unwrap_or(AlignContent::Stretch),
                 &row_intrinsic_sizes,
-                ordinary_row_gutters,
+                active_row_gutters,
             )
         };
     }
