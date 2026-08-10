@@ -1311,122 +1311,20 @@ fn runs_grid_calc_track_and_item_margin_fixture_family_against_surgeist_layout()
 
 #[test]
 fn runs_fri_02_block_axis_families_against_surgeist_layout() {
-    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/layout/browser_parity")
-        .canonicalize()
-        .expect("browser parity fixture root should exist");
-    let fixtures = support::fixture_files("xml")
-        .expect("fixtures should load")
-        .into_iter()
-        .map(|fixture| {
-            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
-                panic!("{} should canonicalize: {error}", fixture.display())
-            });
-            let relative = fixture.strip_prefix(&corpus_root).unwrap_or_else(|error| {
-                panic!(
-                    "{} should be under {}: {error}",
-                    fixture.display(),
-                    corpus_root.display()
-                )
-            });
-            (relative.to_path_buf(), fixture)
-        })
-        .collect::<Vec<_>>();
-    let paths = block_axis_fixture_paths(fixtures.iter().map(|(relative, _)| relative.clone()))
-        .unwrap_or_else(|error| panic!("{error}"));
-
-    for (relative, fixture) in fixtures {
-        if !paths.contains(&relative) {
-            continue;
-        }
-        let golden = support::Golden::parse_file(&fixture)
-            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
-        assert_block_axis_fixture_topology(&golden, &relative)
-            .unwrap_or_else(|error| panic!("{}: {error}", fixture.display()));
-        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
-            panic!("{} failed layout comparison: {error}", fixture.display())
-        });
-    }
+    assert_axis_fixture_family_matches(
+        block_axis_fixture_paths,
+        assert_block_axis_fixture_topology,
+    );
 }
 
 #[test]
 fn runs_fri_02_flex_axis_families_against_surgeist_layout() {
-    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/layout/browser_parity")
-        .canonicalize()
-        .expect("browser parity fixture root should exist");
-    let fixtures = support::fixture_files("xml")
-        .expect("fixtures should load")
-        .into_iter()
-        .map(|fixture| {
-            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
-                panic!("{} should canonicalize: {error}", fixture.display())
-            });
-            let relative = fixture.strip_prefix(&corpus_root).unwrap_or_else(|error| {
-                panic!(
-                    "{} should be under {}: {error}",
-                    fixture.display(),
-                    corpus_root.display()
-                )
-            });
-            (relative.to_path_buf(), fixture)
-        })
-        .collect::<Vec<_>>();
-    let paths = flex_axis_fixture_paths(fixtures.iter().map(|(relative, _)| relative.clone()))
-        .unwrap_or_else(|error| panic!("{error}"));
-
-    for (relative, fixture) in fixtures {
-        if !paths.contains(&relative) {
-            continue;
-        }
-        let golden = support::Golden::parse_file(&fixture)
-            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
-        assert_flex_axis_fixture_topology(&golden, &relative)
-            .unwrap_or_else(|error| panic!("{}: {error}", fixture.display()));
-        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
-            panic!("{} failed layout comparison: {error}", fixture.display())
-        });
-    }
+    assert_axis_fixture_family_matches(flex_axis_fixture_paths, assert_flex_axis_fixture_topology);
 }
 
 #[test]
 fn runs_fri_02_grid_axis_families_against_surgeist_layout() {
-    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/layout/browser_parity")
-        .canonicalize()
-        .expect("browser parity fixture root should exist");
-    let fixtures = support::fixture_files("xml")
-        .expect("fixtures should load")
-        .into_iter()
-        .map(|fixture| {
-            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
-                panic!("{} should canonicalize: {error}", fixture.display())
-            });
-            let relative = fixture.strip_prefix(&corpus_root).unwrap_or_else(|error| {
-                panic!(
-                    "{} should be under {}: {error}",
-                    fixture.display(),
-                    corpus_root.display()
-                )
-            });
-            (relative.to_path_buf(), fixture)
-        })
-        .collect::<Vec<_>>();
-    let paths = grid_axis_fixture_paths(fixtures.iter().map(|(relative, _)| relative.clone()))
-        .unwrap_or_else(|error| panic!("{error}"));
-
-    for (relative, fixture) in fixtures {
-        if !paths.contains(&relative) {
-            continue;
-        }
-        let golden = support::Golden::parse_file(&fixture)
-            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
-        assert_grid_axis_fixture_topology(&golden, &relative)
-            .unwrap_or_else(|error| panic!("{}: {error}", fixture.display()));
-        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
-            panic!("{} failed layout comparison: {error}", fixture.display())
-        });
-    }
+    assert_axis_fixture_family_matches(grid_axis_fixture_paths, assert_grid_axis_fixture_topology);
 }
 
 #[test]
@@ -1443,6 +1341,77 @@ fn runs_fri_02_subgrid_axis_families_against_surgeist_layout() {
         subgrid_axis_fixture_paths,
         assert_subgrid_axis_fixture_topology,
     );
+}
+
+#[test]
+fn fri08_c08_t02_all_axis_family_inventories_paths_topologies_and_mismatches_are_stable() {
+    type Matrix = fn(Vec<PathBuf>) -> Result<BTreeSet<PathBuf>, String>;
+    type Topology = fn(&support::Golden, &Path) -> Result<(), String>;
+
+    let families: [(&str, Vec<PathBuf>, Matrix, Topology); 5] = [
+        (
+            "block axis",
+            block_axis_expected_paths(),
+            block_axis_fixture_paths,
+            assert_block_axis_fixture_topology,
+        ),
+        (
+            "flex axis",
+            flex_axis_expected_paths(),
+            flex_axis_fixture_paths,
+            assert_flex_axis_fixture_topology,
+        ),
+        (
+            "grid axis",
+            grid_axis_expected_paths(),
+            grid_axis_fixture_paths,
+            assert_grid_axis_fixture_topology,
+        ),
+        (
+            "grid-lanes axis",
+            grid_lanes_axis_expected_paths(),
+            grid_lanes_axis_fixture_paths,
+            assert_grid_lanes_axis_fixture_topology,
+        ),
+        (
+            "subgrid axis",
+            subgrid_axis_expected_paths(),
+            subgrid_axis_fixture_paths,
+            assert_subgrid_axis_fixture_topology,
+        ),
+    ];
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+    let fixture_inventory = browser_parity_fixture_paths();
+
+    for (label, wanted_paths, matrix, topology) in families {
+        let wanted = wanted_paths.into_iter().collect::<BTreeSet<_>>();
+        let selected = matrix(fixture_inventory.clone())
+            .unwrap_or_else(|error| panic!("{label} inventory failed: {error}"));
+        assert_eq!(selected, wanted, "{label} selected paths");
+
+        for relative in &selected {
+            let fixture = corpus_root.join(relative);
+            let golden = support::Golden::parse_file(&fixture)
+                .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+            topology(&golden, relative)
+                .unwrap_or_else(|error| panic!("{}: {error}", fixture.display()));
+        }
+
+        let representative = selected
+            .first()
+            .unwrap_or_else(|| panic!("{label} inventory must be nonempty"));
+        let fixture = corpus_root.join(representative);
+        let mut mismatch = support::Golden::parse_file(&fixture)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+        mismatch.expectations.width = Some(123_456.0);
+        let error = support::assert_surgeist_matches(&mismatch)
+            .unwrap_err()
+            .to_string();
+        let identity = format!("{} failed layout comparison: {error}", fixture.display());
+        assert!(identity.starts_with(&format!("{} failed layout comparison: ", fixture.display())));
+        assert!(identity.contains(&mismatch.name));
+        assert!(identity.contains("width mismatch"));
+    }
 }
 
 #[test]

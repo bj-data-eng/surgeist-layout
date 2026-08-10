@@ -4384,7 +4384,7 @@ fn parse_preferred_size(raw: &str) -> Result<layout::PreferredSize, Error> {
                 })
             }
             _ => Ok(layout::PreferredSize::calculation(
-                parse_sizing_calculation_inner(raw)?,
+                parse_fixture_sizing_expression(raw)?.lower_sizing_calculation()?,
             )),
         },
     }
@@ -4411,7 +4411,7 @@ fn parse_min_size(raw: &str) -> Result<layout::MinSize, Error> {
                 })
             }
             _ => Ok(layout::MinSize::calculation(
-                parse_sizing_calculation_inner(raw)?,
+                parse_fixture_sizing_expression(raw)?.lower_sizing_calculation()?,
             )),
         },
     }
@@ -4438,7 +4438,7 @@ fn parse_max_size(raw: &str) -> Result<layout::MaxSize, Error> {
                 })
             }
             _ => Ok(layout::MaxSize::calculation(
-                parse_sizing_calculation_inner(raw)?,
+                parse_fixture_sizing_expression(raw)?.lower_sizing_calculation()?,
             )),
         },
     }
@@ -4466,7 +4466,7 @@ fn parse_flex_basis(raw: &str) -> Result<layout::FlexBasis, Error> {
                 })
             }
             _ => Ok(layout::FlexBasis::calculation(
-                parse_sizing_calculation_inner(raw)?,
+                parse_fixture_sizing_expression(raw)?.lower_sizing_calculation()?,
             )),
         },
     }
@@ -4629,7 +4629,7 @@ fn parse_fit_content_argument(body: &str, raw: &str) -> Result<layout::SizingCal
             "fit-content() requires exactly one argument in `{raw}`"
         )));
     };
-    parse_sizing_calculation_inner(argument)
+    parse_fixture_sizing_expression(argument)?.lower_sizing_calculation()
 }
 
 fn parse_calc_size_arguments<'a>(
@@ -4642,7 +4642,10 @@ fn parse_calc_size_arguments<'a>(
             "calc-size() requires exactly two arguments in `{raw}`"
         )));
     };
-    Ok((basis, parse_calc_size_calculation_inner(calculation)?))
+    Ok((
+        basis,
+        parse_fixture_sizing_expression(calculation)?.lower_calc_size_calculation()?,
+    ))
 }
 
 fn parse_preferred_calc_size_basis(
@@ -4713,31 +4716,46 @@ fn parse_flex_calc_size_basis(basis: &str, raw: &str) -> Result<layout::FlexBasi
     }
 }
 
-fn parse_sizing_calculation_inner(raw: &str) -> Result<layout::SizingCalculation, Error> {
+#[derive(Debug)]
+enum FixtureSizingExpression<'a> {
+    Leaf(&'a str),
+    Calc {
+        raw: &'a str,
+        body: &'a str,
+    },
+    Min {
+        raw: &'a str,
+        arguments: Vec<&'a str>,
+    },
+    Max {
+        raw: &'a str,
+        arguments: Vec<&'a str>,
+    },
+    Clamp {
+        minimum: Option<&'a str>,
+        preferred: &'a str,
+        maximum: Option<&'a str>,
+    },
+    UnsupportedFunction {
+        name: &'a str,
+        raw: &'a str,
+    },
+}
+
+fn parse_fixture_sizing_expression(raw: &str) -> Result<FixtureSizingExpression<'_>, Error> {
     let Some((name, body)) = parse_sizing_function(raw)? else {
-        return Ok(layout::SizingCalculation::value(parse_sizing_leaf_value(
-            raw,
-        )?));
+        return Ok(FixtureSizingExpression::Leaf(raw));
     };
 
     match name {
-        "calc" => Ok(layout::SizingCalculation::value(parse_sizing_affine_value(
-            body, false,
-        )?)),
+        "calc" => Ok(FixtureSizingExpression::Calc { raw, body }),
         "min" | "max" => {
             let arguments = split_sizing_arguments(body, raw)?;
-            let calculations = arguments
-                .into_iter()
-                .map(parse_sizing_calculation_inner)
-                .collect::<Result<Vec<_>, _>>()?;
-            let calculation = if name == "min" {
-                layout::SizingCalculation::min(calculations)
+            if name == "min" {
+                Ok(FixtureSizingExpression::Min { raw, arguments })
             } else {
-                layout::SizingCalculation::max(calculations)
-            };
-            calculation.map_err(|error| {
-                Error::new(format!("invalid sizing fixture function `{raw}`: {error}"))
-            })
+                Ok(FixtureSizingExpression::Max { raw, arguments })
+            }
         }
         "clamp" => {
             let arguments = split_sizing_arguments(body, raw)?;
@@ -4751,79 +4769,125 @@ fn parse_sizing_calculation_inner(raw: &str) -> Result<layout::SizingCalculation
                     "clamp() preferred argument cannot be omitted in `{raw}`"
                 )));
             }
-            let minimum = (*minimum != "none")
-                .then(|| parse_sizing_calculation_inner(minimum))
-                .transpose()?;
-            let preferred = parse_sizing_calculation_inner(preferred)?;
-            let maximum = (*maximum != "none")
-                .then(|| parse_sizing_calculation_inner(maximum))
-                .transpose()?;
-            Ok(layout::SizingCalculation::clamp(
-                minimum, preferred, maximum,
-            ))
+            let minimum = (*minimum != "none").then_some(*minimum);
+            let maximum = (*maximum != "none").then_some(*maximum);
+            Ok(FixtureSizingExpression::Clamp {
+                minimum,
+                preferred,
+                maximum,
+            })
         }
-        _ => Err(Error::new(format!(
-            "unsupported sizing fixture function `{name}` in `{raw}`"
-        ))),
+        _ => Ok(FixtureSizingExpression::UnsupportedFunction { name, raw }),
     }
 }
 
-fn parse_calc_size_calculation_inner(raw: &str) -> Result<layout::CalcSizeCalculation, Error> {
-    let Some((name, body)) = parse_sizing_function(raw)? else {
-        return calc_size_calculation_from_coefficients(
-            parse_fixture_affine_coefficients(raw, true, true)?,
-            raw,
-        );
-    };
-
-    match name {
-        "calc" => calc_size_calculation_from_coefficients(
-            parse_fixture_affine_coefficients(body, true, false)?,
-            raw,
-        ),
-        "min" | "max" => {
-            let arguments = split_sizing_arguments(body, raw)?;
-            let calculations = arguments
-                .into_iter()
-                .map(parse_calc_size_calculation_inner)
-                .collect::<Result<Vec<_>, _>>()?;
-            let calculation = if name == "min" {
-                layout::CalcSizeCalculation::min(calculations)
-            } else {
-                layout::CalcSizeCalculation::max(calculations)
-            };
-            calculation.map_err(|error| {
-                Error::new(format!(
-                    "invalid calc-size fixture function `{raw}`: {error}"
-                ))
-            })
-        }
-        "clamp" => {
-            let arguments = split_sizing_arguments(body, raw)?;
-            let [minimum, preferred, maximum] = arguments.as_slice() else {
-                return Err(Error::new(format!(
-                    "clamp() requires exactly three arguments in `{raw}`"
-                )));
-            };
-            if *preferred == "none" {
-                return Err(Error::new(format!(
-                    "clamp() preferred argument cannot be omitted in `{raw}`"
-                )));
+impl FixtureSizingExpression<'_> {
+    fn lower_sizing_calculation(self) -> Result<layout::SizingCalculation, Error> {
+        match self {
+            Self::Leaf(raw) => Ok(layout::SizingCalculation::value(parse_sizing_leaf_value(
+                raw,
+            )?)),
+            Self::Calc { body, .. } => Ok(layout::SizingCalculation::value(
+                parse_sizing_affine_value(body, false)?,
+            )),
+            Self::Min { raw, arguments } => {
+                let calculations = arguments
+                    .into_iter()
+                    .map(|argument| {
+                        parse_fixture_sizing_expression(argument)?.lower_sizing_calculation()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                layout::SizingCalculation::min(calculations).map_err(|error| {
+                    Error::new(format!("invalid sizing fixture function `{raw}`: {error}"))
+                })
             }
-            let minimum = (*minimum != "none")
-                .then(|| parse_calc_size_calculation_inner(minimum))
-                .transpose()?;
-            let preferred = parse_calc_size_calculation_inner(preferred)?;
-            let maximum = (*maximum != "none")
-                .then(|| parse_calc_size_calculation_inner(maximum))
-                .transpose()?;
-            Ok(layout::CalcSizeCalculation::clamp(
-                minimum, preferred, maximum,
-            ))
+            Self::Max { raw, arguments } => {
+                let calculations = arguments
+                    .into_iter()
+                    .map(|argument| {
+                        parse_fixture_sizing_expression(argument)?.lower_sizing_calculation()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                layout::SizingCalculation::max(calculations).map_err(|error| {
+                    Error::new(format!("invalid sizing fixture function `{raw}`: {error}"))
+                })
+            }
+            Self::Clamp {
+                minimum,
+                preferred,
+                maximum,
+            } => Ok(layout::SizingCalculation::clamp(
+                minimum
+                    .map(|value| parse_fixture_sizing_expression(value)?.lower_sizing_calculation())
+                    .transpose()?,
+                parse_fixture_sizing_expression(preferred)?.lower_sizing_calculation()?,
+                maximum
+                    .map(|value| parse_fixture_sizing_expression(value)?.lower_sizing_calculation())
+                    .transpose()?,
+            )),
+            Self::UnsupportedFunction { name, raw } => Err(Error::new(format!(
+                "unsupported sizing fixture function `{name}` in `{raw}`"
+            ))),
         }
-        _ => Err(Error::new(format!(
-            "unsupported calc-size fixture function `{name}` in `{raw}`"
-        ))),
+    }
+
+    fn lower_calc_size_calculation(self) -> Result<layout::CalcSizeCalculation, Error> {
+        match self {
+            Self::Leaf(raw) => calc_size_calculation_from_coefficients(
+                parse_fixture_affine_coefficients(raw, true, true)?,
+                raw,
+            ),
+            Self::Calc { raw, body } => calc_size_calculation_from_coefficients(
+                parse_fixture_affine_coefficients(body, true, false)?,
+                raw,
+            ),
+            Self::Min { raw, arguments } => {
+                let calculations = arguments
+                    .into_iter()
+                    .map(|argument| {
+                        parse_fixture_sizing_expression(argument)?.lower_calc_size_calculation()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                layout::CalcSizeCalculation::min(calculations).map_err(|error| {
+                    Error::new(format!(
+                        "invalid calc-size fixture function `{raw}`: {error}"
+                    ))
+                })
+            }
+            Self::Max { raw, arguments } => {
+                let calculations = arguments
+                    .into_iter()
+                    .map(|argument| {
+                        parse_fixture_sizing_expression(argument)?.lower_calc_size_calculation()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                layout::CalcSizeCalculation::max(calculations).map_err(|error| {
+                    Error::new(format!(
+                        "invalid calc-size fixture function `{raw}`: {error}"
+                    ))
+                })
+            }
+            Self::Clamp {
+                minimum,
+                preferred,
+                maximum,
+            } => Ok(layout::CalcSizeCalculation::clamp(
+                minimum
+                    .map(|value| {
+                        parse_fixture_sizing_expression(value)?.lower_calc_size_calculation()
+                    })
+                    .transpose()?,
+                parse_fixture_sizing_expression(preferred)?.lower_calc_size_calculation()?,
+                maximum
+                    .map(|value| {
+                        parse_fixture_sizing_expression(value)?.lower_calc_size_calculation()
+                    })
+                    .transpose()?,
+            )),
+            Self::UnsupportedFunction { name, raw } => Err(Error::new(format!(
+                "unsupported calc-size fixture function `{name}` in `{raw}`"
+            ))),
+        }
     }
 }
 
@@ -5157,7 +5221,7 @@ fn parse_track_sizing_with_calc(raw: &str) -> Result<layout::TrackSizing, Error>
         "max-content" => Ok(layout::TrackSizing::MAX_CONTENT),
         _ if raw.ends_with("fr") => Ok(layout::TrackSizing::flex(parse_track_flex(raw)?)),
         _ => Ok(layout::TrackSizing::calculation(
-            parse_sizing_calculation_inner(raw)?,
+            parse_fixture_sizing_expression(raw)?.lower_sizing_calculation()?,
         )),
     }
 }
@@ -5173,7 +5237,7 @@ fn parse_min_track_sizing_inner(raw: &str) -> Result<layout::MinTrackSizing, Err
         "min-content" => Ok(layout::MinTrackSizing::MIN_CONTENT),
         "max-content" => Ok(layout::MinTrackSizing::MAX_CONTENT),
         _ => Ok(layout::MinTrackSizing::Calculation(
-            parse_sizing_calculation_inner(raw)?,
+            parse_fixture_sizing_expression(raw)?.lower_sizing_calculation()?,
         )),
     }
 }
@@ -5195,7 +5259,7 @@ fn parse_max_track_sizing_inner(raw: &str) -> Result<layout::MaxTrackSizing, Err
         "max-content" => Ok(layout::MaxTrackSizing::MAX_CONTENT),
         _ if raw.ends_with("fr") => Ok(layout::MaxTrackSizing::flex(parse_track_flex(raw)?)),
         _ => Ok(layout::MaxTrackSizing::Calculation(
-            parse_sizing_calculation_inner(raw)?,
+            parse_fixture_sizing_expression(raw)?.lower_sizing_calculation()?,
         )),
     }
 }
@@ -8119,6 +8183,224 @@ mod tests {
         assert!(
             error.to_string().contains("exceeds 64"),
             "unexpected excessive-depth error: {error}"
+        );
+    }
+
+    #[test]
+    fn fri08_c08_t02_fixture_expression_leaves_and_functions_lower_to_both_destinations() {
+        let sizing_value = |absolute_px, percent_fraction| {
+            layout::SizingCalculation::value(
+                layout::LengthPercentageOf::from_coefficients(absolute_px, percent_fraction)
+                    .unwrap_or_else(|error| panic!("finite sizing coefficients failed: {error}")),
+            )
+        };
+        for (raw, calculation) in [
+            ("12px", sizing_value(12.0, 0.0)),
+            ("25%", sizing_value(0.0, 0.25)),
+            ("7", sizing_value(7.0, 0.0)),
+            ("calc(5px + 10%)", sizing_value(5.0, 0.1)),
+            (
+                "min(10px, 25%)",
+                layout::SizingCalculation::min(vec![
+                    sizing_value(10.0, 0.0),
+                    sizing_value(0.0, 0.25),
+                ])
+                .unwrap_or_else(|error| panic!("finite sizing minimum failed: {error}")),
+            ),
+            (
+                "max(10px, 25%)",
+                layout::SizingCalculation::max(vec![
+                    sizing_value(10.0, 0.0),
+                    sizing_value(0.0, 0.25),
+                ])
+                .unwrap_or_else(|error| panic!("finite sizing maximum failed: {error}")),
+            ),
+            (
+                "clamp(10px, 25%, 90px)",
+                layout::SizingCalculation::clamp(
+                    Some(sizing_value(10.0, 0.0)),
+                    sizing_value(0.0, 0.25),
+                    Some(sizing_value(90.0, 0.0)),
+                ),
+            ),
+        ] {
+            assert_eq!(
+                parse_preferred_size(raw)
+                    .unwrap_or_else(|error| panic!("ordinary expression `{raw}` failed: {error}")),
+                layout::PreferredSize::calculation(calculation),
+                "ordinary expression `{raw}`",
+            );
+        }
+
+        let calc_value = |absolute_px, percent_fraction, size_fraction| {
+            layout::CalcSizeCalculation::from_coefficients(
+                absolute_px,
+                percent_fraction,
+                size_fraction,
+            )
+            .unwrap_or_else(|error| panic!("finite calc-size coefficients failed: {error}"))
+        };
+        for (raw, calculation) in [
+            ("12px", calc_value(12.0, 0.0, 0.0)),
+            ("25%", calc_value(0.0, 0.25, 0.0)),
+            ("7", calc_value(7.0, 0.0, 0.0)),
+            ("size", calc_value(0.0, 0.0, 1.0)),
+            ("2*size", calc_value(0.0, 0.0, 2.0)),
+            ("size*3", calc_value(0.0, 0.0, 3.0)),
+            ("4 * size", calc_value(0.0, 0.0, 4.0)),
+            ("size * 5", calc_value(0.0, 0.0, 5.0)),
+            ("calc(5px + 10% + size * 0.5)", calc_value(5.0, 0.1, 0.5)),
+            (
+                "min(10px, size)",
+                layout::CalcSizeCalculation::min(vec![
+                    calc_value(10.0, 0.0, 0.0),
+                    calc_value(0.0, 0.0, 1.0),
+                ])
+                .unwrap_or_else(|error| panic!("finite calc-size minimum failed: {error}")),
+            ),
+            (
+                "max(25%, size)",
+                layout::CalcSizeCalculation::max(vec![
+                    calc_value(0.0, 0.25, 0.0),
+                    calc_value(0.0, 0.0, 1.0),
+                ])
+                .unwrap_or_else(|error| panic!("finite calc-size maximum failed: {error}")),
+            ),
+            (
+                "clamp(10px, size, 90px)",
+                layout::CalcSizeCalculation::clamp(
+                    Some(calc_value(10.0, 0.0, 0.0)),
+                    calc_value(0.0, 0.0, 1.0),
+                    Some(calc_value(90.0, 0.0, 0.0)),
+                ),
+            ),
+        ] {
+            let parsed = parse_preferred_size(&format!("calc-size(auto, {raw})"))
+                .unwrap_or_else(|error| panic!("calc-size expression `{raw}` failed: {error}"));
+            let wanted =
+                layout::PreferredSize::calc_size(layout::PreferredSizeCalcBasis::Auto, calculation)
+                    .unwrap_or_else(|error| {
+                        panic!("finite calc-size construction failed: {error}")
+                    });
+            assert_eq!(parsed, wanted, "calc-size expression `{raw}`");
+        }
+    }
+
+    #[test]
+    fn fri08_c08_t02_fixture_expression_depth_and_optional_clamp_bounds_are_stable() {
+        let nested_min = |depth: usize| {
+            let mut raw = "min(".repeat(depth);
+            raw.push_str("10px");
+            raw.push_str(&")".repeat(depth));
+            raw
+        };
+
+        assert!(parse_preferred_size(&nested_min(64)).is_ok());
+        let ordinary_65 = nested_min(65);
+        let ordinary_error = parse_preferred_size(&ordinary_65).unwrap_err().to_string();
+        assert_eq!(
+            ordinary_error,
+            format!("sizing function nesting depth 65 exceeds 64 in `{ordinary_65}`")
+        );
+
+        let calc_64 = format!("calc-size(auto, {})", nested_min(63));
+        assert!(parse_preferred_size(&calc_64).is_ok());
+        let calc_65 = format!("calc-size(auto, {})", nested_min(64));
+        let calc_error = parse_preferred_size(&calc_65).unwrap_err().to_string();
+        assert_eq!(
+            calc_error,
+            format!("sizing function nesting depth 65 exceeds 64 in `{calc_65}`")
+        );
+
+        let px = |value| {
+            layout::SizingCalculation::value(
+                layout::LengthPercentageOf::px(value)
+                    .unwrap_or_else(|error| panic!("finite clamp value failed: {error}")),
+            )
+        };
+        assert_eq!(
+            parse_preferred_size("clamp(none, 20px, none)").unwrap_or_else(|error| {
+                panic!("ordinary omitted clamp bounds failed: {error}")
+            }),
+            layout::PreferredSize::calculation(layout::SizingCalculation::clamp(
+                None,
+                px(20.0),
+                None,
+            )),
+        );
+        let size = layout::CalcSizeCalculation::size();
+        assert_eq!(
+            parse_preferred_size("calc-size(auto, clamp(none, size, none))")
+                .unwrap_or_else(|error| panic!("calc-size omitted clamp bounds failed: {error}"),),
+            layout::PreferredSize::calc_size(
+                layout::PreferredSizeCalcBasis::Auto,
+                layout::CalcSizeCalculation::clamp(None, size, None),
+            )
+            .unwrap_or_else(|error| panic!("finite omitted clamp construction failed: {error}")),
+        );
+    }
+
+    #[test]
+    fn fri08_c08_t02_fixture_expression_errors_keep_precedence_and_diagnostic_identity() {
+        let ordinary = |raw| parse_preferred_size(raw).unwrap_err().to_string();
+        let calc_size = |raw: &str| {
+            parse_preferred_size(&format!("calc-size(auto, {raw})"))
+                .unwrap_err()
+                .to_string()
+        };
+
+        assert_eq!(
+            ordinary("Min(10px)"),
+            "malformed sizing fixture function `Min(10px)`"
+        );
+        assert_eq!(
+            calc_size("Min(10px)"),
+            "malformed sizing fixture function `Min(10px)`"
+        );
+        assert_eq!(
+            ordinary("clamp(10px, 20px)"),
+            "clamp() requires exactly three arguments in `clamp(10px, 20px)`"
+        );
+        assert_eq!(
+            calc_size("clamp(10px, 20px)"),
+            "clamp() requires exactly three arguments in `clamp(10px, 20px)`"
+        );
+        assert_eq!(
+            ordinary("NaNpx"),
+            "invalid sizing fixture `NaNpx`: absolute length coefficient must be finite"
+        );
+        assert_eq!(
+            calc_size("NaNpx"),
+            "invalid calc-size fixture `NaNpx`: absolute length coefficient must be finite"
+        );
+        assert_eq!(ordinary("size"), "invalid number `size`");
+        assert_eq!(
+            ordinary("calc(size + 1px)"),
+            "unsupported affine sizing term `size` in `size + 1px`"
+        );
+        assert_eq!(
+            parse_preferred_size("calc-size(any, size)")
+                .unwrap_err()
+                .to_string(),
+            "invalid preferred-size fixture `calc-size(any, size)`: an Any calc-size basis cannot be combined with a size reference"
+        );
+        assert_eq!(
+            ordinary("mystery(1px)"),
+            "unsupported sizing fixture function `mystery` in `mystery(1px)`"
+        );
+        assert_eq!(
+            calc_size("mystery(1px)"),
+            "unsupported calc-size fixture function `mystery` in `mystery(1px)`"
+        );
+        assert_eq!(ordinary("min(size, Min(1px))"), "invalid number `size`");
+        assert_eq!(calc_size("min(wat, Min(1px))"), "invalid number `wat`");
+        assert_eq!(
+            ordinary("clamp(size, 10px, Min(1px))"),
+            "invalid number `size`"
+        );
+        assert_eq!(
+            calc_size("clamp(wat, 10px, Min(1px))"),
+            "invalid number `wat`"
         );
     }
 
