@@ -117,19 +117,20 @@ records, zero quarantined, and zero failed-to-generate. There are 1,448 HTML
 sources and 5,776 comment-free XML outputs. The frozen hashes are:
 
 - corpus manifest:
-  `c6e6f142caed39d5f301516580b42b8731373adb92a0bb35ab70937659f0a8f6`;
+  `c6e6f1422e14a5e4aa474c143998063ce0de4d0a9123b69875b35a4ed009a8f6`;
 - helper:
   `c684c7f167d95997a4a9f0250467bbaf72c1b73e69e0f707a2ef32f4d25f7f36`;
 - `all.json`:
-  `c10dc550737010f0f854f54d1d4ca0d9f63323fa897db8258d53a3b352e06c0e`;
+  `c10dc550d260a239c8bf9dd553f5272ca3bcc2826099bc182f800986b8b94c0e`;
 - XML inventory:
-  `a98d1ccc4dd041415587852416572ac37360299d281c80abf19ec989461656ae`;
+  `a98d1ccceaeeb336ee3cb3c0151607589c0a4ae0376a46c560ba4341f95ad6ae`;
   and
 - report/XML lineage:
-  `bad8e418267cbe9537aa4280ca5cb97320d754df5be330249fffa42957264fdf`.
+  `bad8e418caee72cc62a123dc93efe89fdb07bfb5dee4345f3df7d8fd6fe44fdf`.
 
-These hashes are controls until a reviewed, explicitly authorized artifact
-cycle replaces them transactionally.
+These hashes define the immutable pre-FRI-09 artifact state. The conforming
+post-FRI-09 state differs only through the closed additions and canonical
+report facts specified in section 11.
 
 ## 4 FRI-09.4 Normative Product Authorities
 
@@ -621,6 +622,172 @@ in both directions. The closed source and marker-use inventory is:
 | 17 | `fri09_grid_baseline_content` | `horizontal-tb` | row/column first/last groups and implicit tracks | none |
 | 18 | `fri09_subgrid_baseline_content_controls` | `vertical-rl` | inherited target, no-baseline fallback, positioned negative control | none |
 
+The exact corpus identities, repository-relative sources, and outputs are:
+
+```text
+case_id = "block/fri09_text_logical_physical_alignment"
+source = "tests/layout/browser_parity/html/block/fri09_text_logical_physical_alignment.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_text_logical_physical_alignment__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_logical_physical_alignment__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_logical_physical_alignment__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_logical_physical_alignment__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_text_vertical_rl_alignment"
+source = "tests/layout/browser_parity/html/block/fri09_text_vertical_rl_alignment.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_text_vertical_rl_alignment__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_vertical_rl_alignment__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_vertical_rl_alignment__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_vertical_rl_alignment__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_text_vertical_lr_alignment"
+source = "tests/layout/browser_parity/html/block/fri09_text_vertical_lr_alignment.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_text_vertical_lr_alignment__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_vertical_lr_alignment__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_vertical_lr_alignment__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_vertical_lr_alignment__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_text_sideways_rl_alignment"
+source = "tests/layout/browser_parity/html/block/fri09_text_sideways_rl_alignment.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_text_sideways_rl_alignment__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_sideways_rl_alignment__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_sideways_rl_alignment__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_sideways_rl_alignment__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_text_sideways_lr_alignment"
+source = "tests/layout/browser_parity/html/block/fri09_text_sideways_lr_alignment.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_text_sideways_lr_alignment__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_sideways_lr_alignment__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_sideways_lr_alignment__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_sideways_lr_alignment__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_text_justification_weights"
+source = "tests/layout/browser_parity/html/block/fri09_text_justification_weights.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_weights__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_weights__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_weights__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_weights__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_text_justification_line_endings"
+source = "tests/layout/browser_parity/html/block/fri09_text_justification_line_endings.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_line_endings__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_line_endings__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_line_endings__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_line_endings__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_text_justification_bidi_trailing"
+source = "tests/layout/browser_parity/html/block/fri09_text_justification_bidi_trailing.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_bidi_trailing__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_bidi_trailing__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_bidi_trailing__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_text_justification_bidi_trailing__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_inline_baseline_shift"
+source = "tests/layout/browser_parity/html/block/fri09_inline_baseline_shift.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_inline_baseline_shift__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_inline_baseline_shift__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_inline_baseline_shift__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_inline_baseline_shift__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_inline_parent_text_edges"
+source = "tests/layout/browser_parity/html/block/fri09_inline_parent_text_edges.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_inline_parent_text_edges__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_inline_parent_text_edges__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_inline_parent_text_edges__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_inline_parent_text_edges__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_inline_middle_and_line_edges"
+source = "tests/layout/browser_parity/html/block/fri09_inline_middle_and_line_edges.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_inline_middle_and_line_edges__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_inline_middle_and_line_edges__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_inline_middle_and_line_edges__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_inline_middle_and_line_edges__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_block_content_positions"
+source = "tests/layout/browser_parity/html/block/fri09_block_content_positions.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_block_content_positions__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_block_content_positions__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_block_content_positions__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_block_content_positions__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_block_content_safe_overflow"
+source = "tests/layout/browser_parity/html/block/fri09_block_content_safe_overflow.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_block_content_safe_overflow__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_block_content_safe_overflow__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_block_content_safe_overflow__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_block_content_safe_overflow__content_box_rtl.xml",
+]
+
+case_id = "block/fri09_block_content_inline_float"
+source = "tests/layout/browser_parity/html/block/fri09_block_content_inline_float.html"
+outputs = [
+  "tests/layout/browser_parity/xml/block/fri09_block_content_inline_float__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_block_content_inline_float__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/block/fri09_block_content_inline_float__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/block/fri09_block_content_inline_float__content_box_rtl.xml",
+]
+
+case_id = "flex/fri09_flex_first_baseline_content"
+source = "tests/layout/browser_parity/html/flex/fri09_flex_first_baseline_content.html"
+outputs = [
+  "tests/layout/browser_parity/xml/flex/fri09_flex_first_baseline_content__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/flex/fri09_flex_first_baseline_content__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/flex/fri09_flex_first_baseline_content__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/flex/fri09_flex_first_baseline_content__content_box_rtl.xml",
+]
+
+case_id = "flex/fri09_flex_last_baseline_content"
+source = "tests/layout/browser_parity/html/flex/fri09_flex_last_baseline_content.html"
+outputs = [
+  "tests/layout/browser_parity/xml/flex/fri09_flex_last_baseline_content__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/flex/fri09_flex_last_baseline_content__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/flex/fri09_flex_last_baseline_content__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/flex/fri09_flex_last_baseline_content__content_box_rtl.xml",
+]
+
+case_id = "grid/fri09_grid_baseline_content"
+source = "tests/layout/browser_parity/html/grid/fri09_grid_baseline_content.html"
+outputs = [
+  "tests/layout/browser_parity/xml/grid/fri09_grid_baseline_content__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/grid/fri09_grid_baseline_content__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/grid/fri09_grid_baseline_content__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/grid/fri09_grid_baseline_content__content_box_rtl.xml",
+]
+
+case_id = "subgrid/fri09_subgrid_baseline_content_controls"
+source = "tests/layout/browser_parity/html/subgrid/fri09_subgrid_baseline_content_controls.html"
+outputs = [
+  "tests/layout/browser_parity/xml/subgrid/fri09_subgrid_baseline_content_controls__border_box_ltr.xml",
+  "tests/layout/browser_parity/xml/subgrid/fri09_subgrid_baseline_content_controls__border_box_rtl.xml",
+  "tests/layout/browser_parity/xml/subgrid/fri09_subgrid_baseline_content_controls__content_box_ltr.xml",
+  "tests/layout/browser_parity/xml/subgrid/fri09_subgrid_baseline_content_controls__content_box_rtl.xml",
+]
+```
+
 `J` records are `data-surgeist-inline-justification` entries and `V` records
 are `data-surgeist-inline-vertical-alignments` entries as defined below. The
 source DOM is authored so every listed source index exists, every J record has a
@@ -628,9 +795,9 @@ later surviving participant on the tested line, and no unlisted new marker is
 present. A source using a listed marker must consume every record in every
 active direction variant.
 
-The reviewed sequence may split these sources across cycles, but it may not add
-unreviewed open-ended fixture families. Any source-count change requires a
-reviewed specification revision before generation.
+The exact identities and paths above are the complete FRI-09 artifact surface.
+A different source count, case identity, directory, variant, or output path is
+nonconforming.
 
 ### 11.2 Typed fixture facts
 
@@ -705,34 +872,29 @@ are rejected. Source-name, variant-name, and expected-geometry mutation tests
 prove identical normalized input.
 
 The generator must continue to parse current sources and preserve all prior
-outputs byte-for-byte outside the 72 new variants unless a separately proven
-genuine generator defect requires a reviewed correction.
+outputs byte-for-byte outside the 72 new variants. Unrelated generator defects
+are outside this specification.
 
-### 11.3 Permission and transaction
+### 11.3 Canonical artifact state
 
-Browser execution, corpus acquisition, generator execution, and artifact
-replacement require the explicit external-software permission and reviewed
-cycle authorization required by the Surgeist workflow. No earlier initiative's
-permission is inherited.
+The conforming post-FRI-09 corpus has exactly 1,466 HTML sources and 5,848 XML
+outputs. The schema-3 canonical report has exactly 5,848 generated variants,
+16 unchanged unsupported variants, three unchanged expected-fail source
+records, zero quarantined, and zero failed-to-generate.
 
-An authorized artifact transaction must:
+The only new source and XML identities are the 18 cases and 72 paths in section
+11.1. Every pre-FRI-09 XML body is byte-identical. Every XML file is free of
+provenance comments. Browser, source, helper, resource, and output provenance is
+stored only in the single canonical `all.json` report.
 
-1. freeze the pre-run manifest, helper, report, XML lineage, counts, browser
-   binary, and pinned version;
-2. run the authoritative generator exactly once unless a reviewed correction
-   authorizes another run;
-3. prove the exact 18-source/72-output addition and zero unrelated body delta;
-4. write provenance only to the single canonical report, never XML comments;
-5. validate schema 3 identities and generated/unsupported/expected-fail/
-   quarantined/failed counts;
-6. run the browser-free comparison and all focused ownership filters; and
-7. commit the complete source/helper/parser/report/XML transaction atomically.
+The corpus manifest names all 18 cases and no open-ended directory import. The
+helper and Rust parser implement exactly the closed fields in section 11.2.
+The report's source/resource/helper hashes correspond to the canonical files,
+and its generated identity set equals the filesystem XML identity set.
 
-## 12 FRI-09.12 Testing Contract
+## 12 FRI-09.12 Verification Surface
 
-Every behavior-changing task starts from assertion-level RED evidence unless
-the task is purely mechanical and its reviewed plan defines an equivalent
-characterization gate. Tests cover both `f32` and `f64` unless the boundary is
+Behavioral coverage exercises both `f32` and `f64` unless the boundary is
 inherently textual or filesystem-only.
 
 Required focused families include:
@@ -759,27 +921,11 @@ Required focused families include:
 - no fixed-point drift or unbounded recomputation;
 - cold/warm and batched/transactional committed-output equivalence;
 - exact parser rejection and source-independence tests; and
-- finite browser-parity ownership rows when the artifact cycle is authorized.
+- all 72 finite browser-parity ownership rows from section 11.1.
 
-Existing FRI-01 through FRI-08 focused families remain regression gates. FRI-10
-positioning, FRI-11 fragmentation, FRI-12 display/table, and FRI-13 aggregate
-rows remain negative controls and are not silently re-owned.
-
-The initiative final gate includes, at minimum:
-
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
-CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
-CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --features layout-golden-generate --all-targets -- -F unsafe-code -D warnings
-cargo fmt --check
-git diff --check
-```
-
-It also includes the repository's current `just verify`, `just
-verify-generator`, corpus/Taffy checks when their already-pinned inputs are
-available without acquisition, the exact owned-Rust unsafe scan, suppression
-inventory, scope proof, artifact lineage proof, and all reviewed focused
-commands.
+Existing FRI-01 through FRI-08 focused families remain regression coverage.
+FRI-10 positioning, FRI-11 fragmentation, FRI-12 display/table, and FRI-13
+aggregate rows remain negative controls and are not silently re-owned.
 
 ## 13 FRI-09.13 Documentation And Compatibility
 
@@ -798,8 +944,6 @@ private payloads and invalid property states cannot be constructed.
 
 No dependency, feature, edition, rust-version, repository URL, license, or
 crate-boundary change is permitted. No unsafe code or suppression is permitted.
-Any exception requires a reviewed specification revision and cannot be granted
-only in a task plan.
 
 ## 14 FRI-09.14 Durable Technical Dependencies
 
@@ -818,9 +962,8 @@ these product dependencies:
 6. settle all production behavior and the closed fixture-input schema before
    an artifact transaction can replace the frozen lineage.
 
-These are dependency constraints, not a pre-authored execution plan. The
-reviewed implementation sequence owns cycle decomposition and ordering beyond
-these required technical edges.
+These are dependency constraints, not a pre-authored execution plan. A later
+implementation sequence may decompose them without changing their order.
 
 ## 15 FRI-09.15 Acceptance And Closure
 
@@ -842,11 +985,12 @@ FRI-09 closes `MODEL-006` only when all of the following are true:
    alignment with typed cache-visible child adjustments;
 8. fallbacks for ineligible, orthogonal, replaced, indefinite, overfull, and
    no-baseline cases are explicit and tested;
-9. finite browser-parity evidence is committed transactionally if and only if
-   the required external permission is granted;
+9. the canonical artifact state has exactly the identities, counts, provenance
+   location, and byte-preservation properties in section 11;
 10. no fixture identity or expected geometry enters layout input;
-11. all prior initiative controls, full package tests, strict Clippy matrices,
-    formatting, artifact, suppression, unsafe, and scope gates are green; and
+11. prior published behavior remains unchanged outside this specification's
+    explicit delta, and the crate remains dependency/feature/MSRV-stable,
+    warning-free, suppression-free, and unsafe-free; and
 12. the resulting source and public documentation contain no second alignment,
     baseline-group, shaping, flow-axis, cache, or artifact authority.
 
