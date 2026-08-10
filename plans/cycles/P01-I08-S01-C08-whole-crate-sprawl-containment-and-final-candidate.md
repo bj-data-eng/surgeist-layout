@@ -1,6 +1,6 @@
 # P01-I08-S01-C08 Whole-Crate Sprawl Containment II And Final Candidate
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `P01/I08/S01/C08`
 
