@@ -245,7 +245,24 @@ baseline shift accepts any finite scalar. Parent over/under distances and
 x-height must be finite and non-negative. Invalid input returns a typed error;
 it never becomes zero, auto, or baseline silently.
 
-`LineBreakInputOf`, atomic inline input, block constants, and every other
+`ShapedInlineSegmentOf<S>` gains a required
+`vertical_alignment: VerticalAlignOf<S>` field. Its complete fallible
+constructor receives the alignment with the segment extent, metrics, bidi,
+whitespace, and break facts; its getter returns that exact value. Validation of
+the alignment payload occurs before the segment can enter `InlineTextInputOf`.
+`InlineTextInputOf` remains only the validated nonempty segment collection and
+does not impose one alignment on every segment.
+
+This segment field is the sole vertical-alignment owner for shaped text.
+`NodeInputOf::non_box()` continues to be required for a shaped-text node and
+requires the node-level `vertical_align` field to remain its default baseline,
+so two carriers cannot conflict. Root/shaping copies each resolved inline
+participant alignment into the segment constructor. The typed browser helper
+emits the same per-source-index field described in section 11.2.
+
+Atomic inline boxes continue to take their `VerticalAlignOf<S>` from their box
+`NodeInputOf<S>`. Forced-break and inline-boundary controls continue to take it
+from `LineBreakInputOf<S>`. Those inputs, block constants, and every other
 alignment-bearing generic type use the same scalar lane. Converting an `f64`
 vertical-alignment payload to `f32` through an implicit default alias is not
 allowed.
@@ -259,12 +276,13 @@ validated `InlineJustificationOpportunityOf<S>` with a default-scalar alias.
 It stores one strictly positive finite distribution weight. There is no public
 unchecked constructor.
 
-`ShapedInlineSegmentOf` and `AtomicInlineParticipationOf` each gain an optional
-opportunity that applies after that participant in source order. Existing
-constructors either gain an explicit option or are replaced by complete
-constructors; convenience builders may supply `None`, but no internal heuristic
-may synthesize an opportunity from whitespace, break kind, source text,
-segment identity, or fixture metadata.
+`ShapedInlineSegmentOf` and `AtomicInlineParticipationOf` each gain a required
+constructor argument and read-only getter of type
+`Option<InlineJustificationOpportunityOf<S>>`. The opportunity applies after
+that participant in source order. The complete shaped-segment constructor also
+receives the vertical alignment from section 5.3. A named convenience builder
+may supply `None`, but no internal heuristic may synthesize an opportunity from
+whitespace, break kind, source text, segment identity, or fixture metadata.
 
 The opportunity is a layout opportunity, not a glyph mutation instruction.
 Root/shaping remains responsible for selecting legal opportunities and weights
@@ -422,20 +440,53 @@ geometry rather than discard the start-side extent.
 ### 9.1 Typed adjustment carrier
 
 The crate adds a private scalar-generic
-`BaselineContentAdjustmentOf<S>`. It contains a logical axis, first-or-last
-preference, and a finite non-negative adjustment applied at exactly one edge of
-the child's content box. It has an explicit zero/default state.
+`BaselineContentAdjustmentOf<S>`. It contains a logical axis and two finite
+non-negative scalars, `before` and `after`. A first-baseline adjustment has
+`before > 0` and `after == 0`; a last-baseline adjustment has `before == 0` and
+`after > 0`; zero has both fields zero. Construction rejects non-finite,
+negative, both-edge-positive, or axis-mismatched state.
 
 `ComputeInputOf` carries this adjustment for recursive layout. `CacheKeyOf`
 includes it exactly. Every child-input constructor either propagates an
 explicit adjustment or deliberately supplies zero. Direct public leaf
 constructors always supply zero.
 
-The adjustment behaves like parent-reserved interior space for child layout:
-it changes the child's available content geometry, descendant positions,
-reported baselines, intrinsic contribution where the specification requires,
-scroll geometry, and final output. It does not mutate public padding or expose a
-second box model.
+The adjustment is the general compute-input form of the existing grid
+`BaselineShim<S>`. Grid does not create a second shim type or a second baseline
+group: it converts the existing `BaselineShim { before, after }` into the
+validated compute-input carrier at the child-layout boundary. Flex constructs
+the same carrier from its flex-line baseline reduction. The carrier does not
+mutate public padding or expose a second public box model.
+
+Let `b` and `a` be the before and after values in the child's logical alignment
+axis. Let `C` be a definite unadjusted content-box available extent, `U` the
+inner used extent produced after laying out descendants, `F` a first-baseline
+distance from the inner logical start, and `L` a last-baseline coordinate from
+that same inner start. The padding-equivalent equations are:
+
+```text
+inner_available = max(0, C - b - a)       when C is definite
+auto_content_used = b + U + a
+definite_content_used = C
+first_distance_from_start = b + F
+last_distance_from_end = a + (U - L)
+inner_logical_origin = b
+intrinsic_contribution = b + inner_intrinsic_contribution + a
+```
+
+For a definite content-box extent, the border-box used size remains unchanged
+and only the inner available extent/origin changes. For an auto or intrinsic
+extent, the used content extent grows by `b + a`. Percentages and child
+available-size resolution use `inner_available`; the public authored padding
+remains unchanged. Descendants, inline fragments, floats, and their baselines
+are translated once by `b`. The after adjustment contributes to the used or
+reserved end extent but is not a second descendant translation.
+
+Scroll/content geometry is accumulated from the adjusted content-box start,
+the translated inner subject, and the reserved after edge. Thus before-side
+and after-side adjustments remain reachable and cannot be discarded by a
+zero-origin size-only accumulator. Cold and warm layout expose the same
+adjusted used size, baselines, descendants, fragments, and scroll geometry.
 
 ### 9.2 Eligibility and grouping
 
@@ -459,18 +510,53 @@ The parent derives a target from unrounded child baseline distances:
   selected last baseline.
 
 Each eligible child receives only the non-negative difference from its own
-distance to the target. Direction and writing-mode reversal are handled by
-logical edge projection, not by negating the adjustment.
+distance to the target:
+
+```text
+first: b = max(0, target_start_distance - child_start_distance), a = 0
+last:  b = 0, a = max(0, target_end_distance - child_end_distance)
+```
+
+Missing baseline, missing group target, ineligible participation, zero
+difference, or positional fallback produces the exact zero carrier. Direction
+and writing-mode reversal are handled by logical edge projection, not by
+negating the adjustment.
+
+Grid and subgrid reuse the FRI-06 one-way model without modification of its
+ownership:
+
+1. `AncestorBaselineMember` remains the only flattened member census;
+2. `AncestorBaselineGroup` remains the immutable owner-coordinate first/last
+   reduction and supplies the existing intrinsic `BaselineShim`;
+3. `CheckedOwnerToCurrentPlacementMap` remains the only owner-to-current track
+   and frame mapping;
+4. `InheritedCurrentGridBaselinePlacement` remains the only mapped final target
+   for an item direct to an inherited current grid; and
+5. `ChildBaselineEnvelopeView` remains downward-only and non-publishable.
+
+For an owner-direct grid item, the immutable group target and member distance
+produce the existing `BaselineShim`, which converts once into the compute-input
+adjustment. For an inherited-current-grid item, the checked placement map first
+derives the current-frame immutable target; that target and the current direct
+witness distance then produce the same shim. Neither path reduces another
+group, copies a group into current coordinates, mutates a target, feeds a child
+view upward, or adds frame/gutter translation to `b` or `a` a second time.
 
 ### 9.3 Two-phase convergence
 
-The parent performs an unadjusted measurement/layout phase, computes the group
-target, and re-lays out only children with a nonzero changed adjustment. The
-adjusted result then participates in final line/track sizing and container
-intrinsic contribution. If the adjusted result changes the selected baseline,
-the group target is recomputed once from the adjusted facts and must reach the
-same monotone maximum. Any implementation needing an unbounded retry loop is a
-design defect.
+The parent performs an unadjusted measurement/layout phase, reduces the
+immutable group target, derives the edge adjustment, and re-lays out only
+children whose carrier changed. Intrinsic track sizing consumes the existing
+grid `BaselineShim` exactly where FRI-06 already applies it; final child layout
+consumes the equivalent compute-input carrier and must not add that intrinsic
+shim again. The adjusted result participates in final line/track sizing and
+container intrinsic contribution through those existing phase boundaries.
+
+The group target is a maximum of pre-adjustment baseline distances. Applying
+the non-negative difference makes every participating adjusted distance equal
+to that immutable target, so no adjusted output is republished into group
+reduction. Flex follows the same one-way census/reduce/apply rule. Any second
+group reduction, adjusted-member publication, or retry loop is a design defect.
 
 Parent line or track packing occurs after the baseline group is settled. It
 must not use `Baseline` or `LastBaseline` as an ordinary spacing formula. When a
@@ -505,27 +591,42 @@ string keywords, or authored-style defaults.
 
 ### 11.1 Finite source set
 
-FRI-09 adds exactly 18 authored HTML sources, each expanded through the existing
-four writing-mode/direction variants, for 72 generated XML outputs:
+FRI-09 adds exactly 18 authored HTML sources. The existing generator expands
+each source into `border_box_ltr`, `border_box_rtl`, `content_box_ltr`, and
+`content_box_rtl`; these are box-sizing/direction variants, not writing-mode
+variants. The 18 sources therefore add exactly 72 XML outputs.
 
-1. logical text start/end and physical left/right;
-2. centered text with bidi visual order;
-3. justified text with two unequal opportunities;
-4. justified forced and paragraph-final lines;
-5. justified text with trailing discarded whitespace;
-6. justified mixed bidi segments;
-7. baseline shift positive and negative;
-8. text-top and text-bottom;
-9. middle with explicit x-height fact;
-10. line-top and line-bottom oversized participants;
-11. block content start/end/center;
-12. block safe overflow alignment;
-13. block alignment with inline lines and floats;
-14. flex first-baseline content alignment;
-15. flex last-baseline content alignment;
-16. grid first/last baseline content alignment;
-17. subgrid baseline propagation; and
-18. positioned-child and no-baseline fallback controls.
+Writing mode is authored inside each source. Because every source receives both
+LTR and RTL variants, sources 1 through 5 cover all five supported writing modes
+in both directions. The closed source and marker-use inventory is:
+
+| # | Exact source stem | Authored writing mode | Required cases | Explicit layout-ready marker records |
+| --- | --- | --- | --- | --- |
+| 1 | `fri09_text_logical_physical_alignment` | `horizontal-tb` | start, end, left, right, center, bidi order | none |
+| 2 | `fri09_text_vertical_rl_alignment` | `vertical-rl` | start/end/physical-edge projection | none |
+| 3 | `fri09_text_vertical_lr_alignment` | `vertical-lr` | start/end/physical-edge projection | none |
+| 4 | `fri09_text_sideways_rl_alignment` | `sideways-rl` | start/end/center projection | none |
+| 5 | `fri09_text_sideways_lr_alignment` | `sideways-lr` | start/end/center projection | none |
+| 6 | `fri09_text_justification_weights` | `horizontal-tb` | unequal shaped and atomic opportunities | J: `0=1`, `1=2`, `2=1` |
+| 7 | `fri09_text_justification_line_endings` | `horizontal-tb` | wrapped, forced, paragraph-final, explicit last line | J: `0=1`, `2=1`, `4=2`, `6=1` |
+| 8 | `fri09_text_justification_bidi_trailing` | `horizontal-tb` | mixed bidi, visual residual, trailing discard | J: `0=1`, `1=3`, `3=1` |
+| 9 | `fri09_inline_baseline_shift` | `horizontal-tb` | positive and negative shift | V: `0=baseline-shift(4)`, `2=baseline-shift(-3)` |
+| 10 | `fri09_inline_parent_text_edges` | `horizontal-tb` | text-top and text-bottom | V: `0=text-top(8)`, `2=text-bottom(4)` |
+| 11 | `fri09_inline_middle_and_line_edges` | `horizontal-tb` | middle, oversized line-top and line-bottom | V: `0=middle(10)`, `2=line-top`, `4=line-bottom` |
+| 12 | `fri09_block_content_positions` | `horizontal-tb` | start, end, center, one-subject distribution fallback | none |
+| 13 | `fri09_block_content_safe_overflow` | `vertical-rl` | safe/unsafe overflow and reachable start | none |
+| 14 | `fri09_block_content_inline_float` | `horizontal-tb` | inline lines, floats, collapse boundary | none |
+| 15 | `fri09_flex_first_baseline_content` | `horizontal-tb` | first group, wrap, orthogonal/no-baseline fallback | none |
+| 16 | `fri09_flex_last_baseline_content` | `vertical-lr` | last group, auto-margin and replaced fallback | none |
+| 17 | `fri09_grid_baseline_content` | `horizontal-tb` | row/column first/last groups and implicit tracks | none |
+| 18 | `fri09_subgrid_baseline_content_controls` | `vertical-rl` | inherited target, no-baseline fallback, positioned negative control | none |
+
+`J` records are `data-surgeist-inline-justification` entries and `V` records
+are `data-surgeist-inline-vertical-alignments` entries as defined below. The
+source DOM is authored so every listed source index exists, every J record has a
+later surviving participant on the tested line, and no unlisted new marker is
+present. A source using a listed marker must consume every record in every
+active direction variant.
 
 The reviewed sequence may split these sources across cycles, but it may not add
 unreviewed open-ended fixture families. Any source-count change requires a
@@ -533,19 +634,75 @@ reviewed specification revision before generation.
 
 ### 11.2 Typed fixture facts
 
-The existing helper's typed inline marker schema may be extended with:
+On a `data-surgeist-layout-ready-inline="true"` root, the new marker schemas are
+exactly:
 
-- one justification weight per shaped or atomic participant;
-- the resolved line-alignment and last-line-alignment state;
-- finite signed baseline shift;
-- finite non-negative parent text-over/text-under distances; and
-- finite non-negative parent x-height.
+```json
+data-surgeist-inline-justification='[
+  {"sourceIndex": 0, "weight": 1}
+]'
 
-The parser validates counts, identity association, finiteness, sign rules, and
-the absence of a trailing justification opportunity. Malformed, missing,
-duplicate, non-finite, negative where forbidden, or length-mismatched facts are
-rejected with typed diagnostics. The helper may read computed styles to produce
-these facts; it must not calculate expected Surgeist geometry.
+data-surgeist-inline-vertical-alignments='[
+  {"sourceIndex": 0, "kind": "baseline-shift", "value": 4}
+]'
+```
+
+Each array must be nonempty when present. `sourceIndex` is the same integer
+participant identity used by the current break, strut, and bidi marker tables
+and may identify shaped text or an atomic inline child. Duplicate indices in
+one table are forbidden.
+
+The justification table permits exactly `sourceIndex` and `weight`; weight must
+be finite and strictly positive. Absence for a participant means no
+opportunity. A record after the final surviving participant, a record consumed
+only by discarded trailing whitespace, or an unused record is invalid.
+
+The vertical table permits exactly `sourceIndex`, `kind`, and conditionally
+`value`. `kind` is one of `baseline`, `baseline-shift`, `text-top`,
+`text-bottom`, `middle`, `line-top`, or `line-bottom`.
+`baseline-shift`, `text-top`, `text-bottom`, and `middle` require `value`;
+the other kinds forbid it. Baseline shift accepts any finite value. Text-top,
+text-bottom, and middle require a finite non-negative value. Absence for shaped
+text means baseline. Atomic boxes normally use their computed node style; when
+a V record names an atomic participant it is the required resolved payload and
+must agree with that style's vertical-align category.
+
+The helper reads computed `textAlign` and `textAlignLast` from every marked
+inline root and maps only `start`, `end`, `left`, `right`, `center`, and
+`justify`, with `auto` additionally allowed for the last line. These computed
+keywords are the layout-ready line policies. The helper does not use a marker
+to override them.
+
+Numeric vertical metrics and justification weights are never derived from
+browser rectangles, expected XML, Range geometry, font probes, source name, or
+variant name. The explicit J/V tables are their sole source. The helper may use
+computed `verticalAlign` only to validate that the authored source category
+matches the V record (`top` to line-top, `bottom` to line-bottom, and the
+corresponding text/middle/baseline or numeric class); it may not derive the
+record's numeric payload.
+
+Helper JSON adds `textAlignLast` beside `style.textAlign`. Each emitted
+`inlineSegments` entry contains `verticalAlignment: { kind, value? }` and
+optional `justificationWeight`. Each `atomicInlineParticipation` entry contains
+optional `justificationWeight`; an atomic V payload is emitted in its node's
+typed vertical-alignment fields.
+
+Generated XML uses existing node `text-align` and adds `text-align-last` when
+non-auto. Each `<segment>` adds `vertical-align-kind`, optional
+`vertical-align-value`, and optional `justification-weight`. Atomic placeholder
+participation adds optional `justification-weight`; its node adds
+`vertical-align-kind` and optional `vertical-align-value`. Existing XML without
+these fields parses to start/auto, baseline, and no opportunity exactly where
+the old source represented those defaults; the serializer omits default new
+attributes so prior outputs remain byte-identical.
+
+Helper and Rust parsers validate supported fields, source association,
+finiteness, sign rules, conditional value presence, computed-category
+agreement, and complete marker consumption. Malformed JSON, empty tables,
+missing or duplicate identities, unknown fields/kinds, non-finite values,
+negative values where forbidden, trailing opportunities, and unused records
+are rejected. Source-name, variant-name, and expected-geometry mutation tests
+prove identical normalized input.
 
 The generator must continue to parse current sources and preserve all prior
 outputs byte-for-byte outside the 72 new variants unless a separately proven
@@ -644,9 +801,10 @@ crate-boundary change is permitted. No unsafe code or suppression is permitted.
 Any exception requires a reviewed specification revision and cannot be granted
 only in a task plan.
 
-## 14 FRI-09.14 Implementation Boundaries And Sequence Constraints
+## 14 FRI-09.14 Durable Technical Dependencies
 
-The implementation sequence must preserve these dependency boundaries:
+Any implementation sequence derived from this specification must preserve
+these product dependencies:
 
 1. land the public model and shared policy before format algorithms consume it;
 2. land text alignment and justification before vertical alignment so line
@@ -656,32 +814,13 @@ The implementation sequence must preserve these dependency boundaries:
 4. land block content alignment before parent baseline coordination so the
    child adjustment composes with its own content policy;
 5. land flex and grid baseline coordination only after cache identity carries
-   the adjustment;
-6. perform the permission-gated browser adapter/artifact transaction after all
-   owned production behavior is green; and
-7. run a whole-crate sprawl review last, then contain every accepted FRI-09
-   finding in the originating initiative.
+   the adjustment; and
+6. settle all production behavior and the closed fixture-input schema before
+   an artifact transaction can replace the frozen lineage.
 
-A conforming sequence is expected to use at least these cycles:
-
-- C01: public model, validation, shared policy, reexports, and docs;
-- C02: text alignment, shaping-owned opportunities, justification, and output;
-- C03: resolved vertical alignment and inline metric grouping;
-- C04: block-container content alignment;
-- C05: flex/grid/subgrid baseline content-alignment coordination and cache;
-- C06: finite parser/helper/browser-artifact transaction, permission-gated;
-- C07: whole-crate sprawl review, containment, final verification, and
-  publication.
-
-If the sprawl review or another reviewed discovery cannot fit within eight
-tasks, the coordinator must author and review another cycle. It must not omit,
-compress, or defer an accepted finding to satisfy a nominal cycle count.
-
-Each implementation task has one exact ownership envelope and one independent
-task review. Fixes use a fresh worker and receive a full fresh review. Each
-cycle receives a fresh holistic review before publication, is pushed with an
-explicit lease, is read back from the authority remote, and ends with
-`cargo clean` plus stale-process verification.
+These are dependency constraints, not a pre-authored execution plan. The
+reviewed implementation sequence owns cycle decomposition and ordering beyond
+these required technical edges.
 
 ## 15 FRI-09.15 Acceptance And Closure
 
@@ -707,17 +846,10 @@ FRI-09 closes `MODEL-006` only when all of the following are true:
    the required external permission is granted;
 10. no fixture identity or expected geometry enters layout input;
 11. all prior initiative controls, full package tests, strict Clippy matrices,
-    formatting, artifact, suppression, unsafe, and scope gates are green;
-12. a whole-crate sprawl review has been completed and every accepted FRI-09
-    finding is contained in the initiative, using another reviewed cycle when
-    necessary;
-13. every task and cycle has the required independent CLEAN verdict; and
-14. the immutable candidate is published with an explicit lease, read back,
-    process-clean, worktree-clean, and followed by `cargo clean`.
+    formatting, artifact, suppression, unsafe, and scope gates are green; and
+12. the resulting source and public documentation contain no second alignment,
+    baseline-group, shaping, flow-axis, cache, or artifact authority.
 
-The leaf handoff records the final commit, reviewed specification and sequence
-semantic hashes, task and holistic verdicts, verification matrix, public API
-delta, artifact lineage, remote readback, and remaining ownership. Root then
-owns facade lowering, generated API artifacts, integration verification, and
-gitlink promotion. Leaf FRI-09 publication does not authorize those root
-mutations.
+After this product acceptance is satisfied, root still owns facade lowering,
+generated API artifacts, integration verification, and gitlink promotion. A
+leaf implementation does not authorize those root mutations.
