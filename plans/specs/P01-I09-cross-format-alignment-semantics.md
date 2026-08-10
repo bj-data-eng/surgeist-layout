@@ -863,6 +863,33 @@ these fields parses to start/auto, baseline, and no opportunity exactly where
 the old source represented those defaults; the serializer omits default new
 attributes so prior outputs remain byte-identical.
 
+Frozen XML compatibility is closed by this parser table:
+
+| Existing XML attribute | Accepted token | Layout-ready value |
+| --- | --- | --- |
+| `text-align` | absent or `start` | `TextLineAlignment::Start` |
+| `text-align` | `end` | `TextLineAlignment::End` |
+| `text-align` | `left` or `-webkit-left` | `TextLineAlignment::Left` |
+| `text-align` | `right` or `-webkit-right` | `TextLineAlignment::Right` |
+| `text-align` | `center` or `-webkit-center` | `TextLineAlignment::Center` |
+| `text-align` | `justify` | `TextLineAlignment::Justify` |
+| `text-align-last` | absent or `auto` | `TextLastLineAlignment::Auto` |
+| `text-align-last` | `start`, `end`, `left`, `right`, `center`, or `justify` | Corresponding non-auto `TextLastLineAlignment` value |
+| legacy `vertical-align` | absent or `baseline` | `VerticalAlignOf::Baseline` |
+| legacy `vertical-align` | `top` | `VerticalAlignOf::LineTop` |
+| legacy `vertical-align` | `bottom` | `VerticalAlignOf::LineBottom` |
+
+No other legacy token is accepted. When `vertical-align-kind` is present it is
+the typed authority; a simultaneously present legacy `vertical-align` must be
+one of the three rows above and agree with the typed kind. Payload-bearing new
+states are represented only by `vertical-align-kind` plus the conditionally
+required `vertical-align-value`; the parser never derives their payload from a
+legacy string.
+
+Parser coverage includes representative frozen XML for every legacy alias,
+absence defaults, disagreement, and unknown-token rejection. This compatibility
+path changes normalized input only; no pre-FRI-09 XML file is rewritten.
+
 Helper and Rust parsers validate supported fields, source association,
 finiteness, sign rules, conditional value presence, computed-category
 agreement, and complete marker consumption. Malformed JSON, empty tables,
