@@ -1,6 +1,6 @@
 # P01-I08-S01-C08 Whole-Crate Sprawl Containment II And Final Candidate
 
-Status: in_progress
+Status: reviewed
 
 Cycle ID: `P01/I08/S01/C08`
 
@@ -336,6 +336,8 @@ rejects every added or relocated suppression token.
 ```sh
 test "$(git grep -n -F '#[allow(' "$TASK_BASE" -- src/grid_tests.rs src/test_support | wc -l | tr -d ' ')" = 14
 test -z "$(rg -n -F '#[allow(' src/grid_tests.rs src/test_support --glob '*.rs' || true)"
+allow_hits="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U --pcre2 '#\s*\[\s*allow\b' | rg -v '^src/contract_tests\.rs:65:[[:space:]]*!text_source\.contains\("#\[allow\(dead_code\)\]"\),$|^src/lib_tests\.rs:984:[[:space:]]*"#\[allow\(dead_code\)\]",$|^src/lib_tests\.rs:985:[[:space:]]*"#\[allow\(clippy::too_many_arguments\)\]",$|^src/lib_tests\.rs:2180:[[:space:]]*"#\[allow\(dead_code\)\] /\* between attributes \*/ #\[cfg_attr\(not\(test\), cfg\(test\)\)\] pub\(crate\) fn hidden\(\) \{ scrollbar_size; \}",$' || true)"
+test -z "$allow_hits"
 ```
 
 ```sh
@@ -378,7 +380,7 @@ failed-to-generate; and the worktree is clean.
 expected_paths="$({ printf '%s\n' 'plans/cycles/P01-I08-S01-C08-whole-crate-sprawl-containment-and-final-candidate.md'; while IFS= read -r span; do git diff --name-only "$span"; done <<< "$TASK_SPANS"; } | LC_ALL=C sort -u)"
 actual_paths="$(git diff --name-only 4f14431cb000fceb97be7f3203927b5e5f7d07cd..HEAD | LC_ALL=C sort -u)"
 test "$actual_paths" = "$expected_paths"
-if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U --pcre2 '#\s*\[\s*allow\b'; then exit 1; fi
+allow_hits="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U --pcre2 '#\s*\[\s*allow\b' | rg -v '^src/contract_tests\.rs:65:[[:space:]]*!text_source\.contains\("#\[allow\(dead_code\)\]"\),$|^src/lib_tests\.rs:984:[[:space:]]*"#\[allow\(dead_code\)\]",$|^src/lib_tests\.rs:985:[[:space:]]*"#\[allow\(clippy::too_many_arguments\)\]",$|^src/lib_tests\.rs:2180:[[:space:]]*"#\[allow\(dead_code\)\] /\* between attributes \*/ #\[cfg_attr\(not\(test\), cfg\(test\)\)\] pub\(crate\) fn hidden\(\) \{ scrollbar_size; \}",$' || true)"; test -z "$allow_hits"
 if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U '\b(no_mangle|export_name|link_section|naked)\b|(^|[^[:alnum:]_"])extern[[:space:]]*"'; then exit 1; fi
 ```
 
