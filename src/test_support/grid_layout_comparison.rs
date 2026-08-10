@@ -1,14 +1,16 @@
+use std::collections::HashMap;
+
 use super::oracle::grid::{
     AlignmentSafety, GridArea, GridItemRect, GridScenarioReport, LaneIntrinsicSizingReport,
     LaneItemRectInput, LanePlacementReport, PlacementCursor, PlacementReport, TrackAlignment,
     TrackSizingReport, align_tracks_report, compose_grid_scenario, compose_lane_item_rect,
 };
-use crate::test_support::layout_tree::OracleTree;
+use crate::test_support::layout_tree::{OracleTree, OracleTreeOf};
 use crate::{
     AlignContent, AlignItems, Available, Compute, ComputeInput, ComputeOutput, ComputedOverflow,
     Direction, Display, Edges, GridAutoFlow, GridPlacement, Length, LengthAuto, NodeInput,
-    NodeOutput, Point, Position, PreferredSize, RequestedAxis, RunMode, Size, SizingMode,
-    SubgridTrack, TrackComponent, WritingMode, compute_grid, round_layout,
+    NodeOutput, NodeOutputOf, Point, Position, PreferredSize, RequestedAxis, Round, RunMode, Size,
+    SizingMode, SubgridTrack, TrackComponent, WritingMode, compute_grid, round_layout,
 };
 
 type Scalar = f32;
@@ -240,7 +242,7 @@ impl GridLayoutComparison {
             .clone()
             .expect("expected rows must be supplied");
         let scenario = self.expected_scenario(expected_columns, expected_rows);
-        let mut tree = self.tree();
+        let (mut tree, identities) = self.tree();
 
         let output = compute_grid(
             &mut tree,
@@ -273,8 +275,8 @@ impl GridLayoutComparison {
             },
         );
         for (index, expected) in scenario.item_rects.iter().enumerate() {
-            let node = (index + 2) as u32;
             let child = &self.children[index];
+            let node = identities.node(child, &[index]);
             let actual = tree.layout(node).expect("child layout must be recorded");
             if let Some(expected_layout) = child.expected_layout {
                 assert_node_output_close(node, actual.location, actual.size, expected_layout);
@@ -286,10 +288,12 @@ impl GridLayoutComparison {
             }
         }
 
-        let mut next_node = 2 + self.children.len() as u32;
-        for child in &self.children {
-            assert_nested_expected_layouts(&tree, child, &mut next_node);
-        }
+        walk_grid_comparison_expectations(
+            &tree,
+            &self.children,
+            &identities,
+            GridComparisonPhase::Unrounded,
+        );
 
         if self
             .children
@@ -297,15 +301,17 @@ impl GridLayoutComparison {
             .any(GridLayoutNode::has_expected_final_layout)
         {
             round_layout(&mut tree, 1).unwrap();
-            let mut next_node = 2 + self.children.len() as u32;
-            for child in &self.children {
-                assert_nested_expected_final_layouts(&tree, child, &mut next_node);
-            }
+            walk_grid_comparison_expectations(
+                &tree,
+                &self.children,
+                &identities,
+                GridComparisonPhase::Final,
+            );
         }
     }
 
     pub fn assert_layout_size(self, expected_size: Size<f32>) {
-        let mut tree = self.tree();
+        let (mut tree, identities) = self.tree();
         let output = compute_grid(
             &mut tree,
             1,
@@ -330,7 +336,7 @@ impl GridLayoutComparison {
         assert_size_close(output.size, expected_size);
         for (index, child) in self.children.iter().enumerate() {
             if let Some(expected) = child.expected_layout {
-                let node = (index + 2) as u32;
+                let node = identities.node(child, &[index]);
                 let actual = tree.layout(node).expect("child layout must be recorded");
                 assert_node_output_close(node, actual.location, actual.size, expected);
             }
@@ -383,10 +389,14 @@ impl GridLayoutComparison {
         )
     }
 
-    fn tree(&self) -> OracleTree {
-        let child_nodes: Vec<u32> = (0..self.children.len())
-            .map(|index| (index + 2) as u32)
-            .collect();
+    fn tree(&self) -> (OracleTree, GridComparisonIdentityMap<'_>) {
+        let identities = build_grid_comparison_identity_map(&self.children);
+        let child_nodes = self
+            .children
+            .iter()
+            .enumerate()
+            .map(|(index, child)| identities.node(child, &[index]))
+            .collect::<Vec<_>>();
         let mut tree = OracleTree::new().children(1, child_nodes);
         tree = tree.style(
             1,
@@ -408,13 +418,25 @@ impl GridLayoutComparison {
             },
         );
 
-        let mut next_node = 2 + self.children.len() as u32;
-        for (index, child) in self.children.iter().enumerate() {
-            let node = (index + 2) as u32;
-            tree = append_node(tree, node, child, &mut next_node);
+        for (node, child) in &identities.source_order {
+            let child_nodes = child
+                .children
+                .iter()
+                .enumerate()
+                .map(|(index, descendant)| {
+                    let mut path = identities.path(child).to_vec();
+                    path.push(index);
+                    identities.node(descendant, &path)
+                })
+                .collect::<Vec<_>>();
+            tree = tree.children(*node, child_nodes);
+            tree = tree.style(*node, child.node_input());
+            if let Some(measurement) = child.measurement {
+                tree = tree.measure(*node, ComputeOutput::from_sizes(measurement, measurement));
+            }
         }
 
-        tree
+        (tree, identities)
     }
 }
 
@@ -635,70 +657,168 @@ impl GridLayoutNode {
     }
 }
 
-fn append_node(
-    mut tree: OracleTree,
-    node: u32,
-    child: &GridLayoutNode,
-    next_node: &mut u32,
-) -> OracleTree {
-    let child_nodes: Vec<u32> = (0..child.children.len())
-        .map(|_| {
-            let node = *next_node;
-            *next_node += 1;
-            node
-        })
-        .collect();
-    tree = tree.children(node, child_nodes.clone());
-    tree = tree.style(node, child.node_input());
-    if let Some(measurement) = child.measurement {
-        tree = tree.measure(node, ComputeOutput::from_sizes(measurement, measurement));
-    }
-    for (node, child) in child_nodes.into_iter().zip(&child.children) {
-        tree = append_node(tree, node, child, next_node);
-    }
-    tree
+#[derive(Debug, Default)]
+struct GridComparisonIdentityMap<'a> {
+    nodes_by_source: HashMap<*const GridLayoutNode, u32>,
+    sources_by_node: HashMap<u32, *const GridLayoutNode>,
+    paths_by_source: HashMap<*const GridLayoutNode, Vec<usize>>,
+    source_order: Vec<(u32, &'a GridLayoutNode)>,
 }
 
-fn assert_nested_expected_layouts(tree: &OracleTree, parent: &GridLayoutNode, next_node: &mut u32) {
-    let child_nodes: Vec<u32> = (0..parent.children.len())
-        .map(|_| {
-            let node = *next_node;
-            *next_node += 1;
-            node
-        })
-        .collect();
+impl<'a> GridComparisonIdentityMap<'a> {
+    fn record(&mut self, source: &'a GridLayoutNode, node: u32, path: &[usize]) {
+        let source_identity = std::ptr::from_ref(source);
+        assert!(
+            !self.nodes_by_source.contains_key(&source_identity),
+            "duplicate grid comparison source identity at {}",
+            format_grid_comparison_path(path)
+        );
+        assert!(
+            !self.sources_by_node.contains_key(&node),
+            "duplicate grid comparison node identity {node} at {}",
+            format_grid_comparison_path(path)
+        );
+        self.nodes_by_source.insert(source_identity, node);
+        self.sources_by_node.insert(node, source_identity);
+        self.paths_by_source.insert(source_identity, path.to_vec());
+    }
 
-    for (node, child) in child_nodes.into_iter().zip(&parent.children) {
-        if let Some(expected) = child.expected_layout {
-            let actual = tree.layout(node).expect("nested layout must be recorded");
-            assert_node_output_close(node, actual.location, actual.size, expected);
+    fn node(&self, source: &GridLayoutNode, path: &[usize]) -> u32 {
+        let source_identity = std::ptr::from_ref(source);
+        self.nodes_by_source
+            .get(&source_identity)
+            .copied()
+            .unwrap_or_else(|| {
+                panic!(
+                    "missing grid comparison source identity at {}",
+                    format_grid_comparison_path(path)
+                )
+            })
+    }
+
+    fn path(&self, source: &GridLayoutNode) -> &[usize] {
+        let source_identity = std::ptr::from_ref(source);
+        self.paths_by_source
+            .get(&source_identity)
+            .map(Vec::as_slice)
+            .unwrap_or_else(|| panic!("grid comparison source path must be recorded"))
+    }
+}
+
+fn build_grid_comparison_identity_map(
+    children: &[GridLayoutNode],
+) -> GridComparisonIdentityMap<'_> {
+    let mut identities = GridComparisonIdentityMap::default();
+    let mut next_node = 2;
+    for (index, child) in children.iter().enumerate() {
+        identities.record(child, next_node, &[index]);
+        next_node += 1;
+    }
+    for (index, child) in children.iter().enumerate() {
+        record_grid_comparison_descendant_identities(
+            child,
+            &[index],
+            &mut next_node,
+            &mut identities,
+        );
+    }
+    let mut pending = children
+        .iter()
+        .enumerate()
+        .rev()
+        .map(|(index, child)| (child, vec![index]))
+        .collect::<Vec<_>>();
+    while let Some((child, path)) = pending.pop() {
+        identities
+            .source_order
+            .push((identities.node(child, &path), child));
+        for (index, descendant) in child.children.iter().enumerate().rev() {
+            let mut descendant_path = path.clone();
+            descendant_path.push(index);
+            pending.push((descendant, descendant_path));
         }
-        assert_nested_expected_layouts(tree, child, next_node);
     }
+    identities
 }
 
-fn assert_nested_expected_final_layouts(
-    tree: &OracleTree,
-    parent: &GridLayoutNode,
+fn record_grid_comparison_descendant_identities<'a>(
+    parent: &'a GridLayoutNode,
+    parent_path: &[usize],
     next_node: &mut u32,
+    identities: &mut GridComparisonIdentityMap<'a>,
 ) {
-    let child_nodes: Vec<u32> = (0..parent.children.len())
-        .map(|_| {
-            let node = *next_node;
-            *next_node += 1;
-            node
-        })
-        .collect();
-
-    for (node, child) in child_nodes.into_iter().zip(&parent.children) {
-        if let Some(expected) = child.expected_final_layout {
-            let actual = tree
-                .final_layout(node)
-                .expect("nested final layout must be recorded");
-            assert_node_output_close(node, actual.location, actual.size, expected);
-        }
-        assert_nested_expected_final_layouts(tree, child, next_node);
+    for (index, child) in parent.children.iter().enumerate() {
+        let mut path = parent_path.to_vec();
+        path.push(index);
+        identities.record(child, *next_node, &path);
+        *next_node += 1;
     }
+    for (index, child) in parent.children.iter().enumerate() {
+        let mut path = parent_path.to_vec();
+        path.push(index);
+        record_grid_comparison_descendant_identities(child, &path, next_node, identities);
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum GridComparisonPhase {
+    Unrounded,
+    Final,
+}
+
+impl GridComparisonPhase {
+    fn layout(self, node: &GridLayoutNode) -> Option<ExpectedLayout> {
+        match self {
+            Self::Unrounded => node.expected_layout,
+            Self::Final => node.expected_final_layout,
+        }
+    }
+
+    fn output<S: crate::LayoutScalar>(self, tree: &OracleTreeOf<S>, node: u32) -> NodeOutputOf<S> {
+        match self {
+            Self::Unrounded => tree
+                .layout(node)
+                .unwrap_or_else(|| panic!("nested layout must be recorded")),
+            Self::Final => tree
+                .final_layout(node)
+                .unwrap_or_else(|| panic!("nested final layout must be recorded")),
+        }
+    }
+}
+
+fn walk_grid_comparison_expectations(
+    tree: &OracleTreeOf<impl crate::LayoutScalar + std::fmt::Display>,
+    children: &[GridLayoutNode],
+    identities: &GridComparisonIdentityMap<'_>,
+    phase: GridComparisonPhase,
+) {
+    let mut pending = Vec::new();
+    for (root_index, root) in children.iter().enumerate().rev() {
+        for (child_index, child) in root.children.iter().enumerate().rev() {
+            pending.push((child, vec![root_index, child_index]));
+        }
+    }
+
+    while let Some((child, path)) = pending.pop() {
+        let node = identities.node(child, &path);
+        if let Some(expected) = phase.layout(child) {
+            assert_node_output_close_of(node, phase.output(tree, node), expected);
+        }
+        for (child_index, descendant) in child.children.iter().enumerate().rev() {
+            let mut descendant_path = path.clone();
+            descendant_path.push(child_index);
+            pending.push((descendant, descendant_path));
+        }
+    }
+}
+
+fn format_grid_comparison_path(path: &[usize]) -> String {
+    let mut formatted = String::from("root");
+    for index in path {
+        formatted.push('/');
+        formatted.push_str(&index.to_string());
+    }
+    formatted
 }
 
 fn track_alignment(alignment: AlignContent) -> TrackAlignment {
@@ -781,6 +901,32 @@ fn assert_node_output_close(
     );
 }
 
+fn assert_node_output_close_of<S>(node: u32, actual: NodeOutputOf<S>, expected: ExpectedLayout)
+where
+    S: crate::LayoutScalar + std::fmt::Display,
+{
+    assert_close_of(
+        actual.location.x,
+        S::from_f32(expected.location.x),
+        &format!("node {node} x"),
+    );
+    assert_close_of(
+        actual.location.y,
+        S::from_f32(expected.location.y),
+        &format!("node {node} y"),
+    );
+    assert_close_of(
+        actual.size.width,
+        S::from_f32(expected.size.width),
+        &format!("node {node} width"),
+    );
+    assert_close_of(
+        actual.size.height,
+        S::from_f32(expected.size.height),
+        &format!("node {node} height"),
+    );
+}
+
 fn assert_size_close(actual: Size<f32>, expected: Size<f32>) {
     assert_close(actual.width, expected.width, "root width");
     assert_close(actual.height, expected.height, "root height");
@@ -792,4 +938,287 @@ fn assert_close(actual: f32, expected: f32, label: &str) {
         tolerance.contains(actual - expected),
         "{label}: expected {expected}, got {actual}"
     );
+}
+
+fn assert_close_of<S>(actual: S, expected: S, label: &str)
+where
+    S: crate::LayoutScalar + std::fmt::Display,
+{
+    let tolerance = S::from_f32(ComparisonTolerance::oracle_grid().value);
+    assert!(
+        (actual - expected).abs() <= tolerance,
+        "{label}: expected {expected}, got {actual}"
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::Any;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    use super::*;
+    use crate::{ContainingLayoutContext, LayoutScalar, ParentFormattingContext, Traverse};
+
+    fn comparison_fixture() -> GridLayoutComparison {
+        GridLayoutComparison::new()
+            .node(
+                GridLayoutNode::grid(GridArea::new(1, 1, 1, 1))
+                    .child(
+                        GridLayoutNode::item(GridArea::new(1, 1, 1, 1))
+                            .measurement(Size::new(13.0, 17.0))
+                            .expect_layout(Point::new(1.0, 2.0), Size::new(13.0, 17.0)),
+                    )
+                    .child(GridLayoutNode::item(GridArea::new(1, 1, 1, 1)))
+                    .child(
+                        GridLayoutNode::grid(GridArea::new(1, 1, 1, 1)).child(
+                            GridLayoutNode::item(GridArea::new(1, 1, 1, 1))
+                                .expect_layout(Point::new(3.0, 4.0), Size::new(19.0, 23.0))
+                                .expect_final_layout(Point::new(3.0, 4.0), Size::new(19.0, 23.0)),
+                        ),
+                    ),
+            )
+            .node(
+                GridLayoutNode::grid(GridArea::new(1, 1, 1, 1)).child(
+                    GridLayoutNode::item(GridArea::new(1, 1, 1, 1))
+                        .expect_layout(Point::new(5.0, 6.0), Size::new(29.0, 31.0)),
+                ),
+            )
+    }
+
+    fn compute_input() -> ComputeInput {
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(Available::MAX_CONTENT),
+        )
+    }
+
+    fn panic_text(payload: Box<dyn Any + Send>) -> String {
+        if let Some(message) = payload.downcast_ref::<String>() {
+            message.clone()
+        } else if let Some(message) = payload.downcast_ref::<&str>() {
+            (*message).to_string()
+        } else {
+            panic!("panic payload must contain text")
+        }
+    }
+
+    fn captured_panic(action: impl FnOnce()) -> String {
+        match catch_unwind(AssertUnwindSafe(action)) {
+            Ok(()) => panic!("comparison action must fail"),
+            Err(payload) => panic_text(payload),
+        }
+    }
+
+    fn output<S: LayoutScalar>(location: (f64, f64), size: (f64, f64)) -> NodeOutputOf<S> {
+        NodeOutputOf {
+            location: Point::new(S::from_f64(location.0), S::from_f64(location.1)),
+            size: Size::new(S::from_f64(size.0), S::from_f64(size.1)),
+            ..NodeOutputOf::default()
+        }
+    }
+
+    fn phase_tree<S>() -> OracleTreeOf<S>
+    where
+        S: LayoutScalar,
+    {
+        let mut tree = OracleTreeOf::new()
+            .unrounded(4, output((1.0, 2.0), (13.0, 17.0)))
+            .unrounded(7, output((3.0, 4.0), (19.0, 23.0)))
+            .unrounded(8, output((5.0, 6.0), (29.0, 31.0)));
+        <OracleTreeOf<S> as Round>::set_final(&mut tree, 7, output((3.0, 4.0), (19.0, 23.0)));
+        tree
+    }
+
+    fn assert_phase_walks<S>()
+    where
+        S: LayoutScalar + std::fmt::Display,
+    {
+        let comparison = comparison_fixture();
+        let identities = build_grid_comparison_identity_map(&comparison.children);
+        let tree = phase_tree::<S>();
+
+        walk_grid_comparison_expectations(
+            &tree,
+            &comparison.children,
+            &identities,
+            GridComparisonPhase::Unrounded,
+        );
+        walk_grid_comparison_expectations(
+            &tree,
+            &comparison.children,
+            &identities,
+            GridComparisonPhase::Final,
+        );
+    }
+
+    #[test]
+    fn fri08_c08_t04_comparison_walk_preserves_source_identity_child_order_and_measurements() {
+        let comparison = comparison_fixture();
+        let identities = build_grid_comparison_identity_map(&comparison.children);
+        let (mut tree, built_identities) = comparison.tree();
+
+        assert_eq!(
+            <OracleTree as Traverse>::children(&tree, 1).collect::<Vec<_>>(),
+            [2, 3]
+        );
+        assert_eq!(
+            <OracleTree as Traverse>::children(&tree, 2).collect::<Vec<_>>(),
+            [4, 5, 6]
+        );
+        assert_eq!(
+            <OracleTree as Traverse>::children(&tree, 6).collect::<Vec<_>>(),
+            [7]
+        );
+        assert_eq!(
+            <OracleTree as Traverse>::children(&tree, 3).collect::<Vec<_>>(),
+            [8]
+        );
+        assert_eq!(identities.node(&comparison.children[0], &[0]), 2);
+        assert_eq!(identities.node(&comparison.children[1], &[1]), 3);
+        assert_eq!(
+            identities.node(&comparison.children[0].children[0], &[0, 0]),
+            4
+        );
+        assert_eq!(
+            identities.node(&comparison.children[0].children[2], &[0, 2]),
+            6
+        );
+        assert_eq!(
+            identities.node(&comparison.children[0].children[2].children[0], &[0, 2, 0]),
+            7
+        );
+        assert_eq!(identities.path(&comparison.children[1].children[0]), [1, 0]);
+        assert_eq!(
+            built_identities
+                .source_order
+                .iter()
+                .map(|(node, _)| *node)
+                .collect::<Vec<_>>(),
+            [2, 4, 5, 6, 7, 3, 8]
+        );
+
+        let measured = tree.compute_child(4, compute_input()).unwrap();
+        assert_eq!(measured.size, Size::new(13.0, 17.0));
+        assert_eq!(tree.inputs(4), &[compute_input()]);
+    }
+
+    #[test]
+    fn fri08_c08_t04_comparison_walk_skips_absent_values_and_selects_phase_outputs_for_both_scalars()
+     {
+        assert_phase_walks::<f32>();
+        assert_phase_walks::<f64>();
+    }
+
+    #[test]
+    fn fri08_c08_t04_comparison_walk_reports_missing_and_duplicate_identities() {
+        let comparison = comparison_fixture();
+        let identities = build_grid_comparison_identity_map(&comparison.children);
+        let missing_unrounded_message = captured_panic(|| {
+            walk_grid_comparison_expectations(
+                &OracleTreeOf::<f32>::new(),
+                &comparison.children,
+                &identities,
+                GridComparisonPhase::Unrounded,
+            );
+        });
+        assert_eq!(missing_unrounded_message, "nested layout must be recorded");
+        let missing_final_message = captured_panic(|| {
+            walk_grid_comparison_expectations(
+                &OracleTreeOf::<f32>::new(),
+                &comparison.children,
+                &identities,
+                GridComparisonPhase::Final,
+            );
+        });
+        assert_eq!(
+            missing_final_message,
+            "nested final layout must be recorded"
+        );
+        assert!(ComparisonTolerance::oracle_grid().contains(0.000_1));
+        assert!(!ComparisonTolerance::oracle_grid().contains(0.000_2));
+        assert!(ComparisonTolerance::browser_parity().contains(0.1));
+        assert!(!ComparisonTolerance::browser_parity().contains(0.2));
+
+        let missing = GridComparisonIdentityMap::default();
+        let missing_message = captured_panic(|| {
+            walk_grid_comparison_expectations(
+                &phase_tree::<f32>(),
+                &comparison.children,
+                &missing,
+                GridComparisonPhase::Unrounded,
+            );
+        });
+        assert_eq!(
+            missing_message,
+            "missing grid comparison source identity at root/0/0"
+        );
+
+        let first = GridLayoutNode::item(GridArea::new(1, 1, 1, 1));
+        let second = GridLayoutNode::item(GridArea::new(1, 1, 1, 1));
+        let mut duplicate_source = GridComparisonIdentityMap::default();
+        duplicate_source.record(&first, 4, &[0, 0]);
+        let duplicate_source_message = captured_panic(|| {
+            duplicate_source.record(&first, 5, &[0, 1]);
+        });
+        assert_eq!(
+            duplicate_source_message,
+            "duplicate grid comparison source identity at root/0/1"
+        );
+
+        let mut duplicate_node = GridComparisonIdentityMap::default();
+        duplicate_node.record(&first, 4, &[0, 0]);
+        let duplicate_node_message = captured_panic(|| {
+            duplicate_node.record(&second, 4, &[0, 1]);
+        });
+        assert_eq!(
+            duplicate_node_message,
+            "duplicate grid comparison node identity 4 at root/0/1"
+        );
+    }
+
+    #[test]
+    fn fri08_c08_t04_comparison_walk_reports_nested_mismatches_in_deterministic_preorder() {
+        let comparison = comparison_fixture();
+        let identities = build_grid_comparison_identity_map(&comparison.children);
+        let first_message = captured_panic(|| {
+            let tree = OracleTreeOf::<f64>::new()
+                .unrounded(4, output((101.0, 2.0), (13.0, 17.0)))
+                .unrounded(7, output((103.0, 4.0), (19.0, 23.0)))
+                .unrounded(8, output((105.0, 6.0), (29.0, 31.0)));
+            walk_grid_comparison_expectations(
+                &tree,
+                &comparison.children,
+                &identities,
+                GridComparisonPhase::Unrounded,
+            );
+        });
+        assert_eq!(first_message, "node 4 x: expected 1, got 101");
+        assert_eq!(identities.path(&comparison.children[0].children[0]), [0, 0]);
+
+        let second_message = captured_panic(|| {
+            let tree = OracleTreeOf::<f64>::new()
+                .unrounded(4, output((1.0, 2.0), (13.0, 17.0)))
+                .unrounded(7, output((103.0, 4.0), (19.0, 23.0)))
+                .unrounded(8, output((105.0, 6.0), (29.0, 31.0)));
+            walk_grid_comparison_expectations(
+                &tree,
+                &comparison.children,
+                &identities,
+                GridComparisonPhase::Unrounded,
+            );
+        });
+        assert_eq!(second_message, "node 7 x: expected 3, got 103");
+        assert_eq!(
+            identities.path(&comparison.children[0].children[2].children[0]),
+            [0, 2, 0]
+        );
+    }
 }
