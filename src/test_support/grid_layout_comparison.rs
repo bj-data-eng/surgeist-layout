@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use super::oracle::grid::{
     AlignmentSafety, GridArea, GridItemRect, GridScenarioReport, LaneIntrinsicSizingReport,
-    LaneItemRectInput, LanePlacementReport, PlacementCursor, PlacementReport, TrackAlignment,
-    TrackSizingReport, align_tracks_report, compose_grid_scenario, compose_lane_item_rect,
+    LanePlacementReport, PlacementCursor, PlacementReport, TrackAlignment, TrackSizingReport,
+    align_tracks_report, compose_grid_scenario,
 };
 use crate::test_support::layout_tree::{OracleTree, OracleTreeOf};
 use crate::{
@@ -151,11 +151,6 @@ impl GridLayoutComparison {
 
     pub fn justify_content(mut self, justify_content: AlignContent) -> Self {
         self.justify_content = justify_content;
-        self
-    }
-
-    pub fn align_content(mut self, align_content: AlignContent) -> Self {
-        self.align_content = align_content;
         self
     }
 
@@ -469,10 +464,6 @@ impl GridLayoutNode {
         Self::item(area).display(Display::Grid)
     }
 
-    pub fn grid_lanes(area: GridArea) -> Self {
-        Self::item(area).display(Display::GridLanes)
-    }
-
     pub fn subgrid(area: GridArea) -> Self {
         Self::grid(area)
             .columns(vec![subgrid_track()])
@@ -555,11 +546,6 @@ impl GridLayoutNode {
         self
     }
 
-    pub fn overflow(mut self, overflow: ComputedOverflow) -> Self {
-        self.overflow = overflow;
-        self
-    }
-
     pub fn position(mut self, position: Position) -> Self {
         self.position = position;
         self
@@ -588,14 +574,6 @@ impl GridLayoutNode {
     pub fn expect_final_layout(mut self, location: Point<f32>, size: Size<f32>) -> Self {
         self.expected_final_layout = Some(ExpectedLayout { location, size });
         self
-    }
-
-    pub fn expect_lane_rect(self, input: LaneItemRectInput) -> Self {
-        let rect = compose_lane_item_rect(input);
-        self.expect_layout(
-            Point::new(rect.x, rect.y),
-            Size::new(rect.width, rect.height),
-        )
     }
 
     pub fn child(mut self, child: GridLayoutNode) -> Self {

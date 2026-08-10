@@ -166,7 +166,6 @@ pub enum TrackMax {
     Percent(f32),
     Flex(f32),
     Auto,
-    MinContent,
     MaxContent,
     FitContent(f32),
 }
@@ -415,9 +414,7 @@ fn initialize_track(track: GridTrack, available: Option<f32>) -> TrackSize {
             .map(|available| GrowthLimit::Definite((available * factor).max(base)))
             .unwrap_or(GrowthLimit::Infinite),
         TrackMax::FitContent(limit) => GrowthLimit::Definite(limit.max(base)),
-        TrackMax::Flex(_) | TrackMax::Auto | TrackMax::MinContent | TrackMax::MaxContent => {
-            GrowthLimit::Infinite
-        }
+        TrackMax::Flex(_) | TrackMax::Auto | TrackMax::MaxContent => GrowthLimit::Infinite,
     };
 
     TrackSize::new(base, growth_limit)

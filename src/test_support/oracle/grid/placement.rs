@@ -60,7 +60,6 @@ impl GridArea {
 pub enum LinePlacement {
     Auto,
     Line(isize),
-    Span(usize),
     LineSpan { start: isize, span: usize },
     SpanLine { span: usize, end: isize },
     Lines { start: isize, end: isize },
@@ -71,10 +70,6 @@ impl LinePlacement {
         match self {
             Self::Auto => AxisPlacement::new(auto_start_line, auto_start_line + 1),
             Self::Line(start) => AxisPlacement::new(start, start + 1),
-            Self::Span(span) => {
-                validate_span(span)?;
-                AxisPlacement::new(auto_start_line, auto_start_line + span as isize)
-            }
             Self::LineSpan { start, span } => {
                 validate_span(span)?;
                 AxisPlacement::new(start, start + span as isize)
@@ -167,8 +162,6 @@ pub enum PlacementError {
     ZeroSpan,
     EndBeforeStart,
     LineBeforeFirst,
-    UnresolvedAuto,
-    NamedLinesUnsupported,
     NoExplicitTracks(GridAxis),
     SpanExceedsExplicitTracks {
         axis: GridAxis,

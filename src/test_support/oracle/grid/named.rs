@@ -318,14 +318,6 @@ pub fn resolve_named_area(
     })
 }
 
-pub fn resolve_named_grid_area(
-    columns: &NamedGridLines,
-    rows: &NamedGridLines,
-    area_name: &str,
-) -> Result<GridArea, NamedGridError> {
-    Ok(resolve_named_grid_area_report(columns, rows, area_name)?.area)
-}
-
 pub fn resolve_named_grid_area_report(
     columns: &NamedGridLines,
     rows: &NamedGridLines,
@@ -879,8 +871,6 @@ fn map_placement_error(
             end_line,
         },
         PlacementError::ZeroSpan
-        | PlacementError::UnresolvedAuto
-        | PlacementError::NamedLinesUnsupported
         | PlacementError::NoExplicitTracks(_)
         | PlacementError::SpanExceedsExplicitTracks { .. } => {
             unreachable!("axis placement validation only checks resolved line bounds and order")
@@ -1519,9 +1509,6 @@ pub struct SubgridAxisPlacementReport {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NamedGridError {
-    EmptyLineNames {
-        axis: GridAxis,
-    },
     LineNameCountMismatch {
         axis: GridAxis,
         explicit_track_count: usize,

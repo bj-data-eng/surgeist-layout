@@ -2,7 +2,6 @@ use super::contributions::ItemContributionFacts;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OracleGridError {
-    NamedLineInheritanceUnsupported,
     BaselineInferenceUnsupported,
     MissingIntrinsicMinTrackFacts,
     EmptyTrackList,
@@ -199,13 +198,6 @@ fn remove_from_tracks(tracks: &mut [f32], mut amount: f32, forwards: bool) {
 pub struct AxisEdges {
     pub start: f32,
     pub end: f32,
-}
-
-impl AxisEdges {
-    #[must_use]
-    pub const fn sum(self) -> f32 {
-        self.start + self.end
-    }
 }
 
 impl Default for AxisEdges {

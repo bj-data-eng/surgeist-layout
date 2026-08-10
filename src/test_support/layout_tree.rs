@@ -161,16 +161,6 @@ impl<S: LayoutScalar> OracleMeasurementOf<S> {
         self
     }
 
-    pub const fn sizing_mode(mut self, sizing_mode: SizingMode) -> Self {
-        self.sizing_mode = Some(sizing_mode);
-        self
-    }
-
-    pub const fn axis(mut self, axis: RequestedAxis) -> Self {
-        self.axis = Some(axis);
-        self
-    }
-
     pub const fn known(mut self, known: Size<Option<S>>) -> Self {
         self.known = Some(known);
         self

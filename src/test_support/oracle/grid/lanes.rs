@@ -38,7 +38,6 @@ pub struct GridLanesBaselinePolicyReport {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LaneFlowTolerance {
-    Normal { font_size: f32 },
     Fixed(f32),
     Percent(f32),
     Infinite,
@@ -230,7 +229,6 @@ pub fn place_lanes_trace(input: LanePlacementInput) -> Result<LanePlacementTrace
 
 fn resolve_tolerance(tolerance: LaneFlowTolerance, basis: f32) -> f32 {
     match tolerance {
-        LaneFlowTolerance::Normal { font_size } => font_size,
         LaneFlowTolerance::Fixed(value) => value,
         LaneFlowTolerance::Percent(factor) => factor * basis,
         LaneFlowTolerance::Infinite => f32::INFINITY,
@@ -645,7 +643,6 @@ fn masonry_track_maximum_size(
     group: &IndefiniteLaneContributionGroup,
 ) -> f32 {
     match track.max {
-        TrackMax::MinContent => group.max_min_content,
         TrackMax::MaxContent | TrackMax::Auto | TrackMax::FitContent(_) => group.max_max_content,
         TrackMax::Fixed(_) | TrackMax::Percent(_) | TrackMax::Flex(_) => minimum_size,
     }

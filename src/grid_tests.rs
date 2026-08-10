@@ -33758,8 +33758,8 @@ mod root_oracle {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn oracle_baseline_item(
+    #[derive(Clone, Copy)]
+    struct OracleBaselineItemCase {
         id: &'static str,
         row_start: usize,
         row_span: usize,
@@ -33769,23 +33769,55 @@ mod root_oracle {
         margin_after: f32,
         first_baseline: Option<f32>,
         last_baseline: Option<f32>,
-    ) -> grid::BaselineItemFacts {
+    }
+
+    fn oracle_baseline_item(case: OracleBaselineItemCase) -> grid::BaselineItemFacts {
         grid::BaselineItemFacts {
-            id,
-            area: grid::GridArea::new(1, row_start, 1, row_span),
-            block_size,
-            margin_before,
-            margin_after,
-            first_baseline,
-            last_baseline,
-            synthesized_first: first_baseline.is_none(),
-            synthesized_last: last_baseline.is_none(),
-            alignment,
+            id: case.id,
+            area: grid::GridArea::new(1, case.row_start, 1, case.row_span),
+            block_size: case.block_size,
+            margin_before: case.margin_before,
+            margin_after: case.margin_after,
+            first_baseline: case.first_baseline,
+            last_baseline: case.last_baseline,
+            synthesized_first: case.first_baseline.is_none(),
+            synthesized_last: case.last_baseline.is_none(),
+            alignment: case.alignment,
             out_of_flow: false,
             baseline_axis_auto_margins: false,
             spans_intrinsic_track: false,
             baseline_requires_unavailable_subgrid_layout: false,
         }
+    }
+
+    #[test]
+    fn fri08_c08_t06_suppression_cleanup_baseline_case_preserves_coupled_inputs_and_defaults() {
+        let item = oracle_baseline_item(OracleBaselineItemCase {
+            id: "characterized",
+            row_start: 2,
+            row_span: 3,
+            alignment: grid::BaselineAlignment::Last,
+            block_size: 37.0,
+            margin_before: 4.0,
+            margin_after: 6.0,
+            first_baseline: None,
+            last_baseline: Some(29.0),
+        });
+
+        assert_eq!(item.id, "characterized");
+        assert_eq!(item.area, grid::GridArea::new(1, 2, 1, 3));
+        assert_eq!(item.alignment, grid::BaselineAlignment::Last);
+        assert_eq!(item.block_size, 37.0);
+        assert_eq!(item.margin_before, 4.0);
+        assert_eq!(item.margin_after, 6.0);
+        assert_eq!(item.first_baseline, None);
+        assert_eq!(item.last_baseline, Some(29.0));
+        assert!(item.synthesized_first);
+        assert!(!item.synthesized_last);
+        assert!(!item.out_of_flow);
+        assert!(!item.baseline_axis_auto_margins);
+        assert!(!item.spans_intrinsic_track);
+        assert!(!item.baseline_requires_unavailable_subgrid_layout);
     }
 
     #[test]
@@ -34050,28 +34082,28 @@ mod root_oracle {
             track_sizes: vec![30.0, 40.0, 50.0],
             gap: 5.0,
             items: vec![
-                oracle_baseline_item(
-                    "a",
-                    1,
-                    1,
-                    grid::BaselineAlignment::First,
-                    20.0,
-                    3.0,
-                    2.0,
-                    Some(8.0),
-                    Some(16.0),
-                ),
-                oracle_baseline_item(
-                    "b",
-                    1,
-                    1,
-                    grid::BaselineAlignment::First,
-                    24.0,
-                    1.0,
-                    1.0,
-                    Some(12.0),
-                    Some(18.0),
-                ),
+                oracle_baseline_item(OracleBaselineItemCase {
+                    id: "a",
+                    row_start: 1,
+                    row_span: 1,
+                    alignment: grid::BaselineAlignment::First,
+                    block_size: 20.0,
+                    margin_before: 3.0,
+                    margin_after: 2.0,
+                    first_baseline: Some(8.0),
+                    last_baseline: Some(16.0),
+                }),
+                oracle_baseline_item(OracleBaselineItemCase {
+                    id: "b",
+                    row_start: 1,
+                    row_span: 1,
+                    alignment: grid::BaselineAlignment::First,
+                    block_size: 24.0,
+                    margin_before: 1.0,
+                    margin_after: 1.0,
+                    first_baseline: Some(12.0),
+                    last_baseline: Some(18.0),
+                }),
             ],
         })
         .unwrap();
@@ -34086,17 +34118,17 @@ mod root_oracle {
             track_count: 3,
             track_sizes: vec![30.0, 40.0, 50.0],
             gap: 5.0,
-            items: vec![oracle_baseline_item(
-                "span",
-                1,
-                2,
-                grid::BaselineAlignment::Last,
-                30.0,
-                2.0,
-                4.0,
-                Some(8.0),
-                Some(22.0),
-            )],
+            items: vec![oracle_baseline_item(OracleBaselineItemCase {
+                id: "span",
+                row_start: 1,
+                row_span: 2,
+                alignment: grid::BaselineAlignment::Last,
+                block_size: 30.0,
+                margin_before: 2.0,
+                margin_after: 4.0,
+                first_baseline: Some(8.0),
+                last_baseline: Some(22.0),
+            })],
         })
         .unwrap();
 
@@ -34105,29 +34137,29 @@ mod root_oracle {
 
     #[test]
     fn oracle_baseline_groups_preserve_nonparticipants_without_updating_group() {
-        let mut nonparticipant = oracle_baseline_item(
-            "absolute",
-            1,
-            1,
-            grid::BaselineAlignment::First,
-            80.0,
-            20.0,
-            0.0,
-            Some(40.0),
-            Some(60.0),
-        );
+        let mut nonparticipant = oracle_baseline_item(OracleBaselineItemCase {
+            id: "absolute",
+            row_start: 1,
+            row_span: 1,
+            alignment: grid::BaselineAlignment::First,
+            block_size: 80.0,
+            margin_before: 20.0,
+            margin_after: 0.0,
+            first_baseline: Some(40.0),
+            last_baseline: Some(60.0),
+        });
         nonparticipant.out_of_flow = true;
-        let mut empty_row_nonparticipant = oracle_baseline_item(
-            "empty-row-absolute",
-            2,
-            1,
-            grid::BaselineAlignment::First,
-            80.0,
-            20.0,
-            0.0,
-            Some(40.0),
-            Some(60.0),
-        );
+        let mut empty_row_nonparticipant = oracle_baseline_item(OracleBaselineItemCase {
+            id: "empty-row-absolute",
+            row_start: 2,
+            row_span: 1,
+            alignment: grid::BaselineAlignment::First,
+            block_size: 80.0,
+            margin_before: 20.0,
+            margin_after: 0.0,
+            first_baseline: Some(40.0),
+            last_baseline: Some(60.0),
+        });
         empty_row_nonparticipant.out_of_flow = true;
 
         let report = grid::baseline_groups(grid::BaselineGroupInput {
@@ -34135,17 +34167,17 @@ mod root_oracle {
             track_sizes: vec![30.0, 40.0],
             gap: 5.0,
             items: vec![
-                oracle_baseline_item(
-                    "participant",
-                    1,
-                    1,
-                    grid::BaselineAlignment::First,
-                    20.0,
-                    1.0,
-                    0.0,
-                    Some(6.0),
-                    Some(14.0),
-                ),
+                oracle_baseline_item(OracleBaselineItemCase {
+                    id: "participant",
+                    row_start: 1,
+                    row_span: 1,
+                    alignment: grid::BaselineAlignment::First,
+                    block_size: 20.0,
+                    margin_before: 1.0,
+                    margin_after: 0.0,
+                    first_baseline: Some(6.0),
+                    last_baseline: Some(14.0),
+                }),
                 nonparticipant,
                 empty_row_nonparticipant,
             ],
@@ -34164,17 +34196,17 @@ mod root_oracle {
 
     #[test]
     fn oracle_baseline_groups_reject_invalid_track_and_row_spans() {
-        let valid_item = oracle_baseline_item(
-            "item",
-            1,
-            1,
-            grid::BaselineAlignment::First,
-            20.0,
-            0.0,
-            0.0,
-            Some(6.0),
-            Some(14.0),
-        );
+        let valid_item = oracle_baseline_item(OracleBaselineItemCase {
+            id: "item",
+            row_start: 1,
+            row_span: 1,
+            alignment: grid::BaselineAlignment::First,
+            block_size: 20.0,
+            margin_before: 0.0,
+            margin_after: 0.0,
+            first_baseline: Some(6.0),
+            last_baseline: Some(14.0),
+        });
         let invalid_start = grid::BaselineItemFacts {
             area: grid::GridArea::new(1, 0, 1, 1),
             ..valid_item
@@ -34232,17 +34264,17 @@ mod root_oracle {
             track_count: 4,
             track_sizes: vec![20.0, 30.0, 40.0, 50.0],
             gap: 5.0,
-            items: vec![oracle_baseline_item(
-                "span-major",
-                2,
-                2,
-                grid::BaselineAlignment::First,
-                30.0,
-                2.0,
-                3.0,
-                Some(9.0),
-                Some(21.0),
-            )],
+            items: vec![oracle_baseline_item(OracleBaselineItemCase {
+                id: "span-major",
+                row_start: 2,
+                row_span: 2,
+                alignment: grid::BaselineAlignment::First,
+                block_size: 30.0,
+                margin_before: 2.0,
+                margin_after: 3.0,
+                first_baseline: Some(9.0),
+                last_baseline: Some(21.0),
+            })],
         })
         .unwrap();
 
@@ -36512,8 +36544,7 @@ mod root_oracle {
             child_direction: grid::OracleDirection::Ltr,
             parent_flipped_in_resolved_axis: false,
             child_flipped_in_resolved_axis: false,
-        })
-        .unwrap();
+        });
 
         assert_eq!(report.parent_axis, GridAxis::Column);
         assert_eq!(report.child_axis, GridAxis::Column);
@@ -36530,8 +36561,7 @@ mod root_oracle {
             child_direction: grid::OracleDirection::Ltr,
             parent_flipped_in_resolved_axis: true,
             child_flipped_in_resolved_axis: false,
-        })
-        .unwrap();
+        });
 
         assert_eq!(report.parent_axis, GridAxis::Row);
         assert_eq!(report.child_axis, GridAxis::Row);
@@ -39300,6 +39330,24 @@ mod root_layout_oracle {
             .expected_tracks(expected_columns, expected_rows)
             .child(GridArea::new(1, 1, 1, 1))
             .child(GridArea::new(2, 1, 1, 1))
+            .assert_layout();
+    }
+
+    #[test]
+    fn fri08_c08_t06_suppression_cleanup_live_grid_support_matches_fixed_track_layout() {
+        let expected_columns = TrackSizingSlice::definite_columns(90.0, 0.0)
+            .track(GridTrack::fixed(90.0))
+            .solve();
+        let expected_rows = TrackSizingSlice::definite_rows(35.0, 0.0)
+            .track(GridTrack::fixed(35.0))
+            .solve();
+
+        GridLayoutComparison::new()
+            .container(Size::new(90.0, 35.0))
+            .columns(vec![TrackComponent::px(90.0)])
+            .rows(vec![TrackComponent::px(35.0)])
+            .expected_tracks(expected_columns, expected_rows)
+            .child(GridArea::new(1, 1, 1, 1))
             .assert_layout();
     }
 

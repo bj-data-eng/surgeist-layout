@@ -3,26 +3,12 @@ use super::placement::GridAxis;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OracleWritingMode {
     HorizontalTb,
-    VerticalLr,
-    VerticalRl,
-}
-
-impl OracleWritingMode {
-    #[must_use]
-    pub const fn is_vertical(self) -> bool {
-        matches!(self, Self::VerticalLr | Self::VerticalRl)
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OracleDirection {
     Ltr,
     Rtl,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AxisMappingError {
-    VerticalWritingModeUnsupported,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -50,12 +36,8 @@ pub struct AxisMappingReport {
     pub reversed: bool,
 }
 
-pub fn map_axis(input: AxisMappingInput) -> Result<AxisMappingReport, AxisMappingError> {
-    if input.parent_writing_mode.is_vertical() || input.child_writing_mode.is_vertical() {
-        return Err(AxisMappingError::VerticalWritingModeUnsupported);
-    }
-
-    Ok(AxisMappingReport {
+pub fn map_axis(input: AxisMappingInput) -> AxisMappingReport {
+    AxisMappingReport {
         queried_axis: input.queried_axis,
         parent_axis: input.queried_axis,
         child_axis: input.queried_axis,
@@ -66,7 +48,7 @@ pub fn map_axis(input: AxisMappingInput) -> Result<AxisMappingReport, AxisMappin
         parent_flipped_in_resolved_axis: input.parent_flipped_in_resolved_axis,
         child_flipped_in_resolved_axis: input.child_flipped_in_resolved_axis,
         reversed: input.parent_flipped_in_resolved_axis != input.child_flipped_in_resolved_axis,
-    })
+    }
 }
 
 #[must_use]

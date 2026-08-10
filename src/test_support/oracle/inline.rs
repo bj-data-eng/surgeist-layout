@@ -7,8 +7,6 @@ pub struct InlineSize {
 }
 
 impl InlineSize {
-    pub const ZERO: Self = Self::new(0.0, 0.0);
-
     pub const fn new(width: f32, height: f32) -> Self {
         Self { width, height }
     }
@@ -21,8 +19,6 @@ pub struct InlinePoint {
 }
 
 impl InlinePoint {
-    pub const ZERO: Self = Self::new(0.0, 0.0);
-
     pub const fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
@@ -223,7 +219,6 @@ pub fn atomic_inline_grid_item_facts(
 pub enum InlineAvailable {
     Definite(f32),
     MinContent,
-    MaxContent,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -325,7 +320,6 @@ fn wrap_width(metrics: &[AtomicInlineMetrics], available: InlineAvailable) -> Op
                 .map(|metrics| metrics.advance)
                 .fold(0.0, f32::max),
         ),
-        InlineAvailable::MaxContent => None,
     }
 }
 
