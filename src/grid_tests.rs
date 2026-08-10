@@ -55,17 +55,45 @@ enum Fri08C06RInheritedAxes {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-struct Fri08C06RRetained<S: LayoutScalar> {
+struct GridTestRetainedState<S: LayoutScalar> {
     unrounded: HashMap<u32, NodeOutputOf<S>>,
     final_outputs: HashMap<u32, NodeOutputOf<S>>,
     caches: HashMap<u32, CacheOf<S>>,
+}
+
+impl<S: LayoutScalar> GridTestRetainedState<S> {
+    fn prepare_grid_test_batch(&self, batch: &CompletedLayoutBatchOf<u32, S>) -> Self {
+        let mut prepared = self.clone();
+        for node in batch.invalidated_nodes() {
+            prepared.unrounded.remove(node);
+            prepared.final_outputs.remove(node);
+            prepared.caches.remove(node);
+        }
+        for entry in batch.unrounded_entries() {
+            prepared.unrounded.insert(entry.node(), entry.output());
+        }
+        for entry in batch.final_entries() {
+            prepared.final_outputs.insert(entry.node(), entry.output());
+        }
+        for entry in batch.cache_clear_entries() {
+            prepared.caches.remove(&entry.node());
+        }
+        for entry in batch.cache_store_entries() {
+            prepared
+                .caches
+                .entry(entry.node())
+                .or_default()
+                .store_with_context(entry.input(), entry.context(), entry.output());
+        }
+        prepared
+    }
 }
 
 #[derive(Clone, Debug)]
 struct Fri08C06RAtomicTree<S: LayoutScalar> {
     tree: PublicLayoutTreeOf<S>,
     cache_queries: std::cell::RefCell<Vec<(u32, bool)>>,
-    retained: Fri08C06RRetained<S>,
+    retained: GridTestRetainedState<S>,
 }
 
 impl<S: LayoutScalar> Fri08C06RAtomicTree<S> {
@@ -73,7 +101,7 @@ impl<S: LayoutScalar> Fri08C06RAtomicTree<S> {
         Self {
             tree,
             cache_queries: std::cell::RefCell::new(Vec::new()),
-            retained: Fri08C06RRetained::default(),
+            retained: GridTestRetainedState::default(),
         }
     }
 
@@ -151,40 +179,175 @@ impl<S: LayoutScalar> LayoutTree for Fri08C06RAtomicTree<S> {
 
 impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri08C06RAtomicTree<S> {
     type Error = core::convert::Infallible;
-    type Prepared = Fri08C06RRetained<S>;
+    type Prepared = GridTestRetainedState<S>;
 
     fn prepare_layout_batch(
         &self,
         batch: &CompletedLayoutBatchOf<u32, S>,
     ) -> Result<Self::Prepared, Self::Error> {
-        let mut prepared = self.retained.clone();
-        for node in batch.invalidated_nodes() {
-            prepared.unrounded.remove(node);
-            prepared.final_outputs.remove(node);
-            prepared.caches.remove(node);
-        }
-        for entry in batch.unrounded_entries() {
-            prepared.unrounded.insert(entry.node(), entry.output());
-        }
-        for entry in batch.final_entries() {
-            prepared.final_outputs.insert(entry.node(), entry.output());
-        }
-        for entry in batch.cache_clear_entries() {
-            prepared.caches.remove(&entry.node());
-        }
-        for entry in batch.cache_store_entries() {
-            prepared
-                .caches
-                .entry(entry.node())
-                .or_default()
-                .store_with_context(entry.input(), entry.context(), entry.output());
-        }
-        Ok(prepared)
+        Ok(self.retained.prepare_grid_test_batch(batch))
     }
 
     fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
         self.retained = prepared;
     }
+}
+
+fn fri08_c08_t03_cache_input<S: LayoutScalar>(
+    run_mode: RunMode,
+    available: f64,
+) -> ComputeInputOf<S> {
+    ComputeInputOf::for_child(
+        run_mode,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::NONE,
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::splat(AvailableOf::definite(S::from_f64(available))),
+    )
+}
+
+fn assert_fri08_c08_t03_retained_state_prepares_and_commits<S: LayoutScalar>() {
+    let mut tree = Fri08C06RAtomicTree::new(PublicLayoutTreeOf::new());
+    assert!(tree.retained.unrounded.is_empty());
+    assert!(tree.retained.final_outputs.is_empty());
+    assert!(tree.retained.caches.is_empty());
+
+    let invalidated_input = fri08_c08_t03_cache_input::<S>(RunMode::PerformRootLayout, 90.0);
+    let cleared_input = fri08_c08_t03_cache_input::<S>(RunMode::PerformRootLayout, 100.0);
+    let replacement_input = fri08_c08_t03_cache_input::<S>(RunMode::ComputeSize, 110.0);
+    let replacement_miss = fri08_c08_t03_cache_input::<S>(RunMode::ComputeSize, 111.0);
+    let invalidated_cache =
+        ComputeOutputOf::from_outer_size(Size::new(S::from_f64(9.0), S::from_f64(19.0)));
+    let cleared_cache =
+        ComputeOutputOf::from_outer_size(Size::new(S::from_f64(10.0), S::from_f64(20.0)));
+    let replacement_cache =
+        ComputeOutputOf::from_outer_size(Size::new(S::from_f64(11.0), S::from_f64(21.0)));
+    let seed_unrounded = NodeOutputOf {
+        size: Size::new(S::from_f64(9.25), S::from_f64(19.5)),
+        ..NodeOutputOf::default()
+    };
+    let seed_final = NodeOutputOf {
+        size: Size::new(S::from_f64(9.0), S::from_f64(20.0)),
+        ..NodeOutputOf::default()
+    };
+    let seed = CompletedLayoutBatchOf::from_entries(
+        vec![LayoutOutputEntryOf::new(9, seed_unrounded)],
+        vec![LayoutOutputEntryOf::new(9, seed_final)],
+        Vec::new(),
+        Vec::new(),
+        vec![
+            LayoutCacheStoreEntryOf::new(
+                9,
+                invalidated_input,
+                CacheKeyContext::new(),
+                invalidated_cache,
+            ),
+            LayoutCacheStoreEntryOf::new(10, cleared_input, CacheKeyContext::new(), cleared_cache),
+        ],
+        Vec::new(),
+        Vec::new(),
+    );
+    seed.apply_to(&mut tree).unwrap();
+
+    let replacement_unrounded = NodeOutputOf {
+        size: Size::new(S::from_f64(12.25), S::from_f64(22.5)),
+        ..NodeOutputOf::default()
+    };
+    let replacement_final = NodeOutputOf {
+        size: Size::new(S::from_f64(12.0), S::from_f64(23.0)),
+        ..NodeOutputOf::default()
+    };
+    let replacement = CompletedLayoutBatchOf::from_entries(
+        vec![LayoutOutputEntryOf::new(12, replacement_unrounded)],
+        vec![LayoutOutputEntryOf::new(12, replacement_final)],
+        Vec::new(),
+        Vec::new(),
+        vec![LayoutCacheStoreEntryOf::new(
+            10,
+            replacement_input,
+            CacheKeyContext::new(),
+            replacement_cache,
+        )],
+        vec![LayoutCacheClearEntry::new(10)],
+        vec![9],
+    );
+    let retained_before_prepare = tree.retained.clone();
+    let prepared = tree.prepare_layout_batch(&replacement).unwrap();
+
+    assert_eq!(tree.retained, retained_before_prepare);
+    assert!(!prepared.unrounded.contains_key(&9));
+    assert!(!prepared.final_outputs.contains_key(&9));
+    assert!(!prepared.caches.contains_key(&9));
+    assert_eq!(prepared.unrounded.get(&12), Some(&replacement_unrounded));
+    assert_eq!(prepared.final_outputs.get(&12), Some(&replacement_final));
+    assert_eq!(
+        prepared.caches[&10].get_with_context(&cleared_input, CacheKeyContext::new()),
+        None,
+        "cache clearing removes the prior run-mode entry before replacement storage"
+    );
+    assert_eq!(
+        prepared.caches[&10].get_with_context(&replacement_input, CacheKeyContext::new()),
+        Some(replacement_cache)
+    );
+    assert_eq!(
+        prepared.caches[&10].get_with_context(&replacement_miss, CacheKeyContext::new()),
+        None,
+        "cache reuse remains keyed by the complete compute input"
+    );
+
+    tree.commit_layout_batch(prepared);
+    assert_eq!(
+        tree.retained.unrounded.get(&12),
+        Some(&replacement_unrounded)
+    );
+    assert_eq!(
+        tree.retained.final_outputs.get(&12),
+        Some(&replacement_final)
+    );
+    tree.cache_queries.borrow_mut().clear();
+    assert_eq!(
+        tree.cache_get(10, &replacement_input, CacheKeyContext::new()),
+        Some(replacement_cache)
+    );
+    assert_eq!(tree.cache_queries.borrow().as_slice(), &[(10, true)]);
+}
+
+#[test]
+fn fri08_c08_t03_retained_state_prepares_invalidates_and_commits_for_both_scalars() {
+    assert_fri08_c08_t03_retained_state_prepares_and_commits::<f32>();
+    assert_fri08_c08_t03_retained_state_prepares_and_commits::<f64>();
+}
+
+fn assert_fri08_c08_t03_retained_state_failed_layout_rolls_back<S: LayoutScalar>() {
+    let mut tree = Fri08C03NestedAtomicTree::<S>::new();
+    let request = Fri08C03NestedAtomicTree::<S>::request();
+    let cold = compute_layout(&tree, 1, request).unwrap();
+    cold.apply_to(&mut tree).unwrap();
+    let retained_before_failure = tree.retained.clone();
+
+    tree.measure_mode
+        .set(Fri08C03NestedMeasureMode::ProviderError);
+    let error = compute_layout_invalidated(&tree, 1, request, &[4])
+        .expect_err("provider failure returns no completed batch");
+
+    assert_eq!(error.site(), LayoutErrorSiteOf::Node(4));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKindOf::Measurement(Fri08C03NestedMeasureError::Provider)
+    ));
+    assert_eq!(tree.retained, retained_before_failure);
+}
+
+#[test]
+fn fri08_c08_t03_retained_state_failed_layout_has_no_partial_publication_for_both_scalars() {
+    assert_fri08_c08_t03_retained_state_failed_layout_rolls_back::<f32>();
+    assert_fri08_c08_t03_retained_state_failed_layout_rolls_back::<f64>();
 }
 
 fn fri08_c06r_inherited_placement_flow_tree<S: LayoutScalar>(
@@ -3354,20 +3517,13 @@ enum Fri08C03NestedMeasureError {
     Provider,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-struct Fri08C03NestedRetained<S: LayoutScalar> {
-    unrounded: HashMap<u32, NodeOutputOf<S>>,
-    final_outputs: HashMap<u32, NodeOutputOf<S>>,
-    caches: HashMap<u32, CacheOf<S>>,
-}
-
 #[derive(Clone, Debug)]
 struct Fri08C03NestedAtomicTree<S: LayoutScalar> {
     tree: PublicLayoutTreeOf<S>,
     measure_mode: std::cell::Cell<Fri08C03NestedMeasureMode>,
     measurement_requests: std::cell::RefCell<Vec<(u32, LeafMeasureInputOf<S>)>>,
     cache_queries: std::cell::RefCell<Vec<(u32, bool)>>,
-    retained: Fri08C03NestedRetained<S>,
+    retained: GridTestRetainedState<S>,
 }
 
 impl<S: LayoutScalar> Fri08C03NestedAtomicTree<S> {
@@ -3392,24 +3548,13 @@ impl<S: LayoutScalar> Fri08C03NestedAtomicTree<S> {
             measure_mode: std::cell::Cell::new(Fri08C03NestedMeasureMode::Values),
             measurement_requests: std::cell::RefCell::new(Vec::new()),
             cache_queries: std::cell::RefCell::new(Vec::new()),
-            retained: Fri08C03NestedRetained::default(),
+            retained: GridTestRetainedState::default(),
         }
     }
 
     fn request() -> LayoutRootRequestOf<S> {
         LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
             .expect("nested atomic max-content viewport")
-    }
-
-    fn apply_cache_entry(
-        retained: &mut Fri08C03NestedRetained<S>,
-        entry: &LayoutCacheStoreEntryOf<u32, S>,
-    ) {
-        retained
-            .caches
-            .entry(entry.node())
-            .or_default()
-            .store_with_context(entry.input(), entry.context(), entry.output());
     }
 }
 
@@ -3496,31 +3641,13 @@ impl<S: LayoutScalar> LayoutTree for Fri08C03NestedAtomicTree<S> {
 
 impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri08C03NestedAtomicTree<S> {
     type Error = core::convert::Infallible;
-    type Prepared = Fri08C03NestedRetained<S>;
+    type Prepared = GridTestRetainedState<S>;
 
     fn prepare_layout_batch(
         &self,
         batch: &CompletedLayoutBatchOf<u32, S>,
     ) -> Result<Self::Prepared, Self::Error> {
-        let mut prepared = self.retained.clone();
-        for node in batch.invalidated_nodes() {
-            prepared.unrounded.remove(node);
-            prepared.final_outputs.remove(node);
-            prepared.caches.remove(node);
-        }
-        for entry in batch.unrounded_entries() {
-            prepared.unrounded.insert(entry.node(), entry.output());
-        }
-        for entry in batch.final_entries() {
-            prepared.final_outputs.insert(entry.node(), entry.output());
-        }
-        for entry in batch.cache_clear_entries() {
-            prepared.caches.remove(&entry.node());
-        }
-        for entry in batch.cache_store_entries() {
-            Self::apply_cache_entry(&mut prepared, entry);
-        }
-        Ok(prepared)
+        Ok(self.retained.prepare_grid_test_batch(batch))
     }
 
     fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
@@ -3706,13 +3833,6 @@ enum Fri08C04BaselineMeasureError {
     Provider,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-struct Fri08C04BaselineRetained<S: LayoutScalar> {
-    unrounded: HashMap<u32, NodeOutputOf<S>>,
-    final_outputs: HashMap<u32, NodeOutputOf<S>>,
-    caches: HashMap<u32, CacheOf<S>>,
-}
-
 #[derive(Clone, Debug)]
 struct Fri08C04BaselineTree<S: LayoutScalar> {
     tree: PublicLayoutTreeOf<S>,
@@ -3721,7 +3841,7 @@ struct Fri08C04BaselineTree<S: LayoutScalar> {
     measure_mode: std::cell::Cell<Fri08C04BaselineMeasureMode>,
     measurement_requests: std::cell::RefCell<Vec<u32>>,
     cache_queries: std::cell::RefCell<Vec<(u32, bool)>>,
-    retained: Fri08C04BaselineRetained<S>,
+    retained: GridTestRetainedState<S>,
 }
 
 impl<S: LayoutScalar> Traverse for Fri08C04BaselineTree<S> {
@@ -3802,35 +3922,13 @@ impl<S: LayoutScalar> LayoutTree for Fri08C04BaselineTree<S> {
 
 impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri08C04BaselineTree<S> {
     type Error = core::convert::Infallible;
-    type Prepared = Fri08C04BaselineRetained<S>;
+    type Prepared = GridTestRetainedState<S>;
 
     fn prepare_layout_batch(
         &self,
         batch: &CompletedLayoutBatchOf<u32, S>,
     ) -> Result<Self::Prepared, Self::Error> {
-        let mut prepared = self.retained.clone();
-        for node in batch.invalidated_nodes() {
-            prepared.unrounded.remove(node);
-            prepared.final_outputs.remove(node);
-            prepared.caches.remove(node);
-        }
-        for entry in batch.unrounded_entries() {
-            prepared.unrounded.insert(entry.node(), entry.output());
-        }
-        for entry in batch.final_entries() {
-            prepared.final_outputs.insert(entry.node(), entry.output());
-        }
-        for entry in batch.cache_clear_entries() {
-            prepared.caches.remove(&entry.node());
-        }
-        for entry in batch.cache_store_entries() {
-            prepared
-                .caches
-                .entry(entry.node())
-                .or_default()
-                .store_with_context(entry.input(), entry.context(), entry.output());
-        }
-        Ok(prepared)
+        Ok(self.retained.prepare_grid_test_batch(batch))
     }
 
     fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
@@ -4182,7 +4280,7 @@ fn fri08_c04_baseline_area_topology_tree<S: LayoutScalar>(
         measure_mode: std::cell::Cell::new(Fri08C04BaselineMeasureMode::Values),
         measurement_requests: std::cell::RefCell::new(Vec::new()),
         cache_queries: std::cell::RefCell::new(Vec::new()),
-        retained: Fri08C04BaselineRetained::default(),
+        retained: GridTestRetainedState::default(),
     }
 }
 
@@ -4545,7 +4643,7 @@ fn fri08_c04_baseline_lanes_auto_fit_tree<S: LayoutScalar>(
         measure_mode: std::cell::Cell::new(Fri08C04BaselineMeasureMode::Values),
         measurement_requests: std::cell::RefCell::new(Vec::new()),
         cache_queries: std::cell::RefCell::new(Vec::new()),
-        retained: Fri08C04BaselineRetained::default(),
+        retained: GridTestRetainedState::default(),
     }
 }
 
