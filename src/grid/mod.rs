@@ -41,7 +41,7 @@ mod tracks;
 
 use alignment::*;
 pub use axis::GridAxisKind;
-use axis::{GridAxisMappingError, GridAxisMappingInput, GridAxisMappingReport, map_grid_axis};
+use axis::{GridAxisMappingInput, GridAxisMappingReport, map_grid_axis};
 use child::*;
 pub use lanes::{
     DefiniteLaneIntrinsicItem, DefiniteLaneIntrinsicItemOf, IndefiniteLaneContributionGroup,
@@ -620,18 +620,6 @@ where
         report,
     } = initialized_tracks;
     debug_assert_eq!(subgrid_report.items.len(), tree.child_count(node));
-    debug_assert!(
-        subgrid_report
-            .items
-            .iter()
-            .all(|item| !item.column.can_inherit() || item.column.mapping.is_ok())
-    );
-    debug_assert!(
-        subgrid_report
-            .items
-            .iter()
-            .all(|item| !item.row.can_inherit() || item.row.mapping.is_ok())
-    );
     let GridContainerContext { gap, lines, .. } = context.clone();
     let column_gutters = context.column_gutters.clone();
     let row_gutters = context.row_gutters.clone();

@@ -17,13 +17,13 @@ pub(super) struct SubgridItemReport<Node> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct SubgridAxisReport {
-    pub(super) mapping: Result<GridAxisMappingReport, GridAxisMappingError>,
+    pub(super) mapping: GridAxisMappingReport,
     pub(super) eligibility: SubgridEligibility,
 }
 
 impl SubgridAxisReport {
     pub(super) fn can_inherit(self) -> bool {
-        self.eligibility.eligible && self.mapping.is_ok()
+        self.eligibility.eligible
     }
 }
 
@@ -35,7 +35,7 @@ pub(super) fn inherited_subgrid_physical_axis(
     if !report.can_inherit() {
         return None;
     }
-    let mapping = report.mapping.ok()?;
+    let mapping = report.mapping;
     let physical_axis = physical_axis_for_grid_axis(parent_flow_axes, mapping.parent_axis);
     if physical_axis != physical_axis_for_grid_axis(child_flow_axes, mapping.child_axis) {
         return None;
@@ -90,7 +90,6 @@ pub(super) enum SubgridIneligibleReason {
     NotRequested,
     NoParentGrid,
     UnsupportedDisplay,
-    IndependentFormattingContext,
     ExcludedFromNormalLayout,
     ParentIsLanesInResolvedAxis,
 }
@@ -1787,10 +1786,12 @@ where
     } else {
         SubgridTraversalAxis::Standalone
     };
-    let (reversed, parent_axis) = match (axis, axis_report.mapping.ok()) {
-        (SubgridTraversalAxis::Inherited, Some(mapping)) => (mapping.reversed, mapping.parent_axis),
-        (SubgridTraversalAxis::Inherited, None) => return Ok(None),
-        (SubgridTraversalAxis::Standalone, _) => (false, queried_axis),
+    let (reversed, parent_axis) = match axis {
+        SubgridTraversalAxis::Inherited => (
+            axis_report.mapping.reversed,
+            axis_report.mapping.parent_axis,
+        ),
+        SubgridTraversalAxis::Standalone => (false, queried_axis),
     };
     let span_in_parent = area_span(area, parent_axis);
     let parent_axis_gap = axis_size(parent_gap, parent_axis);
@@ -2157,9 +2158,7 @@ where
                 GridAxisKind::Column => item_report.column,
                 GridAxisKind::Row => item_report.row,
             };
-            report
-                .mapping
-                .is_ok_and(|mapping| report.can_inherit() && mapping.parent_axis == parent_axis)
+            report.can_inherit() && report.mapping.parent_axis == parent_axis
         })
 }
 
@@ -2215,7 +2214,7 @@ pub(super) fn intrinsic_subgrid_axis_parent_context<Node, S: LayoutScalar>(
     if !report.can_inherit() {
         return None;
     }
-    let mapping = report.mapping.ok()?;
+    let mapping = report.mapping;
     let (parent_start, parent_end) = match mapping.parent_axis {
         GridAxisKind::Column => (area.column, area.column_end),
         GridAxisKind::Row => (area.row, area.row_end),
@@ -2308,11 +2307,11 @@ fn resolved_subgrid_axis_gap<S: LayoutScalar>(
     };
     match gap {
         LengthOf::Normal => {
-            let parent_axis = report
-                .mapping
-                .ok()
-                .filter(|_| report.can_inherit())
-                .map_or(axis, |mapping| mapping.parent_axis);
+            let parent_axis = if report.can_inherit() {
+                report.mapping.parent_axis
+            } else {
+                axis
+            };
             Ok(axis_size(parent_gap, parent_axis))
         }
         gap => resolve_length_or_zero(gap, Some(axis_size(content_box_size, axis))),
@@ -2427,8 +2426,6 @@ pub(super) fn subgrid_eligibility<S: LayoutScalar>(
         Some(SubgridIneligibleReason::NotRequested)
     } else if !input.has_parent_grid {
         Some(SubgridIneligibleReason::NoParentGrid)
-    } else if establishes_independent_formatting_context(input.child_style) {
-        Some(SubgridIneligibleReason::IndependentFormattingContext)
     } else if excluded_from_normal_layout(input.child_style) {
         Some(SubgridIneligibleReason::ExcludedFromNormalLayout)
     } else if !subgrid_container_display_supported(input.child_style.display) {
@@ -2487,12 +2484,6 @@ const fn excluded_from_normal_layout<S: LayoutScalar>(style: &NodeInputOf<S>) ->
     matches!(style.display, Display::None) || matches!(style.position, Position::Absolute)
 }
 
-const fn establishes_independent_formatting_context<S: LayoutScalar>(
-    _style: &NodeInputOf<S>,
-) -> bool {
-    false
-}
-
 fn parent_is_lanes_in_resolved_axis<S: LayoutScalar>(
     parent_style: &NodeInputOf<S>,
     child_style: &NodeInputOf<S>,
@@ -2504,12 +2495,13 @@ fn parent_is_lanes_in_resolved_axis<S: LayoutScalar>(
     {
         return false;
     }
-    map_grid_axis(GridAxisMappingInput {
-        queried_axis: child_axis,
-        parent_style,
-        child_style,
-    })
-    .is_ok_and(|mapping| lane_axis(parent_style.grid_auto_flow) == mapping.parent_axis)
+    lane_axis(parent_style.grid_auto_flow)
+        == map_grid_axis(GridAxisMappingInput {
+            queried_axis: child_axis,
+            parent_style,
+            child_style,
+        })
+        .parent_axis
 }
 
 #[cfg(test)]

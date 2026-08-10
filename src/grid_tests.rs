@@ -7012,10 +7012,7 @@ fn fri08_c02_auto_fit_inherited_context(reversed: bool) -> GridParentContext<f32
         column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
         row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
     };
-    assert_eq!(
-        item.column.mapping.expect("column mapping").reversed,
-        reversed
-    );
+    assert_eq!(item.column.mapping.reversed, reversed);
     let parent_geometry = UsedGridAxisGeometryOf::new(
         vec![40.0, 0.0, 40.0, 40.0],
         vec![false, true, false, false],
@@ -10610,6 +10607,347 @@ fn fri08_c07_t04_grid_settlement_preserves_geometry_cache_and_inherited_contexts
 fn fri08_c07_t04_grid_settlement_preserves_exact_error_mapping() {
     assert_fri06_mr02_geometry_error_grid_own::<f32>();
     assert_fri06_mr02_geometry_error_grid_own::<f64>();
+}
+
+#[derive(Clone, Copy)]
+struct Fri08C08T05FlowFacts {
+    inline_axis: PhysicalAxis,
+    inline_progression: PhysicalProgression,
+    block_progression: PhysicalProgression,
+}
+
+fn fri08_c08_t05_flow_facts(
+    writing_mode: WritingMode,
+    direction: Direction,
+) -> Fri08C08T05FlowFacts {
+    use PhysicalAxis::{Horizontal, Vertical};
+    use PhysicalProgression::{Decreasing, Increasing};
+
+    match (writing_mode, direction) {
+        (WritingMode::HorizontalTb, Direction::Ltr) => Fri08C08T05FlowFacts {
+            inline_axis: Horizontal,
+            inline_progression: Increasing,
+            block_progression: Increasing,
+        },
+        (WritingMode::HorizontalTb, Direction::Rtl) => Fri08C08T05FlowFacts {
+            inline_axis: Horizontal,
+            inline_progression: Decreasing,
+            block_progression: Increasing,
+        },
+        (WritingMode::VerticalRl | WritingMode::SidewaysRl, Direction::Ltr) => {
+            Fri08C08T05FlowFacts {
+                inline_axis: Vertical,
+                inline_progression: Increasing,
+                block_progression: Decreasing,
+            }
+        }
+        (WritingMode::VerticalRl | WritingMode::SidewaysRl, Direction::Rtl) => {
+            Fri08C08T05FlowFacts {
+                inline_axis: Vertical,
+                inline_progression: Decreasing,
+                block_progression: Decreasing,
+            }
+        }
+        (WritingMode::VerticalLr, Direction::Ltr) => Fri08C08T05FlowFacts {
+            inline_axis: Vertical,
+            inline_progression: Increasing,
+            block_progression: Increasing,
+        },
+        (WritingMode::VerticalLr, Direction::Rtl) => Fri08C08T05FlowFacts {
+            inline_axis: Vertical,
+            inline_progression: Decreasing,
+            block_progression: Increasing,
+        },
+        (WritingMode::SidewaysLr, Direction::Ltr) => Fri08C08T05FlowFacts {
+            inline_axis: Vertical,
+            inline_progression: Decreasing,
+            block_progression: Increasing,
+        },
+        (WritingMode::SidewaysLr, Direction::Rtl) => Fri08C08T05FlowFacts {
+            inline_axis: Vertical,
+            inline_progression: Increasing,
+            block_progression: Increasing,
+        },
+    }
+}
+
+fn assert_fri08_c08_t05_total_axis_mapping<S: LayoutScalar>() {
+    let writing_modes = [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ];
+    for parent_writing_mode in writing_modes {
+        for parent_direction in [Direction::Ltr, Direction::Rtl] {
+            let parent_facts = fri08_c08_t05_flow_facts(parent_writing_mode, parent_direction);
+            let parent_style = NodeInputOf::<S> {
+                display: Display::Grid,
+                writing_mode: parent_writing_mode,
+                direction: parent_direction,
+                ..NodeInputOf::default()
+            };
+            for child_writing_mode in writing_modes {
+                for child_direction in [Direction::Ltr, Direction::Rtl] {
+                    let child_facts = fri08_c08_t05_flow_facts(child_writing_mode, child_direction);
+                    let child_style = NodeInputOf::<S> {
+                        display: Display::Grid,
+                        writing_mode: child_writing_mode,
+                        direction: child_direction,
+                        grid_template_columns: subgrid_track_of(),
+                        grid_template_rows: subgrid_track_of(),
+                        ..NodeInputOf::default()
+                    };
+                    for queried_axis in [GridAxisKind::Column, GridAxisKind::Row] {
+                        let child_physical_axis = match queried_axis {
+                            GridAxisKind::Column => child_facts.inline_axis,
+                            GridAxisKind::Row => child_facts.inline_axis.other(),
+                        };
+                        let parent_axis = if parent_facts.inline_axis == child_physical_axis {
+                            GridAxisKind::Column
+                        } else {
+                            GridAxisKind::Row
+                        };
+                        let parent_progression = match parent_axis {
+                            GridAxisKind::Column => parent_facts.inline_progression,
+                            GridAxisKind::Row => parent_facts.block_progression,
+                        };
+                        let child_progression = match queried_axis {
+                            GridAxisKind::Column => child_facts.inline_progression,
+                            GridAxisKind::Row => child_facts.block_progression,
+                        };
+                        let report = map_grid_axis(GridAxisMappingInput {
+                            queried_axis,
+                            parent_style: &parent_style,
+                            child_style: &child_style,
+                        });
+                        let axis_report =
+                            subgrid_axis_report(&parent_style, &child_style, queried_axis);
+
+                        assert_eq!(
+                            report,
+                            GridAxisMappingReport {
+                                queried_axis,
+                                parent_axis,
+                                child_axis: queried_axis,
+                                reversed: parent_progression != child_progression,
+                            },
+                            "{parent_writing_mode:?} {parent_direction:?} to {child_writing_mode:?} {child_direction:?} {queried_axis:?}"
+                        );
+                        assert_eq!(axis_report.mapping, report);
+                        assert!(axis_report.can_inherit());
+                        assert_eq!(
+                            inherited_subgrid_physical_axis(
+                                axis_report,
+                                FlowAxes::new(parent_writing_mode, parent_direction),
+                                FlowAxes::new(child_writing_mode, child_direction),
+                            ),
+                            Some(child_physical_axis)
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn fri08_c08_t05_impossible_state_all_flow_axis_mappings_and_scalar_callers_are_total() {
+    assert_fri08_c08_t05_total_axis_mapping::<f32>();
+    assert_fri08_c08_t05_total_axis_mapping::<f64>();
+}
+
+fn fri08_c08_t05_subgrid_reason(
+    parent_style: &NodeInput,
+    has_parent_grid: bool,
+    child_style: &NodeInput,
+    axis: GridAxisKind,
+) -> Option<SubgridIneligibleReason> {
+    let report = subgrid_eligibility(SubgridEligibilityInput {
+        axis,
+        parent_style,
+        has_parent_grid,
+        child_style,
+    });
+    assert_eq!(report.eligible, report.reason.is_none());
+    report.reason
+}
+
+#[test]
+fn fri08_c08_t05_impossible_state_reachable_eligibility_combinations_keep_exact_reasons() {
+    let ordinary_parent = NodeInput {
+        display: Display::Grid,
+        ..NodeInput::default()
+    };
+    let lanes_parent = NodeInput {
+        display: Display::GridLanes,
+        grid_auto_flow: GridAutoFlow::Row,
+        ..NodeInput::default()
+    };
+    let requested = NodeInput {
+        display: Display::Grid,
+        grid_template_columns: subgrid_track(),
+        grid_template_rows: subgrid_track(),
+        ..NodeInput::default()
+    };
+    let not_requested = NodeInput {
+        display: Display::Block,
+        position: Position::Absolute,
+        ..NodeInput::default()
+    };
+    assert_eq!(
+        fri08_c08_t05_subgrid_reason(
+            &ordinary_parent,
+            false,
+            &not_requested,
+            GridAxisKind::Column,
+        ),
+        Some(SubgridIneligibleReason::NotRequested)
+    );
+
+    let no_parent = NodeInput {
+        position: Position::Absolute,
+        ..requested.clone()
+    };
+    assert_eq!(
+        fri08_c08_t05_subgrid_reason(&ordinary_parent, false, &no_parent, GridAxisKind::Column,),
+        Some(SubgridIneligibleReason::NoParentGrid)
+    );
+
+    let excluded = NodeInput {
+        display: Display::Block,
+        position: Position::Absolute,
+        ..requested.clone()
+    };
+    assert_eq!(
+        fri08_c08_t05_subgrid_reason(&lanes_parent, true, &excluded, GridAxisKind::Column),
+        Some(SubgridIneligibleReason::ExcludedFromNormalLayout)
+    );
+
+    let unsupported = NodeInput {
+        display: Display::Block,
+        ..requested.clone()
+    };
+    assert_eq!(
+        fri08_c08_t05_subgrid_reason(&lanes_parent, true, &unsupported, GridAxisKind::Column),
+        Some(SubgridIneligibleReason::UnsupportedDisplay)
+    );
+    assert_eq!(
+        fri08_c08_t05_subgrid_reason(&lanes_parent, true, &requested, GridAxisKind::Row),
+        Some(SubgridIneligibleReason::ParentIsLanesInResolvedAxis)
+    );
+    assert_eq!(
+        fri08_c08_t05_subgrid_reason(&ordinary_parent, true, &requested, GridAxisKind::Column,),
+        None
+    );
+    assert_eq!(
+        fri08_c08_t05_subgrid_reason(&lanes_parent, true, &requested, GridAxisKind::Column),
+        None
+    );
+
+    let scroll_container = NodeInput {
+        overflow: ComputedOverflow::try_new(Overflow::Hidden, Overflow::Auto).unwrap(),
+        ..requested
+    };
+    assert_eq!(
+        fri08_c08_t05_subgrid_reason(
+            &ordinary_parent,
+            true,
+            &scroll_container,
+            GridAxisKind::Column,
+        ),
+        None
+    );
+}
+
+#[test]
+fn fri08_c08_t05_impossible_state_standalone_nested_lanes_intrinsic_scroll_and_outputs_stay_composed()
+ {
+    assert_fri08_c04_standalone_nested_flows::<f32>();
+    assert_fri08_c04_standalone_nested_flows::<f64>();
+    fri08_c05_composition_grid010_nested_indefinite_lanes_output::<f32>();
+    fri08_c05_composition_grid010_nested_indefinite_lanes_output::<f64>();
+    assert_fri08_c03_nested_candidate_bounds_edges_and_reversal::<f32>();
+    assert_fri08_c03_nested_candidate_bounds_edges_and_reversal::<f64>();
+    assert_fri08_c04_overflow_hidden_subgrid_intrinsic_size::<f32>();
+    assert_fri08_c04_overflow_hidden_subgrid_intrinsic_size::<f64>();
+
+    let traversal = traverse_subgrid_intrinsic(SubgridTraversalInput {
+        ancestor_track_intrinsic_min_eligibility: IntrinsicMinTrackFacts::Known(&[true]),
+        root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
+            node: 1_u32,
+            axis: SubgridTraversalAxis::Standalone,
+            reversed: false,
+            span_in_parent: GridTrackSpan::new(1, 2),
+            available_inline_size: None,
+            available_inline_size_is_known: false,
+            align_self: AlignItems::Stretch,
+            standalone_parent_context: None,
+            queried_axis_fully_inherited: true,
+            margins: SubgridAxisEdges::default(),
+            border: SubgridAxisEdges::default(),
+            padding: SubgridAxisEdges::default(),
+            parent_gap: 0.0,
+            subgrid_gap: 0.0,
+            children: vec![traversal_leaf(2, 1, 2)],
+        })],
+    })
+    .unwrap();
+    assert_eq!(traversal.leaves.len(), 1);
+    assert_eq!(traversal.leaves[0].node, 1);
+    assert_eq!(traversal.leaves[0].ancestor_span, GridTrackSpan::new(1, 2));
+}
+
+#[test]
+fn fri08_c08_t05_impossible_state_remaining_errors_failure_atomicity_and_cache_are_exact() {
+    assert_eq!(
+        inherit_subgrid_tracks(SubgridTrackInheritanceInput {
+            parent_tracks: &[],
+            parent_span: GridTrackSpan::new(1, 2),
+            reversed: false,
+            start_mbp: 0.0,
+            end_mbp: 0.0,
+            parent_gap: 0.0,
+            subgrid_gap: ResolvedSubgridGap::Normal,
+        })
+        .unwrap_err(),
+        SubgridTrackInheritanceError::EmptyTrackList
+    );
+    assert_eq!(
+        inherit_subgrid_tracks(SubgridTrackInheritanceInput {
+            parent_tracks: &[10.0, 20.0],
+            parent_span: GridTrackSpan::new(1, 4),
+            reversed: false,
+            start_mbp: 0.0,
+            end_mbp: 0.0,
+            parent_gap: 0.0,
+            subgrid_gap: ResolvedSubgridGap::Normal,
+        })
+        .unwrap_err(),
+        SubgridTrackInheritanceError::SpanOutOfRange
+    );
+    assert_eq!(
+        traverse_subgrid_intrinsic(SubgridTraversalInput::<u32> {
+            ancestor_track_intrinsic_min_eligibility: IntrinsicMinTrackFacts::Unknown,
+            root_children: Vec::new(),
+        })
+        .unwrap_err(),
+        SubgridTraversalError::MissingIntrinsicMinTrackFacts
+    );
+    assert_eq!(
+        traverse_subgrid_intrinsic(SubgridTraversalInput {
+            ancestor_track_intrinsic_min_eligibility: IntrinsicMinTrackFacts::Known(&[true]),
+            root_children: vec![traversal_leaf(1, 1, 1)],
+        })
+        .unwrap_err(),
+        SubgridTraversalError::SpanOutOfRange
+    );
+
+    assert_fri08_c04_standalone_cache_and_failures_are_atomic::<f32>();
+    assert_fri08_c04_standalone_cache_and_failures_are_atomic::<f64>();
+    assert_fri08_c04_overflow_atomic_failures::<f32>();
+    assert_fri08_c04_overflow_atomic_failures::<f64>();
 }
 
 #[test]
@@ -14887,14 +15225,8 @@ where
                 column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
                 row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
             };
-            let column_mapping = item
-                .column
-                .mapping
-                .expect("column subgrid axis mapping must resolve");
-            let row_mapping = item
-                .row
-                .mapping
-                .expect("row subgrid axis mapping must resolve");
+            let column_mapping = item.column.mapping;
+            let row_mapping = item.row.mapping;
             assert_eq!(column_mapping.queried_axis, GridAxisKind::Column);
             assert_eq!(column_mapping.child_axis, GridAxisKind::Column);
             assert_eq!(row_mapping.queried_axis, GridAxisKind::Row);
@@ -28421,24 +28753,24 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         item: SubgridItemReport {
             node: "child",
             column: SubgridAxisReport {
-                mapping: Ok(GridAxisMappingReport {
+                mapping: GridAxisMappingReport {
                     queried_axis: GridAxisKind::Column,
                     parent_axis: GridAxisKind::Column,
                     child_axis: GridAxisKind::Column,
                     reversed: false,
-                }),
+                },
                 eligibility: SubgridEligibility {
                     eligible: false,
                     reason: Some(SubgridIneligibleReason::NotRequested),
                 },
             },
             row: SubgridAxisReport {
-                mapping: Ok(GridAxisMappingReport {
+                mapping: GridAxisMappingReport {
                     queried_axis: GridAxisKind::Row,
                     parent_axis: GridAxisKind::Row,
                     child_axis: GridAxisKind::Row,
                     reversed: false,
-                }),
+                },
                 eligibility: SubgridEligibility {
                     eligible: true,
                     reason: None,
@@ -29596,12 +29928,12 @@ fn subgrid_line_names_reverse_parent_line_order() {
 fn subgrid_intrinsic_parent_context_uses_actual_span_and_reversal() {
     let parent = named_parent_lines(4, &[&["a"], &["b"], &[], &["c"], &["d"]]);
     let report = SubgridAxisReport {
-        mapping: Ok(GridAxisMappingReport {
+        mapping: GridAxisMappingReport {
             queried_axis: GridAxisKind::Column,
             parent_axis: GridAxisKind::Column,
             child_axis: GridAxisKind::Column,
             reversed: true,
-        }),
+        },
         eligibility: SubgridEligibility {
             eligible: true,
             reason: None,
@@ -31133,8 +31465,7 @@ fn grid_axis_mapping_supports_horizontal_rtl_reversal() {
             ..NodeInput::default()
         },
         child_style: &NodeInput::default(),
-    })
-    .unwrap();
+    });
 
     assert_eq!(report.parent_axis, GridAxisKind::Column);
     assert_eq!(report.child_axis, GridAxisKind::Column);
@@ -31171,8 +31502,7 @@ fn grid_axis_mapping_maps_child_vertical_axes_to_parent_physical_axes() {
             writing_mode: WritingMode::VerticalRl,
             ..NodeInput::default()
         },
-    })
-    .unwrap();
+    });
     let row = map_grid_axis(GridAxisMappingInput {
         queried_axis: GridAxisKind::Row,
         parent_style: &NodeInput::default(),
@@ -31180,8 +31510,7 @@ fn grid_axis_mapping_maps_child_vertical_axes_to_parent_physical_axes() {
             writing_mode: WritingMode::VerticalRl,
             ..NodeInput::default()
         },
-    })
-    .unwrap();
+    });
 
     assert_eq!(column.parent_axis, GridAxisKind::Row);
     assert_eq!(column.child_axis, GridAxisKind::Column);
@@ -31198,8 +31527,7 @@ fn grid_axis_mapping_maps_vertical_parent_axes_to_horizontal_child_physical_axes
             ..NodeInput::default()
         },
         child_style: &NodeInput::default(),
-    })
-    .unwrap();
+    });
     let row = map_grid_axis(GridAxisMappingInput {
         queried_axis: GridAxisKind::Row,
         parent_style: &NodeInput {
@@ -31207,8 +31535,7 @@ fn grid_axis_mapping_maps_vertical_parent_axes_to_horizontal_child_physical_axes
             ..NodeInput::default()
         },
         child_style: &NodeInput::default(),
-    })
-    .unwrap();
+    });
 
     assert_eq!(column.parent_axis, GridAxisKind::Row);
     assert_eq!(column.child_axis, GridAxisKind::Column);
@@ -31232,8 +31559,7 @@ fn grid_axis_mapping_supports_sideways_lr_used_direction_inversion() {
             direction: Direction::Rtl,
             ..NodeInput::default()
         },
-    })
-    .unwrap();
+    });
 
     assert_eq!(report.parent_axis, GridAxisKind::Column);
     assert_eq!(report.child_axis, GridAxisKind::Column);
@@ -31917,12 +32243,12 @@ fn subgrid_axis_report_allows_supported_vertical_parent_mapping_to_inherit() {
     assert!(report.eligibility.eligible);
     assert_eq!(
         report.mapping,
-        Ok(GridAxisMappingReport {
+        GridAxisMappingReport {
             queried_axis: GridAxisKind::Column,
             parent_axis: GridAxisKind::Row,
             child_axis: GridAxisKind::Column,
             reversed: true,
-        })
+        }
     );
     assert!(report.can_inherit());
 }
@@ -36195,22 +36521,6 @@ mod root_oracle {
     }
 
     #[test]
-    fn oracle_axis_mapping_rejects_vertical_mapping_without_explicit_support() {
-        let err = grid::map_axis(grid::AxisMappingInput {
-            queried_axis: GridAxis::Column,
-            parent_writing_mode: grid::OracleWritingMode::HorizontalTb,
-            child_writing_mode: grid::OracleWritingMode::VerticalRl,
-            parent_direction: grid::OracleDirection::Ltr,
-            child_direction: grid::OracleDirection::Ltr,
-            parent_flipped_in_resolved_axis: false,
-            child_flipped_in_resolved_axis: false,
-        })
-        .unwrap_err();
-
-        assert_eq!(err, grid::AxisMappingError::VerticalWritingModeUnsupported);
-    }
-
-    #[test]
     fn oracle_axis_mapping_reports_reversed_when_flipped_states_differ() {
         let report = grid::map_axis(grid::AxisMappingInput {
             queried_axis: GridAxis::Row,
@@ -36566,16 +36876,6 @@ mod root_oracle {
                     parent_is_lanes_in_resolved_axis: false,
                 },
                 grid::SubgridIneligibleReason::NoParentGrid,
-            ),
-            (
-                grid::SubgridEligibilityInput {
-                    requested: true,
-                    has_parent_grid: true,
-                    independent_formatting_context: true,
-                    excluded_from_normal_layout: false,
-                    parent_is_lanes_in_resolved_axis: false,
-                },
-                grid::SubgridIneligibleReason::IndependentFormattingContext,
             ),
             (
                 grid::SubgridEligibilityInput {

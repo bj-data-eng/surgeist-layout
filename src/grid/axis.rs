@@ -16,15 +16,6 @@ impl GridAxisKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum GridAxisMappingError {
-    #[expect(
-        dead_code,
-        reason = "reserved for staged vertical writing-mode grid axis validation parity"
-    )]
-    VerticalWritingModeUnsupported,
-}
-
 #[derive(Clone, Copy)]
 pub(super) struct GridAxisMappingInput<'a, S: LayoutScalar = Scalar> {
     pub(super) queried_axis: GridAxisKind,
@@ -42,7 +33,7 @@ pub(super) struct GridAxisMappingReport {
 
 pub(super) fn map_grid_axis<S: LayoutScalar>(
     input: GridAxisMappingInput<'_, S>,
-) -> Result<GridAxisMappingReport, GridAxisMappingError> {
+) -> GridAxisMappingReport {
     let parent_flow = FlowAxes::new(
         input.parent_style.writing_mode,
         input.parent_style.direction,
@@ -59,11 +50,11 @@ pub(super) fn map_grid_axis<S: LayoutScalar>(
         GridAxisKind::Row
     };
 
-    Ok(GridAxisMappingReport {
+    GridAxisMappingReport {
         queried_axis: input.queried_axis,
         parent_axis,
         child_axis: input.queried_axis,
         reversed: parent_flow.physical_axis_progression(physical_axis)
             != child_flow.physical_axis_progression(physical_axis),
-    })
+    }
 }

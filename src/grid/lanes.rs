@@ -1101,10 +1101,7 @@ where
                 GridAxisKind::Column => item_report.column,
                 GridAxisKind::Row => item_report.row,
             };
-            let reversed = axis_report
-                .mapping
-                .expect("an inheritable subgrid axis has a valid mapping")
-                .reversed;
+            let reversed = axis_report.mapping.reversed;
             let wrapper_span = grid_axis_span.max(1).min(tracks.len());
             let collapsed = gutters
                 .map(OrdinaryGridAxisGuttersOf::collapsed)
@@ -1397,10 +1394,7 @@ where
                 GridAxisKind::Column => item_report.column,
                 GridAxisKind::Row => item_report.row,
             };
-            let mapping_reversed = axis_report
-                .mapping
-                .expect("an inheritable subgrid axis has a valid mapping")
-                .reversed;
+            let mapping_reversed = axis_report.mapping.reversed;
             let wrapper_edges = lane_child_edge_facts(
                 tree,
                 child,

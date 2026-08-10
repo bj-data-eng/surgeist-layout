@@ -528,12 +528,7 @@ fn baseline_aligned_axis_offset<Node: Copy + PartialEq, S: LayoutScalar>(
     if subgrid_item.is_some_and(|subgrid_item| {
         [subgrid_item.column, subgrid_item.row]
             .into_iter()
-            .any(|report| {
-                report.can_inherit()
-                    && report
-                        .mapping
-                        .is_ok_and(|mapping| mapping.parent_axis == axis)
-            })
+            .any(|report| report.can_inherit() && report.mapping.parent_axis == axis)
     }) {
         return Ok(None);
     }
@@ -1196,12 +1191,9 @@ where
         constants.flow_axes,
     );
     let has_inherited_row_descendant = subgrid_report.items.iter().any(|report| {
-        [report.column, report.row].into_iter().any(|axis| {
-            axis.can_inherit()
-                && axis
-                    .mapping
-                    .is_ok_and(|mapping| mapping.parent_axis == GridAxisKind::Row)
-        })
+        [report.column, report.row]
+            .into_iter()
+            .any(|axis| axis.can_inherit() && axis.mapping.parent_axis == GridAxisKind::Row)
     });
     let mut prepared_item_placements = Vec::with_capacity(pending_items.len());
     for item in &pending_items {
@@ -1904,12 +1896,7 @@ where
             if subgrid_item.is_some_and(|subgrid_item| {
                 [subgrid_item.column, subgrid_item.row]
                     .into_iter()
-                    .any(|report| {
-                        report.can_inherit()
-                            && report
-                                .mapping
-                                .is_ok_and(|mapping| mapping.parent_axis == axis)
-                    })
+                    .any(|report| report.can_inherit() && report.mapping.parent_axis == axis)
             }) {
                 continue;
             }
@@ -2643,9 +2630,7 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
     if !input.report.can_inherit() {
         return Ok(None);
     }
-    let Ok(mapping) = input.report.mapping else {
-        return Ok(None);
-    };
+    let mapping = input.report.mapping;
     let (start_line, end_line) = match mapping.parent_axis {
         GridAxisKind::Column => (input.area.column + 1, input.area.column_end + 1),
         GridAxisKind::Row => (input.area.row + 1, input.area.row_end + 1),

@@ -1975,7 +1975,7 @@ fn intrinsic_subgrid_axis_constraint<S: LayoutScalar>(
         gap,
     } = input;
     let physical_axis = inherited_subgrid_physical_axis(report, parent_flow_axes, child_flow_axes)?;
-    let mapping = report.mapping.ok()?;
+    let mapping = report.mapping;
     let (start, end, count) = match mapping.parent_axis {
         GridAxisKind::Column => (area.column, area.column_end, parent_column_count),
         GridAxisKind::Row => (area.row, area.row_end, parent_row_count),
@@ -2574,9 +2574,7 @@ where
                 GridAxisKind::Column => item.column,
                 GridAxisKind::Row => item.row,
             };
-            report
-                .mapping
-                .is_ok_and(|mapping| report.can_inherit() && mapping.parent_axis == parent_axis)
+            report.can_inherit() && report.mapping.parent_axis == parent_axis
         })
 }
 
@@ -4899,12 +4897,12 @@ mod tests {
     fn intrinsic_subgrid_constraints_distinguish_final_authority_from_unknown_spans() {
         fn axis_report(parent_axis: GridAxisKind, eligible: bool) -> SubgridAxisReport {
             SubgridAxisReport {
-                mapping: Ok(GridAxisMappingReport {
+                mapping: GridAxisMappingReport {
                     queried_axis: parent_axis,
                     parent_axis,
                     child_axis: parent_axis,
                     reversed: false,
-                }),
+                },
                 eligibility: SubgridEligibility {
                     eligible,
                     reason: (!eligible).then_some(SubgridIneligibleReason::NotRequested),
@@ -5028,12 +5026,12 @@ mod tests {
     fn nested_orthogonal_partial_subgrids_keep_intrinsic_axes_provisional() {
         fn axis_report(parent_axis: GridAxisKind, child_axis: GridAxisKind) -> SubgridAxisReport {
             SubgridAxisReport {
-                mapping: Ok(GridAxisMappingReport {
+                mapping: GridAxisMappingReport {
                     queried_axis: child_axis,
                     parent_axis,
                     child_axis,
                     reversed: false,
-                }),
+                },
                 eligibility: SubgridEligibility {
                     eligible: true,
                     reason: None,
