@@ -954,6 +954,69 @@ Existing FRI-01 through FRI-08 focused families remain regression coverage.
 FRI-10 positioning, FRI-11 fragmentation, FRI-12 display/table, and FRI-13
 aggregate rows remain negative controls and are not silently re-owned.
 
+### 12.1 Concrete module and API ownership
+
+The implementation is allocated to the current crate surfaces as follows:
+
+| Path | FRI-09 ownership |
+| --- | --- |
+| `src/node_input.rs` | Public `AlignContent` completion; distinct `JustifyContent`; `TextLineAlignment`, `TextLastLineAlignment`, and `TextAlignment`; `VerticalAlignOf` and errors; `InlineJustificationOpportunityOf`; complete shaped-segment and atomic-participation carriers; renamed `NodeInputOf::text_alignment`; scalar-generic line-break and node fields |
+| `src/alignment.rs` | New crate-private sole owner of shared content-distribution normalization, safe fallback, reversal, one-subject distribution fallback, spacing arithmetic, baseline fallback, and validated `BaselineContentAdjustmentOf`/`BaselineShim` conversion |
+| `src/output.rs` | Baseline adjustment in `ComputeInputOf`; renderer-facing justification adjustment in `InlineFragmentOutputOf`; constructors/getters and direct-leaf zero default |
+| `src/cache.rs` | Exact baseline-adjustment cache-key identity |
+| `src/inline.rs` | All-line/last-line policy selection, shaping-owned weighted distribution, visual residual allocation, adjusted fragment advance, baseline-relative vertical group, line-relative monotone envelope, and logical-to-physical projection |
+| `src/block.rs` | Typed input propagation; atomic/control vertical carriers; ordinary block content subject construction, independent-formatting-context boundary, logical subject translation, and overflow composition |
+| `src/flex.rs` | Per-line first/last baseline-content eligibility, immutable maximum reduction, adjustment derivation, one-way re-layout consumption, and fallback |
+| `src/grid/tracks.rs` | Reuse of `AncestorBaselineGroup::intrinsic_shim` and the existing immutable target reduction; no second group or target representation |
+| `src/grid/subgrid.rs` | Reuse of `CheckedOwnerToCurrentPlacementMap`, `InheritedCurrentGridBaselinePlacement`, and downward-only child view without inverse publication |
+| `src/grid/child.rs` | Owner-direct or inherited-current target selection, exact conversion of the existing `BaselineShim` at the child compute boundary, and no double accounting |
+| `src/grid/mod.rs` | Transport of the existing owner group/map carrier and the scalar-generic compute adjustment without replacement or cloned ownership |
+| `src/compute.rs` | Recursive adjustment propagation, committed descendant/fragment staging, cold/warm equivalence, and one-time physical output translation |
+| `src/lib.rs`, `src/lib_tests.rs`, `README.md` | Public reexports, removal of obsolete aliases/variants, compile-fail invalid-state coverage, public API inventory, and layout-ready ownership documentation |
+| `src/inline_tests.rs`, `src/block_tests.rs`, `src/flex_tests.rs`, `src/grid_tests.rs`, `src/cache_tests.rs`, `src/compute_tests.rs`, `src/root_tests.rs` | Focused scalar, composition, cache, transaction, and public-layout behavior from this section |
+| `src/test_support/oracle/inline.rs`, `src/test_support/oracle/grid/alignment.rs`, `src/test_support/oracle/grid/baseline.rs`, `src/test_support/oracle/grid/subgrid.rs` | Independent arithmetic/reference projections only; no copied production state machine or fixture-specific expectation dispatch |
+| `tests/layout/browser_parity/support.rs` | Closed legacy/new XML lowering, typed rejection, 72-row comparison ownership, and source-independence assertions |
+| `tests/layout/browser_parity/scripts/gentest/test_helper.js` | Exact computed text-policy capture, explicit J/V table validation and consumption, and typed JSON emission without geometry inference |
+| `tests/bin/surgeist-layout-generate/generator.rs` | Narrow serialization/parsing of section 11.2 fields, frozen compatibility tests, exact manifest/report validation, and no general generator refactor |
+| `tests/layout/browser_parity.rs`, `tests/layout/browser_parity/corpus.toml`, and the exact section 11.1 HTML/XML/report paths | Finite case registration, artifact identity/count assertions, and canonical artifact state |
+
+No other module becomes an alignment, shaping, baseline-group, cache, flow-axis,
+or artifact authority. Mechanical call-site changes may consume these APIs but
+must not create another policy owner.
+
+### 12.2 Named test anchors
+
+The final source contains at least these exact named test anchors; parameterized
+helpers beneath an anchor cover both scalar lanes where the name says so:
+
+- `fri09_model_content_domains_are_property_valid`;
+- `fri09_model_text_and_vertical_inputs_validate_both_scalars`;
+- `fri09_model_non_box_shaped_alignment_has_one_owner`;
+- `fri09_inline_text_alignment_all_flows_both_scalars`;
+- `fri09_inline_last_line_and_no_opportunity_fallback_both_scalars`;
+- `fri09_inline_weighted_justification_visual_residual_both_scalars`;
+- `fri09_inline_atomic_trailing_and_float_band_justification_both_scalars`;
+- `fri09_inline_vertical_baseline_group_both_scalars`;
+- `fri09_inline_line_relative_monotone_envelope_both_scalars`;
+- `fri09_block_content_alignment_subject_both_scalars`;
+- `fri09_block_safe_overflow_and_independent_context_both_scalars`;
+- `fri09_flex_first_last_baseline_content_adjustment_both_scalars`;
+- `fri09_flex_baseline_content_fallbacks_and_cache_both_scalars`;
+- `fri09_grid_baseline_content_reuses_owner_group_both_scalars`;
+- `fri09_subgrid_baseline_content_uses_checked_owner_map_both_scalars`;
+- `fri09_grid_baseline_adjustment_not_double_counted_both_scalars`;
+- `fri09_cache_key_distinguishes_baseline_content_adjustment_both_scalars`;
+- `fri09_adjusted_cold_warm_committed_output_match_both_scalars`;
+- `fri09_frozen_xml_alignment_aliases_map_without_rewrite`;
+- `fri09_fixture_schema_rejects_malformed_or_identity_dependent_input`;
+- `fri09_generator_serializes_closed_alignment_fields`;
+- `fri09_artifact_identity_and_counts_are_exact`; and
+- `fri09_browser_parity_all_72_owned_rows`.
+
+Parser rejection anchors include a table-driven case for every forbidden field,
+token, payload, identity, and marker-use state named in section 11.2. Existing
+FRI-01 through FRI-08 regression names are not renamed to satisfy this list.
+
 ## 13 FRI-09.13 Documentation And Compatibility
 
 The public front door reexports the complete new alignment surface and removes
