@@ -1,4 +1,5 @@
-use super::{Constants, retained_child_scroll_geometry};
+use super::Constants;
+use super::scroll::retained_child_scroll_geometry;
 use crate::error::layout_child_geometry_error;
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
 use crate::inline::PostLineClearIntent;

@@ -1,6 +1,11 @@
+use super::absolute::absolute_static_position;
 use super::inline_run::{
     InlineRunContext, InlineRunTransitionState, VisibleInlineRunTransition, inline_run_end,
     visible_inline_boundary_in_flow, visible_line_break_in_flow,
+};
+use super::scroll::retained_child_scroll_geometry;
+use super::sizing::{
+    maximum_size, minimum_size, preferred_size, resolve_auto_optional, resolve_length_or_zero,
 };
 use super::*;
 
@@ -862,11 +867,11 @@ where
     } else {
         Size::ZERO
     };
-    let min_size = resolve_minimum_size(&style.min_size, parent, SizingAlgorithm::Block, true)
+    let min_size = minimum_size(&style.min_size, parent, SizingAlgorithm::Block, true)
         .transpose_with_node(tree, child)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-    let mut max_size = resolve_maximum_size(&style.max_size, parent, SizingAlgorithm::Block, true)
+    let mut max_size = maximum_size(&style.max_size, parent, SizingAlgorithm::Block, true)
         .transpose_with_node(tree, child)?
         .add_optional(box_sizing_adjustment);
     let aspect_height_limit = style
@@ -876,7 +881,7 @@ where
     if let Some(width) = aspect_height_limit {
         max_size.width = Some(width);
     }
-    let known = resolve_preferred_size(&style.size, parent, SizingAlgorithm::Block, true)
+    let known = preferred_size(&style.size, parent, SizingAlgorithm::Block, true)
         .transpose_with_node(tree, child)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment)

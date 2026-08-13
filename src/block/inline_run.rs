@@ -1,4 +1,9 @@
+use super::absolute::absolute_static_position;
 use super::in_flow::{content_size_contribution, relative_inset_offset};
+use super::scroll::{
+    block_inline_geometry_error, child_scrollbar_size, retained_child_scroll_geometry,
+};
+use super::sizing::{max_content_size, resolve_auto_optional, resolve_length_or_zero};
 use super::*;
 
 pub(super) fn inline_run_end<Tree, M>(

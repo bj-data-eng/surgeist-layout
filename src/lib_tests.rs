@@ -347,7 +347,7 @@ fn fri06_c05_contract_float_exclusion_surface_is_opaque_cache_neutral_and_active
     let session = include_str!("engine/session.rs");
     let block = format!(
         "{}\n{}",
-        include_str!("block.rs"),
+        include_str!("block/mod.rs"),
         include_str!("block/floats.rs")
     );
     let cache = include_str!("cache.rs");
@@ -990,7 +990,16 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
         include_str!("engine/validation.rs"),
     ]
     .join("\n");
-    let block = include_str!("block.rs");
+    let block = [
+        include_str!("block/mod.rs"),
+        include_str!("block/floats.rs"),
+        include_str!("block/in_flow.rs"),
+        include_str!("block/inline_run.rs"),
+        include_str!("block/absolute.rs"),
+        include_str!("block/sizing.rs"),
+        include_str!("block/scroll.rs"),
+    ]
+    .join("\n");
     let public_front_door = include_str!("lib.rs");
     let scroll_rounding_production = scroll_rounding
         .split("#[cfg(test)]\nmod fri05_c02_factory_rounding_tests")
@@ -2304,13 +2313,16 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
     }
 
     let sources = [
-        ("src/block.rs", include_str!("block.rs")),
+        ("src/block/absolute.rs", include_str!("block/absolute.rs")),
         ("src/block/floats.rs", include_str!("block/floats.rs")),
         ("src/block/in_flow.rs", include_str!("block/in_flow.rs")),
         (
             "src/block/inline_run.rs",
             include_str!("block/inline_run.rs"),
         ),
+        ("src/block/mod.rs", include_str!("block/mod.rs")),
+        ("src/block/scroll.rs", include_str!("block/scroll.rs")),
+        ("src/block/sizing.rs", include_str!("block/sizing.rs")),
         ("src/cache.rs", include_str!("cache.rs")),
         (
             "src/engine/contracts.rs",
@@ -2901,7 +2913,7 @@ fn fri08_remediation_sizing_resolution_has_one_owner() {
     let non_owners = [
         ("src/compute.rs", compute.as_str()),
         ("src/error.rs", error),
-        ("src/block.rs", include_str!("block.rs")),
+        ("src/block/sizing.rs", include_str!("block/sizing.rs")),
         ("src/flex.rs", include_str!("flex.rs")),
         ("src/grid/mod.rs", include_str!("grid/mod.rs")),
         ("src/grid/child.rs", include_str!("grid/child.rs")),
@@ -2943,7 +2955,7 @@ fn fri08_remediation_sizing_resolution_has_one_owner() {
     assert!(!sizing.contains("pub mod resolve;"));
     assert!(!include_str!("lib.rs").contains("pub mod sizing"));
     for (path, source) in [
-        ("src/block.rs", include_str!("block.rs")),
+        ("src/block/sizing.rs", include_str!("block/sizing.rs")),
         ("src/flex.rs", include_str!("flex.rs")),
         ("src/grid/mod.rs", include_str!("grid/mod.rs")),
         ("src/grid/child.rs", include_str!("grid/child.rs")),

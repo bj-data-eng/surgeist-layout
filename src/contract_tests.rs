@@ -33,7 +33,16 @@ fn layout_scalar_supports_f32_and_f64() {
 
 #[test]
 fn fri06_c02_contract_block_has_no_c02_text_fallback_spelling() {
-    let block = include_str!("block.rs");
+    let block = [
+        include_str!("block/mod.rs"),
+        include_str!("block/floats.rs"),
+        include_str!("block/in_flow.rs"),
+        include_str!("block/inline_run.rs"),
+        include_str!("block/absolute.rs"),
+        include_str!("block/sizing.rs"),
+        include_str!("block/scroll.rs"),
+    ]
+    .join("\n");
     assert!(
         !block.contains("LaterFriBehavior"),
         "C02 text paths must be closed while C03 mixed behavior remains typed indirectly"

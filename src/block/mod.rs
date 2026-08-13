@@ -11,40 +11,45 @@ use super::{
     ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges, Float,
     InlineBoundaryInputOf, InlineFragmentOutputOf, LayoutErrorKindOf, LayoutErrorOf,
     LayoutErrorSiteOf, LayoutInputOf, LayoutInvalidInputOf, LayoutOperation, LayoutResultOf,
-    LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionStatus, LineBreakInputOf, NodeInputOf,
-    NodeOutputOf, Overflow, ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point,
-    Position, RequestedAxis, RunMode, Size, SizingAlgorithm, SizingMode, TextAlign, Traverse,
-    VerticalAlign, WritingMode,
+    LayoutScalar, LengthAutoOf, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow,
+    ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis,
+    RunMode, Size, SizingAlgorithm, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::error::{
     AtomicInlineParticipationRoleError, layout_child_geometry_error, layout_own_geometry_error,
 };
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::layout_math::{
-    MaxBeforeMinOptionalSizeClampExt, MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt,
-    OptionalSizeExt, OptionalSizeMaxExt, resolution_optional, resolution_or_zero,
-    resolve_containing_padding_border,
+    MaxBeforeMinOptionalSizeClampExt, MaxBeforeMinScalarClampExt, OptionalSizeExt,
+    OptionalSizeMaxExt, resolve_containing_padding_border,
 };
 use crate::scroll::{
-    CanonicalRetainedScrollSourceOf, CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf,
-    CanonicalScrollRangeSeedPolicy, CanonicalScrollSourceBuilderOf,
-    ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression, UsedOverflow,
-    canonical_scroll_box_from_source, scrollbar_size_from_overflow,
+    CanonicalScrollBoxSourceOf, ScrollContributionAccumulatorOf, UsedOverflow,
+    canonical_scroll_box_from_source,
 };
-use crate::sizing::resolve::{
-    EdgesResultExt, SizeResultExt, SizingResolutionError, resolve_maximum_optional,
-    resolve_minimum_optional, resolve_preferred_optional,
-};
+use crate::sizing::resolve::{EdgesResultExt, SizeResultExt};
 
+#[cfg(test)]
+use super::LengthOf;
+
+mod absolute;
 mod floats;
 mod in_flow;
 mod inline_run;
+mod scroll;
+mod sizing;
+
+use absolute::layout_absolute_children;
+use scroll::{finish_scroll_geometry, prepare_scroll_contributions};
+use sizing::{
+    BlockOptionalSizeSubExt, maximum_size, minimum_size, preferred_size, resolve_auto_optional,
+    resolve_length_or_zero,
+};
 
 #[cfg(test)]
 pub(crate) use in_flow::resolve_logical_in_flow_margin;
 use in_flow::{
-    InFlowPassContext, block_final_in_flow_end, layout_in_flow_children,
-    normal_flow_children_can_establish_baseline,
+    InFlowPassContext, layout_in_flow_children, normal_flow_children_can_establish_baseline,
 };
 
 pub(crate) use floats::FloatExclusions;
@@ -267,44 +272,15 @@ where
         output.block_margin_collapse = block_margin_collapse;
         Ok(output)
     } else {
-        let final_scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
-            flow_axes: final_constants.flow_axes,
-            computed_overflow: style.overflow,
-            item_is_replaced: style.item_is_replaced,
-            border_box_size: output_size,
-            border: final_constants.border,
-            padding: final_constants.padding,
-            scrollbar_gutter: style.scrollbar_gutter,
-            scrollbar_width: style.scrollbar_width,
-            settled_auto_scrollbars: final_constants.settled_auto_scrollbars,
-        })
-        .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
-        let mut contributions = final_pass.contributions;
-        contributions.replace_container_seed(final_scroll_box.padding_box());
-        contributions.exclude_reserved_gutter_from_range();
-        for (axis, extent) in [
-            (
-                crate::LogicalAxis::Inline,
-                final_pass.scroll_content_size.inline,
-            ),
-            (
-                crate::LogicalAxis::Block,
-                final_pass.scroll_content_size.block,
-            ),
-        ] {
-            contributions
-                .record_final_in_flow_end(
-                    final_constants.flow_axes,
-                    axis,
-                    block_final_in_flow_end(
-                        final_scroll_box.content_box(),
-                        final_constants.flow_axes,
-                        axis,
-                        extent,
-                    ),
-                )
-                .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
-        }
+        let mut contributions = prepare_scroll_contributions::<_, _, M>(
+            node,
+            input.run_mode(),
+            &style,
+            &final_constants,
+            output_size,
+            final_pass.scroll_content_size,
+            final_pass.contributions,
+        )?;
         layout_floats(
             tree,
             node,
@@ -322,10 +298,7 @@ where
             &final_constants,
             &mut contributions,
         )?;
-        contributions
-            .include_terminal_padding(final_constants.padding)
-            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
-        let scroll_geometry = block_scroll_geometry::<Tree, S, M>(
+        let published_scroll = finish_scroll_geometry::<Tree, S, M>(
             node,
             input.run_mode(),
             &style,
@@ -333,499 +306,14 @@ where
             output_size,
             contributions,
         )?;
-        let content_size = contributions
-            .content_size_from_anchor(scroll_geometry.content_box().origin())
-            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
         let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
             output_size,
-            content_size,
+            published_scroll.content_size,
             final_pass.baselines,
         );
-        output.scroll_geometry = Some(scroll_geometry);
+        output.scroll_geometry = Some(published_scroll.geometry);
         output.block_margin_collapse = block_margin_collapse;
         Ok(output)
-    }
-}
-
-fn absolute_static_position<S: LayoutScalar>(
-    cursor_block: S,
-    constants: &Constants<S>,
-    containing_size: Size<S>,
-) -> Point<S> {
-    constants.flow_axes.physical_point(
-        LogicalPointOf::new(
-            constants.logical_content_box_inset().inline_start,
-            cursor_block,
-        ),
-        LogicalSizeOf::new(S::ZERO, S::ZERO),
-        containing_size,
-    )
-}
-
-fn block_scroll_geometry<Tree, S, M>(
-    node: <Tree as Traverse>::Node,
-    run_mode: RunMode,
-    style: &NodeInputOf<S>,
-    constants: &Constants<S>,
-    output_size: Size<S>,
-    contributions: ScrollContributionAccumulatorOf<S>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, super::ScrollGeometryOf<S>, S, M>
-where
-    Tree: Compute<M, Scalar = S>,
-    S: LayoutScalar,
-{
-    let target_border_box = super::ScrollRectOf::try_new(Point::ZERO, output_size)
-        .map_err(|error| layout_own_geometry_error(node, run_mode, error))?;
-    CanonicalScrollSourceBuilderOf::for_node(
-        style,
-        constants.flow_axes,
-        output_size,
-        constants.border,
-        constants.padding,
-        constants.settled_auto_scrollbars,
-        ScrollOriginAxes::new(
-            ScrollOriginProgression::FlowEndward,
-            ScrollOriginProgression::FlowEndward,
-        ),
-    )
-    .geometry_from_contributions(contributions, target_border_box)
-    .map_err(|error| layout_own_geometry_error(node, run_mode, error))
-}
-
-fn block_inline_geometry_error<Node, S, M, E>(
-    container: Node,
-    subject: Option<Node>,
-    run_mode: RunMode,
-    error: E,
-) -> LayoutErrorOf<Node, S, M>
-where
-    S: LayoutScalar,
-{
-    match subject {
-        Some(subject) => layout_child_geometry_error(container, subject, error),
-        None => layout_own_geometry_error(container, run_mode, error),
-    }
-}
-
-fn retained_child_scroll_geometry<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
-    size: Size<S>,
-    content_size: Size<S>,
-    padding: Edges<S>,
-    border: Edges<S>,
-    child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
-) -> Result<super::ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {
-    let flow_axes = crate::FlowAxes::new(style.writing_mode, style.direction);
-    let settled_auto_scrollbars = crate::scroll::SettledAutoScrollbarState::INITIAL;
-    let source = match child_compute_geometry {
-        Some(ref geometry) => CanonicalRetainedScrollSourceOf::Existing(geometry),
-        None => CanonicalRetainedScrollSourceOf::Reconstruct { content_size },
-    };
-    CanonicalScrollSourceBuilderOf::for_node(
-        style,
-        flow_axes,
-        size,
-        border,
-        padding,
-        settled_auto_scrollbars,
-        ScrollOriginAxes::new(
-            ScrollOriginProgression::FlowEndward,
-            ScrollOriginProgression::FlowEndward,
-        ),
-    )
-    .geometry_from_retained_source(
-        source,
-        CanonicalScrollRangeSeedPolicy::ExcludeReservedGutter,
-    )
-}
-
-fn max_content_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {
-    Size::new(a.width.max(b.width), a.height.max(b.height))
-}
-
-fn layout_absolute_children<Tree, S, M>(
-    tree: &mut Tree,
-    container_node: <Tree as Traverse>::Node,
-    children: &[<Tree as Traverse>::Node],
-    static_positions: &[(<Tree as Traverse>::Node, Point<S>)],
-    container: Size<S>,
-    constants: &Constants<S>,
-    contributions: &mut ScrollContributionAccumulatorOf<S>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, (), S, M>
-where
-    Tree: Compute<M, Scalar = S>,
-    S: LayoutScalar,
-{
-    let area_start_x = constants.effective_border.left + constants.scrollbar_gutter.left;
-    let max_area_start_x =
-        (container.width - constants.effective_border.right).max(constants.effective_border.left);
-    let area_start_y = constants.effective_border.top + constants.scrollbar_gutter.top;
-    let max_area_start_y =
-        (container.height - constants.effective_border.bottom).max(constants.effective_border.top);
-    let area_offset = Point::new(
-        area_start_x.min(max_area_start_x),
-        area_start_y.min(max_area_start_y),
-    );
-    let area_size = Size::new(
-        (container.width
-            - constants.effective_border.horizontal_sum()
-            - constants.scrollbar_gutter.horizontal_sum())
-        .max(S::ZERO),
-        (container.height
-            - constants.effective_border.vertical_sum()
-            - constants.scrollbar_gutter.vertical_sum())
-        .max(S::ZERO),
-    );
-    let available = Size::new(
-        AvailableOf::<S>::definite(area_size.width),
-        AvailableOf::<S>::definite(area_size.height),
-    );
-
-    for (source_index, child) in children.iter().copied().enumerate() {
-        let LayoutInputOf::Box(style) = tree.layout_input(child) else {
-            continue;
-        };
-        if style.position != Position::Absolute || style.display == super::Display::None {
-            continue;
-        }
-
-        let padding = constants
-            .flow_axes
-            .zip_physical_edges_with_inline_extent(
-                style.padding,
-                area_size.map(Some),
-                |length, basis| resolve_length_or_zero(length, basis),
-            )
-            .transpose_with_node(tree, child)?;
-        let border = constants
-            .flow_axes
-            .zip_physical_edges_with_inline_extent(
-                style.border,
-                area_size.map(Some),
-                |length, basis| resolve_length_or_zero(length, basis),
-            )
-            .transpose_with_node(tree, child)?;
-        let unresolved_margin = constants
-            .flow_axes
-            .zip_physical_edges_with_inline_extent(
-                style.margin,
-                area_size.map(Some),
-                |length, basis| resolve_auto_optional(length, basis),
-            )
-            .transpose_with_node(tree, child)?;
-        let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(S::ZERO));
-        let padding_border = padding + border;
-        let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
-            padding_border.sum_axes()
-        } else {
-            Size::ZERO
-        };
-        let min_size = resolve_minimum_size(
-            &style.min_size,
-            area_size.map(Some),
-            SizingAlgorithm::Positioned,
-            true,
-        )
-        .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(style.aspect_ratio)
-        .add_optional(box_sizing_adjustment)
-        .or(padding_border.sum_axes().map(Some))
-        .max_optional(padding_border.sum_axes().map(Some));
-        let max_size = resolve_maximum_size(
-            &style.max_size,
-            area_size.map(Some),
-            SizingAlgorithm::Positioned,
-            true,
-        )
-        .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
-        let style_size = resolve_preferred_size(
-            &style.size,
-            area_size.map(Some),
-            SizingAlgorithm::Positioned,
-            true,
-        )
-        .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
-        let aspect_max_size = if style.aspect_ratio.is_some()
-            && style_size.width.is_none()
-            && style_size.height.is_none()
-            && max_size.width.is_some()
-            && max_size.height.is_some()
-        {
-            max_size
-        } else {
-            Size::NONE
-        };
-        let mut known_size = style_size
-            .or(aspect_max_size)
-            .clamp_max_before_min_optional(min_size, max_size);
-        let inset = style
-            .inset
-            .zip_size(area_size.map(Some), |length, basis| {
-                resolve_auto_optional(length, basis)
-            })
-            .transpose_with_node(tree, child)?;
-        if known_size.width.is_none()
-            && let (Some(left), Some(right)) = (inset.left, inset.right)
-        {
-            known_size.width = Some(
-                (area_size.width - non_auto_margin.horizontal_sum() - left - right)
-                    .max(S::ZERO)
-                    .clamp_max_before_min_optional(min_size.width, max_size.width),
-            );
-            known_size = known_size
-                .apply_aspect_ratio(style.aspect_ratio)
-                .clamp_max_before_min_optional(min_size, max_size);
-        }
-        if known_size.height.is_none()
-            && let (Some(top), Some(bottom)) = (inset.top, inset.bottom)
-        {
-            known_size.height = Some(
-                (area_size.height - non_auto_margin.vertical_sum() - top - bottom)
-                    .max(S::ZERO)
-                    .clamp_max_before_min_optional(min_size.height, max_size.height),
-            );
-            known_size = known_size
-                .apply_aspect_ratio(style.aspect_ratio)
-                .clamp_max_before_min_optional(min_size, max_size);
-        }
-
-        let output = tree.compute_child(
-            child,
-            ComputeInputOf::<S>::for_child(
-                RunMode::PerformLayout,
-                SizingMode::ContentSize,
-                RequestedAxis::Both,
-                known_size,
-                area_size.map(Some),
-                ContainingLayoutContext::new(
-                    constants.flow_axes,
-                    ParentFormattingContext::BlockFlow,
-                ),
-                available,
-            )
-            .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
-        )?;
-        let final_size = known_size
-            .unwrap_or(output.size)
-            .clamp_max_before_min_optional(min_size, max_size);
-        let margin =
-            resolve_absolute_margin(unresolved_margin, inset, style_size, final_size, area_size);
-        let static_position = static_positions
-            .iter()
-            .find_map(|(node, position)| (*node == child).then_some(*position))
-            .unwrap_or_else(|| {
-                absolute_static_position(
-                    constants.logical_content_box_inset().block_start,
-                    constants,
-                    container,
-                )
-            });
-        let static_x_direction =
-            static_axis_direction(constants.flow_axes, PhysicalAxis::Horizontal);
-        let static_y_direction = static_axis_direction(constants.flow_axes, PhysicalAxis::Vertical);
-        let location = Point::new(
-            AbsoluteAxis {
-                start: inset.left,
-                end: inset.right,
-                direction: if inset.left.is_none() && inset.right.is_none() {
-                    static_x_direction
-                } else {
-                    constants.direction
-                },
-                area_start: area_offset.x,
-                area_size: area_size.width,
-                size: final_size.width,
-                margin_start: margin.left,
-                margin_end: margin.right,
-                static_position: static_position.x,
-            }
-            .location(),
-            AbsoluteAxis {
-                start: inset.top,
-                end: inset.bottom,
-                direction: if inset.top.is_none() && inset.bottom.is_none() {
-                    static_y_direction
-                } else {
-                    Direction::Ltr
-                },
-                area_start: area_offset.y,
-                area_size: area_size.height,
-                size: final_size.height,
-                margin_start: margin.top,
-                margin_end: margin.bottom,
-                static_position: static_position.y,
-            }
-            .location(),
-        );
-        let scroll_geometry = retained_child_scroll_geometry(
-            &style,
-            final_size,
-            output.content_size,
-            padding,
-            border,
-            output.scroll_geometry,
-        )
-        .map_err(|error| layout_child_geometry_error(container_node, child, error))?;
-        contributions
-            .include_current_out_of_flow_geometry(location, margin, scroll_geometry)
-            .map_err(|error| layout_child_geometry_error(container_node, child, error))?;
-        tree.set_unrounded(
-            child,
-            NodeOutputOf::<S> {
-                source_index: crate::SourceIndex::new(source_index),
-                location,
-                size: final_size,
-                content_size: output.content_size,
-                border,
-                padding,
-                margin,
-                ..NodeOutputOf::new()
-            }
-            .with_scroll_geometry(Some(scroll_geometry)),
-        );
-    }
-
-    Ok(())
-}
-
-fn static_axis_direction(flow_axes: crate::geometry::FlowAxes, axis: PhysicalAxis) -> Direction {
-    let start = if flow_axes.inline_axis() == axis {
-        flow_axes.inline_start()
-    } else {
-        flow_axes.block_start()
-    };
-    if matches!(start, PhysicalSide::Right | PhysicalSide::Bottom) {
-        Direction::Rtl
-    } else {
-        Direction::Ltr
-    }
-}
-
-struct AbsoluteAxis<S: LayoutScalar> {
-    start: Option<S>,
-    end: Option<S>,
-    direction: Direction,
-    area_start: S,
-    area_size: S,
-    size: S,
-    margin_start: S,
-    margin_end: S,
-    static_position: S,
-}
-
-impl<S: LayoutScalar> AbsoluteAxis<S> {
-    fn location(self) -> S {
-        if self.direction == Direction::Rtl
-            && let (Some(_), Some(end)) = (self.start, self.end)
-        {
-            return self.area_start + self.area_size - end - self.size - self.margin_end;
-        }
-
-        if let Some(start) = self.start {
-            self.area_start + start + self.margin_start
-        } else if let Some(end) = self.end {
-            self.area_start + self.area_size - end - self.size - self.margin_end
-        } else if self.direction == Direction::Rtl {
-            self.static_position - self.size - self.margin_end
-        } else {
-            self.static_position + self.margin_start
-        }
-    }
-}
-
-fn resolve_absolute_margin<S: LayoutScalar>(
-    margin: Edges<Option<S>>,
-    inset: Edges<Option<S>>,
-    style_size: Size<Option<S>>,
-    final_size: Size<S>,
-    area_size: Size<S>,
-) -> Edges<S> {
-    let non_auto = Edges {
-        left: if inset.left.is_some() {
-            margin.left.unwrap_or(S::ZERO)
-        } else {
-            S::ZERO
-        },
-        right: if inset.right.is_some() {
-            margin.right.unwrap_or(S::ZERO)
-        } else {
-            S::ZERO
-        },
-        top: if inset.top.is_some() {
-            margin.top.unwrap_or(S::ZERO)
-        } else {
-            S::ZERO
-        },
-        bottom: if inset.bottom.is_some() {
-            margin.bottom.unwrap_or(S::ZERO)
-        } else {
-            S::ZERO
-        },
-    };
-    let auto_width = auto_margin_size(AutoMarginAxis {
-        start_is_auto: margin.left.is_none(),
-        end_is_auto: margin.right.is_none(),
-        start: inset.left,
-        end: inset.right,
-        area_size: area_size.width,
-        style_size: style_size.width,
-        item_size: final_size.width,
-        non_auto_margin_sum: non_auto.horizontal_sum(),
-    });
-    let auto_height = auto_margin_size(AutoMarginAxis {
-        start_is_auto: margin.top.is_none(),
-        end_is_auto: margin.bottom.is_none(),
-        start: inset.top,
-        end: inset.bottom,
-        area_size: area_size.height,
-        style_size: style_size.height,
-        item_size: final_size.height,
-        non_auto_margin_sum: non_auto.vertical_sum(),
-    });
-
-    Edges {
-        left: margin.left.unwrap_or(auto_width),
-        right: margin.right.unwrap_or(auto_width),
-        top: margin.top.unwrap_or(auto_height),
-        bottom: margin.bottom.unwrap_or(auto_height),
-    }
-}
-
-#[derive(Clone, Copy)]
-struct AutoMarginAxis<S: LayoutScalar> {
-    start_is_auto: bool,
-    end_is_auto: bool,
-    start: Option<S>,
-    end: Option<S>,
-    area_size: S,
-    style_size: Option<S>,
-    item_size: S,
-    non_auto_margin_sum: S,
-}
-
-fn auto_margin_size<S: LayoutScalar>(axis: AutoMarginAxis<S>) -> S {
-    let auto_count = usize::from(axis.start_is_auto) + usize::from(axis.end_is_auto);
-    if auto_count == 0 || axis.start.is_none() && axis.end.is_none() {
-        return S::ZERO;
-    }
-
-    let available = axis
-        .end
-        .map(|end| axis.area_size - end - axis.start.unwrap_or(S::ZERO))
-        .unwrap_or(axis.item_size);
-    let free_space = available - axis.item_size - axis.non_auto_margin_sum;
-    if auto_count == 2
-        && axis
-            .style_size
-            .is_none_or(|style_size| style_size >= free_space)
-    {
-        S::ZERO
-    } else {
-        free_space / S::from_usize(auto_count)
     }
 }
 
@@ -999,16 +487,12 @@ impl<S: LayoutScalar> Constants<S> {
         let (style_size, min_size, max_size) = match input.sizing_mode() {
             SizingMode::ContentSize => (Size::NONE, Size::NONE, Size::NONE),
             SizingMode::InherentSize => {
-                let style_size = resolve_preferred_size(
-                    &style.size,
-                    input.parent(),
-                    SizingAlgorithm::Block,
-                    true,
-                )
-                .transpose_with_node(tree, node)?
-                .apply_aspect_ratio(style.aspect_ratio)
-                .add_optional(box_sizing_adjustment);
-                let min_size = resolve_minimum_size(
+                let style_size =
+                    preferred_size(&style.size, input.parent(), SizingAlgorithm::Block, true)
+                        .transpose_with_node(tree, node)?
+                        .apply_aspect_ratio(style.aspect_ratio)
+                        .add_optional(box_sizing_adjustment);
+                let min_size = minimum_size(
                     &style.min_size,
                     input.parent(),
                     SizingAlgorithm::Block,
@@ -1017,7 +501,7 @@ impl<S: LayoutScalar> Constants<S> {
                 .transpose_with_node(tree, node)?
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
-                let max_size = resolve_maximum_size(
+                let max_size = maximum_size(
                     &style.max_size,
                     input.parent(),
                     SizingAlgorithm::Block,
@@ -1140,147 +624,11 @@ impl<S: LayoutScalar> Constants<S> {
     }
 }
 
-fn child_scrollbar_size<S: LayoutScalar>(style: &NodeInputOf<S>) -> Size<S> {
-    scrollbar_size_from_overflow(
-        style.overflow,
-        style.item_is_replaced,
-        style.scrollbar_width.get(),
-    )
-}
-
-fn resolve_preferred_size<S: LayoutScalar>(
-    size: &Size<super::PreferredSizeOf<S>>,
-    basis: Size<Option<S>>,
-    algorithm: SizingAlgorithm,
-    missing_basis_is_indefinite: bool,
-) -> Size<Result<Option<S>, SizingResolutionError<S>>> {
-    Size::new(
-        resolve_preferred_optional(
-            &size.width,
-            algorithm,
-            PhysicalAxis::Horizontal,
-            basis.width,
-            missing_basis_is_indefinite,
-        ),
-        resolve_preferred_optional(
-            &size.height,
-            algorithm,
-            PhysicalAxis::Vertical,
-            basis.height,
-            missing_basis_is_indefinite,
-        ),
-    )
-}
-
-fn resolve_minimum_size<S: LayoutScalar>(
-    size: &Size<super::MinSizeOf<S>>,
-    basis: Size<Option<S>>,
-    algorithm: SizingAlgorithm,
-    missing_basis_is_indefinite: bool,
-) -> Size<Result<Option<S>, SizingResolutionError<S>>> {
-    Size::new(
-        resolve_minimum_optional(
-            &size.width,
-            algorithm,
-            PhysicalAxis::Horizontal,
-            basis.width,
-            missing_basis_is_indefinite,
-        ),
-        resolve_minimum_optional(
-            &size.height,
-            algorithm,
-            PhysicalAxis::Vertical,
-            basis.height,
-            missing_basis_is_indefinite,
-        ),
-    )
-}
-
-fn resolve_maximum_size<S: LayoutScalar>(
-    size: &Size<super::MaxSizeOf<S>>,
-    basis: Size<Option<S>>,
-    algorithm: SizingAlgorithm,
-    missing_basis_is_indefinite: bool,
-) -> Size<Result<Option<S>, SizingResolutionError<S>>> {
-    Size::new(
-        resolve_maximum_optional(
-            &size.width,
-            algorithm,
-            PhysicalAxis::Horizontal,
-            basis.width,
-            missing_basis_is_indefinite,
-        ),
-        resolve_maximum_optional(
-            &size.height,
-            algorithm,
-            PhysicalAxis::Vertical,
-            basis.height,
-            missing_basis_is_indefinite,
-        ),
-    )
-}
-
-fn resolve_auto_optional<S: LayoutScalar>(
-    length: LengthAutoOf<S>,
-    basis: Option<S>,
-) -> Result<Option<S>, LengthResolutionStatus<S>> {
-    resolution_optional(length.resolve_with_status(basis))
-}
-
-fn resolve_length_or_zero<S: LayoutScalar>(
-    length: LengthOf<S>,
-    basis: Option<S>,
-) -> Result<S, LengthResolutionStatus<S>> {
-    resolution_or_zero(length.resolve_with_status(basis))
-}
-
-trait BlockOptionalSizeSubExt<S: LayoutScalar> {
-    fn sub_optional_clamped_to_zero(self, amount: Size<S>) -> Self;
-}
-
-impl<S: LayoutScalar> BlockOptionalSizeSubExt<S> for Size<Option<S>> {
-    fn sub_optional_clamped_to_zero(self, amount: Size<S>) -> Self {
-        Size::new(
-            self.width.map(|width| (width - amount.width).max(S::ZERO)),
-            self.height
-                .map(|height| (height - amount.height).max(S::ZERO)),
-        )
-    }
-}
-
-#[cfg(test)]
-mod fri08_c07_t03_optional_math_characterization_tests {
-    use super::*;
-
-    fn characterize<S: LayoutScalar>() {
-        let scalar = S::from_f64;
-
-        assert_eq!(
-            Size::new(None, Some(scalar(12.0))).max_optional(Size::new(Some(scalar(9.0)), None)),
-            Size::new(None, Some(scalar(12.0)))
-        );
-        assert_eq!(
-            Size::new(Some(scalar(4.0)), Some(scalar(12.0)))
-                .max_optional(Size::new(Some(scalar(9.0)), Some(scalar(3.0)))),
-            Size::new(Some(scalar(9.0)), Some(scalar(12.0)))
-        );
-    }
-
-    #[test]
-    fn fri08_c07_t03_optional_math_block_componentwise_max_preserves_f32() {
-        characterize::<f32>();
-    }
-
-    #[test]
-    fn fri08_c07_t03_optional_math_block_componentwise_max_preserves_f64() {
-        characterize::<f64>();
-    }
-}
-
 #[cfg(test)]
 mod fri06_c13_t06_characterization_tests {
     use super::*;
     use crate::LengthPercentageOf;
+    use crate::layout_math::{resolution_optional, resolution_or_zero};
 
     fn input<S: LayoutScalar>(
         containing_flow_axes: crate::geometry::FlowAxes,
@@ -1428,68 +776,5 @@ mod fri06_c13_t06_characterization_tests {
     #[test]
     fn fri06_c13_t06_block_resolution_edges_and_error_order_preserve_f64() {
         characterize_constants::<f64>(f64::MAX);
-    }
-}
-
-#[cfg(test)]
-mod fri06_c13_t05_characterization_tests {
-    use super::*;
-    use crate::AspectRatioOf;
-
-    fn characterize<S: LayoutScalar>() {
-        let scalar = S::from_f64;
-        let optional = Size::new(Some(scalar(8.0)), None);
-
-        assert_eq!(
-            optional.or(Size::new(Some(scalar(3.0)), Some(scalar(5.0)))),
-            Size::new(Some(scalar(8.0)), Some(scalar(5.0)))
-        );
-        assert_eq!(
-            optional.unwrap_or(Size::new(scalar(13.0), scalar(21.0))),
-            Size::new(scalar(8.0), scalar(21.0))
-        );
-        assert_eq!(
-            optional.add_optional(Size::new(scalar(2.0), scalar(3.0))),
-            Size::new(Some(scalar(10.0)), None)
-        );
-
-        let Some(ratio) = AspectRatioOf::new(scalar(2.0)) else {
-            panic!("finite positive test aspect ratio must be accepted");
-        };
-        assert_eq!(
-            Size::new(Some(scalar(12.0)), None).apply_aspect_ratio(Some(ratio)),
-            Size::new(Some(scalar(12.0)), Some(scalar(6.0)))
-        );
-        assert_eq!(
-            Size::new(None, Some(scalar(7.0))).apply_aspect_ratio(Some(ratio)),
-            Size::new(Some(scalar(14.0)), Some(scalar(7.0)))
-        );
-
-        assert_eq!(
-            Size::new(Some(scalar(2.0)), Some(scalar(9.0)))
-                .sub_optional_clamped_to_zero(Size::new(scalar(5.0), scalar(4.0))),
-            Size::new(Some(S::ZERO), Some(scalar(5.0)))
-        );
-        assert_eq!(
-            Size::new(scalar(8.0), scalar(12.0)).clamp_max_before_min_optional(
-                Size::new(Some(scalar(3.0)), None),
-                Size::new(Some(scalar(10.0)), Some(scalar(11.0))),
-            ),
-            Size::new(scalar(8.0), scalar(11.0))
-        );
-        assert_eq!(
-            scalar(5.0).clamp_max_before_min_optional(Some(scalar(10.0)), Some(scalar(3.0))),
-            scalar(10.0)
-        );
-    }
-
-    #[test]
-    fn fri06_c13_t05_block_optional_math_and_zero_clamp_preserve_f32() {
-        characterize::<f32>();
-    }
-
-    #[test]
-    fn fri06_c13_t05_block_optional_math_and_zero_clamp_preserve_f64() {
-        characterize::<f64>();
     }
 }
