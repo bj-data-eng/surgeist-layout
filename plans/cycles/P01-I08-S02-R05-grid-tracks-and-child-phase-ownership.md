@@ -82,11 +82,13 @@ Dependency: T02. Commit: `refactor(grid): extract subgrid intrinsic projection`.
 
 ### 2.4 `P01/I08/S02/R05/T04` Ordinary Track Phases
 
-**Area:** `src/grid/tracks/ordinary.rs`, `src/grid/tracks.rs`, direct private imports, embedded ordinary-track tests, and exact existing source-proxy path aggregation only.
+**Area:** `src/grid/tracks/ordinary.rs`, `src/grid/tracks.rs`, direct private imports, embedded ordinary-track tests, and `src/lib_tests.rs` exact recursive production-inventory addition only.
 
 **Outcome:** move ordinary track state, min/base/growth-limit phases, ordinary intrinsic application, between-bound distribution, inline/axis track resolution, and intrinsic bound helpers to one owner. `OrdinaryTrackState` remains the single phase model.
 
 **RED/acceptance:** `fri08_c02_fit_content_`, `grid_fraction_tracks_`, `grid_stretch_`, and `fri08_c02r_lanes_track_phase_` pass. External probe requires `ordinary.rs` and singular `OrdinaryTrackState`; RED then GREEN. Preserve phase order, floors/limits, fit-content, percent tracks, lanes composition, gutters, and both scalars.
+
+The existing recursive source inventory may add and classify only `src/grid/tracks/ordinary.rs`; no assertion, test, source-proxy semantics, or other `src/lib_tests.rs` content changes.
 
 ```sh
 set -e; for f in fri08_c02_fit_content_ grid_fraction_tracks_ grid_stretch_ fri08_c02r_lanes_track_phase_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
@@ -130,11 +132,13 @@ Dependency: T05. Commit: `refactor(grid): extract child baselines`.
 
 ### 2.7 `P01/I08/S02/R05/T07` Child Subgrid Context And Refresh
 
-**Area:** `src/grid/child/subgrid_context.rs`, `src/grid/child.rs`, direct private imports, embedded context/refresh tests, and exact existing source-proxy path aggregation only.
+**Area:** `src/grid/child/subgrid_context.rs`, `src/grid/child.rs`, direct private imports, embedded context/refresh tests, and `src/lib_tests.rs` exact recursive production-inventory addition only.
 
 **Outcome:** move subgrid parent/axis context, inherited layout tracks/gaps, baseline inheritance, final axis constraints, subgrid item refresh, and typed context errors to one owner. Standalone traversal and parent topology remain with existing owners.
 
 **RED/acceptance:** `fri08_c03_nested_`, `fri08_c02_auto_fit_inherited_`, `subgrid_child_`, and `fri08_c04_baseline_cache_` pass. External probe requires `subgrid_context.rs` and singular `SubgridChildContextError`; RED then GREEN. Preserve slicing/reversal, line offsets, active gutters, baseline transport, errors, cache/rollback, and scalars.
+
+The existing recursive source inventory may add and classify only `src/grid/child/subgrid_context.rs`; no assertion, test, source-proxy semantics, or other `src/lib_tests.rs` content changes.
 
 ```sh
 set -e; for f in fri08_c03_nested_ fri08_c02_auto_fit_inherited_ subgrid_child_ fri08_c04_baseline_cache_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
