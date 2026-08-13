@@ -671,7 +671,7 @@ fn fri05_c02_carrier_private_fields_constructors_and_no_default_are_static() {
             .0
     }
 
-    let scroll = include_str!("scroll.rs");
+    let scroll = include_str!("scroll/model.rs");
     let public_front_door = include_str!("lib.rs");
     let carrier_sections = [
         (
@@ -756,7 +756,7 @@ fn fri05_c02_carrier_private_fields_constructors_and_no_default_are_static() {
 
 #[test]
 fn fri05_c03_legacy_surface_rect_has_only_the_typed_public_constructor() {
-    let scroll = include_str!("scroll.rs");
+    let scroll = include_str!("scroll/model.rs");
     let rect_impl = scroll
         .split_once("impl<S: LayoutScalar> ScrollRectOf<S> {")
         .expect("rectangle implementation")
@@ -771,7 +771,7 @@ fn fri05_c03_legacy_surface_rect_has_only_the_typed_public_constructor() {
 
 #[test]
 fn fri05_c03_public_geometry_surface_has_exact_read_only_accessors() {
-    let scroll = include_str!("scroll.rs");
+    let scroll = include_str!("scroll/model.rs");
     let public_front_door = include_str!("lib.rs");
 
     fn assert_read_only_output_carrier(source: &str, type_name: &str, section_end: &str) {
@@ -817,12 +817,12 @@ fn fri05_c03_public_geometry_surface_has_exact_read_only_accessors() {
     assert_read_only_output_carrier(
         scroll,
         "ScrollbarGutterRectsOf",
-        "pub(crate) struct ClipMarginSourceOf",
+        "/// Construction error for a signed physical or flow-relative scroll coordinate.",
     );
     assert_read_only_output_carrier(
         scroll,
         "ScrollGeometryOf",
-        "pub(crate) enum CanonicalScrollRectFact",
+        "#[cfg(test)]\nmod fri05_c02_carrier_tests",
     );
 
     let geometry_impl = scroll
@@ -832,7 +832,7 @@ fn fri05_c03_public_geometry_surface_has_exact_read_only_accessors() {
         .split_once("pub type ScrollGeometry")
         .expect("canonical default-scalar alias")
         .1
-        .split_once("pub(crate) enum CanonicalScrollRectFact")
+        .split_once("#[cfg(test)]\nmod fri05_c02_carrier_tests")
         .expect("canonical geometry implementation end")
         .0;
 
@@ -874,7 +874,9 @@ fn fri05_c03_public_geometry_surface_has_exact_read_only_accessors() {
         .split_once("pub type ScrollbarGutterRects")
         .expect("gutter default-scalar alias")
         .1
-        .split_once("pub(crate) struct ClipMarginSourceOf")
+        .split_once(
+            "/// Construction error for a signed physical or flow-relative scroll coordinate.",
+        )
         .expect("gutter output implementation end")
         .0;
     let gutter_accessors = [
@@ -911,7 +913,7 @@ fn fri05_c03_public_geometry_surface_has_exact_read_only_accessors() {
 
 #[test]
 fn fri05_c03_legacy_surface_is_absent_from_public_source() {
-    let scroll = include_str!("scroll.rs");
+    let scroll = include_str!("scroll/model.rs");
     let public_front_door = include_str!("lib.rs");
     let public_scroll_reexports = public_front_door
         .split_once("pub use scroll::{")
@@ -967,7 +969,8 @@ fn fri05_c03_legacy_surface_is_absent_from_public_source() {
 
 #[test]
 fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() {
-    let scroll = include_str!("scroll.rs");
+    let scroll_facade = include_str!("scroll.rs");
+    let scroll_model = include_str!("scroll/model.rs");
     let engine = [
         include_str!("engine/mod.rs"),
         include_str!("engine/root.rs"),
@@ -978,12 +981,17 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
     .join("\n");
     let block = include_str!("block.rs");
     let public_front_door = include_str!("lib.rs");
-    let scroll_production = scroll
+    let scroll_facade_production = scroll_facade
+        .split("#[cfg(test)]\nmod fri05_c02_box_clip_gutter_tests")
+        .next()
+        .unwrap_or_else(|| panic!("production scroll facade source"));
+    let scroll_model_production = scroll_model
         .split("#[cfg(test)]\nmod fri05_c02_carrier_tests")
         .next()
-        .expect("production scroll source");
-    let root_block_production =
-        format!("{scroll_production}\n{engine}\n{block}\n{public_front_door}");
+        .unwrap_or_else(|| panic!("production scroll model source"));
+    let root_block_production = format!(
+        "{scroll_facade_production}\n{scroll_model_production}\n{engine}\n{block}\n{public_front_door}"
+    );
 
     let forbidden = [
         "ScrollUnsupportedFeature",
@@ -2073,7 +2081,7 @@ fn fri05_c05_audit_legacy_source(
         {
             accounting.output_projections += 1;
             true
-        } else if path == "src/scroll.rs"
+        } else if path == "src/scroll/model.rs"
             && previous.is_some_and(|previous| {
                 has(
                     &tokens,
@@ -2316,6 +2324,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/output.rs", include_str!("output.rs")),
         ("src/scalar.rs", include_str!("scalar.rs")),
         ("src/scroll.rs", include_str!("scroll.rs")),
+        ("src/scroll/model.rs", include_str!("scroll/model.rs")),
         ("src/sizing.rs", include_str!("sizing.rs")),
         ("src/sizing/resolve.rs", include_str!("sizing/resolve.rs")),
         (
@@ -2403,7 +2412,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
                 }
             ),
             &(
-                "src/scroll.rs",
+                "src/scroll/model.rs",
                 LegacyScrollbarAccounting {
                     geometry_accessors: 1,
                     ..LegacyScrollbarAccounting::default()
@@ -2412,6 +2421,61 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ],
         "only the exact private carriers and canonical geometry projections are allowed"
     );
+}
+
+#[test]
+fn fri08_remediation_scroll_model_has_one_owner() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let facade = include_str!("scroll.rs");
+    let model_path = manifest_dir.join("src/scroll/model.rs");
+    let model = std::fs::read_to_string(&model_path).unwrap_or_default();
+
+    assert!(
+        model_path.is_file(),
+        "src/scroll/model.rs must be the single scroll-model owner"
+    );
+    assert!(facade.contains("mod model;"));
+    assert!(!facade.contains("pub mod model;"));
+
+    for declaration in [
+        "pub enum ScrollRectErrorOf",
+        "pub struct ScrollRectOf",
+        "pub struct PhysicalClipAxisOf",
+        "pub struct OverflowClipOf",
+        "pub struct ScrollTargetGeometryOf",
+        "pub struct ScrollbarGutterRectsOf",
+        "pub enum ScrollCoordinateErrorOf",
+        "pub struct PhysicalScrollOffsetOf",
+        "pub struct FlowRelativeScrollOffsetOf",
+        "pub struct PhysicalScrollAxisRangeOf",
+        "pub struct FlowRelativeScrollAxisRangeOf",
+        "pub struct PhysicalScrollRangeOf",
+        "pub struct FlowRelativeScrollRangeOf",
+        "pub struct ScrollGeometryOf",
+        "impl FlowAxes",
+    ] {
+        assert!(
+            model.contains(declaration),
+            "src/scroll/model.rs must own {declaration}"
+        );
+        assert!(
+            !facade.contains(declaration),
+            "src/scroll.rs retains model declaration: {declaration}"
+        );
+    }
+
+    for non_model_declaration in [
+        "pub(crate) enum UsedOverflowGutter",
+        "pub(crate) struct CanonicalScrollGeometrySourceOf",
+        "pub(crate) struct ScrollContributionAccumulatorOf",
+        "pub(crate) fn canonical_scroll_geometry_from_source",
+        "pub(crate) fn rebuild_rounded_canonical_scroll_geometry",
+    ] {
+        assert!(
+            !model.contains(non_model_declaration),
+            "src/scroll/model.rs must not own {non_model_declaration}"
+        );
+    }
 }
 
 #[test]
@@ -3172,9 +3236,11 @@ fn fri05_c07_public_surface_default_and_f64_input_error_output_contracts_compose
 fn fri05_c07_public_surface_removed_phase_unsafe_contracts_fail_closed() {
     let node_input = include_str!("node_input.rs");
     let output = include_str!("output.rs");
-    let scroll = include_str!("scroll.rs");
+    let scroll_facade = include_str!("scroll.rs");
+    let scroll = include_str!("scroll/model.rs");
     let public_front_door = include_str!("lib.rs");
-    let production = format!("{node_input}\n{output}\n{scroll}\n{public_front_door}");
+    let production =
+        format!("{node_input}\n{output}\n{scroll_facade}\n{scroll}\n{public_front_door}");
     let tokens = fri05_c05_lex_production_tokens(&production)
         .expect("public FRI-05 sources must remain lexically auditable");
 
@@ -3220,11 +3286,11 @@ fn fri05_c07_public_surface_removed_phase_unsafe_contracts_fail_closed() {
         ),
         (
             "ScrollbarGutterRectsOf",
-            "pub(crate) struct ClipMarginSourceOf",
+            "/// Construction error for a signed physical or flow-relative scroll coordinate.",
         ),
         (
             "ScrollGeometryOf",
-            "pub(crate) enum CanonicalScrollRectFact",
+            "#[cfg(test)]\nmod fri05_c02_carrier_tests",
         ),
     ] {
         let declaration = format!("pub struct {type_name}");
