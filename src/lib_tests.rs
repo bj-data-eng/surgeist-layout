@@ -517,7 +517,11 @@ fn fri06_c01_contract_aggregate_public_surface_covers_every_cycle_break_and_addi
 #[test]
 fn fri05_c01_node_input_removed_phase_unsafe_surfaces_are_absent_from_public_sources() {
     let node_input = include_str!("node_input.rs");
-    let scroll = include_str!("scroll.rs");
+    let scroll = [
+        include_str!("scroll.rs"),
+        include_str!("scroll/box_geometry.rs"),
+    ]
+    .join("\n");
     let public_front_door = include_str!("lib.rs");
 
     assert!(!node_input.contains(concat!("pub const fn clips_", "contents")));
@@ -970,6 +974,7 @@ fn fri05_c03_legacy_surface_is_absent_from_public_source() {
 #[test]
 fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() {
     let scroll_facade = include_str!("scroll.rs");
+    let scroll_box_geometry = include_str!("scroll/box_geometry.rs");
     let scroll_model = include_str!("scroll/model.rs");
     let engine = [
         include_str!("engine/mod.rs"),
@@ -982,15 +987,19 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
     let block = include_str!("block.rs");
     let public_front_door = include_str!("lib.rs");
     let scroll_facade_production = scroll_facade
-        .split("#[cfg(test)]\nmod fri05_c02_box_clip_gutter_tests")
+        .split("#[cfg(test)]\nmod fri05_c02_contribution_range_tests")
         .next()
         .unwrap_or_else(|| panic!("production scroll facade source"));
+    let scroll_box_geometry_production = scroll_box_geometry
+        .split("#[cfg(test)]\nmod fri05_c02_box_clip_gutter_tests")
+        .next()
+        .unwrap_or_else(|| panic!("production scroll box-geometry source"));
     let scroll_model_production = scroll_model
         .split("#[cfg(test)]\nmod fri05_c02_carrier_tests")
         .next()
         .unwrap_or_else(|| panic!("production scroll model source"));
     let root_block_production = format!(
-        "{scroll_facade_production}\n{scroll_model_production}\n{engine}\n{block}\n{public_front_door}"
+        "{scroll_facade_production}\n{scroll_box_geometry_production}\n{scroll_model_production}\n{engine}\n{block}\n{public_front_door}"
     );
 
     let forbidden = [
@@ -2324,6 +2333,10 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/output.rs", include_str!("output.rs")),
         ("src/scalar.rs", include_str!("scalar.rs")),
         ("src/scroll.rs", include_str!("scroll.rs")),
+        (
+            "src/scroll/box_geometry.rs",
+            include_str!("scroll/box_geometry.rs"),
+        ),
         ("src/scroll/model.rs", include_str!("scroll/model.rs")),
         ("src/sizing.rs", include_str!("sizing.rs")),
         ("src/sizing/resolve.rs", include_str!("sizing/resolve.rs")),
@@ -2479,6 +2492,66 @@ fn fri08_remediation_scroll_model_has_one_owner() {
 }
 
 #[test]
+fn fri08_remediation_scroll_box_geometry_has_one_owner() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let facade = include_str!("scroll.rs");
+    let box_geometry_path = manifest_dir.join("src/scroll/box_geometry.rs");
+    let box_geometry = std::fs::read_to_string(&box_geometry_path).unwrap_or_default();
+
+    assert!(
+        box_geometry_path.is_file(),
+        "src/scroll/box_geometry.rs must be the single scroll box-geometry owner"
+    );
+    assert!(facade.contains("mod box_geometry;"));
+    assert!(!facade.contains("pub mod box_geometry;"));
+
+    for declaration in [
+        "pub(crate) enum UsedOverflowGutter",
+        "pub(crate) struct UsedOverflowAxis",
+        "pub(crate) struct UsedOverflow",
+        "pub(crate) struct SettledAutoScrollbarState",
+        "struct AutoScrollbarOverflowObservation",
+        "struct EffectiveScrollbarState",
+        "struct PhysicalEdgeReservationOf",
+        "pub(crate) struct MeasuredLeafContentBoxInsetSourceOf",
+        "pub(crate) fn measured_leaf_content_box_inset",
+        "pub(crate) struct ClipMarginSourceOf",
+        "pub(crate) enum OptimalRegionInsetOf",
+        "pub(crate) struct OptimalRegionInsetsOf",
+        "struct ScrollBoxClipGutterSourceOf",
+        "pub(crate) struct CanonicalScrollBoxSourceOf",
+        "pub(crate) struct CanonicalScrollBoxOf",
+        "struct ScrollBoxClipGutterResultOf",
+        "pub(crate) enum ScrollBoxClipGutterErrorOf",
+        "fn derive_scroll_box_clip_gutter",
+        "pub(crate) struct ScrollbarReservationOf",
+        "pub(crate) fn scrollbar_size_from_overflow",
+        "pub(crate) fn content_box_inset_with_scrollbar",
+    ] {
+        assert!(
+            box_geometry.contains(declaration),
+            "src/scroll/box_geometry.rs must own {declaration}"
+        );
+        assert!(
+            !facade.contains(declaration),
+            "src/scroll.rs retains box-geometry declaration: {declaration}"
+        );
+    }
+
+    for non_box_declaration in [
+        "pub(crate) struct PhysicalContributionIntervalOf",
+        "pub(crate) struct CanonicalScrollGeometrySourceOf",
+        "pub(crate) fn canonical_scroll_geometry_from_source",
+        "pub(crate) fn rebuild_rounded_canonical_scroll_geometry",
+    ] {
+        assert!(
+            !box_geometry.contains(non_box_declaration),
+            "src/scroll/box_geometry.rs must not own {non_box_declaration}"
+        );
+    }
+}
+
+#[test]
 fn fri08_remediation_engine_contract_is_algorithm_neutral() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let shared_contract = std::fs::read_to_string(manifest_dir.join("src/engine/contracts.rs"))
@@ -2577,7 +2650,11 @@ fn fri08_remediation_measurement_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let compute = std::fs::read_to_string(manifest_dir.join("src/compute.rs")).unwrap_or_default();
     let error = include_str!("error.rs");
-    let scroll = include_str!("scroll.rs");
+    let scroll = [
+        include_str!("scroll.rs"),
+        include_str!("scroll/box_geometry.rs"),
+    ]
+    .join("\n");
     let measurement =
         std::fs::read_to_string(manifest_dir.join("src/measurement.rs")).unwrap_or_default();
 
