@@ -2338,7 +2338,12 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ),
         ("src/error.rs", include_str!("error.rs")),
         ("src/flex.rs", include_str!("flex.rs")),
+        (
+            "src/flex/flexible_lengths.rs",
+            include_str!("flex/flexible_lengths.rs"),
+        ),
         ("src/flex/items.rs", include_str!("flex/items.rs")),
+        ("src/flex/lines.rs", include_str!("flex/lines.rs")),
         ("src/geometry.rs", include_str!("geometry.rs")),
         ("src/grid/alignment.rs", include_str!("grid/alignment.rs")),
         ("src/grid/axis.rs", include_str!("grid/axis.rs")),

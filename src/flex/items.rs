@@ -1,5 +1,6 @@
+use super::flexible_lengths::clamp_main_size_axes;
 use super::{
-    Constants, FlexItemBaseline, clamp_main_size_axes, resolve_auto_optional, resolve_auto_or_zero,
+    Constants, FlexItemBaseline, resolve_auto_optional, resolve_auto_or_zero,
     resolve_length_or_zero, resolve_maximum_size, resolve_minimum_size, resolve_preferred_size,
     retain_flex_scroll_geometry, retained_flex_child_scroll_geometry,
 };
