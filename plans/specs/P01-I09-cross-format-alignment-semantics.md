@@ -1052,6 +1052,32 @@ these product dependencies:
 6. settle all production behavior and the closed fixture-input schema before
    an artifact transaction can replace the frozen lineage.
 
+### 14.1 Final whole-crate structural containment
+
+After the immutable artifact candidate exists, one read-only whole-crate
+sprawl assessment examines the complete crate rather than only the FRI-09
+implementation spans. The assessment is finite at the candidate revision and
+must identify a tight source location and violated invariant for every finding.
+It covers duplicate semantic ownership, algorithm-to-engine dependency
+backedges, dead or parallel abstractions, public invalid-state exposure,
+misplaced policy, unbounded module ownership, test-ownership sprawl, lint
+suppression, and Surgeist-owned unsafe code.
+
+The coordinator freezes that report before authoring the final just-in-time
+containment plan. Every actionable row is either accepted with exact source
+evidence or disproved through the canonical adjudication transition. Every
+accepted row is implemented in the final FRI-09 cycle or cycles. If the finite
+accepted set cannot fit in one cycle of at most eight tasks, the reviewed
+sequence is revised to add as many bounded final cycles as required; findings
+are not compressed, deferred, or discarded to preserve a cycle count.
+
+Generator architecture expansion remains outside FRI-09 even when the report
+mentions generator size or structure. Generator changes remain limited to the
+closed parser updates, exact new fixtures, and confirmed genuine defects
+already authorized by sections 2 and 11. A structural generator observation
+that requires broader architecture work is not an in-scope remediation and is
+recorded as such rather than used to widen this initiative.
+
 These are dependency constraints, not a pre-authored execution plan. A later
 implementation sequence may decompose them without changing their order.
 
@@ -1082,7 +1108,13 @@ FRI-09 closes `MODEL-006` only when all of the following are true:
     explicit delta, and the crate remains dependency/feature/MSRV-stable,
     warning-free, suppression-free, and unsafe-free; and
 12. the resulting source and public documentation contain no second alignment,
-    baseline-group, shaping, flow-axis, cache, or artifact authority.
+    baseline-group, shaping, flow-axis, cache, or artifact authority;
+13. the final whole-crate sprawl report is frozen at the post-artifact
+    candidate, every actionable row has an accepted or adjudicated disposition,
+    and every accepted row is implemented and independently reviewed in the
+    final FRI-09 cycle or cycles; and
+14. no generator change exceeds the parser, fixture, or confirmed-bug boundary
+    defined above.
 
 After this product acceptance is satisfied, root still owns facade lowering,
 generated API artifacts, integration verification, and gitlink promotion. A
