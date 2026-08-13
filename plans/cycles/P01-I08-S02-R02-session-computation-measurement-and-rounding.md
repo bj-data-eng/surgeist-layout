@@ -127,7 +127,7 @@ validation owner, orchestration-before-session order, no duplicate in
 **Commands:**
 
 ```sh
-for filter in fri06_c01_invalidation_ fri06_c01_non_box_ fri06_c05_provider_role_invalid_ root_request_rejects_invalid_definite_availability fri08_remediation_engine_validation_has_one_owner; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
+set -e; for filter in fri06_c01_invalidation_ fri06_c01_non_box_ fri06_c05_provider_role_invalid_ root_request_rejects_invalid_definite_availability fri08_remediation_engine_validation_has_one_owner; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check
@@ -163,7 +163,7 @@ generic sizing adapters have one private owner.
 **Commands:**
 
 ```sh
-for filter in fri04_c03_ fri04_c04_leaf_block_positioned_ public_leaf_invalid_numeric_affine_ fri05_c03_leaf_ compute_layout_rejects_invalid_provider_output_without_batch fri08_remediation_measurement_has_one_owner; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
+set -e; for filter in fri04_c03_ fri04_c04_leaf_block_positioned_ public_leaf_invalid_numeric_affine_ fri05_c03_leaf_ compute_layout_rejects_invalid_provider_output_without_batch fri08_remediation_measurement_has_one_owner; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check
@@ -192,7 +192,7 @@ unchanged; the anchor proves one root owner and no root algorithm in session.
 **Commands:**
 
 ```sh
-for filter in fri08_c07_t02_scroll_source_root_ fri05_c03_root_ fri06_c03_lifecycle_ compute_layout_ fri08_remediation_engine_root_has_one_owner; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
+set -e; for filter in fri08_c07_t02_scroll_source_root_ fri05_c03_root_ fri06_c03_lifecycle_ compute_layout_ fri08_remediation_engine_root_has_one_owner; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check
@@ -234,7 +234,7 @@ neutral `Round` service.
 **Commands:**
 
 ```sh
-for filter in fri06_c02_cache_ fri06_c03_lifecycle_ fri06_c01_batch_transaction_ fri06_c05_provider_atomicity_ compute_layout_ fri08_remediation_engine_session_transaction_equivalence; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
+set -e; for filter in fri06_c02_cache_ fri06_c03_lifecycle_ fri06_c01_batch_transaction_ fri06_c05_provider_atomicity_ compute_layout_ fri08_remediation_engine_session_transaction_equivalence; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check
@@ -266,7 +266,7 @@ rounding algorithm in session or `compute.rs`.
 **Commands:**
 
 ```sh
-for filter in fri06_c02_rounding_ fri06_mr02_layout_round_ fri05_c04_flex_round_cache_publication_has_one_canonical_geometry_path fri05_c05_grid_round_cache_has_no_independent_scrollbar_projection fri08_remediation_engine_rounding_has_one_owner; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
+set -e; for filter in fri06_c02_rounding_ fri06_mr02_layout_round_ fri05_c04_flex_round_cache_publication_has_one_canonical_geometry_path fri05_c05_grid_round_cache_has_no_independent_scrollbar_projection fri08_remediation_engine_rounding_has_one_owner; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check
@@ -301,7 +301,7 @@ two anchors prove the complete final ownership graph, absent production
 **Commands:**
 
 ```sh
-for filter in fri06_c02_cache_ fri06_c03_lifecycle_ fri06_c01_batch_transaction_ compute_layout_ fri08_remediation_engine_session_transaction_equivalence fri08_remediation_public_api_inventory_is_compatible; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
+set -e; for filter in fri06_c02_cache_ fri06_c03_lifecycle_ fri06_c01_batch_transaction_ compute_layout_ fri08_remediation_engine_session_transaction_equivalence fri08_remediation_public_api_inventory_is_compatible; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$filter"; done
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check
