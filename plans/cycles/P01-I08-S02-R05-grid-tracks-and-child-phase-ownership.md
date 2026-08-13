@@ -64,11 +64,13 @@ Dependency: T01. Commit: `refactor(grid): extract intrinsic collection`.
 
 ### 2.3 `P01/I08/S02/R05/T03` Subgrid Intrinsic Projection
 
-**Area:** `src/grid/tracks/subgrid_intrinsic.rs`, `src/grid/tracks.rs`, direct private imports, embedded subgrid-intrinsic tests, and exact existing source-proxy path aggregation only.
+**Area:** `src/grid/tracks/subgrid_intrinsic.rs`, `src/grid/tracks.rs`, direct private imports, embedded subgrid-intrinsic tests, and `src/lib_tests.rs` exact recursive production-inventory addition only.
 
 **Outcome:** move intrinsic subgrid axis authority/constraints, child input and border-box constraints, recursive contribution projection, queried-axis dependency, inherited-axis checks, and percent/cyclic subgrid content handling to one owner. Standalone traversal remains in `grid/subgrid.rs` and topology remains unchanged.
 
 **RED/acceptance:** `fri08_c03_nested_`, `fri08_c04_overflow_hidden_subgrid_`, `subgrid_intrinsic_`, and `fri08_c02_auto_fit_inherited_` pass. External probe requires `subgrid_intrinsic.rs` and singular `SubgridIntrinsicContributionInput`; RED then GREEN. Preserve reversal, inherited gaps/collapse, contexts, recursion, errors, scalar lanes, and failure atomicity.
+
+The existing recursive source inventory may add and classify only `src/grid/tracks/subgrid_intrinsic.rs`; no assertion, test, source-proxy semantics, or other `src/lib_tests.rs` content changes.
 
 ```sh
 set -e; for f in fri08_c03_nested_ fri08_c04_overflow_hidden_subgrid_ subgrid_intrinsic_ fri08_c02_auto_fit_inherited_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
