@@ -1048,7 +1048,7 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
         "migrated block outputs synchronize through the canonical output helper"
     );
 
-    let flex = include_str!("flex.rs");
+    let flex = [include_str!("flex/mod.rs"), include_str!("flex/scroll.rs")].concat();
     let grid_child = include_str!("grid/child.rs");
     let grid_lanes = include_str!("grid/lanes.rs");
     assert_eq!(
@@ -1077,7 +1077,7 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
 
 #[test]
 fn fri05_c04_flex_bridge_accounting_accepts_grid_family_closure() {
-    let flex = include_str!("flex.rs");
+    let flex = [include_str!("flex/mod.rs"), include_str!("flex/scroll.rs")].concat();
     let grid_child = include_str!("grid/child.rs");
     let grid_lanes = include_str!("grid/lanes.rs");
     let flex_bridges = flex.matches("scrollbar_size: item_scrollbar_size(").count();
@@ -1136,9 +1136,10 @@ fn fri08_c03_public_removal_nested_lanes_unsupported_symbols_are_absent() {
 #[test]
 fn fri05_c04_flex_round_cache_publication_has_one_canonical_geometry_path() {
     let flex = [
-        include_str!("flex.rs"),
+        include_str!("flex/mod.rs"),
         include_str!("flex/absolute.rs"),
         include_str!("flex/items.rs"),
+        include_str!("flex/scroll.rs"),
     ]
     .concat();
 
@@ -1160,7 +1161,7 @@ fn fri05_c04_flex_round_cache_publication_has_one_canonical_geometry_path() {
 
 #[test]
 fn fri05_c04_flex_legacy_absence_accepts_downstream_grid_closure() {
-    let flex = include_str!("flex.rs");
+    let flex = [include_str!("flex/mod.rs"), include_str!("flex/scroll.rs")].concat();
     let forbidden = [
         "ScrollbarReservationOf",
         "content_box_inset_with_scrollbar",
@@ -2342,7 +2343,6 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             include_str!("engine/validation.rs"),
         ),
         ("src/error.rs", include_str!("error.rs")),
-        ("src/flex.rs", include_str!("flex.rs")),
         ("src/flex/absolute.rs", include_str!("flex/absolute.rs")),
         ("src/flex/alignment.rs", include_str!("flex/alignment.rs")),
         (
@@ -2352,6 +2352,8 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/flex/intrinsic.rs", include_str!("flex/intrinsic.rs")),
         ("src/flex/items.rs", include_str!("flex/items.rs")),
         ("src/flex/lines.rs", include_str!("flex/lines.rs")),
+        ("src/flex/mod.rs", include_str!("flex/mod.rs")),
+        ("src/flex/scroll.rs", include_str!("flex/scroll.rs")),
         ("src/geometry.rs", include_str!("geometry.rs")),
         ("src/grid/alignment.rs", include_str!("grid/alignment.rs")),
         ("src/grid/axis.rs", include_str!("grid/axis.rs")),
@@ -2928,7 +2930,7 @@ fn fri08_remediation_sizing_resolution_has_one_owner() {
         ("src/compute.rs", compute.as_str()),
         ("src/error.rs", error),
         ("src/block/sizing.rs", include_str!("block/sizing.rs")),
-        ("src/flex.rs", include_str!("flex.rs")),
+        ("src/flex/mod.rs", include_str!("flex/mod.rs")),
         ("src/grid/mod.rs", include_str!("grid/mod.rs")),
         ("src/grid/child.rs", include_str!("grid/child.rs")),
         ("src/grid/lanes.rs", include_str!("grid/lanes.rs")),
@@ -2970,7 +2972,7 @@ fn fri08_remediation_sizing_resolution_has_one_owner() {
     assert!(!include_str!("lib.rs").contains("pub mod sizing"));
     for (path, source) in [
         ("src/block/sizing.rs", include_str!("block/sizing.rs")),
-        ("src/flex.rs", include_str!("flex.rs")),
+        ("src/flex/mod.rs", include_str!("flex/mod.rs")),
         ("src/grid/mod.rs", include_str!("grid/mod.rs")),
         ("src/grid/child.rs", include_str!("grid/child.rs")),
         ("src/grid/lanes.rs", include_str!("grid/lanes.rs")),

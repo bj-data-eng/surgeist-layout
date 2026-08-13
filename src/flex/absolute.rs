@@ -1,16 +1,19 @@
-use super::{
-    Constants, FlexChildContribution, FlexChildContributionsResult, resolve_auto_optional,
-    resolve_length_or_zero, resolve_maximum_size, resolve_minimum_size, resolve_preferred_size,
-    retain_flex_scroll_geometry, retained_flex_child_scroll_geometry,
+use super::scroll::{
+    FlexChildContribution, FlexChildContributionsResult, retain_flex_scroll_geometry,
+    retained_flex_child_scroll_geometry,
 };
+use super::{Constants, resolve_auto_optional, resolve_length_or_zero};
 use crate::error::{SizingAlgorithm, layout_child_geometry_error};
-use crate::geometry::{FlowAxes, LogicalEdgesOf};
+use crate::geometry::{FlowAxes, LogicalEdgesOf, PhysicalAxis};
 use crate::layout_math::{
     MaxBeforeMinOptionalSizeClampExt, MaxBeforeMinSizeClampExt, OptionalMinimumSizeFloorExt,
     OptionalSizeExt, OptionalSizeMaxExt,
 };
 use crate::scroll::CanonicalScrollBoxOf;
-use crate::sizing::resolve::EdgesResultExt;
+use crate::sizing::resolve::{
+    EdgesResultExt, SizeResultExt, resolve_maximum_optional, resolve_minimum_optional,
+    resolve_preferred_optional,
+};
 use crate::{
     AlignContent, AlignItems, AvailableOf, BoxSizing, Compute, ComputeInputOf,
     ContainingLayoutContext, Edges, FlexItemCollapse, LayoutResultOf, LayoutScalar, NodeOutputOf,
@@ -70,28 +73,61 @@ where
         } else {
             Size::<Tree::Scalar>::ZERO
         };
-        let min_size = resolve_minimum_size::<_, _, M>(
-            child,
-            &style.min_size,
-            inset_relative_size,
-            SizingAlgorithm::Positioned,
-        )?
+        let min_size = Size::new(
+            resolve_minimum_optional(
+                &style.min_size.width,
+                SizingAlgorithm::Positioned,
+                PhysicalAxis::Horizontal,
+                inset_relative_size.width,
+                true,
+            ),
+            resolve_minimum_optional(
+                &style.min_size.height,
+                SizingAlgorithm::Positioned,
+                PhysicalAxis::Vertical,
+                inset_relative_size.height,
+                true,
+            ),
+        )
+        .transpose_with_node(tree, child)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-        let max_size = resolve_maximum_size::<_, _, M>(
-            child,
-            &style.max_size,
-            inset_relative_size,
-            SizingAlgorithm::Positioned,
-        )?
+        let max_size = Size::new(
+            resolve_maximum_optional(
+                &style.max_size.width,
+                SizingAlgorithm::Positioned,
+                PhysicalAxis::Horizontal,
+                inset_relative_size.width,
+                true,
+            ),
+            resolve_maximum_optional(
+                &style.max_size.height,
+                SizingAlgorithm::Positioned,
+                PhysicalAxis::Vertical,
+                inset_relative_size.height,
+                true,
+            ),
+        )
+        .transpose_with_node(tree, child)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-        let mut known_size = resolve_preferred_size::<_, _, M>(
-            child,
-            &style.size,
-            inset_relative_size,
-            SizingAlgorithm::Positioned,
-        )?
+        let mut known_size = Size::new(
+            resolve_preferred_optional(
+                &style.size.width,
+                SizingAlgorithm::Positioned,
+                PhysicalAxis::Horizontal,
+                inset_relative_size.width,
+                true,
+            ),
+            resolve_preferred_optional(
+                &style.size.height,
+                SizingAlgorithm::Positioned,
+                PhysicalAxis::Vertical,
+                inset_relative_size.height,
+                true,
+            ),
+        )
+        .transpose_with_node(tree, child)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
 

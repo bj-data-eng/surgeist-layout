@@ -1,15 +1,15 @@
 use super::alignment::FlexItemBaseline;
 use super::flexible_lengths::clamp_main_size_axes;
-use super::{
-    Constants, resolve_auto_optional, resolve_auto_or_zero, resolve_length_or_zero,
-    resolve_maximum_size, resolve_minimum_size, resolve_preferred_size,
-    retain_flex_scroll_geometry, retained_flex_child_scroll_geometry,
-};
+use super::scroll::{retain_flex_scroll_geometry, retained_flex_child_scroll_geometry};
+use super::{Constants, resolve_auto_optional, resolve_auto_or_zero, resolve_length_or_zero};
 use crate::error::{SizingAlgorithm, layout_child_geometry_error, sizing_resolution_error};
 use crate::geometry::{FlowAxes, PhysicalAxis};
 use crate::layout_math::{MaxBeforeMinScalarClampExt, OptionalSizeExt};
 use crate::node_input::item_order_permutation;
-use crate::sizing::resolve::{EdgesResultExt, ResolvedFlexBasis, resolve_flex_basis};
+use crate::sizing::resolve::{
+    EdgesResultExt, ResolvedFlexBasis, SizeResultExt, resolve_flex_basis, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_optional,
+};
 use crate::{
     AlignItems, AvailableOf, BoxSizing, Compute, ComputeInputOf, ComputeOutputOf, ComputedOverflow,
     ContainingLayoutContext, Edges, FlexItemCollapse, LayoutResultOf, LayoutScalar, LengthAutoOf,
@@ -241,12 +241,23 @@ where
     } else {
         Size::ZERO
     };
-    let authored_size = resolve_preferred_size::<_, _, M>(
-        node,
-        &style.size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?
+    let authored_size = Size::new(
+        resolve_preferred_optional(
+            &style.size.width,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+            constants.node_inner_size.width,
+            true,
+        ),
+        resolve_preferred_optional(
+            &style.size.height,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+            constants.node_inner_size.height,
+            true,
+        ),
+    )
+    .transpose_with_node(tree, node)?
     .apply_aspect_ratio(style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
     let flex_basis_resolution = resolve_flex_basis(
@@ -293,18 +304,40 @@ where
             None => authored_size,
         }
     };
-    let raw_min_size = resolve_minimum_size::<_, _, M>(
-        node,
-        &style.min_size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?;
-    let raw_max_size = resolve_maximum_size::<_, _, M>(
-        node,
-        &style.max_size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?;
+    let raw_min_size = Size::new(
+        resolve_minimum_optional(
+            &style.min_size.width,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+            constants.node_inner_size.width,
+            true,
+        ),
+        resolve_minimum_optional(
+            &style.min_size.height,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+            constants.node_inner_size.height,
+            true,
+        ),
+    )
+    .transpose_with_node(tree, node)?;
+    let raw_max_size = Size::new(
+        resolve_maximum_optional(
+            &style.max_size.width,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+            constants.node_inner_size.width,
+            true,
+        ),
+        resolve_maximum_optional(
+            &style.max_size.height,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+            constants.node_inner_size.height,
+            true,
+        ),
+    )
+    .transpose_with_node(tree, node)?;
     let min_size = raw_min_size
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
@@ -553,28 +586,61 @@ where
     {
         return Ok(None);
     }
-    let authored_size = resolve_preferred_size::<_, _, M>(
-        node,
-        &style.size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?
+    let authored_size = Size::new(
+        resolve_preferred_optional(
+            &style.size.width,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+            constants.node_inner_size.width,
+            true,
+        ),
+        resolve_preferred_optional(
+            &style.size.height,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+            constants.node_inner_size.height,
+            true,
+        ),
+    )
+    .transpose_with_node(tree, node)?
     .apply_aspect_ratio(style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
-    let min_size = resolve_minimum_size::<_, _, M>(
-        node,
-        &style.min_size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?
+    let min_size = Size::new(
+        resolve_minimum_optional(
+            &style.min_size.width,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+            constants.node_inner_size.width,
+            true,
+        ),
+        resolve_minimum_optional(
+            &style.min_size.height,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+            constants.node_inner_size.height,
+            true,
+        ),
+    )
+    .transpose_with_node(tree, node)?
     .apply_aspect_ratio(style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
-    let resolved_max_size = resolve_maximum_size::<_, _, M>(
-        node,
-        &style.max_size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?
+    let resolved_max_size = Size::new(
+        resolve_maximum_optional(
+            &style.max_size.width,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+            constants.node_inner_size.width,
+            true,
+        ),
+        resolve_maximum_optional(
+            &style.max_size.height,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+            constants.node_inner_size.height,
+            true,
+        ),
+    )
+    .transpose_with_node(tree, node)?
     .apply_aspect_ratio(style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
     let padding = constants
@@ -872,12 +938,23 @@ where
     } else {
         Size::<Tree::Scalar>::ZERO
     };
-    let authored = resolve_preferred_size::<_, _, M>(
-        item.node,
-        &style.size,
-        constants.node_inner_size,
-        SizingAlgorithm::Flex,
-    )?
+    let authored = Size::new(
+        resolve_preferred_optional(
+            &style.size.width,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+            constants.node_inner_size.width,
+            true,
+        ),
+        resolve_preferred_optional(
+            &style.size.height,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+            constants.node_inner_size.height,
+            true,
+        ),
+    )
+    .transpose_with_node(tree, item.node)?
     .apply_aspect_ratio(style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
 
