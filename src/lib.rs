@@ -205,6 +205,7 @@ mod geometry;
 mod grid;
 mod inline;
 mod layout_math;
+mod measurement;
 mod node_input;
 mod output;
 mod scalar;
@@ -228,12 +229,9 @@ pub type Scalar = DefaultScalar;
 #[cfg(test)]
 pub(crate) use block::compute_block;
 pub use cache::{Cache, CacheKeyContext, CacheOf, ClearState};
-pub use compute::{
-    LeafMeasureInput, LeafMeasureInputOf, MeasurementAvailable, MeasurementAvailableOf,
-    compute_layout, compute_layout_invalidated, compute_leaf,
-};
 #[cfg(test)]
 pub(crate) use compute::{compute_hidden, compute_root, round_layout};
+pub use compute::{compute_layout, compute_layout_invalidated};
 #[cfg(test)]
 pub(crate) use engine::contracts::compute_cached;
 pub(crate) use engine::contracts::{CacheAccess, Compute, Round};
@@ -242,9 +240,8 @@ pub use error::{
     InvalidMeasurementOutput, InvalidMeasurementOutputOf, LayoutError, LayoutErrorKind,
     LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSite, LayoutErrorSiteOf, LayoutInternalInvariant,
     LayoutInvalidInput, LayoutInvalidInputOf, LayoutMissingContext, LayoutOperation, LayoutResult,
-    LayoutResultOf, LayoutUnsupportedCapability, LeafMeasureError, LeafMeasureErrorOf,
-    NonBoxNodeRoleError, SizingAlgorithm, SizingBehavior, SizingProperty,
-    UnsupportedSizingBehavior,
+    LayoutResultOf, LayoutUnsupportedCapability, NonBoxNodeRoleError, SizingAlgorithm,
+    SizingBehavior, SizingProperty, UnsupportedSizingBehavior,
 };
 #[cfg(test)]
 pub(crate) use flex::compute_flex;
@@ -262,6 +259,10 @@ pub use grid::{
 };
 #[cfg(test)]
 pub(crate) use grid::{compute_grid, compute_grid_with_report};
+pub use measurement::{
+    LeafMeasureError, LeafMeasureErrorOf, LeafMeasureInput, LeafMeasureInputOf,
+    MeasurementAvailable, MeasurementAvailableOf, compute_leaf,
+};
 pub use node_input::{
     AlignContent, AlignItems, AtomicInlineParticipation, AtomicInlineParticipationError,
     AtomicInlineParticipationErrorOf, AtomicInlineParticipationOf, BidiLevel, BidiLevelError,

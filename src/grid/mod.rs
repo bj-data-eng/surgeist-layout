@@ -7,7 +7,6 @@ use super::{
     PreferredSizeOf, RequestedAxis, RunMode, Scalar, Size, SizingAlgorithm, SizingMode,
     TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
-use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::error::{layout_own_geometry_error, sizing_resolution_error};
 use crate::geometry::{LogicalAxis, LogicalSizeOf, PhysicalAxis};
 use crate::layout_math::{
@@ -23,8 +22,9 @@ use crate::scroll::{
     canonical_scroll_geometry_from_source, content_box_inset_with_scrollbar,
 };
 use crate::sizing::resolve::{
-    ResolvedPreferredSize, SizingResolutionError, resolve_maximum_optional,
-    resolve_minimum_optional, resolve_preferred_optional, resolve_preferred_sizing,
+    EdgesResultExt, ResolvedPreferredSize, SizeResultExt, SizingResolutionError,
+    resolve_maximum_optional, resolve_minimum_optional, resolve_preferred_optional,
+    resolve_preferred_sizing,
 };
 
 mod alignment;

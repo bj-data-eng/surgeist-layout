@@ -2,8 +2,10 @@ use super::{
     DispatchedSizingRequest, FlexBasisOf, MaxSizeOf, MinSizeOf, PreferredSizeOf, SizingDispatch,
     dispatch_flex_basis, dispatch_maximum_size, dispatch_minimum_size, dispatch_preferred_size,
 };
+use crate::error::{sizing_resolution_error, value_resolution_error};
 use crate::{
-    LayoutScalar, LengthResolutionStatus, PercentageBasisOf, PhysicalAxis, SizingAlgorithm,
+    Compute, Edges, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
+    LengthResolutionStatus, PercentageBasisOf, PhysicalAxis, Size, SizingAlgorithm, Traverse,
     UnsupportedSizingBehavior,
 };
 
@@ -113,6 +115,187 @@ pub(crate) fn resolve_preferred_optional<S: LayoutScalar>(
         | ResolvedPreferredSize::MinContent
         | ResolvedPreferredSize::MaxContent => Ok(None),
         ResolvedPreferredSize::Definite(value) => Ok(Some(value)),
+    }
+}
+
+pub(crate) fn resolve_length_or_zero_fallible<S>(
+    length: LengthOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    resolution_or_zero_fallible(length.resolve_with_status(basis))
+}
+
+pub(crate) fn resolve_auto_or_zero_fallible<S>(
+    length: LengthAutoOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    Ok(resolution_optional_fallible(length.resolve_with_status(basis))?.unwrap_or(S::ZERO))
+}
+
+pub(crate) fn resolution_or_zero_fallible<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<S, LengthResolutionStatus<S>> {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => {
+            let Some(value) = resolution.value else {
+                unreachable!("resolved length resolution must carry a value")
+            };
+            Ok(value)
+        }
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::InvalidNumeric { .. } => {
+            Err(resolution.status())
+        }
+        LengthResolutionStatus::NonNumeric => Ok(S::ZERO),
+    }
+}
+
+pub(crate) fn resolution_optional_fallible<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>> {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => Ok(resolution.value),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::InvalidNumeric { .. } => {
+            Err(resolution.status())
+        }
+        LengthResolutionStatus::NonNumeric => Ok(None),
+    }
+}
+
+pub(crate) trait SizeResultExt<S: LayoutScalar> {
+    type Output;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>;
+}
+
+impl<S: LayoutScalar> SizeResultExt<S> for Size<Result<S, LengthResolutionStatus<S>>> {
+    type Output = Size<S>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(Size::new(
+            self.width
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.height
+                .map_err(|status| value_resolution_error(node, status))?,
+        ))
+    }
+}
+
+impl<S: LayoutScalar> SizeResultExt<S> for Size<Result<Option<S>, LengthResolutionStatus<S>>> {
+    type Output = Size<Option<S>>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(Size::new(
+            self.width
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.height
+                .map_err(|status| value_resolution_error(node, status))?,
+        ))
+    }
+}
+
+impl<S: LayoutScalar> SizeResultExt<S> for Size<Result<Option<S>, SizingResolutionError<S>>> {
+    type Output = Size<Option<S>>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(Size::new(
+            self.width
+                .map_err(|error| sizing_resolution_error(node, error))?,
+            self.height
+                .map_err(|error| sizing_resolution_error(node, error))?,
+        ))
+    }
+}
+
+pub(crate) trait EdgesResultExt<S: LayoutScalar> {
+    type Output;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>;
+}
+
+impl<S: LayoutScalar> EdgesResultExt<S> for Edges<Result<S, LengthResolutionStatus<S>>> {
+    type Output = Edges<S>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(Edges::new(
+            self.top
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.right
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.bottom
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.left
+                .map_err(|status| value_resolution_error(node, status))?,
+        ))
+    }
+}
+
+impl<S: LayoutScalar> EdgesResultExt<S> for Edges<Result<Option<S>, LengthResolutionStatus<S>>> {
+    type Output = Edges<Option<S>>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(Edges::new(
+            self.top
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.right
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.bottom
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.left
+                .map_err(|status| value_resolution_error(node, status))?,
+        ))
     }
 }
 

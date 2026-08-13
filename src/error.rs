@@ -288,33 +288,19 @@ pub enum LayoutInternalInvariant {
     SubgridBaselineInheritance,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum LeafMeasureErrorOf<S: LayoutScalar, M> {
-    Provider(M),
-    InvalidOutput(InvalidMeasurementOutputOf<S>),
-}
-
-pub type LeafMeasureError<M> = LeafMeasureErrorOf<DefaultScalar, M>;
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InvalidMeasurementOutputOf<S: LayoutScalar = DefaultScalar> {
     axis: PhysicalAxis,
     error: NonNegativeFiniteScalarErrorOf<S>,
 }
 
-pub(crate) fn invalid_measurement_output<S, M>(
-    axis: PhysicalAxis,
-    error: NonNegativeFiniteScalarErrorOf<S>,
-) -> LeafMeasureErrorOf<S, M>
-where
-    S: LayoutScalar,
-{
-    LeafMeasureErrorOf::InvalidOutput(InvalidMeasurementOutputOf { axis, error })
-}
-
 pub type InvalidMeasurementOutput = InvalidMeasurementOutputOf<DefaultScalar>;
 
 impl<S: LayoutScalar> InvalidMeasurementOutputOf<S> {
+    pub(crate) const fn new(axis: PhysicalAxis, error: NonNegativeFiniteScalarErrorOf<S>) -> Self {
+        Self { axis, error }
+    }
+
     /// Returns the physical axis of the rejected measurement output.
     #[must_use]
     pub const fn axis(self) -> PhysicalAxis {

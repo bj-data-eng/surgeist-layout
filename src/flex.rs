@@ -5,7 +5,6 @@ use super::{
     LengthOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, ParentFormattingContext, Point,
     Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
-use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::error::{
     SizingAlgorithm, layout_child_geometry_error, layout_own_geometry_error,
     sizing_resolution_error,
@@ -27,8 +26,8 @@ use crate::scroll::{
     canonical_scroll_box_from_source,
 };
 use crate::sizing::resolve::{
-    ResolvedFlexBasis, resolve_flex_basis, resolve_maximum_optional, resolve_minimum_optional,
-    resolve_preferred_optional,
+    EdgesResultExt, ResolvedFlexBasis, SizeResultExt, resolve_flex_basis, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_optional,
 };
 use crate::sizing::{MaxSizeOf, MinSizeOf, PreferredSizeOf};
 

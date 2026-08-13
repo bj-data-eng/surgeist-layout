@@ -655,6 +655,24 @@ impl<S: LayoutScalar> OptimalRegionInsetsOf<S> {
             left,
         }
     }
+
+    pub(crate) fn from_scroll_padding(scroll_padding: crate::ScrollPaddingOf<S>) -> Self {
+        fn inset<S: LayoutScalar>(
+            value: crate::ScrollPaddingValueOf<S>,
+        ) -> OptimalRegionInsetOf<S> {
+            match value {
+                crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
+                crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
+            }
+        }
+
+        Self::new(
+            inset(scroll_padding.top()),
+            inset(scroll_padding.right()),
+            inset(scroll_padding.bottom()),
+            inset(scroll_padding.left()),
+        )
+    }
 }
 
 impl<S: LayoutScalar> Default for OptimalRegionInsetsOf<S> {

@@ -1,4 +1,4 @@
-use crate::compute::LeafMeasureInputOf;
+use crate::measurement::LeafMeasureInputOf;
 use crate::{
     CacheKeyContext, CompletedLayoutBatchOf, ComputeInputOf, ComputeOutputOf,
     FloatExclusionIntervalOf, FloatExclusionQueryOf, InlineFragmentOutputOf, LayoutInputOf,

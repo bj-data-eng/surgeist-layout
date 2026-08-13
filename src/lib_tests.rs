@@ -531,11 +531,15 @@ fn fri05_c01_node_input_removed_phase_unsafe_surfaces_are_absent_from_public_sou
         concat!("OverflowClip", "Margin"),
         concat!("ScrollbarGutter", "Stable"),
         concat!("ScrollbarGutter", "BothEdges"),
-        concat!("Scroll", "Padding"),
         concat!("LayoutOwnedMixedAxisOverflow", "Coupling"),
     ] {
         assert!(!scroll.contains(removed_variant));
     }
+    assert_eq!(
+        scroll.matches(concat!("Scroll", "Padding")).count(),
+        4,
+        "scroll retains only the canonical input references in its owned inset constructor"
+    );
 }
 
 #[test]
@@ -2298,6 +2302,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/inline.rs", include_str!("inline.rs")),
         ("src/layout_math.rs", include_str!("layout_math.rs")),
         ("src/lib.rs", include_str!("lib.rs")),
+        ("src/measurement.rs", include_str!("measurement.rs")),
         ("src/node_input.rs", include_str!("node_input.rs")),
         ("src/output.rs", include_str!("output.rs")),
         ("src/scalar.rs", include_str!("scalar.rs")),
@@ -2495,6 +2500,57 @@ fn fri08_remediation_engine_validation_has_one_owner() {
 }
 
 #[test]
+fn fri08_remediation_measurement_has_one_owner() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let compute = include_str!("compute.rs");
+    let error = include_str!("error.rs");
+    let scroll = include_str!("scroll.rs");
+    let measurement =
+        std::fs::read_to_string(manifest_dir.join("src/measurement.rs")).unwrap_or_default();
+
+    for declaration in [
+        "pub struct LeafMeasureInputOf",
+        "pub enum MeasurementAvailableOf",
+        "struct LeafResolvedValues",
+        "pub fn compute_leaf",
+        "fn compute_tree_leaf",
+        "fn compute_leaf_with_resolved_values",
+        "fn leaf_pass_input",
+        "fn validate_measurement_output",
+        "fn leaf_measurement_error_at_site",
+    ] {
+        assert!(
+            !compute.contains(declaration),
+            "src/compute.rs retains leaf measurement declaration: {declaration}"
+        );
+        assert!(
+            measurement.contains(declaration),
+            "src/measurement.rs must own leaf measurement declaration: {declaration}"
+        );
+    }
+
+    for declaration in ["pub enum LeafMeasureErrorOf", "pub type LeafMeasureError"] {
+        assert!(
+            !error.contains(declaration),
+            "src/error.rs retains standalone leaf measurement error: {declaration}"
+        );
+        assert!(
+            measurement.contains(declaration),
+            "src/measurement.rs must own standalone leaf measurement error: {declaration}"
+        );
+    }
+
+    assert!(include_str!("lib.rs").contains("mod measurement;"));
+    assert!(include_str!("tree.rs").contains("crate::measurement::LeafMeasureInputOf"));
+    assert!(!compute.contains("pub(crate) fn from_scroll_padding"));
+    assert_eq!(
+        scroll.matches("pub(crate) fn from_scroll_padding").count(),
+        1,
+        "the scroll-padding constructor must have one scroll owner"
+    );
+}
+
+#[test]
 fn fri08_remediation_sizing_resolution_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let compute = include_str!("compute.rs");
@@ -2523,6 +2579,12 @@ fn fri08_remediation_sizing_resolution_has_one_owner() {
         "pub(crate) fn resolve_maximum_optional",
         "pub(crate) fn resolve_flex_basis",
         "pub(crate) enum SizingResolutionError",
+        "pub(crate) fn resolve_length_or_zero_fallible",
+        "pub(crate) fn resolve_auto_or_zero_fallible",
+        "pub(crate) fn resolution_or_zero_fallible",
+        "pub(crate) fn resolution_optional_fallible",
+        "pub(crate) trait SizeResultExt",
+        "pub(crate) trait EdgesResultExt",
     ];
     for declaration in resolver_declarations {
         for (path, source) in non_owners {
@@ -2558,6 +2620,8 @@ fn fri08_remediation_sizing_resolution_has_one_owner() {
 fn fri08_remediation_public_api_inventory_is_compatible() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let error = std::fs::read_to_string(manifest_dir.join("src/error.rs")).unwrap_or_default();
+    let measurement =
+        std::fs::read_to_string(manifest_dir.join("src/measurement.rs")).unwrap_or_default();
     let compute = include_str!("compute.rs");
     let public_front_door = include_str!("lib.rs");
 
@@ -2584,8 +2648,6 @@ fn fri08_remediation_public_api_inventory_is_compatible() {
         "pub struct UnsupportedSizingBehavior",
         "pub enum LayoutUnsupportedCapability",
         "pub enum LayoutInternalInvariant",
-        "pub enum LeafMeasureErrorOf",
-        "pub type LeafMeasureError",
         "pub struct InvalidMeasurementOutputOf",
         "pub type InvalidMeasurementOutput",
     ];
@@ -2593,6 +2655,25 @@ fn fri08_remediation_public_api_inventory_is_compatible() {
         assert!(
             error.contains(declaration),
             "src/error.rs must own {declaration}"
+        );
+        assert!(
+            !compute.contains(declaration),
+            "src/compute.rs must not retain {declaration}"
+        );
+    }
+
+    for declaration in [
+        "pub enum LeafMeasureErrorOf",
+        "pub type LeafMeasureError",
+        "pub struct LeafMeasureInputOf",
+        "pub type LeafMeasureInput",
+        "pub enum MeasurementAvailableOf",
+        "pub type MeasurementAvailable",
+        "pub fn compute_leaf",
+    ] {
+        assert!(
+            measurement.contains(declaration),
+            "src/measurement.rs must own {declaration}"
         );
         assert!(
             !compute.contains(declaration),
@@ -2635,8 +2716,6 @@ fn fri08_remediation_public_api_inventory_is_compatible() {
             "LayoutResult",
             "LayoutResultOf",
             "LayoutUnsupportedCapability",
-            "LeafMeasureError",
-            "LeafMeasureErrorOf",
             "NonBoxNodeRoleError",
             "SizingAlgorithm",
             "SizingBehavior",
@@ -2647,16 +2726,21 @@ fn fri08_remediation_public_api_inventory_is_compatible() {
     );
     assert_eq!(
         reexported_names(public_front_door, "compute"),
+        ["compute_layout", "compute_layout_invalidated",],
+        "compute retains only public root orchestration during R02"
+    );
+    assert_eq!(
+        reexported_names(public_front_door, "measurement"),
         [
+            "LeafMeasureError",
+            "LeafMeasureErrorOf",
             "LeafMeasureInput",
             "LeafMeasureInputOf",
             "MeasurementAvailable",
             "MeasurementAvailableOf",
-            "compute_layout",
-            "compute_layout_invalidated",
             "compute_leaf",
         ],
-        "compute retains only its existing non-error public reexports"
+        "measurement owns the unchanged public leaf facade"
     );
 }
 
