@@ -4,6 +4,18 @@ use super::subgrid_intrinsic::{
 };
 use super::*;
 
+use super::flexible::span_contribution_with_gutters;
+use crate::SizingCalculationOf;
+use crate::geometry::FlowAxes;
+use crate::scroll::UsedOverflowAxis;
+
+fn resolve_track_calculation_optional<S: LayoutScalar>(
+    calculation: &SizingCalculationOf<S>,
+    basis: Option<S>,
+) -> Option<S> {
+    super::ordinary::resolution_optional(resolve_track_calculation(calculation, basis))
+}
+
 #[derive(Clone, Copy)]
 pub(in crate::grid) struct IntrinsicGrid<'a, Node, S: LayoutScalar = Scalar> {
     pub(in crate::grid) style: &'a NodeInputOf<S>,

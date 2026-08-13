@@ -2364,11 +2364,15 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/grid/placement.rs", include_str!("grid/placement.rs")),
         ("src/grid/subgrid.rs", include_str!("grid/subgrid.rs")),
         ("src/grid/topology.rs", include_str!("grid/topology.rs")),
-        ("src/grid/tracks.rs", include_str!("grid/tracks.rs")),
+        (
+            "src/grid/tracks/flexible.rs",
+            include_str!("grid/tracks/flexible.rs"),
+        ),
         (
             "src/grid/tracks/intrinsic.rs",
             include_str!("grid/tracks/intrinsic.rs"),
         ),
+        ("src/grid/tracks/mod.rs", include_str!("grid/tracks/mod.rs")),
         (
             "src/grid/tracks/ordinary.rs",
             include_str!("grid/tracks/ordinary.rs"),

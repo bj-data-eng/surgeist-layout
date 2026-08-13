@@ -1,11 +1,99 @@
 use super::*;
 
+use crate::{LengthResolutionOf, LengthResolutionStatus, PercentageBasisOf, SizingCalculationOf};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::grid) struct AutoRepeatTrackOrigin {
     pub(in crate::grid) kind: TrackRepeat,
     pub(in crate::grid) repeat_group: usize,
     pub(in crate::grid) repetition_index: usize,
     pub(in crate::grid) track_index: usize,
+}
+
+pub(in crate::grid) fn resolve_track_calculation<S: LayoutScalar>(
+    calculation: &SizingCalculationOf<S>,
+    basis: Option<S>,
+) -> LengthResolutionOf<S> {
+    let basis = match basis {
+        Some(value) => match PercentageBasisOf::definite(value) {
+            Ok(basis) => basis,
+            Err(_) => {
+                return LengthResolutionOf::invalid_numeric(value, calculation.depends_on_basis());
+            }
+        },
+        None => PercentageBasisOf::MISSING,
+    };
+    let resolution = calculation.resolve_against(basis);
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => LengthResolutionOf::definite(
+            resolution
+                .value
+                .expect("resolved sizing calculation must carry a value")
+                .max(S::ZERO),
+            calculation.depends_on_basis(),
+        ),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::InvalidNumeric { .. } => {
+            resolution
+        }
+        LengthResolutionStatus::NonNumeric => {
+            unreachable!("a sizing calculation always has numeric program semantics")
+        }
+    }
+}
+
+pub(in crate::grid) fn track_has_percent_sizing<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
+    track.depends_on_basis()
+}
+
+pub(in crate::grid) fn extend_auto_tracks<S: LayoutScalar>(
+    tracks: &mut Vec<TrackSizingOf<S>>,
+    auto_tracks: &[TrackComponentOf<S>],
+    basis: Option<S>,
+    gap: S,
+    required_count: usize,
+) -> Result<(), LengthResolutionStatus<S>> {
+    let auto_tracks = expand_track_components(auto_tracks, basis, gap, None)?;
+    let mut index = 0;
+    while tracks.len() < required_count {
+        let track = if auto_tracks.is_empty() {
+            TrackSizingOf::AUTO
+        } else {
+            auto_tracks[index].clone()
+        };
+        tracks.push(track);
+        if !auto_tracks.is_empty() {
+            index = (index + 1) % auto_tracks.len();
+        }
+    }
+    Ok(())
+}
+
+pub(in crate::grid) fn prepend_auto_tracks<S: LayoutScalar>(
+    tracks: &mut Vec<TrackSizingOf<S>>,
+    auto_tracks: &[TrackComponentOf<S>],
+    basis: Option<S>,
+    gap: S,
+    required_count: usize,
+    auto_fit_limit: Option<usize>,
+) -> Result<(), LengthResolutionStatus<S>> {
+    if required_count == 0 {
+        return Ok(());
+    }
+
+    let auto_tracks = expand_track_components(auto_tracks, basis, gap, auto_fit_limit)?;
+    let generated = if auto_tracks.is_empty() {
+        vec![TrackSizingOf::AUTO; required_count]
+    } else {
+        (0..required_count)
+            .map(|index| {
+                let phase = (auto_tracks.len() + index + auto_tracks.len()
+                    - required_count % auto_tracks.len())
+                    % auto_tracks.len();
+                auto_tracks[phase].clone()
+            })
+            .collect::<Vec<_>>()
+    };
+    tracks.splice(0..0, generated);
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -1,5 +1,26 @@
 use super::*;
 
+use super::flexible::span_contribution_with_gutters;
+use crate::geometry::FlowAxes;
+use crate::scroll::UsedOverflowAxis;
+
+fn axis_margin_sum<S: LayoutScalar>(margin: Edges<S>, axis: GridAxisKind) -> S {
+    match axis {
+        GridAxisKind::Column => margin.horizontal_sum(),
+        GridAxisKind::Row => margin.vertical_sum(),
+    }
+}
+
+fn axis_available<S: LayoutScalar>(
+    available: Size<AvailableOf<S>>,
+    axis: GridAxisKind,
+) -> AvailableOf<S> {
+    match axis {
+        GridAxisKind::Column => available.width,
+        GridAxisKind::Row => available.height,
+    }
+}
+
 pub(super) struct IntrinsicGridChildInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) child_style: &'a NodeInputOf<S>,
     pub(super) grid: IntrinsicGrid<'a, Node, S>,

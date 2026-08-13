@@ -1,5 +1,41 @@
 use super::*;
 
+use super::flexible::{
+    resolve_ordinary_track_phases, span_contribution_with_gutters, stretch_empty_auto_track_basis,
+};
+use crate::LengthResolutionOf;
+
+fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
+    resolution_or_fallback(resolution, S::ZERO)
+}
+
+fn resolution_or_fallback<S: LayoutScalar>(resolution: LengthResolutionOf<S>, fallback: S) -> S {
+    resolution_or_else(resolution, || fallback)
+}
+
+fn resolution_or_else<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+    fallback: impl FnOnce() -> S,
+) -> S {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => resolution
+            .value
+            .expect("resolved length resolution must carry a value"),
+        LengthResolutionStatus::MissingBasis
+        | LengthResolutionStatus::InvalidNumeric { .. }
+        | LengthResolutionStatus::NonNumeric => fallback(),
+    }
+}
+
+pub(super) fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Option<S> {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => resolution.value,
+        LengthResolutionStatus::MissingBasis
+        | LengthResolutionStatus::InvalidNumeric { .. }
+        | LengthResolutionStatus::NonNumeric => None,
+    }
+}
+
 fn resolve_track_min_bounds<S: LayoutScalar>(
     tracks: &[TrackSizingOf<S>],
     basis: Option<S>,

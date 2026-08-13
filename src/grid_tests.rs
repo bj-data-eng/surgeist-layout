@@ -6149,7 +6149,15 @@ fn fri08_c02r_lanes_track_phase_completed_batches_are_cold_warm_cache_equivalent
 
 #[test]
 fn fri08_c02r_lanes_track_phase_architecture_has_no_collection_fit_content_shortcut() {
-    let tracks = include_str!("grid/tracks.rs");
+    let tracks = [
+        include_str!("grid/tracks/flexible.rs"),
+        include_str!("grid/tracks/intrinsic.rs"),
+        include_str!("grid/tracks/mod.rs"),
+        include_str!("grid/tracks/ordinary.rs"),
+        include_str!("grid/tracks/subgrid_intrinsic.rs"),
+        include_str!("grid/tracks/validation.rs"),
+    ]
+    .concat();
     assert!(
         !tracks.contains("fn resolve_lanes_inline_tracks"),
         "FRI-08.14(5) forbids the lanes collection-wide inline-track shortcut"
@@ -6162,7 +6170,15 @@ fn fri08_c02r_lanes_track_phase_architecture_has_no_collection_fit_content_short
 
 #[test]
 fn fri08_c02r_lanes_track_phase_architecture_has_one_auto_maximum_predicate() {
-    let tracks = include_str!("grid/tracks.rs");
+    let tracks = [
+        include_str!("grid/tracks/flexible.rs"),
+        include_str!("grid/tracks/intrinsic.rs"),
+        include_str!("grid/tracks/mod.rs"),
+        include_str!("grid/tracks/ordinary.rs"),
+        include_str!("grid/tracks/subgrid_intrinsic.rs"),
+        include_str!("grid/tracks/validation.rs"),
+    ]
+    .concat();
     assert!(
         !tracks.contains("fn resolve_lanes_tracks_with_intrinsics")
             && !tracks.contains("fn resolve_lanes_tracks_with_gutters"),
