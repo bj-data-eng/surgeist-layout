@@ -8,9 +8,9 @@ Status: draft
 
 Cycle base: `4f5022b720d33c1946604aeb3ce2172fd5db8fc8`
 
-Reviewed specification: `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`, normalized semantic-content SHA-256 `e3ac1af46ff7868e12e8df01da1cd4b46edd972638f34483fedc524b9d830595`, commit `28d4016e7bf1005b8541868e8b1d251b0e03012c`: `FRI-08.20` row `AR-004`, `FRI-08.21`, `FRI-08.24.2`, the block/flex projection boundary in `FRI-08.25`, the block/flex cases of `fri08_remediation_algorithm_phase_composition_equivalence` and the public API anchor in `FRI-08.27`, and `FRI-08.28(1)`, `(5)`, and `(8)` through `(10)`.
+Reviewed specification: `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`, normalized semantic-content SHA-256 `d9c6a61eae363331d7e8ce05d88916099111e11b8793b8dc31cc55e3e5c80a6a`, commit `b9cb82aadf70d5690d605bb9ffeaa6da9512bd3d`: `FRI-08.20` row `AR-004`, `FRI-08.21`, `FRI-08.24.2`, the block/flex projection boundary in `FRI-08.25`, the block/flex claims in `FRI-08.27`, the temporary-test-debt boundary in `FRI-08.27.1`, and `FRI-08.28(1)`, `(5)`, and `(8)` through `(10)`.
 
-Reviewed sequence: `plans/sequences/P01-I08-S02-architectural-remediation.md`, normalized semantic-content SHA-256 `6d08a4c1e63a2cfd5ab858757bd6e614c852749ce93bf54d31409aa5687b7c59`, commit `fcaf08b36149bc61f45d283759149ef8748401b8`, entry `P01/I08/S02/R04`.
+Reviewed sequence: `plans/sequences/P01-I08-S02-architectural-remediation.md`, normalized semantic-content SHA-256 `46d3563226ba6b91478bdc0b36273abb56644720774804b7c7a2ab9d0ca07251`, commit `2f097f4b9ac510df63e3e886e2f7a46f0312a701`, entry `P01/I08/S02/R04` and downstream R08 conformance prerequisite.
 
 Bounded outcome: block and flex each become a private phase-shaped module tree with one owner for every specified responsibility, narrow carriers, unchanged entry paths, and no copied sizing or scroll policy.
 
@@ -22,7 +22,7 @@ Final block owners are `mod` (entry/constants/composition), `floats`, `in_flow`,
 
 Frozen artifacts: corpus `c6e6f1422e14a5e4aa474c143998063ce0de4d0a9123b69875b35a4ed009a8f6`, helper `c684c7f167d95997a4a9f0250467bbaf72c1b73e69e0f707a2ef32f4d25f7f36`, `all.json` `c10dc550d260a239c8bf9dd553f5272ca3bcc2826099bc182f800986b8b94c0e`, 1,448 HTML, 5,776 comment-free XML.
 
-Each task runs nonzero existing behavioral characterizations and proves its named ownership probe RED before production edits and GREEN after them. These probes are shell/review evidence, never Rust tests: source text, tokens, symbols, files, and placement are not product behavior. R04 adds no source-parsing test. Existing legacy source-inspection tests may receive only the minimal owner-path adaptation needed to keep the historical suite compiling; R07 removes this entire test class, including earlier remediation source-shape anchors, while preserving behavioral and compile-contract coverage. Out of scope: FRI-09; root/siblings; generator/browser/generation/acquisition; artifacts; dependencies; README/API map; projections; companion-test partitioning; cargo clean before publication.
+Each task runs nonzero existing behavioral characterizations and proves its named ownership probe RED before production edits and GREEN after them. These probes are shell/review evidence, never Rust tests: source text, tokens, symbols, files, and placement are not product behavior. R04 adds no source-parsing test. Existing legacy source-inspection tests may receive only the minimal owner-path adaptation needed to keep the historical suite compiling; R08 removes this entire test class, including earlier remediation source-shape anchors, while preserving behavioral and compile-contract coverage. Out of scope: FRI-09; root/siblings; generator/browser/generation/acquisition; artifacts; dependencies; README/API map; projections; companion-test partitioning; cargo clean before publication.
 
 ## 2 Tasks
 
