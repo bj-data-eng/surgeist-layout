@@ -144,11 +144,12 @@ Dependency: T06. Commit: `refactor(flex): extract intrinsic and absolute`.
 
 **Outcome:** move retained geometry, contribution carrier, canonical scroll box/contributions/subjects/publication to `scroll`; finalize composition-only `flex/mod.rs` with entry/constants/axes and intentional reexports. Record the aggregate algorithm-phase composition equivalence as external review evidence, not a Rust source-parsing test.
 
-**RED/acceptance:** the three named behavioral filters and existing public API inventory pass. External probe requires `scroll.rs`, `mod.rs`, absent `src/flex.rs`, every block/flex owner file, and no duplicate shared sizing/scroll policy; RED then GREEN. Public/private facade contracts remain exact; add no source-parsing test.
+**RED/acceptance:** the three named behavioral filters and existing public API inventory pass. External probe requires every specified block/flex owner, absent monoliths, and direct shared sizing/canonical-scroll consumption with no locally declared canonical scroll factory or preferred/min/max resolver; RED then GREEN. Public/private facade contracts remain exact; add no source-parsing test.
 
 ```sh
 set -e; for f in fri05_c04_flex_contribution_ fri08_c07_t02_scroll_source_flex_ fri05_c04_flex_auto_ fri08_remediation_public_api_inventory_is_compatible; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
-test -f src/flex/scroll.rs; test -f src/flex/mod.rs; test ! -e src/flex.rs; test -f src/block/mod.rs; test ! -e src/block.rs
+for p in src/block/{mod,floats,in_flow,inline_run,absolute,sizing,scroll}.rs src/flex/{mod,items,lines,flexible_lengths,alignment,intrinsic,absolute,scroll}.rs; do test -f "$p"; done; test ! -e src/block.rs; test ! -e src/flex.rs
+rg -q 'crate::sizing::resolve' src/block/*.rs; rg -q 'crate::sizing::resolve' src/flex/*.rs; rg -q 'crate::scroll::' src/block/scroll.rs; rg -q 'crate::scroll::' src/flex/scroll.rs; test -z "$(rg -n 'fn (canonical_scroll_geometry_from_source|resolve_(preferred|minimum|maximum)_size)' src/block src/flex || true)"
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_; CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -156,7 +157,7 @@ Dependency: T07. Commit: `refactor(flex): finalize phase ownership`.
 
 ## 3 Completion
 
-R04 requires eight independently CLEAN task spans, status complete, CLEAN final matrix and holistic review, publication/readback, process hygiene, successful `cargo clean`, absent `target/`, and immutable R05 handoff. Browser, generation, acquisition, and artifact writes remain prohibited. Missing/wrong pinned cache or required behavior/API/artifact/scope expansion is a stop.
+R04 requires eight independently CLEAN task spans, status complete, CLEAN final matrix and holistic review, publication/readback, process hygiene, successful `cargo clean`, absent `target/`, and an immutable R06 handoff explicitly conditional on R05 completion. Browser, generation, acquisition, and artifact writes remain prohibited. Missing/wrong pinned cache or required behavior/API/artifact/scope expansion is a stop.
 
 ```sh
 set -e
@@ -188,4 +189,4 @@ test "$(find tests/layout/browser_parity/html -type f -name '*.html' | wc -l | t
 test -z "$(git status --porcelain=v1)"
 ```
 
-After publication/readback: prove no stale layout Cargo/Rust/generator process; run `cargo clean`; prove `target/` absent and Git clean. Record published SHA, reviewed revisions, eight task ranges/reviews, final evidence, remote readback, and cleanup for R05.
+After publication/readback: prove no stale layout Cargo/Rust/generator process; run `cargo clean`; prove `target/` absent and Git clean. Record published SHA, reviewed revisions, eight task ranges/reviews, final evidence, remote readback, and cleanup for R06 after R05 is also complete.
