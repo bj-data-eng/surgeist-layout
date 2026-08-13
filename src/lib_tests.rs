@@ -2338,6 +2338,10 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             include_str!("scroll/box_geometry.rs"),
         ),
         (
+            "src/scroll/construction.rs",
+            include_str!("scroll/construction.rs"),
+        ),
+        (
             "src/scroll/contribution.rs",
             include_str!("scroll/contribution.rs"),
         ),
@@ -2603,6 +2607,58 @@ fn fri08_remediation_scroll_contribution_has_one_owner() {
         assert!(
             !contribution.contains(non_contribution_declaration),
             "src/scroll/contribution.rs must not own {non_contribution_declaration}"
+        );
+    }
+}
+
+#[test]
+fn fri08_remediation_scroll_construction_has_one_owner() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let facade = include_str!("scroll.rs");
+    let construction_path = manifest_dir.join("src/scroll/construction.rs");
+    let construction = std::fs::read_to_string(&construction_path).unwrap_or_default();
+
+    assert!(
+        construction_path.is_file(),
+        "src/scroll/construction.rs must be the single canonical scroll-construction owner"
+    );
+    assert!(facade.contains("mod construction;"));
+    assert!(!facade.contains("pub mod construction;"));
+
+    for declaration in [
+        "pub(crate) struct CanonicalScrollGeometrySourceOf",
+        "pub(crate) enum CanonicalScrollRangeSeedPolicy",
+        "pub(crate) enum CanonicalRetainedScrollSourceOf",
+        "pub(crate) struct CanonicalScrollSourceBuilderOf",
+        "pub(crate) struct MeasuredLeafScrollGeometrySourceOf",
+        "pub(crate) enum CanonicalScrollRectFact",
+        "pub(crate) enum CanonicalScrollGeometryErrorOf",
+        "pub(crate) fn canonical_scroll_box_from_source",
+        "pub(crate) fn settled_auto_scrollbars_change_available_geometry",
+        "pub(crate) fn rebuild_canonical_scroll_geometry_for_border_box",
+        "pub(crate) fn canonical_scroll_geometry_from_source",
+        "pub(crate) fn canonical_measured_leaf_scroll_geometry",
+        "fn measured_leaf_content_rect",
+    ] {
+        assert!(
+            construction.contains(declaration),
+            "src/scroll/construction.rs must own {declaration}"
+        );
+        assert!(
+            !facade.contains(declaration),
+            "src/scroll.rs retains construction declaration: {declaration}"
+        );
+    }
+
+    for non_construction_declaration in [
+        "pub(crate) enum UsedOverflowGutter",
+        "pub(crate) struct PhysicalContributionIntervalOf",
+        "pub struct ScrollGeometryOf",
+        "pub(crate) fn rebuild_rounded_canonical_scroll_geometry",
+    ] {
+        assert!(
+            !construction.contains(non_construction_declaration),
+            "src/scroll/construction.rs must not own {non_construction_declaration}"
         );
     }
 }

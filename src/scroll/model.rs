@@ -1,6 +1,6 @@
 use super::{
-    AutoScrollbarOverflowObservation, CanonicalScrollGeometryErrorOf,
-    CanonicalScrollGeometrySourceOf, OptionalPhysicalContributionIntervalsOf, UsedOverflow,
+    AutoScrollbarOverflowObservation, OptionalPhysicalContributionIntervalsOf, UsedOverflow,
+    construction::{CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf},
 };
 use crate::{
     DefaultScalar, Edges, FlowAxes, LayoutScalar, LogicalAxis, Overflow, PhysicalAxis, Point,
