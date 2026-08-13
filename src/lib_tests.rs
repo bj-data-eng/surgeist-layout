@@ -1135,7 +1135,12 @@ fn fri08_c03_public_removal_nested_lanes_unsupported_symbols_are_absent() {
 
 #[test]
 fn fri05_c04_flex_round_cache_publication_has_one_canonical_geometry_path() {
-    let flex = [include_str!("flex.rs"), include_str!("flex/items.rs")].concat();
+    let flex = [
+        include_str!("flex.rs"),
+        include_str!("flex/absolute.rs"),
+        include_str!("flex/items.rs"),
+    ]
+    .concat();
 
     assert!(
         !flex.contains("output.scroll_geometry = Some(scroll_geometry)"),
@@ -2338,11 +2343,13 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ),
         ("src/error.rs", include_str!("error.rs")),
         ("src/flex.rs", include_str!("flex.rs")),
+        ("src/flex/absolute.rs", include_str!("flex/absolute.rs")),
         ("src/flex/alignment.rs", include_str!("flex/alignment.rs")),
         (
             "src/flex/flexible_lengths.rs",
             include_str!("flex/flexible_lengths.rs"),
         ),
+        ("src/flex/intrinsic.rs", include_str!("flex/intrinsic.rs")),
         ("src/flex/items.rs", include_str!("flex/items.rs")),
         ("src/flex/lines.rs", include_str!("flex/lines.rs")),
         ("src/geometry.rs", include_str!("geometry.rs")),
