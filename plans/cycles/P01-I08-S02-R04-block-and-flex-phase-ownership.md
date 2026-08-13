@@ -4,7 +4,7 @@ Cycle ID: `P01/I08/S02/R04`
 
 Owning repository: `surgeist-layout`
 
-Status: reviewed
+Status: draft
 
 Cycle base: `4f5022b720d33c1946604aeb3ce2172fd5db8fc8`
 
@@ -166,6 +166,7 @@ CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --feat
 cargo fmt --check; git diff --check
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_public_api_inventory_is_compatible
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout production_source_inventory_is_complete
+: "${TASK_SPANS:?set TASK_SPANS to the newline-delimited ordered exact full-SHA spans from the eight CLEAN task reviews}"
 expected_paths="$({ printf '%s\n' plans/cycles/P01-I08-S02-R04-block-and-flex-phase-ownership.md; while IFS= read -r span; do git diff --name-only "$span"; done <<< "$TASK_SPANS"; } | LC_ALL=C sort -u)"
 actual_paths="$(git diff --name-only 4f5022b720d33c1946604aeb3ce2172fd5db8fc8..HEAD | LC_ALL=C sort -u)"; test "$actual_paths" = "$expected_paths"
 base_suppressions="$(while IFS= read -r source_path; do git show "4f5022b720d33c1946604aeb3ce2172fd5db8fc8:$source_path" | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m = $&; $m =~ s/\s+/ /g; print "$m\n" }'; done < <(git ls-tree -r --name-only 4f5022b720d33c1946604aeb3ce2172fd5db8fc8 | rg '\.rs$') | LC_ALL=C sort)"
