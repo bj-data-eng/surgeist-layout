@@ -968,7 +968,14 @@ fn fri05_c03_legacy_surface_is_absent_from_public_source() {
 #[test]
 fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() {
     let scroll = include_str!("scroll.rs");
-    let compute = include_str!("compute.rs");
+    let engine = [
+        include_str!("engine/mod.rs"),
+        include_str!("engine/root.rs"),
+        include_str!("engine/rounding.rs"),
+        include_str!("engine/session.rs"),
+        include_str!("engine/validation.rs"),
+    ]
+    .join("\n");
     let block = include_str!("block.rs");
     let public_front_door = include_str!("lib.rs");
     let scroll_production = scroll
@@ -976,7 +983,7 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
         .next()
         .expect("production scroll source");
     let root_block_production =
-        format!("{scroll_production}\n{compute}\n{block}\n{public_front_door}");
+        format!("{scroll_production}\n{engine}\n{block}\n{public_front_door}");
 
     let forbidden = [
         "ScrollUnsupportedFeature",
@@ -1179,7 +1186,7 @@ fn fri05_c04_flex_legacy_absence_accepts_downstream_grid_closure() {
 #[test]
 fn fri05_c05_grid_round_cache_has_no_independent_scrollbar_projection() {
     let output = include_str!("output.rs");
-    let compute = include_str!("compute.rs");
+    let rounding = include_str!("engine/rounding.rs");
     let cache = include_str!("cache.rs");
 
     assert!(
@@ -1191,11 +1198,11 @@ fn fri05_c05_grid_round_cache_has_no_independent_scrollbar_projection() {
         "geometry publication must not synchronize an independent scrollbar projection"
     );
     assert!(
-        !compute.contains("layout.scrollbar_size.width = round("),
+        !rounding.contains("layout.scrollbar_size.width = round("),
         "rounding must rebuild scrollbar reservation only from canonical geometry sources"
     );
     assert!(
-        !compute.contains("layout.scrollbar_size.height = round("),
+        !rounding.contains("layout.scrollbar_size.height = round("),
         "rounding must rebuild scrollbar reservation only from canonical geometry sources"
     );
     assert!(
@@ -2276,7 +2283,6 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
     let sources = [
         ("src/block.rs", include_str!("block.rs")),
         ("src/cache.rs", include_str!("cache.rs")),
-        ("src/compute.rs", include_str!("compute.rs")),
         (
             "src/engine/contracts.rs",
             include_str!("engine/contracts.rs"),
@@ -2464,7 +2470,7 @@ fn fri08_remediation_engine_contract_is_algorithm_neutral() {
 #[test]
 fn fri08_remediation_engine_validation_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let compute = include_str!("compute.rs");
+    let compute = std::fs::read_to_string(manifest_dir.join("src/compute.rs")).unwrap_or_default();
     let engine = include_str!("engine/mod.rs");
     let validation =
         std::fs::read_to_string(manifest_dir.join("src/engine/validation.rs")).unwrap_or_default();
@@ -2490,11 +2496,11 @@ fn fri08_remediation_engine_validation_has_one_owner() {
     assert!(validation.contains("pub(crate) fn validate_layout_request"));
     assert!(validation.contains("LayoutUnsupportedCapability::LaterFriBehavior"));
 
-    let validation_call = compute
-        .find("engine::validate_layout_request")
+    let validation_call = engine
+        .find("validation::validate_layout_request")
         .unwrap_or_else(|| panic!("public orchestration calls the validation owner"));
-    let session_gateway = compute
-        .find("engine::compute_validated_layout")
+    let session_gateway = engine
+        .find("compute_validated_layout")
         .unwrap_or_else(|| panic!("public orchestration calls the validated session gateway"));
     assert!(
         validation_call < session_gateway,
@@ -2505,7 +2511,7 @@ fn fri08_remediation_engine_validation_has_one_owner() {
 #[test]
 fn fri08_remediation_measurement_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let compute = include_str!("compute.rs");
+    let compute = std::fs::read_to_string(manifest_dir.join("src/compute.rs")).unwrap_or_default();
     let error = include_str!("error.rs");
     let scroll = include_str!("scroll.rs");
     let measurement =
@@ -2556,13 +2562,13 @@ fn fri08_remediation_measurement_has_one_owner() {
 #[test]
 fn fri08_remediation_sizing_resolution_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let compute = include_str!("compute.rs");
+    let compute = std::fs::read_to_string(manifest_dir.join("src/compute.rs")).unwrap_or_default();
     let sizing = include_str!("sizing.rs");
     let error = include_str!("error.rs");
     let resolver =
         std::fs::read_to_string(manifest_dir.join("src/sizing/resolve.rs")).unwrap_or_default();
     let non_owners = [
-        ("src/compute.rs", compute),
+        ("src/compute.rs", compute.as_str()),
         ("src/error.rs", error),
         ("src/block.rs", include_str!("block.rs")),
         ("src/flex.rs", include_str!("flex.rs")),
@@ -2622,7 +2628,7 @@ fn fri08_remediation_sizing_resolution_has_one_owner() {
 #[test]
 fn fri08_remediation_engine_root_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let compute = include_str!("compute.rs");
+    let compute = std::fs::read_to_string(manifest_dir.join("src/compute.rs")).unwrap_or_default();
     let engine = include_str!("engine/mod.rs");
     let root = std::fs::read_to_string(manifest_dir.join("src/engine/root.rs")).unwrap_or_default();
     let session =
@@ -2672,15 +2678,66 @@ fn fri08_remediation_engine_root_has_one_owner() {
 #[test]
 fn fri08_remediation_engine_session_transaction_equivalence() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let compute = include_str!("compute.rs");
+    let compute_path = manifest_dir.join("src/compute.rs");
+    let compute = std::fs::read_to_string(&compute_path).unwrap_or_default();
     let engine = include_str!("engine/mod.rs");
     let session =
         std::fs::read_to_string(manifest_dir.join("src/engine/session.rs")).unwrap_or_default();
 
     assert!(engine.contains("mod session;"));
     assert!(!engine.contains("pub mod session;"));
-    assert!(engine.contains("pub(crate) fn compute_validated_layout"));
-    assert!(compute.contains("engine::compute_validated_layout"));
+    assert!(engine.contains("fn compute_validated_layout"));
+    assert!(!engine.contains("pub(crate) fn compute_validated_layout"));
+    for owner in [
+        "mod validation;",
+        "mod session;",
+        "mod root;",
+        "mod rounding;",
+    ] {
+        assert!(
+            engine.contains(owner),
+            "the engine owner graph lacks {owner}"
+        );
+    }
+    for declaration in [
+        "pub fn compute_layout<Tree>",
+        "pub fn compute_layout_invalidated<Tree>",
+    ] {
+        assert!(
+            engine.contains(declaration),
+            "src/engine/mod.rs must own public orchestration: {declaration}"
+        );
+        assert!(
+            !compute.contains(declaration),
+            "src/compute.rs retains public orchestration: {declaration}"
+        );
+    }
+    let validation_call = engine
+        .find("validation::validate_layout_request")
+        .unwrap_or_else(|| panic!("public engine orchestration calls the validation owner"));
+    let session_gateway = engine.find("compute_validated_layout").unwrap_or_else(|| {
+        panic!("public engine orchestration calls the validated session gateway")
+    });
+    assert!(
+        validation_call < session_gateway,
+        "public engine orchestration must validate before creating session state"
+    );
+    for composition in [
+        "session::ComputeSession::new",
+        "compute_root(&mut session",
+        "compute_flex_item_root(&mut session",
+        "rounding::round_layout(&mut session",
+        "session.complete_for_root(root)",
+    ] {
+        assert!(
+            engine.contains(composition),
+            "the engine composition must consume its narrow owner entry: {composition}"
+        );
+    }
+    assert!(
+        !compute_path.exists(),
+        "the superseded production src/compute.rs owner must be absent"
+    );
 
     for declaration in [
         "struct ComputeSession",
@@ -2733,7 +2790,7 @@ fn fri08_remediation_engine_session_transaction_equivalence() {
 #[test]
 fn fri08_remediation_engine_rounding_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let compute = include_str!("compute.rs");
+    let compute = std::fs::read_to_string(manifest_dir.join("src/compute.rs")).unwrap_or_default();
     let engine = include_str!("engine/mod.rs");
     let rounding =
         std::fs::read_to_string(manifest_dir.join("src/engine/rounding.rs")).unwrap_or_default();
@@ -2775,8 +2832,34 @@ fn fri08_remediation_public_api_inventory_is_compatible() {
     let error = std::fs::read_to_string(manifest_dir.join("src/error.rs")).unwrap_or_default();
     let measurement =
         std::fs::read_to_string(manifest_dir.join("src/measurement.rs")).unwrap_or_default();
-    let compute = include_str!("compute.rs");
+    let compute_path = manifest_dir.join("src/compute.rs");
+    let compute = std::fs::read_to_string(&compute_path).unwrap_or_default();
+    let engine = include_str!("engine/mod.rs");
     let public_front_door = include_str!("lib.rs");
+
+    assert!(
+        !compute_path.exists(),
+        "the superseded production src/compute.rs owner must be absent"
+    );
+    for declaration in [
+        "pub fn compute_layout<Tree>",
+        "pub fn compute_layout_invalidated<Tree>",
+    ] {
+        assert!(
+            engine.contains(declaration),
+            "src/engine/mod.rs must own {declaration}"
+        );
+        assert!(
+            !compute.contains(declaration),
+            "src/compute.rs must not retain {declaration}"
+        );
+    }
+    assert!(engine.contains("type ComputeLayoutResult<Tree>"));
+    assert!(!engine.contains("clippy::type_complexity"));
+    assert!(!public_front_door.contains("mod compute;"));
+    assert!(!public_front_door.contains("pub use compute::"));
+    assert!(public_front_door.contains("mod engine;"));
+    assert!(!public_front_door.contains("pub mod engine;"));
 
     let public_error_declarations = [
         "pub type LayoutResultOf",
@@ -2878,9 +2961,9 @@ fn fri08_remediation_public_api_inventory_is_compatible() {
         "the public error reexport inventory remains exact"
     );
     assert_eq!(
-        reexported_names(public_front_door, "compute"),
+        reexported_names(public_front_door, "engine"),
         ["compute_layout", "compute_layout_invalidated",],
-        "compute retains only public root orchestration during R02"
+        "engine owns the unchanged public root orchestration facade"
     );
     assert_eq!(
         reexported_names(public_front_door, "measurement"),

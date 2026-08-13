@@ -197,7 +197,6 @@
 
 mod block;
 mod cache;
-mod compute;
 mod engine;
 mod error;
 mod flex;
@@ -229,7 +228,6 @@ pub type Scalar = DefaultScalar;
 #[cfg(test)]
 pub(crate) use block::compute_block;
 pub use cache::{Cache, CacheKeyContext, CacheOf, ClearState};
-pub use compute::{compute_layout, compute_layout_invalidated};
 pub(crate) use engine::contracts::{CacheAccess, Compute};
 #[cfg(test)]
 pub(crate) use engine::contracts::{Round, compute_cached};
@@ -237,6 +235,7 @@ pub(crate) use engine::contracts::{Round, compute_cached};
 pub(crate) use engine::round_layout;
 #[cfg(test)]
 pub(crate) use engine::{compute_hidden, compute_root};
+pub use engine::{compute_layout, compute_layout_invalidated};
 pub use error::{
     AtomicInlineParticipationRoleError, CalcSizeBehaviorBasis, FloatExclusionRoleError,
     InvalidMeasurementOutput, InvalidMeasurementOutputOf, LayoutError, LayoutErrorKind,

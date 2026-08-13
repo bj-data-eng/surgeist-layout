@@ -4,31 +4,57 @@ mod rounding;
 mod session;
 mod validation;
 
+use crate::error::LayoutResultOf;
+use crate::{
+    CompletedLayoutBatchOf, LayoutRootContextOf, LayoutRootRequestOf, LayoutTree, Traverse,
+};
 pub(crate) use root::{compute_flex_item_root, compute_hidden, compute_root};
 #[cfg(test)]
 pub(crate) use rounding::round_layout;
 #[cfg(test)]
 pub(crate) use session::trace_hidden_compute_session_requests;
-pub(crate) use validation::validate_layout_request;
 
-use crate::error::LayoutResultOf;
-use crate::{
-    CompletedLayoutBatchOf, LayoutRootContextOf, LayoutRootRequestOf, LayoutTree, Traverse,
-};
+type CompletedTreeBatch<Tree> =
+    CompletedLayoutBatchOf<<Tree as Traverse>::Node, <Tree as Traverse>::Scalar>;
 
-type ValidatedLayoutResult<Tree> = LayoutResultOf<
+type ComputeLayoutResult<Tree> = LayoutResultOf<
     <Tree as Traverse>::Node,
-    CompletedLayoutBatchOf<<Tree as Traverse>::Node, <Tree as Traverse>::Scalar>,
+    CompletedTreeBatch<Tree>,
     <Tree as Traverse>::Scalar,
     <Tree as LayoutTree>::MeasureError,
 >;
 
-pub(crate) fn compute_validated_layout<Tree>(
+pub fn compute_layout<Tree>(
+    tree: &Tree,
+    root: Tree::Node,
+    request: LayoutRootRequestOf<Tree::Scalar>,
+) -> ComputeLayoutResult<Tree>
+where
+    Tree: LayoutTree,
+{
+    compute_layout_invalidated(tree, root, request, &[])
+}
+
+pub fn compute_layout_invalidated<Tree>(
+    tree: &Tree,
+    root: Tree::Node,
+    request: LayoutRootRequestOf<Tree::Scalar>,
+    changed_nodes: &[Tree::Node],
+) -> ComputeLayoutResult<Tree>
+where
+    Tree: LayoutTree,
+{
+    let invalidated_nodes = validation::validate_layout_request(tree, root, changed_nodes)?;
+
+    compute_validated_layout(tree, root, request, invalidated_nodes)
+}
+
+fn compute_validated_layout<Tree>(
     tree: &Tree,
     root: Tree::Node,
     request: LayoutRootRequestOf<Tree::Scalar>,
     invalidated_nodes: Vec<Tree::Node>,
-) -> ValidatedLayoutResult<Tree>
+) -> ComputeLayoutResult<Tree>
 where
     Tree: LayoutTree,
 {
