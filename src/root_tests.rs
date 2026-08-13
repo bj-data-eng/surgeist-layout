@@ -3898,7 +3898,7 @@ fn fri06_c04_float_lifecycle_cold_warm_dirty_failures_baseline_and_content_are_a
 
 #[test]
 fn fri06_c04_float_lifecycle_static_one_ledger_query_and_single_publication_paths() {
-    let block = include_str!("block.rs");
+    let block = include_str!("block/inline_run.rs");
     let floats = include_str!("block/floats.rs");
     assert_eq!(floats.matches("struct FloatLedgerEntry<").count(), 1);
     assert_eq!(
@@ -7722,7 +7722,7 @@ fn fri06_c03_lifecycle_mixed_cold_warm_rounding_dirty_replacement_scroll_and_fai
 
 #[test]
 fn fri06_c03_lifecycle_unified_mixed_publication_contributes_each_geometry_once() {
-    let block_source = include_str!("block.rs");
+    let block_source = include_str!("block/inline_run.rs");
     let unified_path = block_source
         .split_once("fn layout_inline_run_children<")
         .expect("unified mixed layout function remains present")

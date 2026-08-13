@@ -2043,7 +2043,7 @@ fn fri05_c05_audit_legacy_source(
         {
             accounting.inline_carrier_projections += 1;
             true
-        } else if path == "src/block.rs"
+        } else if path == "src/block/inline_run.rs"
             && has(
                 &tokens,
                 index,
@@ -2306,6 +2306,11 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
     let sources = [
         ("src/block.rs", include_str!("block.rs")),
         ("src/block/floats.rs", include_str!("block/floats.rs")),
+        ("src/block/in_flow.rs", include_str!("block/in_flow.rs")),
+        (
+            "src/block/inline_run.rs",
+            include_str!("block/inline_run.rs"),
+        ),
         ("src/cache.rs", include_str!("cache.rs")),
         (
             "src/engine/contracts.rs",
@@ -2415,7 +2420,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             .collect::<Vec<_>>(),
         vec![
             &(
-                "src/block.rs",
+                "src/block/inline_run.rs",
                 LegacyScrollbarAccounting {
                     block_carrier_writers: 1,
                     ..LegacyScrollbarAccounting::default()
