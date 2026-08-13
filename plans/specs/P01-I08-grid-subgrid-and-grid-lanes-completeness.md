@@ -815,15 +815,18 @@ forbids unrelated cleanup.
 Closure is public-front-door behavior plus architecture and artifact evidence.
 Changing a private helper test alone is insufficient.
 
-## 18 FRI-08.18 Candidate And Root Handoff
+## 18 FRI-08.18 C08 Behavioral Candidate And Handoff Evidence
 
-The completed leaf candidate contains the source and public API state specified
-here, the exact generated artifact inventory from `FRI-08.13`, and verification
-evidence sufficient for separate root integration. This product contract does
-not prescribe Git landing, review ordering, cycle ordering, or publication
-mechanics; the governing Surgeist workflow owns those operations.
+The published C08 behavioral candidate contains the source and public API state
+specified through `FRI-08.17`, the exact generated artifact inventory from
+`FRI-08.13`, and its recorded leaf-to-root handoff evidence for later separate
+root integration. This is the immutable entry prerequisite for the mandatory
+post-closure remediation in
+`FRI-08.20` through `FRI-08.28`; it is not the final FRI-08 initiative state.
+The governing Surgeist workflow owns Git landing, review, and publication
+mechanics.
 
-The final leaf handoff records:
+The historical C08 behavioral handoff records:
 
 - exact leaf source revision identity;
 - the removal of the three public nested-indefinite unsupported symbols;
@@ -838,9 +841,10 @@ Root integration separately updates direct API use, facade artifacts, and the
 gitlink. Root must not infer authored CSS from the leaf's finite fixture adapter
 or copy private topology types across the crate boundary.
 
-## 19 FRI-08.19 Product Acceptance
+## 19 FRI-08.19 C08 Behavioral Acceptance
 
-FRI-08 is complete only when all of the following are true:
+The C08 behavioral candidate satisfied all of the following before the
+architectural remediation continuation began:
 
 1. all eight findings have the exact closure in `FRI-08.17`;
 2. explicit topology is identical for track sizing, names, areas, positive and
@@ -867,5 +871,292 @@ FRI-08 is complete only when all of the following are true:
 12. all `FRI-08.14` architecture invariants hold;
 13. default/generator verification, corpus/Taffy checks, strict Clippy,
     formatting, diff, unsafe, scope, and clean-worktree gates pass; and
-14. the final leaf candidate has complete revision, artifact, API-change, and
-    root-ownership handoff evidence.
+14. the C08 behavioral candidate has complete revision, artifact, API-change,
+    and root-ownership handoff evidence.
+
+These predicates remain mandatory regression prerequisites. They do not define
+FRI-08 initiative completion after the post-C08 continuation was authorized.
+`FRI-08.28` is the sole final initiative acceptance and handoff contract.
+
+## 20 FRI-08.20 Post-Closure Architectural Remediation
+
+FRI-08 continues after its published C08 candidate with a finite, behavior-
+preserving architectural remediation. This continuation owns the six structural
+pressure findings accepted after the completed whole-crate review:
+
+| ID | Accepted pressure | Required outcome |
+| --- | --- | --- |
+| `AR-001` | the recursive engine contract contains block-only inherited-float behavior | the recursive contract is algorithm-neutral and block owns its inherited-float recursion |
+| `AR-002` | `compute.rs` owns errors, validation, invalidation, session state, dispatch, rounding, measurement, sizing resolution, root computation, and publication | each responsibility has one named module owner and the public transaction remains unchanged |
+| `AR-003` | shared property-sizing resolution is owned by the dispatcher module | sizing resolution is owned beside the validated sizing model and consumed uniformly by every algorithm |
+| `AR-004` | scroll, block, flex, grid tracks, and grid child layout are physical monoliths | each named subsystem is decomposed along existing semantic phases without parallel algorithms |
+| `AR-005` | algorithms depend directly on the full 55-field `NodeInputOf`, while the flat public facade lacks a concise domain map | algorithm-owned projections narrow internal dependencies; the compatible public snapshot and facade receive one authoritative API map |
+| `AR-006` | grid, root, flex, and block verification live in exceptionally large companion files | tests are partitioned by semantic owner with shared fixtures explicit and no coverage loss |
+
+These rows are structural remediation, not new closure owners for the 59 P01
+findings. All eight FRI-08 behavior closures and the completed C08 sprawl rows
+remain immutable prerequisites. FRI-09 planning is published but its
+implementation remains paused until this continuation completes.
+
+The hold applies specifically to
+`plans/sequences/P01-I09-S01-cross-format-alignment-semantics.md`, reviewed at
+normalized SHA-256
+`40211f10b454dba79c24dd3f541ca8d65ad0308df469283e53c008348aa03bb0`
+and committed in `3539b805b691a259c5080ab1626d8f89df0e362a`. No FRI-09 C01
+cycle plan or implementation may begin from that entry. After the final FRI-08
+remediation handoff, resumption requires an explicit FRI-09 sequence revision or
+revalidation whose C01 entry names the published remediation candidate as its
+base prerequisite and receives a fresh independent sequence review. This
+remediation stops before that separate resume transition.
+
+## 21 FRI-08.21 Boundary And Compatibility
+
+The remediation changes crate-private module ownership and test organization.
+It must not change observable layout geometry, error variants or sites, cache
+identity, invalidation, batching, rounding, measurement semantics, public type
+names, public fields, constructors, defaults, trait signatures, reexports,
+features, dependencies, MSRV, fixtures, generated XML, or report provenance.
+
+`NodeInputOf<S>` remains the normalized public node snapshot. Its public fields
+remain source-compatible because replacing them with nested public groups would
+cause broad caller churn without making cross-format role validity intrinsically
+constructible. Role and phase narrowing instead occurs through crate-private
+algorithm projections constructed at owned entry boundaries. No second public
+input model, compatibility alias, prelude, duplicate public module tree, or
+builder surface is added.
+
+The root facade remains the compatible public entry point. Discoverability is
+addressed by one README API map grouped by computation/tree, node input, sizing,
+geometry/scroll, output, and finite grid utility contracts. That map links the
+existing root names and creates no duplicate public path.
+
+Generator architecture expansion is excluded. Generator, helper, authored HTML,
+manifest, XML, and report files are frozen. A parser update, new fixture, or
+confirmed generator defect is not required by this behavior-preserving work and
+therefore cannot enter a remediation cycle without a separately reviewed
+specification revision.
+
+## 22 FRI-08.22 Algorithm-Neutral Engine Ownership
+
+The public host boundary and the private recursive engine boundary are distinct:
+
+1. `tree` owns `Traverse`, `LayoutTree`, and `LayoutBatchSink` exactly as public
+   host contracts;
+2. `engine::contracts` owns the crate-private recursive layout, cache, and
+   rounding service traits;
+3. the recursive layout service exposes node/layout input lookup, recursive
+   child computation, staged output/fragments, and the existing optional float-
+   exclusion provider only;
+4. no shared trait mentions a block, flex, grid, inline, scroll, or algorithm-
+   local carrier; and
+5. block-owned inherited-float recursion remains a block function that consumes
+   the neutral recursive child service.
+
+The existing `Compute` trait's
+`compute_child_with_inherited_float_exclusions` method and its concrete session
+override are removed. The block call at the ordinary-child recursion boundary
+invokes the block owner directly. This is a dependency-direction correction,
+not a new open trait or backend abstraction.
+
+The public `compute_layout`, `compute_layout_invalidated`, and `compute_leaf`
+entry points retain their names and semantics. Downstream trait implementations
+remain source-compatible.
+
+## 23 FRI-08.23 Compute And Sizing Decomposition
+
+The current `compute.rs` responsibilities move to these single owners:
+
+| Module | Responsibility |
+| --- | --- |
+| `error` | public layout result alias, error envelope, sites, operations, invalid/missing/unsupported/internal variants, and geometry/error conversion |
+| `tree` | public host traversal, measurement-provider, cache-provider, and atomic batch-sink contracts |
+| `engine::contracts` | crate-private neutral recursion, cache-write, and rounding services |
+| `engine::validation` | root request validation, tree validation, and invalidation closure |
+| `engine::session` | staged session state, algorithm dispatch, cache access, fragment staging, and completed-batch assembly |
+| `engine::root` | hidden, ordinary root, and flex-item-root computation plus root scroll geometry |
+| `engine::rounding` | source-ordered node and fragment rounding and rounded scroll reconstruction |
+| `measurement` | public leaf input/availability/error model and fallible leaf computation |
+| `sizing::resolve` | shared preferred/minimum/maximum/flex-basis resolution, resolved algorithm carriers, and sizing-resolution error |
+
+`engine::mod` owns only public session entry orchestration and private dispatch
+composition. `compute.rs` and `traits.rs` cease to be production owners once the
+decomposition is complete. Public reexports in `lib.rs` remain identical.
+
+Sizing algorithms call `sizing::resolve` directly. Error conversion maps the
+algorithm-neutral sizing-resolution error into the existing public layout error
+at the caller's exact node/site. No resolution helper remains in `engine`, and
+no algorithm defines a parallel preferred/minimum/maximum/flex-basis resolver.
+
+The source-inventory and legacy-scroll audits in `lib_tests` must discover the
+new production module tree without hard-coded omission. Their expected semantic
+owners are updated together with each move; they may not be weakened or taught
+to skip new files.
+
+## 24 FRI-08.24 Responsibility-Shaped Algorithm Modules
+
+Physical decomposition follows existing algorithm phases. It does not introduce
+new algorithms, public modules, or generic utility layers.
+
+### 24.1 Scroll
+
+The current `scroll.rs` becomes a private `scroll` module tree:
+
+- `model` owns immutable public rectangles, clips, targets, offsets, ranges,
+  gutter rectangles, and `ScrollGeometryOf` accessors;
+- `box_geometry` owns used overflow, scrollbar settlement, reservations,
+  clipping, gutters, and optimal-region construction;
+- `contribution` owns contribution intervals, accumulators, alignment subjects,
+  final-flow ends, and origin-aware range derivation;
+- `construction` owns canonical source builders and complete geometry
+  construction/reconstruction;
+- `rounding` owns canonical source and geometry rounding; and
+- `mod` composes these owners and supplies only intentional crate-private
+  reexports.
+
+Every public type retains its existing root reexport and privacy invariants.
+Construction remains canonical: no algorithm manufactures public scroll output
+or duplicates range/clip/gutter rules.
+
+### 24.2 Block And Flex
+
+Block is decomposed into entry/constants, float exclusion, in-flow traversal,
+inline-run participation, absolute-child layout, sizing, and scroll-publication
+owners. Flex is decomposed into entry/constants, item collection, line
+collection, flexible-length resolution, cross-axis alignment/baselines,
+intrinsic sizing, absolute-child layout, and scroll-publication owners.
+
+State passed between phases uses the existing concrete algorithm carriers or a
+new private struct with one semantic owner. Cross-file visibility is
+`pub(super)` or narrower. A move may not expose a production function merely to
+make the split compile, and block/flex may not copy shared sizing or scroll
+rules.
+
+### 24.3 Grid Tracks And Child Layout
+
+`grid::tracks` is decomposed into track input validation, intrinsic contribution
+collection, subgrid intrinsic projection, ordinary track phases, flexible-track
+distribution, and final geometry helpers. `grid::child` is decomposed into
+settled-area child layout, baseline grouping, subgrid context/refresh, absolute
+grid child layout, and scroll/publication owners.
+
+Topology, named lines, placement, lanes, and standalone subgrid traversal remain
+with their existing owners. The split cannot create another topology, baseline
+group, placement, or track-state model. Existing FRI-08 architecture invariants
+remain binding.
+
+## 25 FRI-08.25 Node Input Projections And Public API Map
+
+Each formatting algorithm constructs a private projection at its entry from a
+borrowed `NodeInputOf<S>`:
+
+- block container/child facts;
+- flex container and flex item facts;
+- grid container and grid item facts;
+- inline participant facts; and
+- scroll box/target facts.
+
+A projection contains only fields consumed by that semantic role and preserves
+borrowed validated values where cloning is unnecessary. Construction is total
+for irrelevant fields and fallible only for an already-defined invalid role
+combination. Any failure maps to the existing typed layout error at the same
+site. Core phase functions consume projections rather than the full public
+property bag wherever their role is settled.
+
+Shared box geometry such as size, margin, padding, border, flow axes, overflow,
+and positioned state remains in one small crate-private common projection when
+two or more algorithms require identical semantics. Algorithm-specific fields
+do not enter that common carrier.
+
+The `node_input` source is partitioned by public semantic type family while
+`NodeInputOf` remains the sole public aggregate and retains its exact field
+shape. `lib.rs` keeps the exact public root facade. README gains the API map
+defined in `FRI-08.21`; compile and source inventories prove no public name or
+path was added, removed, or redirected.
+
+## 26 FRI-08.26 Test Ownership Decomposition
+
+The following companion suites become module directories partitioned by the
+production responsibility they verify:
+
+- `grid_tests`: topology/placement, tracks/intrinsic sizing, lanes/subgrid,
+  child/baseline, scroll/composition, oracle comparison, browser controls, and
+  shared fixtures;
+- `root_tests`: root requests, containing contexts, transaction/cache behavior,
+  measurement, rounding, and shared fixtures;
+- `flex_tests`: item collection/sizing, lines/distribution, alignment/baselines,
+  intrinsic/absolute/scroll composition, and shared fixtures; and
+- `block_tests`: in-flow/margins, inline runs, floats/BFCs, absolute layout,
+  sizing/scroll composition, and shared fixtures.
+
+Test partitioning preserves every test body and assertion unless a changed
+module path requires an exact import or helper-visibility correction. Shared
+fixtures have one test-only owner and are imported explicitly; production
+surface is never added for test access. Focused name prefixes remain searchable,
+ignored status remains exact, and the total discovered test inventory and full
+package result remain unchanged.
+
+## 27 FRI-08.27 Verification And Artifact Contract
+
+Every behavior-preserving move is preceded by a focused characterization that
+passes on its assignment base and after the move. Source-shape checks supplement
+but never replace behavior evidence. Named remediation anchors include:
+
+- `fri08_remediation_engine_contract_is_algorithm_neutral`;
+- `fri08_remediation_engine_session_transaction_equivalence`;
+- `fri08_remediation_sizing_resolution_has_one_owner`;
+- `fri08_remediation_scroll_construction_and_rounding_equivalence`;
+- `fri08_remediation_algorithm_phase_composition_equivalence`;
+- `fri08_remediation_node_projection_role_boundaries`;
+- `fri08_remediation_public_api_inventory_is_compatible`; and
+- `fri08_remediation_test_partition_inventory_is_complete`.
+
+The applicable existing scalar, cold/warm cache, invalidation, transaction,
+measurement, writing-mode, block, inline, float, flex, grid, subgrid, lanes,
+scroll, browser-parity, and oracle tests remain the primary behavior evidence.
+
+Final verification runs the default and generator-feature package matrices,
+strict Clippy with `-F unsafe-code -D warnings`, formatting and diff checks,
+browser-free corpus and Taffy validation, the owned-Rust unsafe and suppression
+inventories, public source/API inventories, and exact frozen artifact hashes and
+counts. Browser execution, generation, corpus acquisition, and artifact writes
+are prohibited.
+
+After each remediation cycle is independently clean, published, and remotely
+read back, process hygiene proves no stale `surgeist-layout`, Cargo, Rust test,
+or generator process owned by that cycle remains. The coordinator then runs
+`cargo clean` from the leaf repository and records exit status zero plus absence
+of the repository `target` directory before the next cycle begins. Another
+deletion mechanism does not satisfy this command requirement.
+
+## 28 FRI-08.28 Sole Final Remediation Acceptance And Handoff
+
+The FRI-08 remediation continuation is complete only when:
+
+1. `AR-001` through `AR-006` each have one implemented, independently reviewed
+   disposition;
+2. shared recursive engine contracts contain no algorithm-local carrier or
+   dispatch behavior;
+3. every former `compute.rs` and `traits.rs` responsibility has exactly the
+   owner in `FRI-08.23`, with unchanged public transaction semantics;
+4. sizing resolution has one algorithm-neutral owner and no duplicate resolver;
+5. scroll, block, flex, grid tracks, and grid child layout have the exact
+   responsibility-shaped module boundaries in `FRI-08.24` without public
+   visibility expansion or parallel algorithms;
+6. algorithms consume role-specific private projections while `NodeInputOf` and
+   the root facade remain source-compatible;
+7. the four named companion test suites are partitioned with complete inventory,
+   unchanged ignored state, and no production test hook;
+8. all eight original FRI-08 findings, every completed C07/C08 sprawl row, all
+   59 P01 ownership assignments, and the paused FRI-09 boundary remain intact;
+9. public API, dependencies, features, MSRV, docs, artifacts, provenance,
+   suppression, and unsafe evidence satisfy `FRI-08.21` and `FRI-08.27`;
+10. every cycle has clean task and holistic reviews, publication/readback,
+    process hygiene, a successful repository-root `cargo clean`, and an absent
+    repository `target` directory afterward; and
+11. the final leaf handoff records the remediation specification/sequence/cycle
+    revisions, exact task ranges, compatibility result, frozen artifact state,
+    final remote candidate, and the still-paused FRI-09 sequence revision and
+    required revalidation transition.
+
+Root integration remains a separate owner. This continuation does not update a
+root gitlink, facade, adapter, or generated API artifact.
