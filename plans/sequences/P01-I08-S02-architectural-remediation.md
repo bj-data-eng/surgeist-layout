@@ -9,10 +9,10 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed post-C08 remediation in
 `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`, normalized
 semantic-content SHA-256
-`e3ac1af46ff7868e12e8df01da1cd4b46edd972638f34483fedc524b9d830595`,
-committed as `28d4016e7bf1005b8541868e8b1d251b0e03012c`.
+`d9c6a61eae363331d7e8ce05d88916099111e11b8793b8dc31cc55e3e5c80a6a`,
+committed as `b9cb82aadf70d5690d605bb9ffeaa6da9512bd3d`.
 
-The specification owns the six accepted pressure findings, compatibility,
+The specification owns the seven accepted pressure findings, compatibility,
 module ownership, frozen artifacts, verification, the FRI-09 hold, and final
 acceptance. This sequence owns only durable cycle order and boundaries. Each
 cycle receives its detailed plan only after its predecessor is published,
@@ -202,8 +202,8 @@ and frozen artifacts satisfy the cited specification sections.
 
 **Owner:** `surgeist-layout`.
 
-**Specification:** `FRI-08.20` row `AR-006`, `FRI-08.21`, `FRI-08.26`, all of
-`FRI-08.27`, and all of `FRI-08.28`.
+**Specification:** `FRI-08.20` row `AR-006`, `FRI-08.21`, `FRI-08.26`, and
+the partition-preservation and ordinary verification portions of `FRI-08.27`.
 
 **Entry:** R01 through R06 are published; all production owners and public
 compatibility evidence are stable.
@@ -212,10 +212,11 @@ compatibility evidence are stable.
 and shared fixtures have one test-only owner, without coverage, API, behavior,
 artifact, or ownership drift.
 
-**Exit evidence:** complete test inventory and ignored-state equality, full
-default/generator/corpus/Taffy matrices, strict source and public inventories,
-frozen artifact state, all `AR-001` through `AR-006` dispositions, and the sole
-final acceptance contract satisfy the cited specification sections.
+**Exit evidence:** partitioned test inventory, body/assertion preservation,
+focused prefix searchability, shared-fixture ownership, ignored-state equality,
+full default/generator/corpus/Taffy matrices, public compatibility, and frozen
+artifact state satisfy the cited sections. Whole-crate evidence classification
+and final acceptance remain R08-owned.
 
 **Handoff:** publish the partitioned test candidate to R08.
 
