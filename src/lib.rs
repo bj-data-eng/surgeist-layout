@@ -230,11 +230,13 @@ pub type Scalar = DefaultScalar;
 pub(crate) use block::compute_block;
 pub use cache::{Cache, CacheKeyContext, CacheOf, ClearState};
 #[cfg(test)]
-pub(crate) use compute::{compute_hidden, compute_root, round_layout};
+pub(crate) use compute::round_layout;
 pub use compute::{compute_layout, compute_layout_invalidated};
 #[cfg(test)]
 pub(crate) use engine::contracts::compute_cached;
 pub(crate) use engine::contracts::{CacheAccess, Compute, Round};
+#[cfg(test)]
+pub(crate) use engine::{compute_hidden, compute_root};
 pub use error::{
     AtomicInlineParticipationRoleError, CalcSizeBehaviorBasis, FloatExclusionRoleError,
     InvalidMeasurementOutput, InvalidMeasurementOutputOf, LayoutError, LayoutErrorKind,

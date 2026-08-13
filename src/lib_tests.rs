@@ -2282,6 +2282,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             include_str!("engine/contracts.rs"),
         ),
         ("src/engine/mod.rs", include_str!("engine/mod.rs")),
+        ("src/engine/root.rs", include_str!("engine/root.rs")),
         (
             "src/engine/validation.rs",
             include_str!("engine/validation.rs"),
@@ -2614,6 +2615,54 @@ fn fri08_remediation_sizing_resolution_has_one_owner() {
             "{path} must consume the shared sizing resolver owner directly"
         );
     }
+}
+
+#[test]
+fn fri08_remediation_engine_root_has_one_owner() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let compute = include_str!("compute.rs");
+    let engine = include_str!("engine/mod.rs");
+    let root = std::fs::read_to_string(manifest_dir.join("src/engine/root.rs")).unwrap_or_default();
+
+    for declaration in [
+        "pub(crate) fn compute_hidden",
+        "pub(crate) fn compute_root",
+        "fn compute_flex_item_root",
+        "fn root_scroll_geometry",
+        "fn root_scroll_error",
+        "fn resolve_root_edges",
+        "fn root_known_inline",
+        "fn root_physical_axis_value",
+        "fn root_known_on_axis",
+        "fn root_start_location",
+        "fn root_start_coordinate",
+    ] {
+        assert!(
+            !compute.contains(declaration),
+            "src/compute.rs retains root or hidden computation declaration: {declaration}"
+        );
+        assert!(
+            root.contains(declaration),
+            "src/engine/root.rs must own root or hidden computation declaration: {declaration}"
+        );
+    }
+
+    assert!(engine.contains("mod root;"));
+    assert!(!engine.contains("pub mod root;"));
+    for owner_call in [
+        "engine::compute_hidden",
+        "engine::compute_root",
+        "engine::compute_flex_item_root",
+    ] {
+        assert!(
+            compute.contains(owner_call),
+            "session dispatch or public orchestration must consume the root owner: {owner_call}"
+        );
+    }
+    assert!(
+        include_str!("lib.rs").contains("pub(crate) use engine::{compute_hidden, compute_root};"),
+        "test-only crate-root access must consume the engine root owner"
+    );
 }
 
 #[test]
