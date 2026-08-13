@@ -4,7 +4,7 @@ Cycle ID: `P01/I08/S02/R04`
 
 Owning repository: `surgeist-layout`
 
-Status: in_progress
+Status: draft
 
 Cycle base: `4f5022b720d33c1946604aeb3ce2172fd5db8fc8`
 
@@ -76,11 +76,11 @@ Dependency: T02. Commit: `refactor(block): finalize phase ownership`.
 
 ### 2.4 `P01/I08/S02/R04/T04` Flex Item Collection And Finalization
 
-**Area:** `src/flex/items.rs`, `src/flex.rs`, `src/lib_tests.rs`, embedded item tests.
+**Area:** `src/flex/items.rs`, `src/flex.rs`, `src/lib_tests.rs` exact recursive-inventory addition and existing retained-scroll call-count source aggregation only, embedded item tests.
 
 **Outcome:** move collected/resolved/final item carriers, collection, basis, automatic minimum, and final in-flow child layout to `items`; retain `FlexAxes` facade and narrow phase inputs.
 
-**RED/acceptance:** the four named behavioral filters pass; external probe requires `items.rs` and singular `CollectedFlexItem`; RED then GREEN. Preserve order, collapse/struts, min-size, measurement/cache, and scalars; add no source-parsing test.
+**RED/acceptance:** the four named behavioral filters pass; external probe requires `items.rs` and singular `CollectedFlexItem`; RED then GREEN. Preserve order, collapse/struts, min-size, measurement/cache, and scalars; add no source-parsing test. The existing retained-scroll proxy may only aggregate `items.rs` while retaining its exact count/assertion.
 
 ```sh
 set -e; for f in flex_order_modified_sequence_ flex_row_hidden_overflow_item_ flex_replaced_automatic_minimum_ fri07_c02_collapsed_output_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
