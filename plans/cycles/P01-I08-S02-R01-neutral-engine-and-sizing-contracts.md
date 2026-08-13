@@ -231,7 +231,7 @@ actual_paths="$(git diff --name-only fcaf08b36149bc61f45d283759149ef8748401b8..H
 test "$actual_paths" = "$expected_paths"
 
 if git diff --word-diff=porcelain --word-diff-regex='[[:alpha:]_][[:alnum:]_]*' fcaf08b36149bc61f45d283759149ef8748401b8..HEAD -- '*.rs' | rg '^\+.*\b(allow|expect)\b'; then exit 1; fi
-allow_hits="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U --pcre2 '#\s*\[\s*allow\b' | rg -v '^src/contract_tests\.rs:65:|^src/lib_tests\.rs:984:|^src/lib_tests\.rs:985:|^src/lib_tests\.rs:2180:' || true)"
+allow_hits="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U --pcre2 '#\s*\[\s*allow\b' | rg -v '^src/contract_tests\.rs:65:|^src/lib_tests\.rs:989:|^src/lib_tests\.rs:990:|^src/lib_tests\.rs:2185:' || true)"
 test -z "$allow_hits"
 
 unsafe_hits="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '\bunsafe\b' | rg -v 'safe_fallback returns unsafe|Some\("async" \| "unsafe" \| "default" \| "extern"\)|removed phase-unsafe surface remains|starts_with\("unsafe "\)|strip_prefix\("unsafe "\)|parse_align_content\("unsafe end"\)|parse_align_items\("unsafe first baseline"\)' || true)"
