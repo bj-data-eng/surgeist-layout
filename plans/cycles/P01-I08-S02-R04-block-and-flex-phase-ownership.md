@@ -4,7 +4,7 @@ Cycle ID: `P01/I08/S02/R04`
 
 Owning repository: `surgeist-layout`
 
-Status: in_progress
+Status: draft
 
 Cycle base: `4f5022b720d33c1946604aeb3ce2172fd5db8fc8`
 
@@ -44,11 +44,11 @@ Dependency: none. Commit: `refactor(block): extract float exclusion`.
 
 ### 2.2 `P01/I08/S02/R04/T02` Block In-Flow And Inline Run
 
-**Area:** `src/block/in_flow.rs`, `inline_run.rs`, `src/block.rs`, `src/lib_tests.rs`, embedded owner tests.
+**Area:** `src/block/in_flow.rs`, `inline_run.rs`, `src/block.rs`, `src/lib_tests.rs` exact new-owner inventory/carrier-path adaptation only, `src/root_tests.rs` exact two existing inline-run owner-path adaptations only, embedded owner tests.
 
 **Outcome:** move traversal/margin/final-flow state to `in_flow`; move inline boundaries, transitions, atomic participation, run placement/layout, and baselines to `inline_run`. One owner per carrier; float access remains narrow.
 
-**RED/acceptance:** `ordinary_block_flow_`, `block_layout_collapses_`, `block_atomic_inline_run_`, and `fri08_c07_t01_inline_transition_` pass. The external probe requires both new files and singular `InFlowResult`/`InlineRunPlacement` owners; it is RED then GREEN. Preserve collapse, bidi/writing modes, floats, controls, baselines, errors, order, and scalar lanes; add no source-parsing test.
+**RED/acceptance:** `ordinary_block_flow_`, `block_layout_collapses_`, `block_atomic_inline_run_`, and `fri08_c07_t01_inline_transition_` pass. The external probe requires both new files and singular `InFlowResult`/`InlineRunPlacement` owners; it is RED then GREEN. Preserve collapse, bidi/writing modes, floats, controls, baselines, errors, order, and scalar lanes; add no source-parsing test. Existing proxy edits only add/classify owner files and retarget their current inline-run source; they add no assertion or test semantics.
 
 ```sh
 set -e; for f in ordinary_block_flow_ block_layout_collapses_ block_atomic_inline_run_ fri08_c07_t01_inline_transition_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
