@@ -538,11 +538,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::round_layout;
     use crate::{
         BidiLevel, DefaultScalar, InlineBreakOpportunityOf, InlineMetricsOf, InlineSegmentId,
         InlineTextInputOf, InlineWhitespaceEdge, LayoutErrorSite, NodeInput, Point, ScrollRectOf,
-        ShapedInlineSegmentOf,
+        ShapedInlineSegmentOf, round_layout,
     };
 
     struct BoundedDagTree {

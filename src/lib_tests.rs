@@ -2283,6 +2283,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ),
         ("src/engine/mod.rs", include_str!("engine/mod.rs")),
         ("src/engine/root.rs", include_str!("engine/root.rs")),
+        ("src/engine/rounding.rs", include_str!("engine/rounding.rs")),
         ("src/engine/session.rs", include_str!("engine/session.rs")),
         (
             "src/engine/validation.rs",
@@ -2727,6 +2728,45 @@ fn fri08_remediation_engine_session_transaction_equivalence() {
     );
     assert!(!session.contains("pub(crate) struct ComputeSession"));
     assert!(!session.contains("pub struct ComputeSession"));
+}
+
+#[test]
+fn fri08_remediation_engine_rounding_has_one_owner() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let compute = include_str!("compute.rs");
+    let engine = include_str!("engine/mod.rs");
+    let rounding =
+        std::fs::read_to_string(manifest_dir.join("src/engine/rounding.rs")).unwrap_or_default();
+    let session =
+        std::fs::read_to_string(manifest_dir.join("src/engine/session.rs")).unwrap_or_default();
+
+    for declaration in [
+        "pub(crate) fn round_layout",
+        "fn round_layout_inner",
+        "fn round_inline_fragment",
+        "fn invalid_rounded_inline_fragment_error",
+    ] {
+        assert!(
+            !compute.contains(declaration),
+            "src/compute.rs retains rounding algorithm declaration: {declaration}"
+        );
+        assert!(
+            !session.contains(declaration),
+            "src/engine/session.rs retains rounding algorithm declaration: {declaration}"
+        );
+        assert!(
+            rounding.contains(declaration),
+            "src/engine/rounding.rs must own rounding algorithm declaration: {declaration}"
+        );
+    }
+
+    assert!(engine.contains("mod rounding;"));
+    assert!(!engine.contains("pub mod rounding;"));
+    assert!(engine.contains("rounding::round_layout(&mut session, root)"));
+    assert!(
+        include_str!("lib.rs").contains("pub(crate) use engine::round_layout;"),
+        "test-only crate-root access must consume the engine rounding owner"
+    );
 }
 
 #[test]

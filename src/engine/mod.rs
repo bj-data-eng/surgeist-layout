@@ -1,9 +1,12 @@
 pub(crate) mod contracts;
 mod root;
+mod rounding;
 mod session;
 mod validation;
 
 pub(crate) use root::{compute_flex_item_root, compute_hidden, compute_root};
+#[cfg(test)]
+pub(crate) use rounding::round_layout;
 #[cfg(test)]
 pub(crate) use session::trace_hidden_compute_session_requests;
 pub(crate) use validation::validate_layout_request;
@@ -40,9 +43,7 @@ where
     }
 
     match request.rounding_mode() {
-        crate::LayoutRoundingMode::NearestCssPixel => {
-            crate::compute::round_layout(&mut session, root)?
-        }
+        crate::LayoutRoundingMode::NearestCssPixel => rounding::round_layout(&mut session, root)?,
     }
 
     Ok(session.complete_for_root(root))

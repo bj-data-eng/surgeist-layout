@@ -529,8 +529,8 @@ fn fri06_c05_provider_cache_context_stays_unit_and_rounding_has_no_provider_path
         assert!(!cache.contains(forbidden));
     }
 
-    let compute = include_str!("compute.rs");
-    let rounding = compute
+    let engine_rounding = include_str!("engine/rounding.rs");
+    let rounding = engine_rounding
         .split_once("fn round_layout_inner<")
         .expect("rounding implementation remains present")
         .1
