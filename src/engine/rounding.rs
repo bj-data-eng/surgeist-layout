@@ -4,7 +4,7 @@ use crate::error::{
     LayoutResultOf,
 };
 use crate::scalar::round_layout_coordinate;
-use crate::scroll::rebuild_rounded_canonical_scroll_geometry;
+use crate::scroll::rounding::rebuild_rounded_canonical_scroll_geometry;
 use crate::{InlineFragmentOutputOf, LayoutScalar, Point, ScrollRectOf, Size, Traverse};
 
 pub(crate) fn round_layout<Tree, M>(

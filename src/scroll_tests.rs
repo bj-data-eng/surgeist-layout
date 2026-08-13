@@ -1,3 +1,4 @@
+use crate::scroll::rounding::rebuild_rounded_canonical_scroll_geometry;
 use crate::scroll::{
     CanonicalScrollGeometrySourceOf, ClipMarginSourceOf, FlowRelativeScrollOffsetOf,
     FlowRelativeScrollRangeOf, OptimalRegionInsetsOf, OverflowClipOf, PhysicalClipAxisOf,
@@ -5,7 +6,6 @@ use crate::scroll::{
     ScrollCoordinateErrorOf, ScrollOriginAxes, ScrollOriginProgression, ScrollRectErrorOf,
     ScrollRectOf, ScrollTargetGeometryOf, ScrollbarReservationOf, SettledAutoScrollbarState,
     UsedOverflow, UsedOverflowGutter, canonical_scroll_geometry_from_source,
-    rebuild_rounded_canonical_scroll_geometry,
 };
 use crate::{
     ComputedOverflow, Direction, Edges, FlowAxes, LayoutScalar, LogicalAxis, Overflow,

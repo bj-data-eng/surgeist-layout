@@ -518,7 +518,8 @@ fn fri06_c01_contract_aggregate_public_surface_covers_every_cycle_break_and_addi
 fn fri05_c01_node_input_removed_phase_unsafe_surfaces_are_absent_from_public_sources() {
     let node_input = include_str!("node_input.rs");
     let scroll = [
-        include_str!("scroll.rs"),
+        include_str!("scroll/mod.rs"),
+        include_str!("scroll/rounding.rs"),
         include_str!("scroll/box_geometry.rs"),
     ]
     .join("\n");
@@ -973,7 +974,8 @@ fn fri05_c03_legacy_surface_is_absent_from_public_source() {
 
 #[test]
 fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() {
-    let scroll_facade = include_str!("scroll.rs");
+    let scroll_facade = include_str!("scroll/mod.rs");
+    let scroll_rounding = include_str!("scroll/rounding.rs");
     let scroll_box_geometry = include_str!("scroll/box_geometry.rs");
     let scroll_model = include_str!("scroll/model.rs");
     let engine = [
@@ -986,10 +988,10 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
     .join("\n");
     let block = include_str!("block.rs");
     let public_front_door = include_str!("lib.rs");
-    let scroll_facade_production = scroll_facade
+    let scroll_rounding_production = scroll_rounding
         .split("#[cfg(test)]\nmod fri05_c02_factory_rounding_tests")
         .next()
-        .unwrap_or_else(|| panic!("production scroll facade source"));
+        .unwrap_or_else(|| panic!("production scroll rounding source"));
     let scroll_box_geometry_production = scroll_box_geometry
         .split("#[cfg(test)]\nmod fri05_c02_box_clip_gutter_tests")
         .next()
@@ -999,7 +1001,7 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
         .next()
         .unwrap_or_else(|| panic!("production scroll model source"));
     let root_block_production = format!(
-        "{scroll_facade_production}\n{scroll_box_geometry_production}\n{scroll_model_production}\n{engine}\n{block}\n{public_front_door}"
+        "{scroll_facade}\n{scroll_rounding_production}\n{scroll_box_geometry_production}\n{scroll_model_production}\n{engine}\n{block}\n{public_front_door}"
     );
 
     let forbidden = [
@@ -2332,7 +2334,6 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/node_input.rs", include_str!("node_input.rs")),
         ("src/output.rs", include_str!("output.rs")),
         ("src/scalar.rs", include_str!("scalar.rs")),
-        ("src/scroll.rs", include_str!("scroll.rs")),
         (
             "src/scroll/box_geometry.rs",
             include_str!("scroll/box_geometry.rs"),
@@ -2345,7 +2346,9 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             "src/scroll/contribution.rs",
             include_str!("scroll/contribution.rs"),
         ),
+        ("src/scroll/mod.rs", include_str!("scroll/mod.rs")),
         ("src/scroll/model.rs", include_str!("scroll/model.rs")),
+        ("src/scroll/rounding.rs", include_str!("scroll/rounding.rs")),
         ("src/sizing.rs", include_str!("sizing.rs")),
         ("src/sizing/resolve.rs", include_str!("sizing/resolve.rs")),
         (
@@ -2447,7 +2450,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
 #[test]
 fn fri08_remediation_scroll_model_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let facade = include_str!("scroll.rs");
+    let facade = include_str!("scroll/mod.rs");
     let model_path = manifest_dir.join("src/scroll/model.rs");
     let model = std::fs::read_to_string(&model_path).unwrap_or_default();
 
@@ -2481,7 +2484,7 @@ fn fri08_remediation_scroll_model_has_one_owner() {
         );
         assert!(
             !facade.contains(declaration),
-            "src/scroll.rs retains model declaration: {declaration}"
+            "src/scroll/mod.rs retains model declaration: {declaration}"
         );
     }
 
@@ -2502,7 +2505,7 @@ fn fri08_remediation_scroll_model_has_one_owner() {
 #[test]
 fn fri08_remediation_scroll_box_geometry_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let facade = include_str!("scroll.rs");
+    let facade = include_str!("scroll/mod.rs");
     let box_geometry_path = manifest_dir.join("src/scroll/box_geometry.rs");
     let box_geometry = std::fs::read_to_string(&box_geometry_path).unwrap_or_default();
 
@@ -2542,7 +2545,7 @@ fn fri08_remediation_scroll_box_geometry_has_one_owner() {
         );
         assert!(
             !facade.contains(declaration),
-            "src/scroll.rs retains box-geometry declaration: {declaration}"
+            "src/scroll/mod.rs retains box-geometry declaration: {declaration}"
         );
     }
 
@@ -2562,7 +2565,7 @@ fn fri08_remediation_scroll_box_geometry_has_one_owner() {
 #[test]
 fn fri08_remediation_scroll_contribution_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let facade = include_str!("scroll.rs");
+    let facade = include_str!("scroll/mod.rs");
     let contribution_path = manifest_dir.join("src/scroll/contribution.rs");
     let contribution = std::fs::read_to_string(&contribution_path).unwrap_or_default();
 
@@ -2594,7 +2597,7 @@ fn fri08_remediation_scroll_contribution_has_one_owner() {
         );
         assert!(
             !facade.contains(declaration),
-            "src/scroll.rs retains contribution declaration: {declaration}"
+            "src/scroll/mod.rs retains contribution declaration: {declaration}"
         );
     }
 
@@ -2614,7 +2617,7 @@ fn fri08_remediation_scroll_contribution_has_one_owner() {
 #[test]
 fn fri08_remediation_scroll_construction_has_one_owner() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let facade = include_str!("scroll.rs");
+    let facade = include_str!("scroll/mod.rs");
     let construction_path = manifest_dir.join("src/scroll/construction.rs");
     let construction = std::fs::read_to_string(&construction_path).unwrap_or_default();
 
@@ -2646,7 +2649,7 @@ fn fri08_remediation_scroll_construction_has_one_owner() {
         );
         assert!(
             !facade.contains(declaration),
-            "src/scroll.rs retains construction declaration: {declaration}"
+            "src/scroll/mod.rs retains construction declaration: {declaration}"
         );
     }
 
@@ -2661,6 +2664,70 @@ fn fri08_remediation_scroll_construction_has_one_owner() {
             "src/scroll/construction.rs must not own {non_construction_declaration}"
         );
     }
+}
+
+#[test]
+fn fri08_remediation_scroll_construction_and_rounding_equivalence() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let legacy_facade_path = manifest_dir.join("src/scroll.rs");
+    let facade_path = manifest_dir.join("src/scroll/mod.rs");
+    let rounding_path = manifest_dir.join("src/scroll/rounding.rs");
+    let facade = std::fs::read_to_string(&facade_path).unwrap_or_default();
+    let rounding = std::fs::read_to_string(&rounding_path).unwrap_or_default();
+
+    assert!(
+        !legacy_facade_path.exists(),
+        "the superseded src/scroll.rs facade must be absent"
+    );
+    assert!(
+        facade_path.is_file(),
+        "src/scroll/mod.rs must be the finalized private scroll facade"
+    );
+    assert!(
+        rounding_path.is_file(),
+        "src/scroll/rounding.rs must be the single canonical scroll-rounding owner"
+    );
+
+    for owner in ["box_geometry", "construction", "contribution", "model"] {
+        assert!(facade.contains(&format!("mod {owner};")));
+        assert!(!facade.contains(&format!("pub mod {owner};")));
+    }
+    assert!(facade.contains("pub(crate) mod rounding;"));
+    assert!(!facade.contains("pub mod rounding;"));
+
+    for declaration in [
+        "pub(crate) fn rebuild_rounded_canonical_scroll_geometry",
+        "fn round_canonical_source_rect",
+        "fn round_canonical_source_edges",
+        "fn round_canonical_scroll_padding",
+        "fn round_canonical_contributions",
+        "fn round_canonical_optional_intervals",
+        "fn round_canonical_interval",
+        "fn round_canonical_final_in_flow_end",
+        "fn round_canonical_source_coordinate",
+    ] {
+        assert!(
+            rounding.contains(declaration),
+            "src/scroll/rounding.rs must own {declaration}"
+        );
+        assert!(
+            !facade.contains(declaration),
+            "src/scroll/mod.rs retains rounding declaration: {declaration}"
+        );
+    }
+
+    for forbidden_declaration in ["\nfn ", "\nstruct ", "\nenum ", "\nimpl ", "\ntype "] {
+        assert!(
+            !facade.contains(forbidden_declaration),
+            "src/scroll/mod.rs must contain composition only: {forbidden_declaration:?}"
+        );
+    }
+
+    let engine_rounding = include_str!("engine/rounding.rs");
+    assert!(
+        engine_rounding
+            .contains("use crate::scroll::rounding::rebuild_rounded_canonical_scroll_geometry;")
+    );
 }
 
 #[test]
@@ -2763,7 +2830,8 @@ fn fri08_remediation_measurement_has_one_owner() {
     let compute = std::fs::read_to_string(manifest_dir.join("src/compute.rs")).unwrap_or_default();
     let error = include_str!("error.rs");
     let scroll = [
-        include_str!("scroll.rs"),
+        include_str!("scroll/mod.rs"),
+        include_str!("scroll/rounding.rs"),
         include_str!("scroll/box_geometry.rs"),
     ]
     .join("\n");
@@ -3425,11 +3493,13 @@ fn fri05_c07_public_surface_default_and_f64_input_error_output_contracts_compose
 fn fri05_c07_public_surface_removed_phase_unsafe_contracts_fail_closed() {
     let node_input = include_str!("node_input.rs");
     let output = include_str!("output.rs");
-    let scroll_facade = include_str!("scroll.rs");
+    let scroll_facade = include_str!("scroll/mod.rs");
+    let scroll_rounding = include_str!("scroll/rounding.rs");
     let scroll = include_str!("scroll/model.rs");
     let public_front_door = include_str!("lib.rs");
-    let production =
-        format!("{node_input}\n{output}\n{scroll_facade}\n{scroll}\n{public_front_door}");
+    let production = format!(
+        "{node_input}\n{output}\n{scroll_facade}\n{scroll_rounding}\n{scroll}\n{public_front_door}"
+    );
     let tokens = fri05_c05_lex_production_tokens(&production)
         .expect("public FRI-05 sources must remain lexically auditable");
 

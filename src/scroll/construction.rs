@@ -963,8 +963,8 @@ pub(super) mod fri05_c02_factory_tests {
             .split("#[cfg(test)]\npub(super) mod fri05_c02_factory_tests")
             .next()
             .unwrap();
-        let facade = include_str!("../scroll.rs");
-        let facade_production = facade
+        let rounding = include_str!("rounding.rs");
+        let rounding_production = rounding
             .split("#[cfg(test)]\nmod fri05_c02_factory_rounding_tests")
             .next()
             .unwrap();
@@ -982,20 +982,20 @@ pub(super) mod fri05_c02_factory_tests {
             "the canonical source builder, measured leaf, and retained-source rebuild are the construction-owner callers"
         );
         assert_eq!(
-            facade_production
+            rounding_production
                 .matches("canonical_scroll_geometry_from_source(")
                 .count(),
             1,
             "canonical rounding reconstructs only through the construction owner"
         );
         assert_eq!(
-            facade_production
+            rounding_production
                 .matches("fn rebuild_rounded_canonical_scroll_geometry<")
                 .count(),
             1
         );
         assert_eq!(
-            facade_production
+            rounding_production
                 .matches("rebuild_rounded_canonical_scroll_geometry(")
                 .count(),
             0,
@@ -1012,7 +1012,7 @@ pub(super) mod fri05_c02_factory_tests {
                 "unexpected surface: {forbidden}"
             );
         }
-        let production = format!("{construction_production}\n{facade_production}");
+        let production = format!("{construction_production}\n{rounding_production}");
         for removed in [
             "ScrollUnsupportedFeature",
             "scroll_geometry_from_layout",

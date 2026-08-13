@@ -692,6 +692,7 @@ const _: ScrollOriginAxes = ScrollOriginAxes::new(
 
 #[cfg(test)]
 mod fri05_c02_contribution_range_tests {
+    use super::super::rounding::round_canonical_contributions;
     use super::*;
     use crate::{Direction, WritingMode};
 
