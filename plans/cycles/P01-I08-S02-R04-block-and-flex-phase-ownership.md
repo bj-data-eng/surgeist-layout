@@ -4,7 +4,7 @@ Cycle ID: `P01/I08/S02/R04`
 
 Owning repository: `surgeist-layout`
 
-Status: in_progress
+Status: draft
 
 Cycle base: `4f5022b720d33c1946604aeb3ce2172fd5db8fc8`
 
@@ -28,11 +28,11 @@ Each task runs nonzero existing behavioral characterizations and proves its name
 
 ### 2.1 `P01/I08/S02/R04/T01` Block Float Exclusion And BFC
 
-**Area:** `src/block/floats.rs`, `src/block.rs`, `src/root_tests.rs` exact legacy owner-path adaptation only, embedded float tests.
+**Area:** `src/block/floats.rs`, `src/block.rs`, `src/root_tests.rs` exact legacy owner-path adaptation only, `src/lib_tests.rs` exact existing float-surface and recursive production-inventory owner-path adaptations only, embedded float tests.
 
 **Outcome:** move pending-float, ledger, band/provider, `FloatExclusions`, inherited conversion, placement/query, float publication, and float intrinsic logic to one owner. Existing block-owned inherited-float recursion remains direct and algorithm-neutral engine contracts remain untouched.
 
-**RED/acceptance:** `fri06_c04_float_`, `fri06_c05_shape_`, and `block_bfc_` pass nonzero. The external probe `test -f src/block/floats.rs && test "$(rg -l 'struct FloatExclusions' src/block.rs src/block/floats.rs | wc -l | tr -d ' ')" = 1` is RED at base and GREEN after. Preserve query order, bands, margins, clear, provider errors, both scalars, and facade contracts; add no source-parsing test.
+**RED/acceptance:** `fri06_c04_float_`, `fri06_c05_shape_`, and `block_bfc_` pass nonzero. The external probe `test -f src/block/floats.rs && test "$(rg -l 'struct FloatExclusions' src/block.rs src/block/floats.rs | wc -l | tr -d ' ')" = 1` is RED at base and GREEN after. Preserve query order, bands, margins, clear, provider errors, both scalars, and facade contracts; add no source-parsing test. Existing source-proxy changes may only aggregate the new owner path and classify it in the recursive inventory; no assertion or test semantics may be added.
 
 ```sh
 set -e; for f in fri06_c04_float_ fri06_c05_shape_ block_bfc_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
