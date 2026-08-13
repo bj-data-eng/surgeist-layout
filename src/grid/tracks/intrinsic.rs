@@ -1,3 +1,7 @@
+use super::subgrid_intrinsic::{
+    IntrinsicGridChildInput, SubgridIntrinsicContributionInput, SubgridIntrinsicContributionReport,
+    apply_subgrid_intrinsic_contributions, compute_intrinsic_grid_child,
+};
 use super::*;
 
 #[derive(Clone, Copy)]

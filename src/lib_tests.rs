@@ -2370,6 +2370,10 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             include_str!("grid/tracks/intrinsic.rs"),
         ),
         (
+            "src/grid/tracks/subgrid_intrinsic.rs",
+            include_str!("grid/tracks/subgrid_intrinsic.rs"),
+        ),
+        (
             "src/grid/tracks/validation.rs",
             include_str!("grid/tracks/validation.rs"),
         ),
