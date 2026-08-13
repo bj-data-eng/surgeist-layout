@@ -892,8 +892,9 @@ pressure findings accepted after the completed whole-crate review:
 | `AR-004` | scroll, block, flex, grid tracks, and grid child layout are physical monoliths | each named subsystem is decomposed along existing semantic phases without parallel algorithms |
 | `AR-005` | algorithms depend directly on the full 55-field `NodeInputOf`, while the flat public facade lacks a concise domain map | algorithm-owned projections narrow internal dependencies; the compatible public snapshot and facade receive one authoritative API map |
 | `AR-006` | grid, root, flex, and block verification live in exceptionally large companion files | tests are partitioned by semantic owner with shared fixtures explicit and no coverage loss |
+| `AR-007` | crate tests include source/token/file-placement proxies, planning and workflow state checks, current-output oracles, and unjustified ignored tests that conflict with the Surgeist testing reference | every test is classified against the testing reference; prohibited proxies are removed or replaced by behavioral, compile-contract, or declared-artifact consumer evidence, and ignored state is justified |
 
-These rows are structural remediation, not new closure owners for the 59 P01
+These rows are structural and test-conformance remediation, not new closure owners for the 59 P01
 findings. All eight FRI-08 behavior closures and the completed C08 sprawl rows
 remain immutable prerequisites. FRI-09 planning is published but its
 implementation remains paused until this continuation completes.
@@ -1098,8 +1099,11 @@ package result remain unchanged.
 ## 27 FRI-08.27 Verification And Artifact Contract
 
 Every behavior-preserving move is preceded by a focused characterization that
-passes on its assignment base and after the move. Source-shape checks supplement
-but never replace behavior evidence. Named remediation anchors include:
+passes on its assignment base and after the move. Workflow-only source audits
+may supplement but never enter `cargo test` or replace behavior evidence.
+Earlier source-shape remediation tests are temporary migration debt and must be
+removed by `R08`; named remediation claims remain review evidence rather than
+permanent source-parsing Rust tests:
 
 - `fri08_remediation_engine_contract_is_algorithm_neutral`;
 - `fri08_remediation_engine_session_transaction_equivalence`;
@@ -1121,6 +1125,33 @@ inventories, public source/API inventories, and exact frozen artifact hashes and
 counts. Browser execution, generation, corpus acquisition, and artifact writes
 are prohibited.
 
+### 27.1 Whole-Crate Testing-Reference Conformance
+
+After production ownership and companion-suite partitioning are stable, one
+final conformance cycle reviews every tracked Rust test against the installed
+Surgeist testing reference. No surviving test may use source text, tokens, AST
+or symbol shape, call-site or private-layout facts, file/module/test/scenario
+existence/count/placement, plan/task/review/publication/worktree state, or the
+implementation's current output as its oracle. This includes every earlier
+remediation ownership anchor and every legacy `include_str!` or source-file read
+whose subject is Rust implementation text.
+
+Externally meaningful public-surface guarantees move to compile contracts or
+doctests. Product behavior moves to the smallest real public or crate boundary.
+Generator and browser-parity tests may inspect only declared product artifacts,
+manifests, schemas, reports, and serialized formats, preferably through their
+real consumer; they may not encode initiative census, plan, lineage, file
+placement, or workflow completion. Workflow source/safety/scope audits remain
+coordinator or reviewer commands outside `cargo test`.
+
+Every removed test has an explicit disposition: behavioral replacement,
+compile-contract replacement, declared-artifact consumer consolidation, or
+removal because no product contract exists. The before/after discovered test
+inventory and ignored list are recorded. Ignored tests survive only when they
+exercise a legitimate expensive/platform behavior tier with an exact runnable
+gate; unsupported, copied-oracle, entry-preflight, worktree, or stale-artifact
+workflow tests do not remain ignored.
+
 After each remediation cycle is independently clean, published, and remotely
 read back, process hygiene proves no stale `surgeist-layout`, Cargo, Rust test,
 or generator process owned by that cycle remains. The coordinator then runs
@@ -1132,7 +1163,7 @@ deletion mechanism does not satisfy this command requirement.
 
 The FRI-08 remediation continuation is complete only when:
 
-1. `AR-001` through `AR-006` each have one implemented, independently reviewed
+1. `AR-001` through `AR-007` each have one implemented, independently reviewed
    disposition;
 2. shared recursive engine contracts contain no algorithm-local carrier or
    dispatch behavior;
@@ -1144,8 +1175,9 @@ The FRI-08 remediation continuation is complete only when:
    visibility expansion or parallel algorithms;
 6. algorithms consume role-specific private projections while `NodeInputOf` and
    the root facade remain source-compatible;
-7. the four named companion test suites are partitioned with complete inventory,
-   unchanged ignored state, and no production test hook;
+7. the four named companion test suites are partitioned with complete inventory
+   and no production test hook, and the entire crate test suite satisfies
+   `FRI-08.27.1` with an exact justified ignored list;
 8. all eight original FRI-08 findings, every completed C07/C08 sprawl row, all
    59 P01 ownership assignments, and the paused FRI-09 boundary remain intact;
 9. public API, dependencies, features, MSRV, docs, artifacts, provenance,

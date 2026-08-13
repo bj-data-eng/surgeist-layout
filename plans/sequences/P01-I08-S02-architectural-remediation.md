@@ -39,7 +39,8 @@ R01 neutral engine and sizing contracts
   -> R03 scroll module ownership
        -> R04 block and flex phase ownership --+
        -> R05 grid tracks and child ownership --+-> R06 node projections and compatible public API map
-  -> R07 test ownership and final remediation candidate
+  -> R07 test ownership
+  -> R08 whole-crate testing-reference conformance and final candidate
 ```
 
 R01 establishes the dependency direction consumed by R02. R02 removes central
@@ -48,7 +49,8 @@ cross-format scroll substrate before R04 and R05 move its consumers. R04 and R05
 are independently ready after R03 and may execute in either order; neither
 consumes the other's source. R06 waits for both algorithm boundaries so
 projections follow actual semantic roles. R07 moves tests only after production
-ownership is stable.
+ownership is stable. R08 then enforces the testing reference across the entire
+crate after file ownership and test partitioning can no longer churn its audit.
 
 ## 4 `P01/I08/S02/R01` Neutral Engine And Sizing Contracts
 
@@ -196,7 +198,7 @@ and frozen artifacts satisfy the cited specification sections.
 
 **Handoff:** publish the compatible model/API candidate to R07.
 
-## 10 `P01/I08/S02/R07` Test Ownership And Final Remediation Candidate
+## 10 `P01/I08/S02/R07` Test Ownership
 
 **Owner:** `surgeist-layout`.
 
@@ -206,19 +208,47 @@ and frozen artifacts satisfy the cited specification sections.
 **Entry:** R01 through R06 are published; all production owners and public
 compatibility evidence are stable.
 
-**Outcome:** the four large companion suites follow semantic production owners,
-shared fixtures have one test-only owner, and the complete remediation candidate
-has no coverage, API, behavior, artifact, or ownership drift.
+**Outcome:** the four large companion suites follow semantic production owners
+and shared fixtures have one test-only owner, without coverage, API, behavior,
+artifact, or ownership drift.
 
 **Exit evidence:** complete test inventory and ignored-state equality, full
 default/generator/corpus/Taffy matrices, strict source and public inventories,
 frozen artifact state, all `AR-001` through `AR-006` dispositions, and the sole
 final acceptance contract satisfy the cited specification sections.
 
+**Handoff:** publish the partitioned test candidate to R08.
+
+## 11 `P01/I08/S02/R08` Whole-Crate Testing-Reference Conformance
+
+**Owner:** `surgeist-layout`.
+
+**Specification:** `FRI-08.20` row `AR-007`, `FRI-08.21`, `FRI-08.27.1`, and
+all of `FRI-08.28`.
+
+**Entry:** R01 through R07 are published; production and test file ownership is
+stable. The cycle begins from a complete inventory of every tracked Rust test,
+its evidence class, and the exact ignored list.
+
+**Outcome:** the entire crate test suite conforms to the installed Surgeist
+testing reference. Source/token/symbol/file-placement proxies, planning and
+workflow state checks, current-output oracles, and unjustified ignored tests are
+removed or replaced. Legitimate declared artifact, manifest, schema, report,
+and serialization contracts are exercised through their consumers where
+possible. Workflow audits remain outside `cargo test`.
+
+**Exit evidence:** every removed or replaced test has an explicit disposition;
+behavioral, compile-contract, oracle, artifact-consumer, scalar, cache,
+transaction, browser-parity, and generator coverage remains green; the exact
+before/after discovered inventory and justified ignored list reconcile; static
+conformance audits find no prohibited test evidence; and every final API,
+dependency, MSRV, safety, artifact, publication, readback, and cleanup gate in
+`FRI-08.28` passes.
+
 **Handoff:** publish and read back the immutable final FRI-08 remediation leaf
 candidate; record the still-held FRI-09 sequence and stop.
 
-## 11 Sequence Completion
+## 12 Sequence Completion
 
-This sequence is complete only when R01 through R07 satisfy their exits in order
+This sequence is complete only when R01 through R08 satisfy their exits in order
 and `FRI-08.28` is satisfied. It does not revise or begin FRI-09.
