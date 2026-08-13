@@ -1422,7 +1422,7 @@ where
     /// Immutably prepares and then infallibly commits this complete batch.
     pub fn apply_to<Sink>(&self, sink: &mut Sink) -> Result<(), Sink::Error>
     where
-        Sink: crate::traits::LayoutBatchSink<Node, S>,
+        Sink: crate::tree::LayoutBatchSink<Node, S>,
     {
         let prepared = sink.prepare_layout_batch(self)?;
         sink.commit_layout_batch(prepared);

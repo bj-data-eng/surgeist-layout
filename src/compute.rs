@@ -7,6 +7,7 @@ use super::{
     NonNegativeFiniteScalarErrorOf, PhysicalBlockMarginCollapseOf, Point, Position, Round, RunMode,
     Size, SizingMode, Traverse,
 };
+use crate::engine::contracts::UnroundedInlineFragmentState;
 use crate::error::{
     AtomicInlineParticipationRoleError, FloatExclusionRoleError, LayoutErrorKindOf, LayoutErrorOf,
     LayoutErrorSiteOf, LayoutInternalInvariant, LayoutInvalidInputOf, LayoutOperation,
@@ -34,7 +35,6 @@ use crate::sizing::{
     DispatchedSizingRequest, SizingDispatch, dispatch_flex_basis, dispatch_maximum_size,
     dispatch_minimum_size, dispatch_preferred_size,
 };
-use crate::traits::UnroundedInlineFragmentState;
 use crate::{CompletedLayoutBatchOf, LayoutTree};
 use crate::{FlexBasisOf, MaxSizeOf, MinSizeOf, PercentageBasisOf, PreferredSizeOf};
 
@@ -903,31 +903,12 @@ where
             return self.compute_child_uncached(node, input);
         }
 
-        crate::traits::compute_cached(self, node, input, |session, node, input| {
+        crate::engine::contracts::compute_cached(self, node, input, |session, node, input| {
             session.compute_child_uncached(
                 node,
                 input.with_settled_auto_scrollbars(SettledAutoScrollbarState::INITIAL),
             )
         })
-    }
-
-    fn compute_child_with_inherited_float_exclusions(
-        &mut self,
-        node: Self::Node,
-        input: ComputeInputOf<Self::Scalar>,
-        inherited: crate::block::InheritedFloatExclusions<Self::Scalar, Self::Node>,
-    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, Tree::MeasureError>
-    {
-        debug_assert_eq!(
-            self.node_input(node).display.inner_display(),
-            super::Display::Block,
-        );
-        crate::block::compute_block_with_inherited_float_exclusions(
-            self,
-            node,
-            input.with_settled_auto_scrollbars(SettledAutoScrollbarState::INITIAL),
-            inherited,
-        )
     }
 
     fn float_exclusion_interval(

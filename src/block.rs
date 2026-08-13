@@ -1552,8 +1552,18 @@ where
                 )
             };
             let inherited = float_exclusions.for_ordinary_child(child_logical_location);
-            output =
-                tree.compute_child_with_inherited_float_exclusions(child, child_input, inherited)?;
+            debug_assert_eq!(
+                tree.node_input(child).display.inner_display(),
+                super::Display::Block,
+            );
+            output = compute_block_with_inherited_float_exclusions(
+                tree,
+                child,
+                child_input.with_settled_auto_scrollbars(
+                    crate::scroll::SettledAutoScrollbarState::INITIAL,
+                ),
+                inherited,
+            )?;
             logical_child_size = constants.flow_axes.logical_size(output.size);
             logical_child_margin = resolve_logical_in_flow_margin(
                 parent_logical_unresolved_margin,

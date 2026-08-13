@@ -339,7 +339,11 @@ fn fri06_c01_contract_float_exclusion_public_aliases_and_operations_are_exact() 
 #[test]
 fn fri06_c05_contract_float_exclusion_surface_is_opaque_cache_neutral_and_active() {
     let node_input = include_str!("node_input.rs");
-    let traits = include_str!("traits.rs");
+    let traits = format!(
+        "{}\n{}",
+        include_str!("tree.rs"),
+        include_str!("engine/contracts.rs")
+    );
     let compute = include_str!("compute.rs");
     let block = include_str!("block.rs");
     let cache = include_str!("cache.rs");
@@ -413,7 +417,11 @@ fn fri06_c05_contract_float_exclusion_surface_is_opaque_cache_neutral_and_active
 fn fri06_c01_contract_aggregate_public_surface_covers_every_cycle_break_and_addition() {
     let node_input = include_str!("node_input.rs");
     let output = include_str!("output.rs");
-    let traits = include_str!("traits.rs");
+    let traits = format!(
+        "{}\n{}",
+        include_str!("tree.rs"),
+        include_str!("engine/contracts.rs")
+    );
     let error = include_str!("error.rs");
     let public_front_door = include_str!("lib.rs");
 
@@ -2265,6 +2273,11 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/block.rs", include_str!("block.rs")),
         ("src/cache.rs", include_str!("cache.rs")),
         ("src/compute.rs", include_str!("compute.rs")),
+        (
+            "src/engine/contracts.rs",
+            include_str!("engine/contracts.rs"),
+        ),
+        ("src/engine/mod.rs", include_str!("engine/mod.rs")),
         ("src/error.rs", include_str!("error.rs")),
         ("src/flex.rs", include_str!("flex.rs")),
         ("src/geometry.rs", include_str!("geometry.rs")),
@@ -2290,7 +2303,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             "src/test_support/scroll_geometry.rs",
             include_str!("test_support/scroll_geometry.rs"),
         ),
-        ("src/traits.rs", include_str!("traits.rs")),
+        ("src/tree.rs", include_str!("tree.rs")),
         ("src/value.rs", include_str!("value.rs")),
     ];
 
@@ -2380,6 +2393,59 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ],
         "only the exact private carriers and canonical geometry projections are allowed"
     );
+}
+
+#[test]
+fn fri08_remediation_engine_contract_is_algorithm_neutral() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let shared_contract = std::fs::read_to_string(manifest_dir.join("src/engine/contracts.rs"))
+        .or_else(|_| std::fs::read_to_string(manifest_dir.join("src/traits.rs")))
+        .unwrap_or_else(|error| panic!("shared recursive contract is unreadable: {error}"));
+
+    for forbidden in [
+        "InheritedFloatExclusions",
+        "crate::block",
+        "compute_block_with_inherited_float_exclusions",
+    ] {
+        assert!(
+            !shared_contract.contains(forbidden),
+            "the shared recursive engine contract retains algorithm-specific dependency or dispatch: {forbidden}"
+        );
+    }
+
+    assert!(manifest_dir.join("src/engine/contracts.rs").is_file());
+    assert!(!manifest_dir.join("src/traits.rs").exists());
+    let tree = std::fs::read_to_string(manifest_dir.join("src/tree.rs"))
+        .unwrap_or_else(|error| panic!("public tree contract owner is unreadable: {error}"));
+    let public_front_door = include_str!("lib.rs");
+    assert!(
+        public_front_door.contains("pub use tree::{LayoutBatchSink, LayoutTree, Traverse};"),
+        "the crate root must preserve the exact public host-trait reexport inventory"
+    );
+    assert!(!public_front_door.contains("pub mod tree"));
+    assert!(!public_front_door.contains("pub mod engine"));
+    for declaration in [
+        "pub trait Traverse",
+        "pub trait LayoutTree",
+        "pub trait LayoutBatchSink",
+    ] {
+        assert!(
+            tree.contains(declaration),
+            "src/tree.rs must own {declaration}"
+        );
+    }
+    for declaration in [
+        "pub(crate) trait Compute",
+        "pub(crate) trait Round",
+        "pub(crate) trait CacheAccess",
+        "pub(crate) enum UnroundedInlineFragmentState",
+        "pub(crate) fn compute_cached",
+    ] {
+        assert!(
+            shared_contract.contains(declaration),
+            "src/engine/contracts.rs must own {declaration}"
+        );
+    }
 }
 
 #[test]

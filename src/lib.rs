@@ -198,6 +198,7 @@
 mod block;
 mod cache;
 mod compute;
+mod engine;
 mod error;
 mod flex;
 mod geometry;
@@ -209,7 +210,7 @@ mod output;
 mod scalar;
 mod scroll;
 mod sizing;
-mod traits;
+mod tree;
 mod value;
 
 /// Default scalar precision used by the non-generic public layout aliases.
@@ -233,6 +234,9 @@ pub use compute::{
 };
 #[cfg(test)]
 pub(crate) use compute::{compute_hidden, compute_root, round_layout};
+#[cfg(test)]
+pub(crate) use engine::contracts::compute_cached;
+pub(crate) use engine::contracts::{CacheAccess, Compute, Round};
 pub use error::{
     AtomicInlineParticipationRoleError, CalcSizeBehaviorBasis, FloatExclusionRoleError,
     InvalidMeasurementOutput, InvalidMeasurementOutputOf, LayoutError, LayoutErrorKind,
@@ -308,10 +312,7 @@ pub use sizing::{
     PreferredSizeCalcBasis, PreferredSizeOf, SizingCalculation, SizingCalculationError,
     SizingCalculationOf,
 };
-#[cfg(test)]
-pub(crate) use traits::compute_cached;
-pub(crate) use traits::{CacheAccess, Compute, Round};
-pub use traits::{LayoutBatchSink, LayoutTree, Traverse};
+pub use tree::{LayoutBatchSink, LayoutTree, Traverse};
 pub use value::{
     AspectRatio, AspectRatioOf, Available, AvailableOf, FiniteScalarErrorOf, Length, LengthAuto,
     LengthAutoOf, LengthOf, LengthPercentageErrorOf, LengthPercentageOf, LengthResolution,
