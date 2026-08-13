@@ -987,7 +987,7 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
     let block = include_str!("block.rs");
     let public_front_door = include_str!("lib.rs");
     let scroll_facade_production = scroll_facade
-        .split("#[cfg(test)]\nmod fri05_c02_contribution_range_tests")
+        .split("#[cfg(test)]\nmod fri05_c02_factory_rounding_tests")
         .next()
         .unwrap_or_else(|| panic!("production scroll facade source"));
     let scroll_box_geometry_production = scroll_box_geometry
@@ -2337,6 +2337,10 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             "src/scroll/box_geometry.rs",
             include_str!("scroll/box_geometry.rs"),
         ),
+        (
+            "src/scroll/contribution.rs",
+            include_str!("scroll/contribution.rs"),
+        ),
         ("src/scroll/model.rs", include_str!("scroll/model.rs")),
         ("src/sizing.rs", include_str!("sizing.rs")),
         ("src/sizing/resolve.rs", include_str!("sizing/resolve.rs")),
@@ -2547,6 +2551,58 @@ fn fri08_remediation_scroll_box_geometry_has_one_owner() {
         assert!(
             !box_geometry.contains(non_box_declaration),
             "src/scroll/box_geometry.rs must not own {non_box_declaration}"
+        );
+    }
+}
+
+#[test]
+fn fri08_remediation_scroll_contribution_has_one_owner() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let facade = include_str!("scroll.rs");
+    let contribution_path = manifest_dir.join("src/scroll/contribution.rs");
+    let contribution = std::fs::read_to_string(&contribution_path).unwrap_or_default();
+
+    assert!(
+        contribution_path.is_file(),
+        "src/scroll/contribution.rs must be the single scroll-contribution owner"
+    );
+    assert!(facade.contains("mod contribution;"));
+    assert!(!facade.contains("pub mod contribution;"));
+
+    for declaration in [
+        "pub(crate) struct PhysicalContributionIntervalOf",
+        "struct PhysicalContributionBoundsOf",
+        "pub(crate) struct OptionalPhysicalContributionIntervalsOf",
+        "struct FinalInFlowEndOf",
+        "struct PhysicalFinalInFlowEndsOf",
+        "pub(crate) enum ScrollContributionErrorOf",
+        "enum ContainerRangeBasis",
+        "pub(crate) struct ScrollContributionAccumulatorOf",
+        "fn child_margin_contribution_rect",
+        "pub(crate) enum ScrollOriginProgression",
+        "pub(crate) struct ScrollOriginAxes",
+        "fn derive_origin_aware_scroll_range",
+        "fn derive_origin_aware_axis_range",
+    ] {
+        assert!(
+            contribution.contains(declaration),
+            "src/scroll/contribution.rs must own {declaration}"
+        );
+        assert!(
+            !facade.contains(declaration),
+            "src/scroll.rs retains contribution declaration: {declaration}"
+        );
+    }
+
+    for non_contribution_declaration in [
+        "pub(crate) enum UsedOverflowGutter",
+        "pub(crate) struct CanonicalScrollGeometrySourceOf",
+        "pub(crate) fn canonical_scroll_geometry_from_source",
+        "pub(crate) fn rebuild_rounded_canonical_scroll_geometry",
+    ] {
+        assert!(
+            !contribution.contains(non_contribution_declaration),
+            "src/scroll/contribution.rs must not own {non_contribution_declaration}"
         );
     }
 }
