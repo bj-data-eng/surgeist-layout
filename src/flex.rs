@@ -1,17 +1,12 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
     ComputeInputOf, ComputeOutputOf, ContainingLayoutContext, Direction, Edges, FlexDirection,
-    FlexItemCollapse, FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
-    LengthResolutionStatus, NodeInputOf, NodeOutputOf, ParentFormattingContext, Point, Position,
-    RequestedAxis, RunMode, Size, SizingMode, Traverse,
+    FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionStatus,
+    NodeInputOf, ParentFormattingContext, Point, RequestedAxis, RunMode, Size, SizingMode,
+    Traverse,
 };
-use crate::error::{
-    SizingAlgorithm, layout_child_geometry_error, layout_own_geometry_error,
-    sizing_resolution_error,
-};
-use crate::geometry::{
-    FlowAxes, LogicalAxis, LogicalEdgesOf, PhysicalAxis, PhysicalProgression, PhysicalSide,
-};
+use crate::error::{SizingAlgorithm, layout_own_geometry_error, sizing_resolution_error};
+use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, PhysicalSide};
 use crate::layout_math::{
     MaxBeforeMinOptionalSizeClampExt, MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt,
     OptionalMinimumSizeFloorExt, OptionalSizeExt, OptionalSizeMaxExt, UncheckedOptionalSizeSubExt,
@@ -49,7 +44,7 @@ use intrinsic::{
 };
 use items::{
     CollectedFlexItem, FinalFlexItem, ResolvedFlexItem, clamp_available, collect_items,
-    final_layout, flex_automatic_minimum_is_zero,
+    final_layout,
 };
 use lines::{CollapsedFlexStruts, FlexLine, FlexLineCollectionRound, collect_flex_lines};
 

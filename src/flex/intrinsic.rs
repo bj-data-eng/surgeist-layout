@@ -1,4 +1,15 @@
-use super::*;
+use super::items::{
+    CollectedFlexItem, ResolvedFlexItem, clamp_available, flex_automatic_minimum_is_zero,
+};
+use super::lines::FlexLine;
+use super::{Constants, resolve_length_or_zero};
+use crate::geometry::LogicalAxis;
+use crate::layout_math::{MaxBeforeMinScalarClampExt, OptionalSizeExt};
+use crate::sizing::resolve::SizeResultExt;
+use crate::{
+    AlignItems, AvailableOf, Compute, ComputeInputOf, ContainingLayoutContext, LayoutResultOf,
+    LayoutScalar, NodeInputOf, ParentFormattingContext, RunMode, Size, SizingMode, Traverse,
+};
 
 pub(super) fn intrinsic_content_main_size<Node, S: LayoutScalar>(
     input: ComputeInputOf<S>,
