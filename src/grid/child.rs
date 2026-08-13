@@ -1,8 +1,5 @@
 use super::*;
-use crate::compute::{
-    resolve_maximum_optional, resolve_minimum_optional, resolve_preferred_optional,
-};
-use crate::error::{SizingResolutionError, layout_child_geometry_error, sizing_resolution_error};
+use crate::error::{layout_child_geometry_error, sizing_resolution_error};
 use crate::geometry::{
     FlowAxes, LogicalAxis, LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis,
     PhysicalProgression,
@@ -13,6 +10,10 @@ use crate::scroll::{
     OptimalRegionInsetsOf, OptionalPhysicalContributionIntervalsOf,
     ScrollContributionAccumulatorOf, UsedOverflow, canonical_measured_leaf_scroll_geometry,
     rebuild_canonical_scroll_geometry_for_border_box,
+};
+use crate::sizing::resolve::{
+    SizingResolutionError, resolve_maximum_optional, resolve_minimum_optional,
+    resolve_preferred_optional,
 };
 use crate::{
     BaselinesOf, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInternalInvariant,

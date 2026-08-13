@@ -3,23 +3,12 @@ use crate::geometry::PhysicalAxis;
 use crate::node_input::{FloatExclusionIntervalErrorOf, InlineTextInputErrorOf};
 use crate::output::RunMode;
 use crate::scalar::LayoutScalar;
+use crate::sizing::resolve::SizingResolutionError;
 use crate::value::{LengthResolutionStatus, NonNegativeFiniteScalarErrorOf};
 
 pub type LayoutResultOf<Node, T, S, M = core::convert::Infallible> =
     Result<T, LayoutErrorOf<Node, S, M>>;
 pub type LayoutResult<Node, T, M> = LayoutResultOf<Node, T, DefaultScalar, M>;
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum SizingResolutionError<S: LayoutScalar> {
-    Status(LengthResolutionStatus<S>),
-    Unsupported(UnsupportedSizingBehavior),
-}
-
-impl<S: LayoutScalar> From<LengthResolutionStatus<S>> for SizingResolutionError<S> {
-    fn from(status: LengthResolutionStatus<S>) -> Self {
-        Self::Status(status)
-    }
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayoutErrorOf<Node, S: LayoutScalar = DefaultScalar, M = core::convert::Infallible> {

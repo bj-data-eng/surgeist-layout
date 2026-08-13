@@ -1,11 +1,11 @@
 use super::*;
-use crate::compute::{
-    ResolvedPreferredSize, resolve_maximum_optional, resolve_minimum_optional,
-    resolve_preferred_sizing,
-};
-use crate::error::{SizingResolutionError, layout_child_geometry_error, sizing_resolution_error};
+use crate::error::{layout_child_geometry_error, sizing_resolution_error};
 use crate::geometry::{LogicalAxis, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
 use crate::scroll::UsedOverflow;
+use crate::sizing::resolve::{
+    ResolvedPreferredSize, SizingResolutionError, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_sizing,
+};
 use crate::{
     GridFlowToleranceOf, LayoutErrorSiteOf, LengthResolutionOf, LengthResolutionStatus,
     MinTrackSizingOf, PercentageBasisOf,

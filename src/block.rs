@@ -18,13 +18,9 @@ use super::{
     Point, Position, RequestedAxis, RunMode, ScrollRectOf, Size, SizingAlgorithm, SizingMode,
     TextAlign, Traverse, VerticalAlign, WritingMode,
 };
-use crate::compute::{
-    EdgesResultExt, SizeResultExt, resolve_maximum_optional, resolve_minimum_optional,
-    resolve_preferred_optional,
-};
+use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::error::{
-    AtomicInlineParticipationRoleError, SizingResolutionError, layout_child_geometry_error,
-    layout_own_geometry_error,
+    AtomicInlineParticipationRoleError, layout_child_geometry_error, layout_own_geometry_error,
 };
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::layout_math::{
@@ -37,6 +33,10 @@ use crate::scroll::{
     CanonicalScrollRangeSeedPolicy, CanonicalScrollSourceBuilderOf,
     ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression, UsedOverflow,
     canonical_scroll_box_from_source, scrollbar_size_from_overflow,
+};
+use crate::sizing::resolve::{
+    SizingResolutionError, resolve_maximum_optional, resolve_minimum_optional,
+    resolve_preferred_optional,
 };
 
 pub(crate) fn compute_block<Tree, M>(

@@ -7,10 +7,7 @@ use super::{
     PreferredSizeOf, RequestedAxis, RunMode, Scalar, Size, SizingAlgorithm, SizingMode,
     TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
-use crate::compute::{
-    EdgesResultExt, ResolvedPreferredSize, SizeResultExt, resolve_maximum_optional,
-    resolve_minimum_optional, resolve_preferred_optional, resolve_preferred_sizing,
-};
+use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::error::{layout_own_geometry_error, sizing_resolution_error};
 use crate::geometry::{LogicalAxis, LogicalSizeOf, PhysicalAxis};
 use crate::layout_math::{
@@ -24,6 +21,10 @@ use crate::scroll::{
     ClipMarginSourceOf, OptimalRegionInsetsOf, ScrollOriginAxes, ScrollOriginProgression,
     ScrollbarReservationOf, canonical_scroll_box_from_source,
     canonical_scroll_geometry_from_source, content_box_inset_with_scrollbar,
+};
+use crate::sizing::resolve::{
+    ResolvedPreferredSize, SizingResolutionError, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_optional, resolve_preferred_sizing,
 };
 
 mod alignment;
@@ -284,7 +285,7 @@ fn intrinsic_container_available<S: LayoutScalar>(
     sizing_flow_axes: crate::geometry::FlowAxes,
     parent: Size<Option<S>>,
     available: Size<AvailableOf<S>>,
-) -> Result<LogicalSizeOf<AvailableOf<S>>, crate::error::SizingResolutionError<S>> {
+) -> Result<LogicalSizeOf<AvailableOf<S>>, SizingResolutionError<S>> {
     let algorithm = sizing_algorithm_for_grid_display(style.display);
     let style_size = sizing_flow_axes.logical_size(Size::new(
         resolve_preferred_sizing(

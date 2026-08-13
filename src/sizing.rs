@@ -6,6 +6,8 @@ use crate::{
 };
 use core::num::NonZeroUsize;
 
+pub(crate) mod resolve;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SizingCalculationError {
     EmptyArguments,

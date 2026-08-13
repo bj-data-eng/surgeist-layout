@@ -2299,6 +2299,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/scalar.rs", include_str!("scalar.rs")),
         ("src/scroll.rs", include_str!("scroll.rs")),
         ("src/sizing.rs", include_str!("sizing.rs")),
+        ("src/sizing/resolve.rs", include_str!("sizing/resolve.rs")),
         (
             "src/test_support/scroll_geometry.rs",
             include_str!("test_support/scroll_geometry.rs"),
@@ -2444,6 +2445,66 @@ fn fri08_remediation_engine_contract_is_algorithm_neutral() {
         assert!(
             shared_contract.contains(declaration),
             "src/engine/contracts.rs must own {declaration}"
+        );
+    }
+}
+
+#[test]
+fn fri08_remediation_sizing_resolution_has_one_owner() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let compute = include_str!("compute.rs");
+    let sizing = include_str!("sizing.rs");
+    let error = include_str!("error.rs");
+    let resolver =
+        std::fs::read_to_string(manifest_dir.join("src/sizing/resolve.rs")).unwrap_or_default();
+    let non_owners = [
+        ("src/compute.rs", compute),
+        ("src/error.rs", error),
+        ("src/block.rs", include_str!("block.rs")),
+        ("src/flex.rs", include_str!("flex.rs")),
+        ("src/grid/mod.rs", include_str!("grid/mod.rs")),
+        ("src/grid/child.rs", include_str!("grid/child.rs")),
+        ("src/grid/lanes.rs", include_str!("grid/lanes.rs")),
+    ];
+
+    let resolver_declarations = [
+        "pub(crate) enum ResolvedPreferredSize",
+        "pub(crate) enum ResolvedFlexBasis",
+        "fn percentage_basis",
+        "fn resolve_dispatched_numeric",
+        "pub(crate) fn resolve_preferred_sizing",
+        "pub(crate) fn resolve_preferred_optional",
+        "pub(crate) fn resolve_minimum_optional",
+        "pub(crate) fn resolve_maximum_optional",
+        "pub(crate) fn resolve_flex_basis",
+        "pub(crate) enum SizingResolutionError",
+    ];
+    for declaration in resolver_declarations {
+        for (path, source) in non_owners {
+            assert!(
+                !source.contains(declaration),
+                "{path} retains shared sizing resolver declaration: {declaration}"
+            );
+        }
+        assert!(
+            resolver.contains(declaration),
+            "src/sizing/resolve.rs must own shared sizing resolver declaration: {declaration}"
+        );
+    }
+
+    assert!(sizing.contains("pub(crate) mod resolve;"));
+    assert!(!sizing.contains("pub mod resolve;"));
+    assert!(!include_str!("lib.rs").contains("pub mod sizing"));
+    for (path, source) in [
+        ("src/block.rs", include_str!("block.rs")),
+        ("src/flex.rs", include_str!("flex.rs")),
+        ("src/grid/mod.rs", include_str!("grid/mod.rs")),
+        ("src/grid/child.rs", include_str!("grid/child.rs")),
+        ("src/grid/lanes.rs", include_str!("grid/lanes.rs")),
+    ] {
+        assert!(
+            source.contains("crate::sizing::resolve"),
+            "{path} must consume the shared sizing resolver owner directly"
         );
     }
 }
