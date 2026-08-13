@@ -165,7 +165,7 @@ CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --features layout-golden-generate --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check; git diff --check
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_public_api_inventory_is_compatible
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout production_source_inventory_is_complete
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri05_c05_grid_legacy_absence_inventories_every_production_source
 : "${TASK_SPANS:?set TASK_SPANS to the newline-delimited ordered exact full-SHA spans from the eight CLEAN task reviews}"
 expected_paths="$({ printf '%s\n' plans/cycles/P01-I08-S02-R04-block-and-flex-phase-ownership.md; while IFS= read -r span; do git diff --name-only "$span"; done <<< "$TASK_SPANS"; } | LC_ALL=C sort -u)"
 actual_paths="$(git diff --name-only 4f5022b720d33c1946604aeb3ce2172fd5db8fc8..HEAD | LC_ALL=C sort -u)"; test "$actual_paths" = "$expected_paths"
