@@ -226,17 +226,65 @@ git diff --check
 
 **Dependency:** T02. Intended commit: `refactor(engine): extract root computation`.
 
-### 3.4 `P01/I08/S02/R02/T04` Extract Rounding
+### 3.4 `P01/I08/S02/R02/T04` Extract Session State And Services
+
+**Files/area:** `src/engine/session.rs`, `src/engine/mod.rs`,
+`src/compute.rs`, direct production/test imports, `src/lib_tests.rs`, and exact
+cache/root/transaction tests.
+
+**Outcome:** move the complete `ComputeSession` and
+`StagedInlineFragmentGroup` state, construction, source-ordered completion,
+completed-batch assembly, staged node/fragment mutation, warm inline replay,
+subtree restoration, algorithm dispatch, hidden dispatch, tree-backed
+measurement handoff, and the `Traverse`, `Compute`, `CacheAccess`, and `Round`
+service implementations to `engine::session`. Move its staging helpers and the
+test-only hidden-request trace with it. `compute.rs` temporarily retains only
+public entry orchestration and the rounding algorithm after this task; it may
+construct and complete the crate-private session through narrow
+`pub(super)` entry methods, but cannot access its fields.
+
+**Characterization/RED:** on the task base run `fri06_c02_cache_`,
+`fri06_c03_lifecycle_`, `fri06_c01_batch_transaction_`,
+`fri06_c05_provider_atomicity_`, and the `compute_layout_` tests. Add
+`fri08_remediation_engine_session_transaction_equivalence`; it fails
+structurally while session state, service implementations, dispatch, or batch
+assembly remains in `compute.rs`.
+
+**Acceptance:** cold/warm/dirty cache behavior, provider behavior, dispatch,
+hidden state, source order, invalidation replacement, error rollback, and batch
+atomicity remain exact; the named anchor proves a single session owner and that
+`compute.rs` has no staged field, service implementation, dispatch, or batch
+assembly. The rounding algorithm remains unchanged and callable through the
+neutral `Round` service.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c02_cache_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c03_lifecycle_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c01_batch_transaction_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c05_provider_atomicity_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout compute_layout_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_engine_session_transaction_equivalence
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
+CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
+cargo fmt --check
+git diff --check
+```
+
+**Dependency:** T03. Intended commit: `refactor(engine): extract session state`.
+
+### 3.5 `P01/I08/S02/R02/T05` Extract Rounding
 
 **Files/area:** `src/engine/rounding.rs`, `src/engine/mod.rs`,
-`src/engine/session.rs` if introduced as the minimal carrier owner,
 `src/compute.rs`, `src/lib.rs`, direct test-only rounding imports,
 `src/lib_tests.rs`, and exact cache/root rounding tests.
 
 **Outcome:** move recursive source-ordered node rounding, fragment rounding,
 cumulative coordinates, typed overflow failures, and rounded canonical-scroll
-reconstruction to `engine::rounding`. The `Round` service implementation may
-reside only with session state; the rounding algorithm resides only here.
+reconstruction to `engine::rounding`. The `Round` service implementation stays
+with session state; the rounding algorithm resides only here and consumes that
+neutral service.
 
 **Characterization/RED:** on the task base run `fri06_c02_rounding_`,
 `fri06_mr02_layout_round_`,
@@ -247,7 +295,8 @@ the rounding algorithm remains in `compute.rs`.
 
 **Acceptance:** exact traversal order, cumulative rounding, fragments,
 baselines, scroll reconstruction, scalar lanes, failure atomicity, and test-only
-crate-root access remain unchanged; the anchor proves one rounding owner.
+crate-root access remain unchanged; the anchor proves one rounding owner and no
+rounding algorithm in session or `compute.rs`.
 
 **Commands:**
 
@@ -263,37 +312,34 @@ cargo fmt --check
 git diff --check
 ```
 
-**Dependency:** T03. Intended commit: `refactor(engine): extract rounding`.
+**Dependency:** T04. Intended commit: `refactor(engine): extract rounding`.
 
-### 3.5 `P01/I08/S02/R02/T05` Extract Session And Remove Compute Owner
+### 3.6 `P01/I08/S02/R02/T06` Extract Public Orchestration And Remove Compute Owner
 
-**Files/area:** `src/engine/session.rs`, `src/engine/mod.rs`,
-`src/compute.rs`, `src/lib.rs`, direct production/test imports,
-`src/lib_tests.rs`, `src/compute_tests.rs`, exact cache/root/transaction tests,
-and production-source inventory.
+**Files/area:** `src/engine/mod.rs`, `src/compute.rs`, `src/lib.rs`, direct
+production/test imports, `src/lib_tests.rs`, `src/compute_tests.rs`, exact
+root/transaction tests, and production-source inventory.
 
-**Outcome:** move staged output and fragment state, cache access, warm replay,
-algorithm dispatch, hidden dispatch, tree-backed measurement handoff,
-source-order completion, and completed-batch assembly to `engine::session`.
-Move public `compute_layout` and `compute_layout_invalidated` orchestration to
-`engine::mod`. Relocate the former internal `compute.rs` unit tests to their
-semantic engine owners. Remove production `compute.rs` and every `crate::compute`
-reference without changing the public facade. Replace the pre-existing
-`compute_layout` `clippy::type_complexity` expectation with a private result
-alias at its new owner; do not relocate or add a suppression.
+**Outcome:** move public `compute_layout` and `compute_layout_invalidated`
+composition to `engine::mod`, using validation, session, root, and rounding only
+through their narrow owned entry points. Relocate the remaining internal
+`compute.rs` unit tests to their semantic engine/measurement owners. Remove
+production `compute.rs` and every `crate::compute` reference without changing
+the public facade. Replace the pre-existing `compute_layout`
+`clippy::type_complexity` expectation with a private result alias at its new
+owner; do not relocate or add a suppression.
 
-**Characterization/RED:** on the task base run `fri06_c02_cache_`,
-`fri06_c03_lifecycle_`, `fri06_c01_batch_transaction_`,
-`fri06_c05_provider_atomicity_`, and the `compute_layout_` tests. Add
-`fri08_remediation_engine_session_transaction_equivalence`; it fails
-structurally while session/orchestration/batch assembly remains in `compute.rs`
-or while production `compute.rs` remains inventoried.
+**Characterization/RED:** on the task base rerun `fri06_c02_cache_`,
+`fri06_c03_lifecycle_`, `fri06_c01_batch_transaction_`, and the
+`compute_layout_` tests. Extend
+`fri08_remediation_engine_session_transaction_equivalence` and
+`fri08_remediation_public_api_inventory_is_compatible`; they fail structurally
+while public orchestration or production `compute.rs` remains.
 
-**Acceptance:** cold/warm/dirty cache behavior, provider behavior, dispatch,
-source order, invalidation replacement, error rollback, rounding publication,
-and batch atomicity remain exact; the named anchor and public API inventory prove
-the final ownership graph, absent production `compute.rs`, and unchanged root
-API.
+**Acceptance:** validation-before-session order, public entry behavior,
+dispatch, rounding publication, rollback, and batch atomicity remain exact; the
+two anchors prove the complete final ownership graph, absent production
+`compute.rs`, complete source inventory, and unchanged public root API.
 
 **Commands:**
 
@@ -301,7 +347,6 @@ API.
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c02_cache_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c03_lifecycle_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c01_batch_transaction_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri06_c05_provider_atomicity_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout compute_layout_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_engine_session_transaction_equivalence
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_public_api_inventory_is_compatible
@@ -311,11 +356,11 @@ cargo fmt --check
 git diff --check
 ```
 
-**Dependency:** T04. Intended commit: `refactor(engine): extract session orchestration`.
+**Dependency:** T05. Intended commit: `refactor(engine): extract public orchestration`.
 
 ## 4 Completion
 
-R02 is accepted only when all five ordered task ranges have independent CLEAN
+R02 is accepted only when all six ordered task ranges have independent CLEAN
 task reviews; the cycle plan is status-complete; final checks and one holistic
 review are CLEAN; `AR-002` has its exact disposition; production `compute.rs`
 and `traits.rs` are absent; every `FRI-08.23` engine/measurement responsibility
@@ -394,3 +439,15 @@ test -z "$(git status --porcelain=v1)"
 
 Browser execution, generation, import/acquisition, and tracked artifact mutation
 remain prohibited throughout the cycle.
+
+Required R03 handoff: after CLEAN holistic review, exact publication, remote
+readback, process hygiene, successful `cargo clean`, and proof that `target/` is
+absent, record the immutable published candidate SHA; the reviewed
+specification, sequence, and R02 plan revisions; the six ordered accepted task
+and any fix ranges with review verdicts; final command, public compatibility,
+dependency/feature/MSRV, suppression/unsafe, and frozen-artifact evidence; the
+remote-readback result; and cleanup proof. R03 is ready only from that exact
+candidate. Blocker disposition: no implementation or external blocker is known
+at planning time; if the already-present pinned Taffy cache is absent or wrong,
+or if any task requires behavior/API/artifact/generator scope expansion, stop and
+report the exact blocker rather than acquiring or widening scope.
