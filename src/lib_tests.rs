@@ -345,7 +345,11 @@ fn fri06_c05_contract_float_exclusion_surface_is_opaque_cache_neutral_and_active
         include_str!("engine/contracts.rs")
     );
     let session = include_str!("engine/session.rs");
-    let block = include_str!("block.rs");
+    let block = format!(
+        "{}\n{}",
+        include_str!("block.rs"),
+        include_str!("block/floats.rs")
+    );
     let cache = include_str!("cache.rs");
     let public_front_door = include_str!("lib.rs");
 
@@ -2301,6 +2305,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
 
     let sources = [
         ("src/block.rs", include_str!("block.rs")),
+        ("src/block/floats.rs", include_str!("block/floats.rs")),
         ("src/cache.rs", include_str!("cache.rs")),
         (
             "src/engine/contracts.rs",

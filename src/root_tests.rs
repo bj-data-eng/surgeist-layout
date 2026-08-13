@@ -3899,15 +3899,16 @@ fn fri06_c04_float_lifecycle_cold_warm_dirty_failures_baseline_and_content_are_a
 #[test]
 fn fri06_c04_float_lifecycle_static_one_ledger_query_and_single_publication_paths() {
     let block = include_str!("block.rs");
-    assert_eq!(block.matches("struct FloatLedgerEntry<").count(), 1);
+    let floats = include_str!("block/floats.rs");
+    assert_eq!(floats.matches("struct FloatLedgerEntry<").count(), 1);
     assert_eq!(
-        block
+        floats
             .matches("ledger: Vec<FloatLedgerEntry<S, Node>>")
             .count(),
         2
     );
-    assert_eq!(block.matches("fn query_band_for<").count(), 1);
-    assert_eq!(block.matches("struct FloatExclusions<").count(), 1);
+    assert_eq!(floats.matches("fn query_band_for<").count(), 1);
+    assert_eq!(floats.matches("struct FloatExclusions<").count(), 1);
     for legacy in [
         concat!("layout_inline_", "segments"),
         concat!("left_", "floats"),
@@ -3917,16 +3918,16 @@ fn fri06_c04_float_lifecycle_static_one_ledger_query_and_single_publication_path
         concat!("FloatBand", "Table"),
     ] {
         assert!(
-            !block.contains(legacy),
+            !floats.contains(legacy),
             "legacy float path remains: {legacy}"
         );
     }
 
-    let float_publication = block
+    let float_publication = floats
         .split_once("fn layout_floats<")
         .unwrap()
         .1
-        .split_once("\nstruct FloatIntrinsics<")
+        .split_once("\npub(super) struct FloatIntrinsics<")
         .unwrap()
         .0;
     assert_eq!(
