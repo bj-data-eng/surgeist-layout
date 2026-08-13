@@ -1890,7 +1890,7 @@ where
             parent_gap,
             content_box_size,
         )
-        .map_err(|status| crate::compute::value_resolution_error(node, status))?,
+        .map_err(|status| crate::error::value_resolution_error(node, status))?,
         resolved_subgrid_axis_gap(
             style,
             GridAxisKind::Row,
@@ -1898,7 +1898,7 @@ where
             parent_gap,
             content_box_size,
         )
-        .map_err(|status| crate::compute::value_resolution_error(node, status))?,
+        .map_err(|status| crate::error::value_resolution_error(node, status))?,
     );
     let subgrid_axis_gap = axis_size(subgrid_gap, queried_axis);
     let Some((children, queried_axis_fully_inherited)) = subgrid_traversal_children(

@@ -1012,7 +1012,7 @@ where
             constants.flow_axes,
             constants.node_inner_size,
         )
-        .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+        .map_err(|status| crate::error::value_resolution_error(child, status))?;
         let logical_margin = grid.sizing_flow_axes.logical_edges(margin);
         let column_contribution_size = grid_axis_intrinsic_contribution_size(
             &child_style,
@@ -1036,7 +1036,7 @@ where
                 constants,
                 child_flow_axes,
             )
-            .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+            .map_err(|status| crate::error::value_resolution_error(child, status))?;
             let column_baseline_member = ancestor_baseline_member(AncestorBaselineMemberInput {
                 source: child,
                 axis: GridAxisKind::Column,
@@ -1120,7 +1120,7 @@ where
                 constants,
                 child_flow_axes,
             )
-            .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+            .map_err(|status| crate::error::value_resolution_error(child, status))?;
             let baseline_member = ancestor_baseline_member(AncestorBaselineMemberInput {
                 source: child,
                 axis: GridAxisKind::Row,
@@ -1632,14 +1632,14 @@ where
             input.constants.flow_axes,
             input.constants.node_inner_size,
         )
-        .map_err(|status| crate::compute::value_resolution_error(leaf.node, status))?;
+        .map_err(|status| crate::error::value_resolution_error(leaf.node, status))?;
         let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
         let block_auto_margins = block_auto_margins_for_intrinsic_contribution(
             &child_style,
             input.constants,
             child_flow_axes,
         )
-        .map_err(|status| crate::compute::value_resolution_error(leaf.node, status))?;
+        .map_err(|status| crate::error::value_resolution_error(leaf.node, status))?;
         let synthesized_baseline_cycle = leaf.ancestor_span.end
             > leaf.ancestor_span.start.saturating_add(1)
             && match leaf.align_self {
@@ -2331,7 +2331,7 @@ where
             input.constants.flow_axes,
             input.constants.node_inner_size,
         )
-        .map_err(|status| crate::compute::value_resolution_error(leaf.node, status))?;
+        .map_err(|status| crate::error::value_resolution_error(leaf.node, status))?;
         let Some(scalar_adjustment) = leaf.scalar_adjustment() else {
             continue;
         };
@@ -2371,7 +2371,7 @@ where
             input.constants,
             child_flow_axes,
         )
-        .map_err(|status| crate::compute::value_resolution_error(leaf.node, status))?;
+        .map_err(|status| crate::error::value_resolution_error(leaf.node, status))?;
         let member = ancestor_baseline_member(AncestorBaselineMemberInput {
             source: leaf.node,
             axis: input.axis,
@@ -2447,14 +2447,14 @@ where
                 input.constants.flow_axes,
                 input.constants.node_inner_size,
             )
-            .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+            .map_err(|status| crate::error::value_resolution_error(child, status))?;
             let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
             let block_auto_margins = block_auto_margins_for_intrinsic_contribution(
                 &child_style,
                 input.constants,
                 child_flow_axes,
             )
-            .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+            .map_err(|status| crate::error::value_resolution_error(child, status))?;
             if let Some(member) = ancestor_baseline_member(AncestorBaselineMemberInput {
                 source: child,
                 axis: GridAxisKind::Column,
@@ -2815,7 +2815,7 @@ where
             grid.constants.flow_axes,
             physical_area_size.map(Some),
         )
-        .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+        .map_err(|status| crate::error::value_resolution_error(child, status))?;
         let logical_sizing_known = grid.sizing_flow_axes.logical_size(sizing.known);
         let logical_sizing_available = grid.sizing_flow_axes.logical_size(sizing.available);
         let output = compute_intrinsic_grid_child(
@@ -2859,7 +2859,7 @@ where
             grid.constants,
             child_flow_axes,
         )
-        .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+        .map_err(|status| crate::error::value_resolution_error(child, status))?;
         let row_span_tracks = grid.row_tracks.get(area.row..area.row_end).unwrap_or(&[]);
         let baseline_member = ancestor_baseline_member(AncestorBaselineMemberInput {
             source: child,

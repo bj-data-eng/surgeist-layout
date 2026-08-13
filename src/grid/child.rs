@@ -1,8 +1,8 @@
 use super::*;
 use crate::compute::{
-    SizingResolutionError, layout_child_geometry_error, resolve_maximum_optional,
-    resolve_minimum_optional, resolve_preferred_optional, sizing_resolution_error,
+    resolve_maximum_optional, resolve_minimum_optional, resolve_preferred_optional,
 };
+use crate::error::{SizingResolutionError, layout_child_geometry_error, sizing_resolution_error};
 use crate::geometry::{
     FlowAxes, LogicalAxis, LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis,
     PhysicalProgression,
@@ -3041,7 +3041,7 @@ where
 {
     match error {
         SubgridChildContextError::ValueResolution(status) => {
-            crate::compute::value_resolution_error(subject, status)
+            crate::error::value_resolution_error(subject, status)
         }
         SubgridChildContextError::TrackInheritance(_) => LayoutErrorOf::new(
             LayoutErrorSiteOf::Node(subject),
@@ -3069,7 +3069,7 @@ where
 {
     match error {
         SubgridChildContextError::ValueResolution(status) => {
-            crate::compute::value_resolution_error(subject, status)
+            crate::error::value_resolution_error(subject, status)
         }
         SubgridChildContextError::TrackInheritance(_) => LayoutErrorOf::new(
             LayoutErrorSiteOf::ContainerSubject { container, subject },

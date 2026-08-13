@@ -414,7 +414,7 @@ fn fri06_c01_contract_aggregate_public_surface_covers_every_cycle_break_and_addi
     let node_input = include_str!("node_input.rs");
     let output = include_str!("output.rs");
     let traits = include_str!("traits.rs");
-    let compute = include_str!("compute.rs");
+    let error = include_str!("error.rs");
     let public_front_door = include_str!("lib.rs");
 
     for public_name in [
@@ -491,10 +491,7 @@ fn fri06_c01_contract_aggregate_public_surface_covers_every_cycle_break_and_addi
         "FloatExclusionQuery",
         "CacheInvalidation",
     ] {
-        assert!(
-            compute.contains(required_source),
-            "missing {required_source}"
-        );
+        assert!(error.contains(required_source), "missing {required_source}");
     }
 
     for forbidden_compatibility_name in [
@@ -2268,6 +2265,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/block.rs", include_str!("block.rs")),
         ("src/cache.rs", include_str!("cache.rs")),
         ("src/compute.rs", include_str!("compute.rs")),
+        ("src/error.rs", include_str!("error.rs")),
         ("src/flex.rs", include_str!("flex.rs")),
         ("src/geometry.rs", include_str!("geometry.rs")),
         ("src/grid/alignment.rs", include_str!("grid/alignment.rs")),
@@ -2381,6 +2379,112 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             ),
         ],
         "only the exact private carriers and canonical geometry projections are allowed"
+    );
+}
+
+#[test]
+fn fri08_remediation_public_api_inventory_is_compatible() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let error = std::fs::read_to_string(manifest_dir.join("src/error.rs")).unwrap_or_default();
+    let compute = include_str!("compute.rs");
+    let public_front_door = include_str!("lib.rs");
+
+    let public_error_declarations = [
+        "pub type LayoutResultOf",
+        "pub type LayoutResult",
+        "pub struct LayoutErrorOf",
+        "pub type LayoutError",
+        "pub enum LayoutErrorSiteOf",
+        "pub type LayoutErrorSite",
+        "pub enum LayoutOperation",
+        "pub enum LayoutErrorKindOf",
+        "pub type LayoutErrorKind",
+        "pub enum LayoutInvalidInputOf",
+        "pub type LayoutInvalidInput",
+        "pub enum AtomicInlineParticipationRoleError",
+        "pub enum NonBoxNodeRoleError",
+        "pub enum FloatExclusionRoleError",
+        "pub enum LayoutMissingContext",
+        "pub enum SizingProperty",
+        "pub enum SizingAlgorithm",
+        "pub enum CalcSizeBehaviorBasis",
+        "pub enum SizingBehavior",
+        "pub struct UnsupportedSizingBehavior",
+        "pub enum LayoutUnsupportedCapability",
+        "pub enum LayoutInternalInvariant",
+        "pub enum LeafMeasureErrorOf",
+        "pub type LeafMeasureError",
+        "pub struct InvalidMeasurementOutputOf",
+        "pub type InvalidMeasurementOutput",
+    ];
+    for declaration in public_error_declarations {
+        assert!(
+            error.contains(declaration),
+            "src/error.rs must own {declaration}"
+        );
+        assert!(
+            !compute.contains(declaration),
+            "src/compute.rs must not retain {declaration}"
+        );
+    }
+
+    fn reexported_names<'a>(source: &'a str, owner: &str) -> Vec<&'a str> {
+        source
+            .split_once(&format!("pub use {owner}::{{"))
+            .unwrap_or_else(|| panic!("the crate front door reexports the private {owner} owner"))
+            .1
+            .split_once("};")
+            .unwrap_or_else(|| panic!("the {owner} reexport declaration is complete"))
+            .0
+            .split(|character: char| !(character.is_alphanumeric() || character == '_'))
+            .filter(|name| !name.is_empty())
+            .collect()
+    }
+
+    assert_eq!(
+        reexported_names(public_front_door, "error"),
+        [
+            "AtomicInlineParticipationRoleError",
+            "CalcSizeBehaviorBasis",
+            "FloatExclusionRoleError",
+            "InvalidMeasurementOutput",
+            "InvalidMeasurementOutputOf",
+            "LayoutError",
+            "LayoutErrorKind",
+            "LayoutErrorKindOf",
+            "LayoutErrorOf",
+            "LayoutErrorSite",
+            "LayoutErrorSiteOf",
+            "LayoutInternalInvariant",
+            "LayoutInvalidInput",
+            "LayoutInvalidInputOf",
+            "LayoutMissingContext",
+            "LayoutOperation",
+            "LayoutResult",
+            "LayoutResultOf",
+            "LayoutUnsupportedCapability",
+            "LeafMeasureError",
+            "LeafMeasureErrorOf",
+            "NonBoxNodeRoleError",
+            "SizingAlgorithm",
+            "SizingBehavior",
+            "SizingProperty",
+            "UnsupportedSizingBehavior",
+        ],
+        "the public error reexport inventory remains exact"
+    );
+    assert_eq!(
+        reexported_names(public_front_door, "compute"),
+        [
+            "LeafMeasureInput",
+            "LeafMeasureInputOf",
+            "MeasurementAvailable",
+            "MeasurementAvailableOf",
+            "compute_layout",
+            "compute_layout_invalidated",
+            "compute_leaf",
+        ],
+        "compute retains only its existing non-error public reexports"
     );
 }
 

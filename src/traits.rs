@@ -4,7 +4,8 @@ use super::{
     NodeOutputOf, RunMode, Size,
 };
 use crate::InlineFragmentOutputOf;
-use crate::compute::{LayoutResultOf, LeafMeasureInputOf};
+use crate::compute::LeafMeasureInputOf;
+use crate::error::LayoutResultOf;
 
 type FloatExclusionProviderResultOf<S, M> = Result<Option<FloatExclusionIntervalOf<S>>, M>;
 

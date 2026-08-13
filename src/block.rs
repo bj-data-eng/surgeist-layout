@@ -19,9 +19,12 @@ use super::{
     TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::compute::{
-    AtomicInlineParticipationRoleError, EdgesResultExt, SizeResultExt, SizingResolutionError,
-    layout_child_geometry_error, layout_own_geometry_error, resolve_maximum_optional,
-    resolve_minimum_optional, resolve_preferred_optional,
+    EdgesResultExt, SizeResultExt, resolve_maximum_optional, resolve_minimum_optional,
+    resolve_preferred_optional,
+};
+use crate::error::{
+    AtomicInlineParticipationRoleError, SizingResolutionError, layout_child_geometry_error,
+    layout_own_geometry_error,
 };
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::layout_math::{

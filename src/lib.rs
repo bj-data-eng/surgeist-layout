@@ -198,6 +198,7 @@
 mod block;
 mod cache;
 mod compute;
+mod error;
 mod flex;
 mod geometry;
 mod grid;
@@ -227,17 +228,20 @@ pub type Scalar = DefaultScalar;
 pub(crate) use block::compute_block;
 pub use cache::{Cache, CacheKeyContext, CacheOf, ClearState};
 pub use compute::{
+    LeafMeasureInput, LeafMeasureInputOf, MeasurementAvailable, MeasurementAvailableOf,
+    compute_layout, compute_layout_invalidated, compute_leaf,
+};
+#[cfg(test)]
+pub(crate) use compute::{compute_hidden, compute_root, round_layout};
+pub use error::{
     AtomicInlineParticipationRoleError, CalcSizeBehaviorBasis, FloatExclusionRoleError,
     InvalidMeasurementOutput, InvalidMeasurementOutputOf, LayoutError, LayoutErrorKind,
     LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSite, LayoutErrorSiteOf, LayoutInternalInvariant,
     LayoutInvalidInput, LayoutInvalidInputOf, LayoutMissingContext, LayoutOperation, LayoutResult,
     LayoutResultOf, LayoutUnsupportedCapability, LeafMeasureError, LeafMeasureErrorOf,
-    LeafMeasureInput, LeafMeasureInputOf, MeasurementAvailable, MeasurementAvailableOf,
     NonBoxNodeRoleError, SizingAlgorithm, SizingBehavior, SizingProperty,
-    UnsupportedSizingBehavior, compute_layout, compute_layout_invalidated, compute_leaf,
+    UnsupportedSizingBehavior,
 };
-#[cfg(test)]
-pub(crate) use compute::{compute_hidden, compute_root, round_layout};
 #[cfg(test)]
 pub(crate) use flex::compute_flex;
 pub use geometry::{Edges, FlowAxes, LogicalAxis, PhysicalAxis, PhysicalSide, Point, Size};

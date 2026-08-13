@@ -1,9 +1,9 @@
 use super::*;
 use crate::compute::{
-    ResolvedPreferredSize, SizingResolutionError, layout_child_geometry_error,
-    resolve_maximum_optional, resolve_minimum_optional, resolve_preferred_sizing,
-    sizing_resolution_error,
+    ResolvedPreferredSize, resolve_maximum_optional, resolve_minimum_optional,
+    resolve_preferred_sizing,
 };
+use crate::error::{SizingResolutionError, layout_child_geometry_error, sizing_resolution_error};
 use crate::geometry::{LogicalAxis, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
 use crate::scroll::UsedOverflow;
 use crate::{
@@ -805,7 +805,7 @@ where
             .value
             .expect("resolved length resolution must carry a value")),
         LengthResolutionStatus::InvalidNumeric { .. } => Err(
-            crate::compute::value_resolution_error_at_site(site, resolution.status()),
+            crate::error::value_resolution_error_at_site(site, resolution.status()),
         ),
         LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => Ok(S::ZERO),
     }
@@ -1334,7 +1334,7 @@ where
     let wrapper_gap = match gap_value {
         LengthOf::Normal => projection.parent_gap,
         value => resolve_length_or_zero(value, gap_basis)
-            .map_err(|status| crate::compute::value_resolution_error(wrapper, status))?,
+            .map_err(|status| crate::error::value_resolution_error(wrapper, status))?,
     };
     let half_gap_difference = (wrapper_gap - projection.parent_gap) / Tree::Scalar::from_f64(2.0);
     projection.wrapper_edges.start_half_gap = half_gap_difference;
@@ -1480,7 +1480,7 @@ where
     Tree: Compute<M>,
 {
     let margin = intrinsic_contribution_margin(child_style, containing_flow_axes, containing_size)
-        .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+        .map_err(|status| crate::error::value_resolution_error(child, status))?;
     let padding = containing_flow_axes
         .zip_physical_edges_with_inline_extent(
             child_style.padding,
@@ -1592,7 +1592,7 @@ where
     )?;
     let margin =
         intrinsic_contribution_margin(child_style, containing_flow_axes, constants.node_inner_size)
-            .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+            .map_err(|status| crate::error::value_resolution_error(child, status))?;
     let used_overflow = grid_axis_used_overflow(child_style, containing_flow_axes, axis);
     let min_output_size = lane_axis_size(containing_flow_axes.logical_size(min_output.size), axis);
     let min_content_size = lane_axis_size(

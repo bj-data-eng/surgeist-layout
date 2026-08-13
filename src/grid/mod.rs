@@ -8,10 +8,10 @@ use super::{
     TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
 use crate::compute::{
-    EdgesResultExt, ResolvedPreferredSize, SizeResultExt, layout_own_geometry_error,
-    resolve_maximum_optional, resolve_minimum_optional, resolve_preferred_optional,
-    resolve_preferred_sizing, sizing_resolution_error,
+    EdgesResultExt, ResolvedPreferredSize, SizeResultExt, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_optional, resolve_preferred_sizing,
 };
+use crate::error::{layout_own_geometry_error, sizing_resolution_error};
 use crate::geometry::{LogicalAxis, LogicalSizeOf, PhysicalAxis};
 use crate::layout_math::{
     OptionalSizeExt, UncheckedOptionalSizeSubExt, resolution_optional, resolution_or_zero,
@@ -284,7 +284,7 @@ fn intrinsic_container_available<S: LayoutScalar>(
     sizing_flow_axes: crate::geometry::FlowAxes,
     parent: Size<Option<S>>,
     available: Size<AvailableOf<S>>,
-) -> Result<LogicalSizeOf<AvailableOf<S>>, crate::compute::SizingResolutionError<S>> {
+) -> Result<LogicalSizeOf<AvailableOf<S>>, crate::error::SizingResolutionError<S>> {
     let algorithm = sizing_algorithm_for_grid_display(style.display);
     let style_size = sizing_flow_axes.logical_size(Size::new(
         resolve_preferred_sizing(
@@ -1401,7 +1401,7 @@ where
             gap.inline,
             None,
         )
-        .map_err(|status| crate::compute::value_resolution_error(node, status))?
+        .map_err(|status| crate::error::value_resolution_error(node, status))?
     };
     let row_expansion = if let Some(rows) = &parent_context.rows {
         TrackExpansionOf::inherited(rows.tracks.iter().copied().map(TrackSizingOf::px).collect())
@@ -1412,7 +1412,7 @@ where
             gap.block,
             None,
         )
-        .map_err(|status| crate::compute::value_resolution_error(node, status))?
+        .map_err(|status| crate::error::value_resolution_error(node, status))?
     };
     let sized_column_tracks = column_expansion
         .tracks
@@ -1467,7 +1467,7 @@ where
         inherited_columns: parent_context.columns.is_some(),
         inherited_rows: parent_context.rows.is_some(),
     })
-    .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+    .map_err(|status| crate::error::value_resolution_error(node, status))?;
     if let Some(columns) = &parent_context.columns {
         topology.collapsed_columns = columns.geometry.collapsed().to_vec();
     }
@@ -1540,7 +1540,7 @@ where
                 leading_columns,
                 None,
             )
-            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            .map_err(|status| crate::error::value_resolution_error(node, status))?;
         }
         if !inherited_rows {
             prepend_auto_tracks(
@@ -1551,7 +1551,7 @@ where
                 leading_rows,
                 None,
             )
-            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            .map_err(|status| crate::error::value_resolution_error(node, status))?;
         }
         let track_requirement = grid_track_requirement_from_placements(&placements.items);
         if !inherited_columns {
@@ -1565,7 +1565,7 @@ where
                 gap.inline,
                 required_columns,
             )
-            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            .map_err(|status| crate::error::value_resolution_error(node, status))?;
         }
         if !inherited_rows {
             let required_rows = (leading_rows + track_requirement.block)
@@ -1578,7 +1578,7 @@ where
                 gap.block,
                 required_rows,
             )
-            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+            .map_err(|status| crate::error::value_resolution_error(node, status))?;
         }
         let grid_axis = grid_axis_for_grid_lanes(style);
         let (track_count, explicit_start) = match grid_axis {

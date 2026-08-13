@@ -6,9 +6,12 @@ use super::{
     Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
 use crate::compute::{
-    EdgesResultExt, ResolvedFlexBasis, SizeResultExt, SizingAlgorithm, layout_child_geometry_error,
-    layout_own_geometry_error, resolve_flex_basis, resolve_maximum_optional,
-    resolve_minimum_optional, resolve_preferred_optional, sizing_resolution_error,
+    EdgesResultExt, ResolvedFlexBasis, SizeResultExt, resolve_flex_basis, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_optional,
+};
+use crate::error::{
+    SizingAlgorithm, layout_child_geometry_error, layout_own_geometry_error,
+    sizing_resolution_error,
 };
 use crate::geometry::{
     FlowAxes, LogicalAxis, LogicalEdgesOf, PhysicalAxis, PhysicalProgression, PhysicalSide,
