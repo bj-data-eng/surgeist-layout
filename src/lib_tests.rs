@@ -2278,6 +2278,10 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             include_str!("engine/contracts.rs"),
         ),
         ("src/engine/mod.rs", include_str!("engine/mod.rs")),
+        (
+            "src/engine/validation.rs",
+            include_str!("engine/validation.rs"),
+        ),
         ("src/error.rs", include_str!("error.rs")),
         ("src/flex.rs", include_str!("flex.rs")),
         ("src/geometry.rs", include_str!("geometry.rs")),
@@ -2447,6 +2451,47 @@ fn fri08_remediation_engine_contract_is_algorithm_neutral() {
             "src/engine/contracts.rs must own {declaration}"
         );
     }
+}
+
+#[test]
+fn fri08_remediation_engine_validation_has_one_owner() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let compute = include_str!("compute.rs");
+    let engine = include_str!("engine/mod.rs");
+    let validation =
+        std::fs::read_to_string(manifest_dir.join("src/engine/validation.rs")).unwrap_or_default();
+
+    for declaration in [
+        "fn invalidation_closure",
+        "fn validate_layout_tree",
+        "fn non_box_node_role_error",
+        "fn root_input_error",
+    ] {
+        assert!(
+            !compute.contains(declaration),
+            "src/compute.rs retains validation or invalidation declaration: {declaration}"
+        );
+        assert!(
+            validation.contains(declaration),
+            "src/engine/validation.rs must own validation or invalidation declaration: {declaration}"
+        );
+    }
+
+    assert!(engine.contains("mod validation;"));
+    assert!(!engine.contains("pub mod validation;"));
+    assert!(validation.contains("pub(crate) fn validate_layout_request"));
+    assert!(validation.contains("LayoutUnsupportedCapability::LaterFriBehavior"));
+
+    let validation_call = compute
+        .find("engine::validate_layout_request")
+        .unwrap_or_else(|| panic!("public orchestration calls the validation owner"));
+    let session_creation = compute.find("ComputeSession::new").unwrap_or_else(|| {
+        panic!("public orchestration still creates the staged session during T01")
+    });
+    assert!(
+        validation_call < session_creation,
+        "public orchestration must validate before creating session state"
+    );
 }
 
 #[test]
