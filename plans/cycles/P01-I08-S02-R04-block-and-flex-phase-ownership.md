@@ -148,4 +148,35 @@ Dependency: T07. Commit: `refactor(flex): finalize phase ownership`.
 
 ## 3 Completion
 
-R04 requires eight independently CLEAN task spans, status complete, CLEAN final matrix and holistic review, publication/readback, process hygiene, successful `cargo clean`, absent `target/`, and immutable R05 handoff. Final commands include all `fri08_remediation_` anchors, `just verify`, `verify-generator`, corpus/Taffy checks using only the exact already-present pinned cache, both strict Clippy matrices, format/diff, exact cycle scope, public/source inventories, base-vs-current multisets of every direct `allow`/`expect` and all `cfg_attr` attributes, canonical unsafe/native-linkage scans, frozen hashes/counts, and clean Git state. Browser, generation, acquisition, and artifact writes remain prohibited. Missing/wrong pinned cache or required behavior/API/artifact/scope expansion is a stop.
+R04 requires eight independently CLEAN task spans, status complete, CLEAN final matrix and holistic review, publication/readback, process hygiene, successful `cargo clean`, absent `target/`, and immutable R05 handoff. Browser, generation, acquisition, and artifact writes remain prohibited. Missing/wrong pinned cache or required behavior/API/artifact/scope expansion is a stop.
+
+```sh
+set -e
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_
+CARGO_NET_OFFLINE=true just verify
+source_cache=/Users/codex/Development/surgeist/crates/surgeist-layout/target/surgeist-sources/taffy/d1ff7e339b9ee35b33858779f8d7653197e93d92
+destination_cache=/Users/codex/Development/surgeist-layout/target/surgeist-sources/taffy/d1ff7e339b9ee35b33858779f8d7653197e93d92
+test -d "$source_cache"; test "$(git -C "$source_cache" rev-parse HEAD)" = d1ff7e339b9ee35b33858779f8d7653197e93d92; test ! -e "$destination_cache"
+mkdir -p "$(dirname "$destination_cache")"; cp -R "$source_cache" "$destination_cache"; test "$(git -C "$destination_cache" rev-parse HEAD)" = d1ff7e339b9ee35b33858779f8d7653197e93d92
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just corpus-check
+CARGO_NET_OFFLINE=true just taffy-check
+CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
+CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --features layout-golden-generate --all-targets -- -F unsafe-code -D warnings
+cargo fmt --check; git diff --check
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_public_api_inventory_is_compatible
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout production_source_inventory_is_complete
+expected_paths="$(printf '%s\n' plans/cycles/P01-I08-S02-R04-block-and-flex-phase-ownership.md src/block.rs src/block/mod.rs src/block/floats.rs src/block/in_flow.rs src/block/inline_run.rs src/block/absolute.rs src/block/sizing.rs src/block/scroll.rs src/flex.rs src/flex/mod.rs src/flex/items.rs src/flex/lines.rs src/flex/flexible_lengths.rs src/flex/alignment.rs src/flex/intrinsic.rs src/flex/absolute.rs src/flex/scroll.rs src/lib_tests.rs src/contract_tests.rs src/root_tests.rs src/block_tests.rs src/flex_tests.rs | LC_ALL=C sort -u)"
+actual_paths="$(git diff --name-only 4f5022b720d33c1946604aeb3ce2172fd5db8fc8..HEAD | LC_ALL=C sort -u)"; test "$actual_paths" = "$expected_paths"
+base_suppressions="$(while IFS= read -r source_path; do git show "4f5022b720d33c1946604aeb3ce2172fd5db8fc8:$source_path" | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m = $&; $m =~ s/\s+/ /g; print "$m\n" }'; done < <(git ls-tree -r --name-only 4f5022b720d33c1946604aeb3ce2172fd5db8fc8 | rg '\.rs$') | LC_ALL=C sort)"
+current_suppressions="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m = $&; $m =~ s/\s+/ /g; print "$m\n" }' | LC_ALL=C sort)"; test -z "$(comm -13 <(printf '%s\n' "$base_suppressions") <(printf '%s\n' "$current_suppressions"))"
+unsafe_hits="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n '\bunsafe\b' | rg -v 'safe_fallback returns unsafe|Some\("async" \| "unsafe" \| "default" \| "extern"\)|removed phase-unsafe surface remains|starts_with\("unsafe "\)|strip_prefix\("unsafe "\)|parse_align_content\("unsafe end"\)|parse_align_items\("unsafe first baseline"\)' || true)"; test -z "$unsafe_hits"
+if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n -U '\b(no_mangle|export_name|link_section|naked)\b|(^|[^[:alnum:]_\"])extern[[:space:]]*"'; then exit 1; fi
+test "$(shasum -a 256 tests/layout/browser_parity/corpus.toml | awk '{print $1}')" = c6e6f1422e14a5e4aa474c143998063ce0de4d0a9123b69875b35a4ed009a8f6
+test "$(shasum -a 256 tests/layout/browser_parity/scripts/gentest/test_helper.js | awk '{print $1}')" = c684c7f167d95997a4a9f0250467bbaf72c1b73e69e0f707a2ef32f4d25f7f36
+test "$(shasum -a 256 tests/layout/browser_parity/xml/generation-reports/all.json | awk '{print $1}')" = c10dc550d260a239c8bf9dd553f5272ca3bcc2826099bc182f800986b8b94c0e
+test "$(find tests/layout/browser_parity/html -type f -name '*.html' | wc -l | tr -d ' ')" = 1448; test "$(find tests/layout/browser_parity/xml -type f -name '*.xml' | wc -l | tr -d ' ')" = 5776
+test -z "$(git status --porcelain=v1)"
+```
+
+After publication/readback: prove no stale layout Cargo/Rust/generator process; run `cargo clean`; prove `target/` absent and Git clean. Record published SHA, reviewed revisions, eight task ranges/reviews, final evidence, remote readback, and cleanup for R05.
