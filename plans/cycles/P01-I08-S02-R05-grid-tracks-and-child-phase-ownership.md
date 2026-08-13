@@ -46,11 +46,13 @@ Dependency: none. Commit: `refactor(grid): extract track validation`.
 
 ### 2.2 `P01/I08/S02/R05/T02` Ordinary Intrinsic Contribution Collection
 
-**Area:** `src/grid/tracks/intrinsic.rs`, `src/grid/tracks.rs`, direct private imports, embedded intrinsic tests, and exact existing owner-path aggregation in `src/grid_tests.rs` only when required.
+**Area:** `src/grid/tracks/intrinsic.rs`, `src/grid/tracks.rs`, direct private imports, embedded intrinsic tests, exact existing owner-path aggregation in `src/grid_tests.rs` only when required, and `src/lib_tests.rs` exact recursive production-inventory addition only.
 
 **Outcome:** move intrinsic grid inputs/lower bounds, row/item contribution collection, intrinsic baseline members/targets, contribution margin/eligibility/distribution, and constrained row/column intrinsic sizing to one owner. Preserve the sole existing ancestor-baseline and contribution models.
 
 **RED/acceptance:** `fri08_c03_intrinsic_`, `grid_spanning_item_`, `grid_row_intrinsic_`, and `fri08_c04_baseline_` pass. External probe requires `intrinsic.rs` and singular `IntrinsicGrid`; RED then GREEN. Preserve ordering, spans, margins, fit-content floors, percent reserves, baseline shims, failures, caches, and scalars.
+
+The existing recursive source inventory may add and classify only `src/grid/tracks/intrinsic.rs`; no assertion, test, source-proxy semantics, or other `src/lib_tests.rs` content changes.
 
 ```sh
 set -e; for f in fri08_c03_intrinsic_ grid_spanning_item_ grid_row_intrinsic_ fri08_c04_baseline_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
