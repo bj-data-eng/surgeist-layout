@@ -344,7 +344,7 @@ fn fri06_c05_contract_float_exclusion_surface_is_opaque_cache_neutral_and_active
         include_str!("tree.rs"),
         include_str!("engine/contracts.rs")
     );
-    let compute = include_str!("compute.rs");
+    let session = include_str!("engine/session.rs");
     let block = include_str!("block.rs");
     let cache = include_str!("cache.rs");
     let public_front_door = include_str!("lib.rs");
@@ -406,7 +406,7 @@ fn fri06_c05_contract_float_exclusion_surface_is_opaque_cache_neutral_and_active
         traits.contains("None\n    }"),
         "the provider defaults to no result"
     );
-    assert!(compute.contains(".float_exclusion_interval("));
+    assert!(session.contains(".float_exclusion_interval("));
     assert!(block.contains("FloatExclusion::Shape"));
     assert!(block.contains("FloatExclusionIntervalErrorOf::QueryMismatch"));
     assert!(block.contains("LayoutMissingContext::FloatExclusionProvider"));
@@ -2283,6 +2283,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ),
         ("src/engine/mod.rs", include_str!("engine/mod.rs")),
         ("src/engine/root.rs", include_str!("engine/root.rs")),
+        ("src/engine/session.rs", include_str!("engine/session.rs")),
         (
             "src/engine/validation.rs",
             include_str!("engine/validation.rs"),
@@ -2491,11 +2492,11 @@ fn fri08_remediation_engine_validation_has_one_owner() {
     let validation_call = compute
         .find("engine::validate_layout_request")
         .unwrap_or_else(|| panic!("public orchestration calls the validation owner"));
-    let session_creation = compute.find("ComputeSession::new").unwrap_or_else(|| {
-        panic!("public orchestration still creates the staged session during T01")
-    });
+    let session_gateway = compute
+        .find("engine::compute_validated_layout")
+        .unwrap_or_else(|| panic!("public orchestration calls the validated session gateway"));
     assert!(
-        validation_call < session_creation,
+        validation_call < session_gateway,
         "public orchestration must validate before creating session state"
     );
 }
@@ -2623,6 +2624,8 @@ fn fri08_remediation_engine_root_has_one_owner() {
     let compute = include_str!("compute.rs");
     let engine = include_str!("engine/mod.rs");
     let root = std::fs::read_to_string(manifest_dir.join("src/engine/root.rs")).unwrap_or_default();
+    let session =
+        std::fs::read_to_string(manifest_dir.join("src/engine/session.rs")).unwrap_or_default();
 
     for declaration in [
         "pub(crate) fn compute_hidden",
@@ -2649,20 +2652,81 @@ fn fri08_remediation_engine_root_has_one_owner() {
 
     assert!(engine.contains("mod root;"));
     assert!(!engine.contains("pub mod root;"));
-    for owner_call in [
-        "engine::compute_hidden",
-        "engine::compute_root",
-        "engine::compute_flex_item_root",
-    ] {
+    for owner_call in ["compute_root", "compute_flex_item_root"] {
         assert!(
-            compute.contains(owner_call),
-            "session dispatch or public orchestration must consume the root owner: {owner_call}"
+            engine.contains(owner_call),
+            "the engine gateway must consume the root owner: {owner_call}"
         );
     }
+    assert!(
+        session.contains("super::compute_hidden"),
+        "session dispatch must consume the hidden root owner"
+    );
     assert!(
         include_str!("lib.rs").contains("pub(crate) use engine::{compute_hidden, compute_root};"),
         "test-only crate-root access must consume the engine root owner"
     );
+}
+
+#[test]
+fn fri08_remediation_engine_session_transaction_equivalence() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let compute = include_str!("compute.rs");
+    let engine = include_str!("engine/mod.rs");
+    let session =
+        std::fs::read_to_string(manifest_dir.join("src/engine/session.rs")).unwrap_or_default();
+
+    assert!(engine.contains("mod session;"));
+    assert!(!engine.contains("pub mod session;"));
+    assert!(engine.contains("pub(crate) fn compute_validated_layout"));
+    assert!(compute.contains("engine::compute_validated_layout"));
+
+    for declaration in [
+        "struct ComputeSession",
+        "struct StagedInlineFragmentGroup",
+        "impl<Tree> Traverse for ComputeSession",
+        "impl<Tree> Compute<Tree::MeasureError> for ComputeSession",
+        "impl<Tree> CacheAccess<Tree::MeasureError> for ComputeSession",
+        "impl<Tree> Round<Tree::MeasureError> for ComputeSession",
+        "fn set_inline_fragment_group",
+        "fn take_layout_entry",
+    ] {
+        assert!(
+            !compute.contains(declaration),
+            "src/compute.rs retains session state or service implementation: {declaration}"
+        );
+        assert!(
+            session.contains(declaration),
+            "src/engine/session.rs must own session state or service implementation: {declaration}"
+        );
+    }
+
+    for responsibility in [
+        "fn complete_for_root",
+        "fn restore_committed_subtree",
+        "fn compute_child_uncached",
+        "compute_tree_leaf",
+        "super::compute_hidden",
+        "CompletedLayoutBatchOf::from_entries",
+        "HIDDEN_COMPUTE_SESSION_REQUESTS",
+    ] {
+        assert!(
+            !compute.contains(responsibility),
+            "src/compute.rs retains session transaction responsibility: {responsibility}"
+        );
+        assert!(
+            session.contains(responsibility),
+            "src/engine/session.rs must own session transaction responsibility: {responsibility}"
+        );
+    }
+
+    assert_eq!(session.matches("pub(super) fn new").count(), 1);
+    assert_eq!(
+        session.matches("pub(super) fn complete_for_root").count(),
+        1
+    );
+    assert!(!session.contains("pub(crate) struct ComputeSession"));
+    assert!(!session.contains("pub struct ComputeSession"));
 }
 
 #[test]

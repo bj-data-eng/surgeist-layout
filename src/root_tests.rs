@@ -16929,11 +16929,9 @@ fn fri05_c04_flex_auto_hidden_subtrees_retain_immediate_containing_pass() {
 
     for display in [Display::Flex, Display::Block] {
         let tree = fri05_c04_hidden_auto_tree(display);
-        let (batch, hidden_requests) =
-            crate::compute::trace_hidden_compute_session_requests(|| {
-                compute_layout(&tree, 0, request)
-                    .expect("auto container with hidden subtree lays out")
-            });
+        let (batch, hidden_requests) = crate::engine::trace_hidden_compute_session_requests(|| {
+            compute_layout(&tree, 0, request).expect("auto container with hidden subtree lays out")
+        });
         assert_eq!(
             public_flow_output(batch.unrounded_entries(), 0)
                 .scroll_geometry
