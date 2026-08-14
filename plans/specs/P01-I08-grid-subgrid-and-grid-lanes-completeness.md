@@ -881,8 +881,9 @@ FRI-08 initiative completion after the post-C08 continuation was authorized.
 ## 20 FRI-08.20 Post-Closure Architectural Remediation
 
 FRI-08 continues after its published C08 candidate with a finite, behavior-
-preserving architectural remediation. This continuation owns the six structural
-pressure findings accepted after the completed whole-crate review:
+preserving architectural remediation. This continuation owns the eight structural,
+audit-tooling, and test-conformance pressure findings accepted after the completed
+whole-crate review:
 
 | ID | Accepted pressure | Required outcome |
 | --- | --- | --- |
@@ -893,6 +894,7 @@ pressure findings accepted after the completed whole-crate review:
 | `AR-005` | algorithms depend directly on the full 55-field `NodeInputOf`, while the flat public facade lacks a concise domain map | algorithm-owned projections narrow internal dependencies; the compatible public snapshot and facade receive one authoritative API map |
 | `AR-006` | grid, root, flex, and block verification live in exceptionally large companion files | tests are partitioned by semantic owner with shared fixtures explicit and no coverage loss |
 | `AR-007` | crate tests include source/token/file-placement proxies, planning and workflow state checks, current-output oracles, and unjustified ignored tests that conflict with the Surgeist testing reference | every test is classified against the testing reference; prohibited proxies are removed or replaced by behavioral, compile-contract, or declared-artifact consumer evidence, and ignored state is justified |
+| `AR-008` | architecture investigations are drifting from prohibited source-parsing Rust tests into ad hoc lexical audit scripts that cannot resolve Rust identities and are easy to mistake for permanent architecture policy | a pinned, isolated Dylint audit catalog retains planning-path-named semantic investigations as opt-in reviewer/coordinator tools; it replaces the node-projection script without entering product tests, ordinary verification, CI, or publication gates |
 
 These rows are structural and test-conformance remediation, not new closure owners for the 59 P01
 findings. All eight FRI-08 behavior closures and the completed C08 sprawl rows
@@ -1144,6 +1146,13 @@ real consumer; they may not encode initiative census, plan, lineage, file
 placement, or workflow completion. Workflow source/safety/scope audits remain
 coordinator or reviewer commands outside `cargo test`.
 
+Architecture investigations that require compiler-resolved type, method, alias,
+reexport, macro, or module identity belong in the retained Dylint audit catalog
+defined by `FRI-08.27.2`, not in a new lexical script. A catalog lint is historical
+audit evidence named for the planning path whose question it represents; it is not
+permanent architecture policy, does not run by default, and does not make a later
+intentional architecture change invalid merely because it reports a finding.
+
 Every removed test has an explicit disposition: behavioral replacement,
 compile-contract replacement, declared-artifact consumer consolidation, or
 removal because no product contract exists. The before/after discovered test
@@ -1159,11 +1168,118 @@ or generator process owned by that cycle remains. The coordinator then runs
 of the repository `target` directory before the next cycle begins. Another
 deletion mechanism does not satisfy this command requirement.
 
+### 27.2 Planning-Path Dylint Audit Catalog
+
+The cycle-sized increment `P01/I08/S02/R06A` establishes a leaf-local,
+development-only Dylint audit catalog for semantic investigations of
+`surgeist-layout`. Its entry is the immutable published R06 candidate; its bounded
+outcome is the isolated catalog plus the first retained semantic audit and removal
+of the superseded lexical script; its exit is exact pin, isolation, UI-fixture,
+R06-candidate audit, script-removal, product-regression, review, publication,
+readback, and process-clean evidence; and its handoff is the audited candidate plus
+recorded pilot lessons to R07 and R08. No later skill-reference implementation is
+part of that increment.
+
+The catalog package is exactly `tools/surgeist-layout-audits/`, with package name
+`surgeist-layout-audits`, library name `surgeist_layout_audits`, `publish = false`,
+`crate-type = ["cdylib"]`, its own `[workspace]`, `Cargo.lock`, and
+`rust-toolchain.toml`. The product manifest excludes
+`tools/surgeist-layout-audits/**` from package contents. Catalog build, test, and
+Dylint commands set `CARGO_TARGET_DIR` to the exact repository-root path
+`target/dylint-audits`; no command may use the nested workspace's default
+`tools/surgeist-layout-audits/target`. The required repository-root `cargo clean`
+therefore removes all catalog state, and completion proves both target paths are
+absent; no tool output is tracked.
+
+The catalog is isolated from the product package and normal stable toolchain:
+product dependencies, features, `Cargo.lock`, MSRV, compiled targets, and configured
+check/test/Clippy commands do not acquire a Dylint dependency or nightly
+requirement. The exact tool stack is `cargo-dylint` `6.0.3` and
+`dylint-link` `6.0.3` installed from crates.io, catalog dependencies
+`dylint_linting = "=6.0.3"` and `dylint_testing = "=6.0.3"` resolved from
+crates.io into the catalog lockfile, and Rust
+`nightly-2026-05-28` with `rustc-dev` and `llvm-tools-preview` installed by
+`rustup` from the official Rust distribution. The catalog uses rustc APIs
+directly and adds no Git dependency on `clippy_utils`. Acquisition or execution
+begins only after the user explicitly authorizes downloading and installing
+those exact crates.io packages and Rust components into the user-scoped Cargo
+and rustup installations for this audit-tooling pilot; ordinary product commands
+and the stable Rust 1.97 toolchain remain untouched. A general instruction to
+implement or audit does not satisfy that exact acquisition predicate.
+
+The pilot consumes the immutable published R06 projection candidate and is the
+required immediate remediation outcome before R07 test ownership begins. R07 and
+R08 may rely on the catalog only after the pilot is independently reviewed,
+published, remotely read back, and process-clean; this dependency prevents test
+movement or conformance deletion from recreating a lexical audit script while the
+semantic replacement is unavailable.
+
+Repository-authored lint source contains no unsafe construct. Dylint's exact
+external `dylint_linting` macro owns the dynamic-library ABI expansion; no Surgeist
+source copies, spells, wraps, or broadens that boundary, and no product target links
+the audit library. If the pinned stack requires any authored or retained
+Surgeist-owned unsafe construct outside that external macro expansion, the pilot
+stops without accepting the tool.
+
+The catalog library registers lints at `Allow` by default. A coordinator or
+reviewer explicitly selects a named lint for one audit run and decides the meaning
+of its diagnostics against the current plan and source. No catalog lint is added to
+ordinary Cargo tasks, `just verify`, Clippy, CI, publication, or a standing cycle
+gate. Retained lint names begin with the normalized planning path that originated
+the question, and their documentation records the exact plan path/revision, audit
+question, original scope, interpretation after later architecture changes, and any
+superseded script or source-proxy test.
+
+From the repository root, the one-lint selection contract is:
+
+```sh
+CARGO_TARGET_DIR="$PWD/target/dylint-audits" \
+  cargo dylint --path tools/surgeist-layout-audits \
+  -- -D p01_i08_s02_r06_t02_node_projection_boundary
+```
+
+The explicit `-D` applies only to that selected audit invocation. Every other
+catalog lint remains at `Allow`, and no wrapper or task-runner target invokes the
+catalog implicitly.
+
+The pilot's first retained lint is
+`p01_i08_s02_r06_t02_node_projection_boundary`. It replaces
+`scripts/audit-node-projection-boundaries.sh` after R06 is published and detects the
+same complete-input and `node_input` escapes with compiler-resolved identities,
+including aliases, reexports, UFCS, extracted method references, and new compiled
+modules, without fixed consumer-file inventories or lexical masking. Isolated UI
+fixtures prove allowed owner construction and each rejected escape; product tests
+do not read or parse Rust source. The lint runs once against the published R06
+candidate to audit the completed projection work, after which the script is
+deleted.
+
+The first lint inspects every production HIR item whose module is within the
+`block`, `inline`, `flex`, `grid`, or `scroll` algorithm tree. Outside the six
+construction owners `node_projection`, `block::input`, `inline::input`,
+`flex::input`, `grid::input`, and `scroll::input`, it reports every resolved use of
+the public aggregate identities `NodeInput`, `NodeInputOf`, `LayoutInput`, and
+`LayoutInputOf`, and every resolved call, UFCS path, or extracted method item whose
+identity is `LayoutTree::node_input`. The construction owners may borrow
+the aggregates only to create their role projection; in every owner the lint still
+reports a type alias or visibility reexport whose resolved target is a protected
+aggregate. Scope follows compiler module ancestry, so a newly compiled descendant
+is covered automatically and no consumer filename or line allowlist exists.
+
+Later remediation work may add another planning-path-named lint only when a real
+audit question benefits from compiler semantics. R08 classifies the underlying
+questions of prohibited source-proxy tests: useful architecture investigations may
+move to this opt-in catalog, while checks with no product or audit contract are
+deleted. The pilot records setup, pinning, diagnostic, maintenance, and review
+lessons in the catalog's own reference material and final handoff. Creating or
+editing a shared Surgeist skill reference for other crates is a later, separately
+authorized skill-maintenance transition based on those observed lessons; it is not
+part of FRI-08 implementation.
+
 ## 28 FRI-08.28 Sole Final Remediation Acceptance And Handoff
 
 The FRI-08 remediation continuation is complete only when:
 
-1. `AR-001` through `AR-007` each have one implemented, independently reviewed
+1. `AR-001` through `AR-008` each have one implemented, independently reviewed
    disposition;
 2. shared recursive engine contracts contain no algorithm-local carrier or
    dispatch behavior;
@@ -1175,17 +1291,21 @@ The FRI-08 remediation continuation is complete only when:
    visibility expansion or parallel algorithms;
 6. algorithms consume role-specific private projections while `NodeInputOf` and
    the root facade remain source-compatible;
-7. the four named companion test suites are partitioned with complete inventory
+7. the planning-path Dylint catalog is isolated, exactly pinned, opt-in, free of
+   authored unsafe, proven against the published R06 projection boundary, and has
+   replaced the ad hoc node-projection audit script without entering standing
+   verification;
+8. the four named companion test suites are partitioned with complete inventory
    and no production test hook, and the entire crate test suite satisfies
    `FRI-08.27.1` with an exact justified ignored list;
-8. all eight original FRI-08 findings, every completed C07/C08 sprawl row, all
+9. all eight original FRI-08 findings, every completed C07/C08 sprawl row, all
    59 P01 ownership assignments, and the paused FRI-09 boundary remain intact;
-9. public API, dependencies, features, MSRV, docs, artifacts, provenance,
+10. public API, product dependencies, features, MSRV, docs, artifacts, provenance,
    suppression, and unsafe evidence satisfy `FRI-08.21` and `FRI-08.27`;
-10. every cycle has clean task and holistic reviews, publication/readback,
+11. every cycle has clean task and holistic reviews, publication/readback,
     process hygiene, a successful repository-root `cargo clean`, and an absent
     repository `target` directory afterward; and
-11. the final leaf handoff records the remediation specification/sequence/cycle
+12. the final leaf handoff records the remediation specification/sequence/cycle
     revisions, exact task ranges, compatibility result, frozen artifact state,
     final remote candidate, and the still-paused FRI-09 sequence revision and
     required revalidation transition.
