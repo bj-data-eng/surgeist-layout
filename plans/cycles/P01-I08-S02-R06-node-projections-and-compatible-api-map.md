@@ -10,16 +10,16 @@ Cycle base: `05a531dd661937aa3518678524c9accb0a99063d`
 
 Specification: `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`,
 reviewed semantic SHA-256
-`d9c6a61eae363331d7e8ce05d88916099111e11b8793b8dc31cc55e3e5c80a6a`,
-commit `b9cb82aadf70d5690d605bb9ffeaa6da9512bd3d`, sections `FRI-08.20`
+`f12c1aed35aabcb35231cca372eca6381daff57bfe2b6a053679bcf2f4d2d94f`,
+commit `a7ade7927e053ab8114bb49697d1493f578242d2`, sections `FRI-08.20`
 row `AR-005`, `FRI-08.21`, `FRI-08.25`, `FRI-08.27`, and acceptance
-rows `FRI-08.28(1)`, `FRI-08.28(6)`, and `FRI-08.28(8)` through
-`FRI-08.28(10)`.
+rows `FRI-08.28(1)`, `FRI-08.28(6)`, and `FRI-08.28(9)` through
+`FRI-08.28(11)`.
 
 Sequence: `plans/sequences/P01-I08-S02-architectural-remediation.md`,
 reviewed semantic SHA-256
-`46d3563226ba6b91478bdc0b36273abb56644720774804b7c7a2ab9d0ca07251`,
-commit `2f097f4b9ac510df63e3e886e2f7a46f0312a701`, entry
+`fa6b9ff466b2d61053ddb2961602671f64d19cdf5bb5efa2fc2a19f1a448b284`,
+commit `a372699c9301893a385890ed8c6c59178bf08891`, entry
 `P01/I08/S02/R06`.
 
 Bounded outcome: algorithms construct role-specific crate-private projections
@@ -84,8 +84,12 @@ intentionally narrow pre-item stage; T06 explicitly owns `grid/mod.rs`, lanes,
 subgrid, placement/named/axis, intrinsic/subgrid tracks, and every child path,
 then `grid` closes the entire grid tree. The script has no line/text allowlist
 and exits nonzero after printing every violation. T02 through T06 run the mode
-for the boundary they close; T06 then proves their union, and T07 and final
-acceptance repeat `all`.
+for the boundary they close; T06 then proves their union, and both T07 and final
+R06 acceptance repeat `all`.
+
+R06 retains that reviewed lexical audit through its own publication. The
+immediate successor R06A, not this cycle, owns the pinned opt-in Dylint catalog,
+compiler-semantic replacement, script deletion, and pilot lessons.
 
 Public API classification: source-compatible documentation/internal ownership
 change only. Dependencies, features, Cargo files, MSRV, root integration, and
@@ -103,7 +107,7 @@ groups, builders, preludes, compatibility aliases, or duplicate module trees;
 new errors or validation; algorithm behavior changes; R07 test-suite movement;
 R08 test-conformance deletion; root/sibling work; browser execution, generation,
 acquisition, generator/helper/manifest/report/XML changes; `cargo clean` before
-publication.
+publication; Dylint tooling, dependencies, nightly components, or catalog work.
 
 ## 2 Tasks
 
@@ -336,7 +340,7 @@ Dependency: T06. Commit: `docs(api): map compatible layout facade`.
 
 R06 requires seven independently CLEAN task ranges, status `complete`, a GREEN
 final matrix, CLEAN holistic review, publication/readback, process hygiene,
-successful repository-root `cargo clean`, absent `target/`, and an immutable R07
+successful repository-root `cargo clean`, absent `target/`, and an immutable R06A
 handoff. Browser execution, generation, acquisition, and artifact writes remain
 prohibited. Any public/API/default/error/geometry/artifact drift, added source-
 parsing test, residual settled-phase property-bag dependency, unsafe match, or
@@ -377,4 +381,4 @@ After publication/readback, prove no cycle-owned layout Cargo/Rust/generator
 process remains; run `cargo clean`; prove `target/` absent and Git clean. Record
 the published SHA, reviewed revisions, seven ordered task ranges and verdicts,
 public compatibility, README map, frozen artifacts, remote readback, cleanup,
-and the R07 handoff.
+and the R06A handoff.
