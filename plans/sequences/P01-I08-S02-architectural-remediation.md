@@ -9,8 +9,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed post-C08 remediation in
 `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`, normalized
 semantic-content SHA-256
-`f12c1aed35aabcb35231cca372eca6381daff57bfe2b6a053679bcf2f4d2d94f`,
-committed as `a7ade7927e053ab8114bb49697d1493f578242d2`.
+`65050fe9723a62ef832badd02426c3fc2cb461f7931a4549a4c48c2ea39614e7`,
+committed as `98d67b05b7570e84490c6bf0121ba4a0cc2ec224`.
 
 The specification owns the eight accepted pressure findings, compatibility,
 module ownership, audit-tooling boundary, frozen artifacts, verification, the
@@ -225,9 +225,9 @@ lexical script, and records pilot lessons without entering product tests,
 ordinary verification, CI, publication gates, or permanent architecture policy.
 
 **Exit evidence:** exact tool/dependency/toolchain pins and isolation, catalog
-UI fixtures, selected-lint semantics across the published R06 candidate, script
-deletion, product package/API/behavior/artifact equivalence, authored-source
-safety, absence from standing commands, publication/readback, process hygiene,
+UI fixtures, final zero-diagnostic selected-lint semantics across the published
+R06 candidate, script deletion, product package/API/behavior/artifact equivalence,
+authored-source safety, absence from standing commands, publication/readback, process hygiene,
 and target cleanup satisfy the cited specification sections.
 
 **Handoff:** publish the audited candidate and pilot lessons to R07 and R08;
