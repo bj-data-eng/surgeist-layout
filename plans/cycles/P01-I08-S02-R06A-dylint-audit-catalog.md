@@ -234,7 +234,7 @@ audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFL
 set -e
 audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline)
 audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --all-targets)
-(set -e; cd tools/surgeist-layout-audits; cargo fmt --check)
+(set -e; cd tools/surgeist-layout-audits; cargo +stable fmt --check)
 test ! -e tools/surgeist-layout-audits/target
 git diff --check
 ```
@@ -318,7 +318,7 @@ rg -q '^\[target\.aarch64-apple-darwin\]$' tools/surgeist-layout-audits/.cargo/c
 test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
 audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline)
 audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --all-targets)
-(set -e; cd tools/surgeist-layout-audits; cargo fmt --check)
+(set -e; cd tools/surgeist-layout-audits; cargo +stable fmt --check)
 test ! -e tools/surgeist-layout-audits/target
 test ! -e scripts/audit-node-projection-boundaries.sh
 CARGO_NET_OFFLINE=true just verify
