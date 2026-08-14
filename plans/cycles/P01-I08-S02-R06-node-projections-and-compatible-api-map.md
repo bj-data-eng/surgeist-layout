@@ -73,7 +73,8 @@ or any raw `tree.node_input(...)` call, including borrowed bindings and direct
 field access. `grid-container` is the intentionally narrow pre-item stage;
 `grid` closes every remaining grid path in T06. The script has no line/text
 allowlist and exits nonzero after printing every violation. T02 through T06 run
-the mode for the boundary they close; T07 and final acceptance run `all`.
+the mode for the boundary they close; T06 then proves their union, and T07 and
+final acceptance repeat `all`.
 
 Public API classification: source-compatible documentation/internal ownership
 change only. Dependencies, features, Cargo files, MSRV, root integration, and
@@ -245,7 +246,8 @@ track-intrinsic, child, baseline, absolute, subgrid, and lanes phases consume it
 **RED/acceptance:** `grid_absolute_child_`, `subgrid_child_`,
 `fri08_c04_baseline_`, `fri05_c05_grid_contribution_`, and
 `fri08_c03_nested_` pass before and after. The external probe is RED until the
-item projection is singular and core child/track signatures use it. Preserve
+item projection is singular and core child/track signatures use it; final
+`all` mode proves the complete block/flex/grid/inline/scroll union. Preserve
 source identity/order, placement, inherited axes, sizing/alignment, baseline
 transport, scroll publication, atomic failure, and both scalar lanes.
 
@@ -253,38 +255,13 @@ transport, scroll publication, atomic failure, and both scalar lanes.
 set -e; for f in grid_absolute_child_ subgrid_child_ fri08_c04_baseline_ fri05_c05_grid_contribution_ fri08_c03_nested_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test "$(rg -l 'struct GridItemProjection' src/grid --glob '*.rs' | wc -l | tr -d ' ')" = 1
 scripts/audit-node-projection-boundaries.sh grid
+scripts/audit-node-projection-boundaries.sh all
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
 Dependency: T05. Commit: `refactor(grid): project item input`.
 
-### 2.7 `P01/I08/S02/R06/T07` Close Projection Boundaries Across Algorithms
-
-**Area:** all production projection owners and their direct block/flex/grid/
-inline/scroll phase callers; focused engine, cache, scalar, writing-mode, and
-algorithm composition tests; only exact legacy inventory/path adaptations.
-
-**Outcome:** remove residual complete-property-bag parameters and stored clones
-from settled core phases. `NodeInputOf` remains only at tree/public lookup and
-projection constructors. Each projection has one owner; common facts are not
-duplicated into algorithm-specific carriers; no projection or helper is public.
-
-**RED/acceptance:** `compute_layout_`, `fri06_c02_cache_`,
-`fri06_c03_lifecycle_`, `fri08_c07_t03_optional_math_`, and all block/flex/grid
-writing-mode families pass before and after. The workflow-only aggregate source
-audit is RED at the assignment base and GREEN only when fixed `all` mode finds
-no `NodeInputOf` parameter/storage/return or raw tree input outside the six
-algorithm input owners. No Rust test parses source or asserts ownership.
-
-```sh
-set -e; for f in compute_layout_ fri06_c02_cache_ fri06_c03_lifecycle_ fri08_c07_t03_optional_math_ writing_mode_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
-scripts/audit-node-projection-boundaries.sh all
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
-```
-
-Dependency: T06. Commit: `refactor(input): close algorithm role boundaries`.
-
-### 2.8 `P01/I08/S02/R06/T08` Compatible README API Map And Final Inventory
+### 2.7 `P01/I08/S02/R06/T07` Compatible README API Map And Final Inventory
 
 **Area:** `README.md`, public/compile-contract documentation in `src/lib.rs` only
 when needed, exact existing public and production inventory adaptations in
@@ -310,11 +287,11 @@ CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_re
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
-Dependency: T07. Commit: `docs(api): map compatible layout facade`.
+Dependency: T06. Commit: `docs(api): map compatible layout facade`.
 
 ## 3 Completion
 
-R06 requires eight independently CLEAN task ranges, status `complete`, a GREEN
+R06 requires seven independently CLEAN task ranges, status `complete`, a GREEN
 final matrix, CLEAN holistic review, publication/readback, process hygiene,
 successful repository-root `cargo clean`, absent `target/`, and an immutable R07
 handoff. Browser execution, generation, acquisition, and artifact writes remain
@@ -342,7 +319,7 @@ CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_re
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri05_c05_grid_legacy_absence_inventories_every_production_source
 rg -q '^## Public API Map$' README.md; for h in 'Computation and tree' 'Node input' 'Sizing' 'Geometry and scroll' 'Output' 'Finite grid utilities'; do rg -q "^### $h$" README.md; done
 scripts/audit-node-projection-boundaries.sh all
-: "${TASK_SPANS:?set TASK_SPANS to the newline-delimited ordered exact full-SHA spans from the eight CLEAN task reviews}"
+: "${TASK_SPANS:?set TASK_SPANS to the newline-delimited ordered exact full-SHA spans from the seven CLEAN task reviews}"
 expected_paths="$({ printf '%s\n' plans/cycles/P01-I08-S02-R06-node-projections-and-compatible-api-map.md; while IFS= read -r span; do git diff --name-only "$span"; done <<< "$TASK_SPANS"; } | LC_ALL=C sort -u)"; actual_paths="$(git diff --name-only 05a531dd661937aa3518678524c9accb0a99063d..HEAD | LC_ALL=C sort -u)"; test "$actual_paths" = "$expected_paths"
 base_suppressions="$(while IFS= read -r p; do git show "05a531dd661937aa3518678524c9accb0a99063d:$p" | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }'; done < <(git ls-tree -r --name-only 05a531dd661937aa3518678524c9accb0a99063d | rg '\.rs$') | LC_ALL=C sort)"; current_suppressions="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }' | LC_ALL=C sort)"; test -z "$(comm -13 <(printf '%s\n' "$base_suppressions") <(printf '%s\n' "$current_suppressions"))"
 if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{'; then exit 1; fi
@@ -354,6 +331,6 @@ test "$(find tests/layout/browser_parity/html -type f -name '*.html' | wc -l | t
 
 After publication/readback, prove no cycle-owned layout Cargo/Rust/generator
 process remains; run `cargo clean`; prove `target/` absent and Git clean. Record
-the published SHA, reviewed revisions, eight ordered task ranges and verdicts,
+the published SHA, reviewed revisions, seven ordered task ranges and verdicts,
 public compatibility, README map, frozen artifacts, remote readback, cleanup,
 and the R07 handoff.
