@@ -67,14 +67,19 @@ non-input `src/scroll/*.rs` for `scroll`; every non-input `src/block/*.rs` plus
 `flex`; `src/grid/topology.rs` plus non-input
 `src/grid/tracks/{mod,validation,ordinary,flexible}.rs` for `grid-container`;
 every non-input Rust file below `src/grid/` for `grid`; and the union for `all`.
-Every selected file is scanned fail-closed with multiline PCRE for any identifier
-parameter or field of `NodeInputOf`, `Box<NodeInputOf`, a `NodeInputOf` return,
-or any raw `tree.node_input(...)` call, including borrowed bindings and direct
-field access. `grid-container` is the intentionally narrow pre-item stage;
-`grid` closes every remaining grid path in T06. The script has no line/text
-allowlist and exits nonzero after printing every violation. T02 through T06 run
-the mode for the boundary they close; T06 then proves their union, and T07 and
-final acceptance repeat `all`.
+Every selected file is scanned fail-closed with multiline PCRE for: any
+qualified or unqualified `NodeInput`/`NodeInputOf` identifier parameter, field,
+boxed storage, or return; any type alias or `use ... as` alias of either public
+aggregate; every receiver-independent `.node_input(...)` call; and every
+`LayoutInput`/`LayoutInputOf` box-pattern or `.as_box(...)` extraction. Thus a
+borrowed binding, direct field access, default-scalar spelling, qualification,
+or introduced alias cannot bypass the audit. `grid-container` is the
+intentionally narrow pre-item stage; T06 explicitly owns `grid/mod.rs`, lanes,
+subgrid, placement/named/axis, intrinsic/subgrid tracks, and every child path,
+then `grid` closes the entire grid tree. The script has no line/text allowlist
+and exits nonzero after printing every violation. T02 through T06 run the mode
+for the boundary they close; T06 then proves their union, and T07 and final
+acceptance repeat `all`.
 
 Public API classification: source-compatible documentation/internal ownership
 change only. Dependencies, features, Cargo files, MSRV, root integration, and
@@ -208,14 +213,16 @@ Dependency: T03. Commit: `refactor(flex): consume role projections`.
 
 ### 2.5 `P01/I08/S02/R06/T05` Grid Container Projection
 
-**Area:** new `src/grid/input.rs`, `src/grid/{mod,lanes,subgrid,topology,
-placement,named}.rs`, `src/grid/tracks/*.rs`, focused grid tests, and exact
-production inventory additions only.
+**Area:** new `src/grid/input.rs`, `src/grid/topology.rs`,
+`src/grid/tracks/{mod,validation,ordinary,flexible}.rs`, minimum constructor
+wiring in `src/grid/mod.rs`, focused grid tests, and exact production inventory
+additions only.
 
 **Outcome:** one `GridContainerProjection` carries container-only topology,
-track, area, auto-flow/tolerance, alignment, gap, sizing, flow, and scroll facts
-for ordinary grid, grid-lanes, and subgrid container roles. Track/topology phases
-no longer depend on the full public aggregate.
+track, area, auto-flow/tolerance, alignment, gap, sizing, flow, and scroll facts.
+The fixed topology plus validation/ordinary/flexible track phase set consumes it;
+broad ordinary-grid, lanes, subgrid, intrinsic, and child entry paths are
+explicitly deferred to T06 rather than claimed by this task.
 
 **RED/acceptance:** `fri08_c01_topology_`, `grid_fraction_tracks_`,
 `grid_stretch_`, `grid_lanes_`, and `fri08_c02_auto_fit_` pass before and after.
@@ -232,13 +239,16 @@ CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_N
 
 Dependency: T04. Commit: `refactor(grid): project container input`.
 
-### 2.6 `P01/I08/S02/R06/T06` Grid Item Projection
+### 2.6 `P01/I08/S02/R06/T06` Complete Grid Container And Item Projection
 
-**Area:** `src/grid/input.rs`, `src/grid/{lanes,subgrid,axis,placement}.rs`,
-`src/grid/tracks/*.rs`, `src/grid/child/*.rs`, focused grid/subgrid tests, and
-exact owner-path aggregation only when a legacy source proxy requires it.
+**Area:** `src/grid/input.rs`, every deferred `src/grid/{mod,lanes,subgrid,axis,
+placement,named}.rs` path, all remaining `src/grid/tracks/*.rs`, every
+`src/grid/child/*.rs`, focused grid/subgrid tests, and exact owner-path
+aggregation only when a legacy source proxy requires it.
 
-**Outcome:** `GridItemProjection` owns item placement/raw placement, order,
+**Outcome:** finish `GridContainerProjection` consumption across the deferred
+ordinary-grid, lanes, subgrid, intrinsic, and child paths. `GridItemProjection`
+owns item placement/raw placement, order,
 replaced/table/positioned state, item alignment, sizing/box/flow, baseline,
 overflow, and scroll facts. Collection constructs it once per settled child and
 track-intrinsic, child, baseline, absolute, subgrid, and lanes phases consume it.
