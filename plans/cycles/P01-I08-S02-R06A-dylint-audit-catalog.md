@@ -10,16 +10,16 @@ Cycle base: `20ad8202e536c4c63f0bd211f0872653462116bf`
 
 Specification: `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`,
 reviewed semantic SHA-256
-`f12c1aed35aabcb35231cca372eca6381daff57bfe2b6a053679bcf2f4d2d94f`,
-commit `a7ade7927e053ab8114bb49697d1493f578242d2`, sections `FRI-08.20`
+`65050fe9723a62ef832badd02426c3fc2cb461f7931a4549a4c48c2ea39614e7`,
+commit `98d67b05b7570e84490c6bf0121ba4a0cc2ec224`, sections `FRI-08.20`
 row `AR-008`, `FRI-08.21`, `FRI-08.27.1`, all of `FRI-08.27.2`, and
 acceptance rows `FRI-08.28(1)`, `FRI-08.28(7)`, and `FRI-08.28(10)` through
 `FRI-08.28(12)`.
 
 Sequence: `plans/sequences/P01-I08-S02-architectural-remediation.md`,
 reviewed semantic SHA-256
-`fa6b9ff466b2d61053ddb2961602671f64d19cdf5bb5efa2fc2a19f1a448b284`,
-commit `a372699c9301893a385890ed8c6c59178bf08891`, entry
+`bb3642deea547129932693820df949b3db365ba4e4f134814ab9611dbb2aa171`,
+commit `5ec0eae900daac01d56dba8ea919080ea13be26e`, entry
 `P01/I08/S02/R06A`.
 
 Bounded outcome: one leaf-local, package-excluded, opt-in Dylint catalog
@@ -194,14 +194,20 @@ UI fixtures only.
 projection-construction owners; and reports resolved aggregate identities,
 aliases, visibility reexports, direct/UFCS/extracted `LayoutTree::node_input`
 uses, and newly compiled descendants everywhere else. It uses compiler identity,
-not fixed consumer paths or lexical masking.
+not fixed consumer paths or lexical masking. Expression tokens defined by a
+macro in an allowed owner inherit that owner; caller-supplied expression tokens
+retain caller ownership. Protected types and item escapes expanded into a
+consumer remain violations.
 
 Catalog documentation records the exact originating R06 plan/revision, audit
 question, original scope, interpretation after later architecture changes, and
 the superseded script. UI fixtures exercise allowed owner construction and each
 rejected semantic escape, including aliases, reexports, UFCS, extracted method
 items, nested modules, ordinary strings/comments, and both protected aggregate
-families. Product tests do not inspect source.
+families. They additionally prove an allowed owner-defined expression macro at a
+consumer call site, a rejected caller-supplied aggregate expression, and rejected
+macro-generated consumer type, alias, and visibility-reexport forms. Product
+tests do not inspect source.
 
 **RED/acceptance:** add the smallest UI fixtures first and prove the absent lint
 or missing diagnostic is RED. The final selected UI suite passes with exact
@@ -209,29 +215,26 @@ diagnostics, the lint remains `Allow` when not explicitly selected, catalog
 format and strict compiler checks pass with already-installed tooling, and
 authored catalog Rust has no unsafe match.
 
-The first UI attempt established only a setup failure because the authorized
-toolchain driver was absent; it is not RED evidence. Before resuming test-first
-work, run the catalog UI test once with network access solely so Dylint can
-acquire and build the newly authorized exact driver. Prove the driver exists and
-the catalog manifest, lockfile, and toolchain pin are unchanged, then rerun the
-focused UI test locked and offline. Only that offline missing-diagnostic failure
-is the valid T02 RED.
+The first reviewed lint revision passed its then-complete UI suite but the first
+semantic product audit reported six false positives: the expanded HIR owners are
+`grid` or `grid::lanes`, while every diagnostic span originates from
+`project_grid_container` or `project_grid_child_input`, both defined in the
+allowed `grid::input` owner. The current `is_projection_owner` checks only the HIR
+owner and ignores rustc expansion provenance. The correction first adds the exact
+macro UI cases above and proves the allowed owner-defined expression is RED under
+the current lint. It then resolves the defining macro's compiler identity and
+parent module from the expression span, without source paths or text parsing;
+type and item rules remain caller-module rules. This is correction attempt one.
 
-One-time authorized driver bootstrap:
-
-```sh
-driver_root="${DYLINT_DRIVER_PATH:-${HOME}/.dylint_drivers}"
-driver_path="$driver_root/nightly-2026-05-28-aarch64-apple-darwin/dylint-driver"
-test ! -e "$driver_path"
-audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked node_projection_boundary_ui)
-test -x "$driver_path"
-test "$("$driver_path" -V | awk '{print $NF}')" = '6.0.3'
-git diff --exit-code bfd76dab2c52df5ec009f52595fba9ce6e5ac6e2 -- tools/surgeist-layout-audits/Cargo.toml tools/surgeist-layout-audits/Cargo.lock tools/surgeist-layout-audits/rust-toolchain.toml
-audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline node_projection_boundary_ui)
-```
+The earlier missing-driver setup failure is not RED evidence. The separately
+authorized one-time driver bootstrap is complete, the exact `6.0.3` driver is
+installed, and the catalog manifest, lockfile, and toolchain pin are unchanged.
+The correction performs no acquisition and proves RED and GREEN with the focused
+locked/offline `node_projection_boundary_ui` command in the matrix below.
 
 ```sh
 set -e
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline node_projection_boundary_ui)
 audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline)
 audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --all-targets)
 (set -e; cd tools/surgeist-layout-audits; cargo +stable fmt --check)
@@ -240,7 +243,8 @@ git diff --check
 ```
 
 Dependency: T01. Commit:
-`tooling(audit): detect node projection boundary escapes`.
+`tooling(audit): detect node projection boundary escapes`; correction commit:
+`fix(audit): honor owner-defined macro expressions`.
 
 ### 2.3 `P01/I08/S02/R06A/T03` Audit R06 And Retire The Lexical Script
 
@@ -257,23 +261,31 @@ The first command attempt at `9b88ecafbaaba34d8d0e88d8b7cf30c5e1d5e84b`
 stopped during library discovery before loading the lint or compiling product
 source: the catalog lacked Dylint's required `dylint-link` target configuration,
 so only the ordinary unsuffixed library existed. It produced no semantic audit
-result and T03 was not dispatched. After the corrected T01 range is independently
-CLEAN and its suffixed-library probe passes, the command below performs the one
-semantic audit run required by the specification.
+result and T03 was not dispatched. The corrected T01 range is independently
+CLEAN and its suffixed-library probe passes.
 
 The next command attempt at `a8e73cfefbd99fcf192e64055f81ded2dc1657b2`
 loaded the library but supplied `-D` after Dylint's Cargo-argument separator, so
 Cargo rejected it before invoking rustc or compiling product source. It also
 produced no semantic audit result. Dylint `6.0.3` requires lint-level rustc flags
-through `DYLINT_RUSTFLAGS`; the corrected invocation below owns the first and only
-semantic product audit.
+through `DYLINT_RUSTFLAGS`; the corrected invocation below produced the first
+semantic product audit at lint revision `9b88ecafbaaba34d8d0e88d8b7cf30c5e1d5e84b`.
+It reported exactly the six T02 macro-provenance false positives recorded above,
+so that lint revision is not selected again and T03 remains undispatched.
+
+After the corrected T02 ordered range is independently CLEAN, the coordinator
+runs this command exactly once at that new reviewed lint revision. Zero
+diagnostics permit T03. Another lint false positive returns to a new T02 UI
+correction and re-review without reusing a lint revision; a genuine product
+escape retains the script, stops R06A, and returns to a fresh reviewed R06
+correction and republished candidate.
 
 ```sh
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" DYLINT_RUSTFLAGS='-D p01_i08_s02_r06_t02_node_projection_boundary' cargo dylint --path tools/surgeist-layout-audits
 ```
 
-A semantic diagnostic failure returns to T02; a worker never performs or repeats
-the successful semantic audit, and it does not recur in the final matrix.
+A worker never performs a selected semantic audit. The final zero-diagnostic run
+does not recur in the final matrix.
 
 **Outcome:** consume the coordinator's zero-diagnostic semantic audit evidence
 and delete the superseded lexical script.
@@ -286,8 +298,8 @@ script or standing command is added.
 semantic lint passes and the script exists; after deletion, the default-Allow
 isolated UI suite passes, no standing command references the catalog, and product
 API/behavior/package/artifact evidence is identical to the R06 entry. The
-coordinator's recorded transition result is the cycle's sole selected semantic
-audit and is not repeated.
+coordinator's final zero-diagnostic transition result and the earlier immutable
+false-positive result together are the cycle's selected semantic evidence.
 
 ```sh
 set -e
@@ -311,8 +323,8 @@ immutable R07/R08 handoff. No catalog output, product dependency/API/behavior,
 fixture, generated artifact, browser, generator, acquisition beyond the exact
 authorized stack, or shared skill-reference delta is permitted.
 
-The coordinator's single selected-lint result recorded between T02 and T03 is
-immutable cycle evidence. The final matrix does not repeat that invocation.
+The coordinator's selected-lint results are immutable cycle evidence. The final
+matrix does not repeat any selected invocation.
 
 ```sh
 set -e
