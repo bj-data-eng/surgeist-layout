@@ -1,8 +1,25 @@
 use crate::node_projection::CommonBoxProjection;
 use crate::{
-    AlignContent, AlignItems, Display, GridAutoFlow, GridFlowToleranceOf, GridTemplateAreas,
-    LayoutScalar, LengthOf, NodeInputOf, ScrollbarGutter, ScrollbarWidthOf, Size, TrackComponentOf,
+    AlignContent, AlignItems, ComputedOverflow, Display, GridAutoFlow, GridFlowToleranceOf,
+    GridTemplateAreas, LayoutScalar, LengthOf, NodeInputOf, ScrollbarGutter, ScrollbarWidthOf,
+    Size, TrackComponentOf,
 };
+
+pub(super) trait GridOverflowFacts {
+    fn computed_overflow(&self) -> ComputedOverflow;
+
+    fn item_is_replaced(&self) -> bool;
+}
+
+impl<S: LayoutScalar> GridOverflowFacts for NodeInputOf<S> {
+    fn computed_overflow(&self) -> ComputedOverflow {
+        self.overflow
+    }
+
+    fn item_is_replaced(&self) -> bool {
+        self.item_is_replaced
+    }
+}
 
 /// Grid-container facts settled at the grid algorithm entry.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -46,12 +63,6 @@ impl<'a, S: LayoutScalar> GridContainerProjection<'a, S> {
             scrollbar_gutter: input.scrollbar_gutter,
             scrollbar_width: input.scrollbar_width,
         }
-    }
-}
-
-impl<'a, S: LayoutScalar> From<&'a NodeInputOf<S>> for GridContainerProjection<'a, S> {
-    fn from(input: &'a NodeInputOf<S>) -> Self {
-        Self::from_node(input)
     }
 }
 
