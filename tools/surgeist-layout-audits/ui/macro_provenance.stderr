@@ -1,0 +1,45 @@
+error: complete node input type is used outside a projection-construction owner
+  --> $DIR/macro_provenance.rs:43:39
+   |
+LL |                 fn generated_type(_: &crate::NodeInput) {}
+   |                                       ^^^^^^^^^^^^^^^^
+...
+LL |         super::input::consumer_items!();
+   |         ------------------------------- in this macro invocation
+   |
+note: the lint level is defined here
+  --> $DIR/macro_provenance.rs:3:9
+   |
+LL | #![deny(p01_i08_s02_r06_t02_node_projection_boundary)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = note: this error originates in the macro `super::input::consumer_items` (in Nightly b$DIRlds, run with -Z macro-backtrace for more info)
+
+error: complete node input alias escapes its owner
+  --> $DIR/macro_provenance.rs:45:17
+   |
+LL |                 type GeneratedAlias = crate::NodeInput;
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+LL |         super::input::consumer_items!();
+   |         ------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `super::input::consumer_items` (in Nightly b$DIRlds, run with -Z macro-backtrace for more info)
+
+error: complete node input visibility reexport escapes its owner
+  --> $DIR/macro_provenance.rs:47:17
+   |
+LL |                 pub(super) use crate::NodeInput as GeneratedVisibleInput;
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+LL |         super::input::consumer_items!();
+   |         ------------------------------- in this macro invocation
+   |
+   = note: this error originates in the macro `super::input::consumer_items` (in Nightly b$DIRlds, run with -Z macro-backtrace for more info)
+
+error: complete node input value is used outside a projection-construction owner
+  --> $DIR/macro_provenance.rs:61:54
+   |
+LL |             let _ = super::input::caller_expression!(crate::complete_input());
+   |                                                      ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 4 previous errors

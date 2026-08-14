@@ -77,7 +77,7 @@ impl<'tcx> LateLintPass<'tcx> for P01I08S02R06T02NodeProjectionBoundary {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) {
         if is_test_only(cx, expr.hir_id)
             || !is_audited_tree(cx, expr.hir_id)
-            || is_projection_owner(cx, expr.hir_id)
+            || is_projection_owner_expression(cx, expr)
         {
             return;
         }
@@ -221,8 +221,23 @@ fn is_audited_tree(cx: &LateContext<'_>, hir_id: HirId) -> bool {
 }
 
 fn is_projection_owner(cx: &LateContext<'_>, hir_id: HirId) -> bool {
-    let names = module_names(cx, hir_id);
-    path_eq(&names, &["node_projection"]) || INPUT_OWNERS.iter().any(|owner| path_eq(&names, owner))
+    is_projection_owner_module(&module_names(cx, hir_id))
+}
+
+fn is_projection_owner_expression(cx: &LateContext<'_>, expr: &Expr<'_>) -> bool {
+    if is_projection_owner(cx, expr.hir_id) {
+        return true;
+    }
+
+    let expansion = expr.span.ctxt().outer_expn_data();
+    expansion.macro_def_id.is_some()
+        && expansion.parent_module.is_some_and(|module_id| {
+            is_projection_owner_module(&definition_module_names(cx, module_id))
+        })
+}
+
+fn is_projection_owner_module(names: &[Symbol]) -> bool {
+    path_eq(names, &["node_projection"]) || INPUT_OWNERS.iter().any(|owner| path_eq(names, owner))
 }
 
 fn module_names(cx: &LateContext<'_>, hir_id: HirId) -> Vec<Symbol> {

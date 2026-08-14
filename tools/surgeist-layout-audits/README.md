@@ -48,4 +48,6 @@ The UI fixtures are compiler-behavior evidence for the lint itself. They cover
 the six allowed owners, both aggregate families, aliases and visibility
 reexports, direct and nested descendants, direct/UFCS/extracted method uses,
 ordinary strings and comments, excluded test-only code, exact diagnostics, and
-the default-`Allow` behavior.
+the default-`Allow` behavior. Macro-provenance coverage accepts expressions
+defined by a macro in an allowed owner while retaining consumer diagnostics for
+caller-supplied aggregate expressions and macro-generated type and item escapes.
