@@ -162,8 +162,15 @@ script deletion requires reconciliation.
 
 **Coordinator transition:** after T02 is independently CLEAN and before T03 is
 dispatched, the coordinator runs the explicitly selected lint against the
-unchanged R06 product source and records zero diagnostics. A failure returns to
-T02; a worker never performs this selected-lint invocation.
+unchanged R06 product source and records zero diagnostics with this exact sole
+selected invocation:
+
+```sh
+CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo dylint --path tools/surgeist-layout-audits -- -D p01_i08_s02_r06_t02_node_projection_boundary
+```
+
+A failure returns to T02; a worker never performs or repeats this selected-lint
+invocation, and it does not recur in the final matrix.
 
 **Outcome:** consume the coordinator's zero-diagnostic semantic audit evidence
 and delete the superseded lexical script.
