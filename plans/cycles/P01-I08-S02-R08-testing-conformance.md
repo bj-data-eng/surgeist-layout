@@ -218,6 +218,9 @@ task_paths="$(git diff --name-only "$task_base..$task_head" | LC_ALL=C sort -u)"
 test -n "$task_paths"
 test -z "$(printf '%s\n' "$task_paths" | rg -v "$allowed")"
 git diff --check "$task_base..$task_head"
+base_suppressions="$(while IFS= read -r p; do git show "$task_base:$p" | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) {$m=$&;$m=~s/\s+/ /g;print "$m\n"}'; done < <(git ls-tree -r --name-only "$task_base" | rg '\.rs$') | LC_ALL=C sort)"
+current_suppressions="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) {$m=$&;$m=~s/\s+/ /g;print "$m\n"}' | LC_ALL=C sort)"
+test -z "$(comm -13 <(printf '%s\n' "$base_suppressions") <(printf '%s\n' "$current_suppressions"))"
 ```
 
 Production-prefix hashes remain exact for construction
@@ -259,6 +262,10 @@ test -z "$(rg -n --glob '*.rs' 'plans/|CYCLE_BASE|byte_frozen|current_output|arc
 test -z "$(rg -n --glob '*.rs' 'git show|entry-only|final-lineage evidence|reviewed .* census|published digest' src tests || true)"
 test "$(rg -n --glob '*.rs' '#\[ignore\b' src tests | wc -l | tr -d ' ')" = 1
 rg -n --glob '*.rs' '#\[ignore\b' src tests | rg 'runs_all_checked_in_browser_parity_xml|browser_parity.rs'
+task_base=97a93e935a42a62d931192697abbafe382054806
+base_suppressions="$(while IFS= read -r p; do git show "$task_base:$p" | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) {$m=$&;$m=~s/\s+/ /g;print "$m\n"}'; done < <(git ls-tree -r --name-only "$task_base" | rg '\.rs$') | LC_ALL=C sort)"
+current_suppressions="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) {$m=$&;$m=~s/\s+/ /g;print "$m\n"}' | LC_ALL=C sort)"
+test -z "$(comm -13 <(printf '%s\n' "$base_suppressions") <(printf '%s\n' "$current_suppressions"))"
 ```
 
 Review adjudicates product-import Git operations and prose; scans are not the
