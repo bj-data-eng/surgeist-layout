@@ -8,7 +8,7 @@ use crate::layout_math::{MaxBeforeMinScalarClampExt, OptionalSizeExt};
 use crate::sizing::resolve::SizeResultExt;
 use crate::{
     AlignItems, AvailableOf, Compute, ComputeInputOf, ContainingLayoutContext, LayoutResultOf,
-    LayoutScalar, NodeInputOf, ParentFormattingContext, RunMode, Size, SizingMode, Traverse,
+    LayoutScalar, ParentFormattingContext, RunMode, Size, SizingMode, Traverse,
 };
 
 pub(super) fn intrinsic_content_main_size<Node, S: LayoutScalar>(
@@ -57,7 +57,6 @@ pub(super) fn resolved_layout_constants<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-    style: &NodeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     items: &mut [CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>],
     lines: &[FlexLine<Tree::Scalar>],
@@ -76,8 +75,8 @@ where
             .cross_size(original_inner_size)
             .and(constants.axes.cross_size(constants.node_inner_size)),
     );
-    constants.gap = style
-        .gap
+    constants.gap = constants
+        .gap_input
         .zip_map(gap_basis, |length, basis| {
             resolve_length_or_zero(length, basis)
         })

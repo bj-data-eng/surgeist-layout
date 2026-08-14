@@ -661,7 +661,7 @@ impl<Node, S: LayoutScalar> ResolvedFlexItem<Node, S> {
 #[cfg(test)]
 mod final_baseline_selection_tests {
     use super::*;
-    use crate::{AvailableOf, FlexDirection, FlexWrap, NodeInputOf};
+    use crate::{AvailableOf, FlexDirection, FlexWrap, LengthOf, NodeInputOf};
 
     fn default_flow_axes<S: LayoutScalar>() -> FlowAxes {
         let style = NodeInputOf::<S>::default();
@@ -708,6 +708,7 @@ mod final_baseline_selection_tests {
             content_box_inset: Edges::ZERO,
             settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
             gap: Size::ZERO,
+            gap_input: Size::splat(LengthOf::ZERO),
             align_items: AlignItems::Stretch,
             authored_align_content: None,
             align_content: AlignContent::Stretch,

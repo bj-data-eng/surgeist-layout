@@ -2,8 +2,7 @@ use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
     ComputeInputOf, ComputeOutputOf, ContainingLayoutContext, Direction, Edges, FlexDirection,
     FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionStatus,
-    NodeInputOf, ParentFormattingContext, Point, RequestedAxis, RunMode, Size, SizingMode,
-    Traverse,
+    ParentFormattingContext, Point, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
 use crate::error::{SizingAlgorithm, layout_own_geometry_error};
 use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, PhysicalSide};
@@ -24,6 +23,7 @@ use crate::sizing::resolve::{
 mod absolute;
 mod alignment;
 mod flexible_lengths;
+mod input;
 mod intrinsic;
 mod items;
 mod lines;
@@ -37,6 +37,7 @@ use alignment::{
     stretch_lines_on_cross_axis,
 };
 use flexible_lengths::resolve_flexible_lengths;
+use input::FlexContainerProjection;
 use intrinsic::{
     intrinsic_content_main_size, resolved_cross_layout_constants, resolved_layout_constants,
 };
@@ -89,8 +90,12 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    let style = tree.node_input(node).clone();
-    let constants = Constants::new::<Tree, M>(tree, node, &style, input)?;
+    let constants =
+        self::input::with_flex_container_projection::<Tree, M, _>(tree, node, |style| {
+            self::input::with_flex_scroll_projections::<Tree, M, _>(tree, node, |scroll_box, _| {
+                Constants::new::<Tree, M>(tree, node, &style, scroll_box, input)
+            })
+        })?;
     if input.run_mode() == RunMode::ComputeSize
         && let Size {
             width: Some(width),
@@ -114,7 +119,6 @@ where
             tree,
             node,
             input,
-            &style,
             &constants,
             collected_items.clone(),
             first_lines,
@@ -127,15 +131,7 @@ where
         );
         let (second_items, second_lines) =
             struts.prepare_second_round(&collected_items, &second_collection_lines);
-        resolve_flex_round(
-            tree,
-            node,
-            input,
-            &style,
-            &constants,
-            second_items,
-            second_lines,
-        )?
+        resolve_flex_round(tree, node, input, &constants, second_items, second_lines)?
     } else {
         let lines = collect_flex_lines(
             &collected_items,
@@ -146,22 +142,25 @@ where
             tree,
             node,
             input,
-            &style,
             &constants,
             collected_items.clone(),
             lines,
         )?
     };
     let container_sizes = container_sizes(input, &layout_constants, &resolved_items, &lines);
-    let scroll_box_projection = crate::scroll::ScrollBoxProjection::from_node(&style);
-    let scroll_target_projection = crate::scroll::ScrollTargetProjection::from_node(&style);
     let final_scroll_box = if input.run_mode().is_perform_layout() {
-        Some(flex_container_scroll_box::<_, S, M>(
+        Some(self::input::with_flex_scroll_projections::<Tree, M, _>(
+            tree,
             node,
-            input.run_mode(),
-            scroll_box_projection,
-            &layout_constants,
-            container_sizes.output,
+            |scroll_box, _| {
+                flex_container_scroll_box::<_, S, M>(
+                    node,
+                    input.run_mode(),
+                    scroll_box,
+                    &layout_constants,
+                    container_sizes.output,
+                )
+            },
         )?)
     } else {
         None
@@ -208,14 +207,20 @@ where
         )
         .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
         contributions.exclude_reserved_gutter_from_range();
-        let scroll_geometry = flex_container_scroll_geometry::<_, S, M>(
+        let scroll_geometry = self::input::with_flex_scroll_projections::<Tree, M, _>(
+            tree,
             node,
-            input.run_mode(),
-            scroll_box_projection,
-            scroll_target_projection,
-            &layout_constants,
-            scroll_box,
-            contributions,
+            |scroll_box_projection, scroll_target_projection| {
+                flex_container_scroll_geometry::<_, S, M>(
+                    node,
+                    input.run_mode(),
+                    scroll_box_projection,
+                    scroll_target_projection,
+                    &layout_constants,
+                    scroll_box,
+                    contributions,
+                )
+            },
         )?;
         let content_size = contributions
             .content_size_from_anchor(scroll_geometry.content_box().origin())
@@ -248,7 +253,6 @@ fn resolve_flex_round<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-    style: &NodeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     mut collected_items: Vec<CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>>,
     mut lines: Vec<FlexLine<Tree::Scalar>>,
@@ -256,15 +260,8 @@ fn resolve_flex_round<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let mut layout_constants = resolved_layout_constants(
-        tree,
-        node,
-        input,
-        style,
-        constants,
-        &mut collected_items,
-        &lines,
-    )?;
+    let mut layout_constants =
+        resolved_layout_constants(tree, node, input, constants, &mut collected_items, &lines)?;
     let mut resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
     let cross_layout_constants = resolved_cross_layout_constants(&layout_constants, &lines);
     if cross_layout_constants.node_inner_size != layout_constants.node_inner_size {
@@ -293,6 +290,7 @@ struct Constants<S: LayoutScalar> {
     content_box_inset: Edges<S>,
     settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState,
     gap: Size<S>,
+    gap_input: Size<LengthOf<S>>,
     align_items: AlignItems,
     authored_align_content: Option<AlignContent>,
     align_content: AlignContent,
@@ -307,24 +305,25 @@ impl<S: LayoutScalar> Constants<S> {
     fn new<Tree, M>(
         tree: &Tree,
         node: <Tree as Traverse>::Node,
-        style: &NodeInputOf<S>,
+        style: &FlexContainerProjection<'_, S>,
+        scroll_box_projection: crate::scroll::ScrollBoxProjection<'_, S>,
         input: ComputeInputOf<S>,
     ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
     where
         Tree: Compute<M, Scalar = S>,
     {
-        let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+        let flow_axes = style.common.flow_axes;
         let axes = FlexAxes::new(flow_axes, style.flex_direction, style.flex_wrap);
         let (padding, border) = resolve_containing_padding_border(
             input.containing_flow_axes(),
             input.parent(),
-            style.padding,
-            style.border,
+            *style.common.padding,
+            *style.common.border,
             resolve_length_or_zero,
             |edges| edges.transpose_with_node(tree, node),
         )?;
         let padding_border = (padding + border).sum_axes();
-        let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
+        let box_sizing_adjustment = if style.common.box_sizing == BoxSizing::ContentBox {
             padding_border
         } else {
             Size::<S>::ZERO
@@ -335,14 +334,14 @@ impl<S: LayoutScalar> Constants<S> {
             SizingMode::InherentSize => {
                 let style_size = Size::new(
                     resolve_preferred_optional(
-                        &style.size.width,
+                        &style.common.size.width,
                         SizingAlgorithm::Flex,
                         PhysicalAxis::Horizontal,
                         input.parent().width,
                         true,
                     ),
                     resolve_preferred_optional(
-                        &style.size.height,
+                        &style.common.size.height,
                         SizingAlgorithm::Flex,
                         PhysicalAxis::Vertical,
                         input.parent().height,
@@ -350,18 +349,18 @@ impl<S: LayoutScalar> Constants<S> {
                     ),
                 )
                 .transpose_with_node(tree, node)?
-                .apply_aspect_ratio(style.aspect_ratio)
+                .apply_aspect_ratio(*style.common.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
                 let min_size = Size::new(
                     resolve_minimum_optional(
-                        &style.min_size.width,
+                        &style.common.min_size.width,
                         SizingAlgorithm::Flex,
                         PhysicalAxis::Horizontal,
                         input.parent().width,
                         true,
                     ),
                     resolve_minimum_optional(
-                        &style.min_size.height,
+                        &style.common.min_size.height,
                         SizingAlgorithm::Flex,
                         PhysicalAxis::Vertical,
                         input.parent().height,
@@ -369,18 +368,18 @@ impl<S: LayoutScalar> Constants<S> {
                     ),
                 )
                 .transpose_with_node(tree, node)?
-                .apply_aspect_ratio(style.aspect_ratio)
+                .apply_aspect_ratio(*style.common.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
                 let max_size = Size::new(
                     resolve_maximum_optional(
-                        &style.max_size.width,
+                        &style.common.max_size.width,
                         SizingAlgorithm::Flex,
                         PhysicalAxis::Horizontal,
                         input.parent().width,
                         true,
                     ),
                     resolve_maximum_optional(
-                        &style.max_size.height,
+                        &style.common.max_size.height,
                         SizingAlgorithm::Flex,
                         PhysicalAxis::Vertical,
                         input.parent().height,
@@ -388,7 +387,7 @@ impl<S: LayoutScalar> Constants<S> {
                     ),
                 )
                 .transpose_with_node(tree, node)?
-                .apply_aspect_ratio(style.aspect_ratio)
+                .apply_aspect_ratio(*style.common.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
                 (style_size, min_size, max_size)
             }
@@ -402,25 +401,25 @@ impl<S: LayoutScalar> Constants<S> {
             .or(min_max_definite_size
                 .or(style_size.clamp_max_before_min_optional(min_size, max_size)))
             .max_optional(padding_border.map(Some));
-        let unconstrained_scroll_box_size =
-            padding_border + Size::splat(style.scrollbar_width.get() + style.scrollbar_width.get());
+        let mut scroll_box_source = CanonicalScrollBoxSourceOf::from_projection(
+            scroll_box_projection,
+            Size::ZERO,
+            border,
+            padding,
+            input.settled_auto_scrollbars(),
+        );
+        let unconstrained_scroll_box_size = padding_border
+            + Size::splat(
+                scroll_box_source.scrollbar_width.get() + scroll_box_source.scrollbar_width.get(),
+            );
         let scroll_box_size = node_outer_size
             .or(input.available().map(AvailableOf::into_option))
             .or(max_size)
             .unwrap_or(unconstrained_scroll_box_size)
             .zip_map(padding_border, |size, minimum| size.max(minimum));
-        let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
-            flow_axes,
-            computed_overflow: style.overflow,
-            item_is_replaced: style.item_is_replaced,
-            border_box_size: scroll_box_size,
-            border,
-            padding,
-            scrollbar_gutter: style.scrollbar_gutter,
-            scrollbar_width: style.scrollbar_width,
-            settled_auto_scrollbars: input.settled_auto_scrollbars(),
-        })
-        .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
+        scroll_box_source.border_box_size = scroll_box_size;
+        let scroll_box = canonical_scroll_box_from_source(scroll_box_source)
+            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
         let scrollport_inset = scroll_box.effective_border() + scroll_box.effective_gutter();
         let non_gutter_box_inset = scroll_box.effective_border() + scroll_box.effective_padding();
         let content_box_inset = scroll_box.content_box_inset();
@@ -454,6 +453,7 @@ impl<S: LayoutScalar> Constants<S> {
             content_box_inset,
             settled_auto_scrollbars: input.settled_auto_scrollbars(),
             gap,
+            gap_input: *style.gap,
             align_items: style.align_items.unwrap_or(AlignItems::Stretch),
             authored_align_content: style.align_content,
             align_content: style.align_content.unwrap_or(AlignContent::Stretch),
@@ -1316,7 +1316,7 @@ mod fri06_c13_t06_characterization_tests {
     use super::*;
     use crate::{
         LayoutErrorKindOf, LayoutErrorSiteOf, LayoutInvalidInputOf, LayoutOperation,
-        LengthPercentageOf, ParentFormattingContext, RequestedAxis, WritingMode,
+        LengthPercentageOf, NodeInputOf, ParentFormattingContext, RequestedAxis, WritingMode,
     };
 
     fn input<S: LayoutScalar>(
@@ -1403,12 +1403,25 @@ mod fri06_c13_t06_characterization_tests {
                 Edges::ZERO,
             ),
         ] {
-            let constants = Constants::new::<_, core::convert::Infallible>(
-                &tree,
-                7,
-                &style,
-                input(flow, parent),
-            )
+            let constants = super::input::with_flex_container_projection::<
+                _,
+                core::convert::Infallible,
+                _,
+            >(&tree, 7, |projection| {
+                super::input::with_flex_scroll_projections::<_, core::convert::Infallible, _>(
+                    &tree,
+                    7,
+                    |scroll_box, _| {
+                        Constants::new::<_, core::convert::Infallible>(
+                            &tree,
+                            7,
+                            &projection,
+                            scroll_box,
+                            input(flow, parent),
+                        )
+                    },
+                )
+            })
             .expect("flex constants edge characterization must resolve");
             assert_eq!(constants.padding, expected_padding);
             assert_eq!(constants.border, expected_border);
@@ -1440,15 +1453,29 @@ mod fri06_c13_t06_characterization_tests {
         };
         let failing_tree =
             crate::test_support::layout_tree::OracleTreeOf::new().style(7, failing_style.clone());
-        let error = match Constants::new::<_, core::convert::Infallible>(
+        let result = super::input::with_flex_container_projection::<_, core::convert::Infallible, _>(
             &failing_tree,
             7,
-            &failing_style,
-            input(
-                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                Size::splat(Some(largest)),
-            ),
-        ) {
+            |projection| {
+                super::input::with_flex_scroll_projections::<_, core::convert::Infallible, _>(
+                    &failing_tree,
+                    7,
+                    |scroll_box, _| {
+                        Constants::new::<_, core::convert::Infallible>(
+                            &failing_tree,
+                            7,
+                            &projection,
+                            scroll_box,
+                            input(
+                                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                                Size::splat(Some(largest)),
+                            ),
+                        )
+                    },
+                )
+            },
+        );
+        let error = match result {
             Ok(_) => panic!("padding failure must precede the distinct border failure"),
             Err(error) => error,
         };
