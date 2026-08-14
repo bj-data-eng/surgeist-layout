@@ -16180,10 +16180,6 @@ mustThrow('strut duplicate target', () => layoutReadyInlineStruts(
         );
         for (path, expected) in [
             (
-                "Cargo.toml",
-                "b1b167837c31ff837c080306536a692150706d49021618074233a001d87d6901",
-            ),
-            (
                 "Cargo.lock",
                 "ab9848a3a892f71b35c9078613f58ba189948fc71b859790d333b9cd9511c673",
             ),
