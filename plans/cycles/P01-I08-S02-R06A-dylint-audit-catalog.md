@@ -122,6 +122,23 @@ test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-
 test ! -e "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
 ```
 
+The correction uses only installed inventory and the following offline probes;
+it does not rerun acquisition or lockfile generation:
+
+```sh
+set -e
+test "$(cargo dylint --version)" = 'cargo-dylint 6.0.3'
+cargo install --list | perl -0ne 'exit !(/^cargo-dylint v6\.0\.3:\n    cargo-dylint$/m && /^dylint-link v6\.0\.3:\n    dylint-link$/m)'
+rg -q '^\[target\.aarch64-apple-darwin\]$' tools/surgeist-layout-audits/.cargo/config.toml
+rg -q '^linker = "dylint-link"$' tools/surgeist-layout-audits/.cargo/config.toml
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin" cargo +nightly-2026-05-28 build --release --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
+test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
+git diff --exit-code bfd76dab2c52df5ec009f52595fba9ce6e5ac6e2 -- tools/surgeist-layout-audits/Cargo.toml tools/surgeist-layout-audits/Cargo.lock tools/surgeist-layout-audits/rust-toolchain.toml
+cargo fmt --manifest-path tools/surgeist-layout-audits/Cargo.toml --check
+git diff --check
+test "$(git diff --name-only HEAD^..HEAD)" = 'tools/surgeist-layout-audits/.cargo/config.toml'
+```
+
 ```sh
 set -e
 test "$(cargo dylint --version)" = 'cargo-dylint 6.0.3'
@@ -141,12 +158,13 @@ rg -q '^components = \["rustc-dev", "llvm-tools-preview"\]$' tools/surgeist-layo
 rg -q '^profile = "minimal"$' tools/surgeist-layout-audits/rust-toolchain.toml
 rg -q '^\[target\.aarch64-apple-darwin\]$' tools/surgeist-layout-audits/.cargo/config.toml
 rg -q '^linker = "dylint-link"$' tools/surgeist-layout-audits/.cargo/config.toml
-cargo +nightly-2026-05-28 generate-lockfile --manifest-path tools/surgeist-layout-audits/Cargo.toml
+CARGO_NET_OFFLINE=true cargo +nightly-2026-05-28 generate-lockfile --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
 test -f tools/surgeist-layout-audits/Cargo.lock
 perl -0777 -ne 'exit !(/\[\[package\]\]\nname = "dylint_linting"\nversion = "6\.0\.3"\nsource = "registry\+https:\/\/github\.com\/rust-lang\/crates\.io-index"/s && /\[\[package\]\]\nname = "dylint_testing"\nversion = "6\.0\.3"\nsource = "registry\+https:\/\/github\.com\/rust-lang\/crates\.io-index"/s)' tools/surgeist-layout-audits/Cargo.lock
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 check --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 check --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin" cargo +nightly-2026-05-28 build --release --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
 test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
+git diff --exit-code bfd76dab2c52df5ec009f52595fba9ce6e5ac6e2 -- tools/surgeist-layout-audits/Cargo.toml tools/surgeist-layout-audits/Cargo.lock tools/surgeist-layout-audits/rust-toolchain.toml
 test ! -e tools/surgeist-layout-audits/target
 package_files="$(CARGO_NET_OFFLINE=true cargo package --locked --offline --allow-dirty --list)"; test -z "$(printf '%s\n' "$package_files" | rg '^tools/surgeist-layout-audits/' || true)"
 rg -q '^exclude = \["tools/surgeist-layout-audits/\*\*"\]$' Cargo.toml
