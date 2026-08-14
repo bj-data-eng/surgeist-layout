@@ -170,7 +170,9 @@ Dependency: T01. Commit: `refactor(input): add common and scroll projections`.
 **Area:** new `src/block/input.rs`, `src/block/{mod,in_flow,inline_run,floats,
 absolute,sizing,scroll}.rs`, replace `src/inline.rs` with
 `src/inline/{mod,input}.rs`, focused block/inline tests, and exact production
-inventory additions only.
+inventory additions only. `src/contract_tests.rs` may change only its two
+existing `include_str!("inline.rs")` owner paths to `inline/mod.rs`; test bodies,
+assertions, and source-proxy semantics remain byte-identical otherwise.
 
 **Outcome:** block owns `BlockContainerProjection` and `BlockChildProjection`;
 inline owns `InlineParticipantProjection`. Entry/child lookup constructs them
