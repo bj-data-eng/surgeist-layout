@@ -63,8 +63,8 @@ public API, behavior, fixtures, and generated artifacts remain unchanged.
 
 The catalog lint is `Allow` by default. Only an explicit coordinator or
 reviewer invocation may select it with `-D`; workers run only default-Allow
-catalog build, test, Clippy, and formatting commands. It is not added to `just`, CI,
-ordinary Cargo/Clippy commands, publication gates, or product tests. The lint
+catalog build, test, strict compiler, and formatting commands. It is not added to
+`just`, CI, ordinary Cargo/Clippy commands, publication gates, or product tests. The lint
 records a historical planning question; a later intentional architecture
 change may reinterpret or retire it.
 
