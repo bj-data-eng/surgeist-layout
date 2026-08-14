@@ -338,7 +338,16 @@ fn fri06_c01_contract_float_exclusion_public_aliases_and_operations_are_exact() 
 
 #[test]
 fn fri06_c05_contract_float_exclusion_surface_is_opaque_cache_neutral_and_active() {
-    let node_input = include_str!("node_input.rs");
+    let node_input = [
+        include_str!("node_input/mod.rs"),
+        include_str!("node_input/box_model.rs"),
+        include_str!("node_input/scroll.rs"),
+        include_str!("node_input/inline.rs"),
+        include_str!("node_input/alignment.rs"),
+        include_str!("node_input/flex.rs"),
+        include_str!("node_input/grid.rs"),
+    ]
+    .join("\n");
     let traits = format!(
         "{}\n{}",
         include_str!("tree.rs"),
@@ -419,7 +428,16 @@ fn fri06_c05_contract_float_exclusion_surface_is_opaque_cache_neutral_and_active
 
 #[test]
 fn fri06_c01_contract_aggregate_public_surface_covers_every_cycle_break_and_addition() {
-    let node_input = include_str!("node_input.rs");
+    let node_input = [
+        include_str!("node_input/mod.rs"),
+        include_str!("node_input/box_model.rs"),
+        include_str!("node_input/scroll.rs"),
+        include_str!("node_input/inline.rs"),
+        include_str!("node_input/alignment.rs"),
+        include_str!("node_input/flex.rs"),
+        include_str!("node_input/grid.rs"),
+    ]
+    .join("\n");
     let output = include_str!("output.rs");
     let traits = format!(
         "{}\n{}",
@@ -520,7 +538,16 @@ fn fri06_c01_contract_aggregate_public_surface_covers_every_cycle_break_and_addi
 
 #[test]
 fn fri05_c01_node_input_removed_phase_unsafe_surfaces_are_absent_from_public_sources() {
-    let node_input = include_str!("node_input.rs");
+    let node_input = [
+        include_str!("node_input/mod.rs"),
+        include_str!("node_input/box_model.rs"),
+        include_str!("node_input/scroll.rs"),
+        include_str!("node_input/inline.rs"),
+        include_str!("node_input/alignment.rs"),
+        include_str!("node_input/flex.rs"),
+        include_str!("node_input/grid.rs"),
+    ]
+    .join("\n");
     let scroll = [
         include_str!("scroll/mod.rs"),
         include_str!("scroll/rounding.rs"),
@@ -2420,7 +2447,25 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         ("src/layout_math.rs", include_str!("layout_math.rs")),
         ("src/lib.rs", include_str!("lib.rs")),
         ("src/measurement.rs", include_str!("measurement.rs")),
-        ("src/node_input.rs", include_str!("node_input.rs")),
+        (
+            "src/node_input/alignment.rs",
+            include_str!("node_input/alignment.rs"),
+        ),
+        (
+            "src/node_input/box_model.rs",
+            include_str!("node_input/box_model.rs"),
+        ),
+        ("src/node_input/flex.rs", include_str!("node_input/flex.rs")),
+        ("src/node_input/grid.rs", include_str!("node_input/grid.rs")),
+        (
+            "src/node_input/inline.rs",
+            include_str!("node_input/inline.rs"),
+        ),
+        ("src/node_input/mod.rs", include_str!("node_input/mod.rs")),
+        (
+            "src/node_input/scroll.rs",
+            include_str!("node_input/scroll.rs"),
+        ),
         ("src/output.rs", include_str!("output.rs")),
         ("src/scalar.rs", include_str!("scalar.rs")),
         (
@@ -3580,7 +3625,16 @@ fn fri05_c07_public_surface_default_and_f64_input_error_output_contracts_compose
 
 #[test]
 fn fri05_c07_public_surface_removed_phase_unsafe_contracts_fail_closed() {
-    let node_input = include_str!("node_input.rs");
+    let node_input = [
+        include_str!("node_input/mod.rs"),
+        include_str!("node_input/box_model.rs"),
+        include_str!("node_input/scroll.rs"),
+        include_str!("node_input/inline.rs"),
+        include_str!("node_input/alignment.rs"),
+        include_str!("node_input/flex.rs"),
+        include_str!("node_input/grid.rs"),
+    ]
+    .join("\n");
     let output = include_str!("output.rs");
     let scroll_facade = include_str!("scroll/mod.rs");
     let scroll_rounding = include_str!("scroll/rounding.rs");
