@@ -177,9 +177,12 @@ is the valid T02 RED.
 One-time authorized driver bootstrap:
 
 ```sh
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml node_projection_boundary_ui
 driver_root="${DYLINT_DRIVER_PATH:-${HOME}/.dylint_drivers}"
-test -x "$driver_root/nightly-2026-05-28-aarch64-apple-darwin/dylint-driver"
+driver_path="$driver_root/nightly-2026-05-28-aarch64-apple-darwin/dylint-driver"
+test ! -e "$driver_path"
+CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml node_projection_boundary_ui
+test -x "$driver_path"
+test "$("$driver_path" -V | awk '{print $NF}')" = '6.0.3'
 git diff --exit-code bfd76dab2c52df5ec009f52595fba9ce6e5ac6e2 -- tools/surgeist-layout-audits/Cargo.toml tools/surgeist-layout-audits/Cargo.lock tools/surgeist-layout-audits/rust-toolchain.toml
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml node_projection_boundary_ui
 ```
@@ -259,6 +262,7 @@ test "$(cargo dylint --version)" = 'cargo-dylint 6.0.3'
 cargo install --list | perl -0ne 'exit !(/^cargo-dylint v6\.0\.3:\n    cargo-dylint$/m && /^dylint-link v6\.0\.3:\n    dylint-link$/m)'
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^rustc-dev-'
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^llvm-tools-'
+driver_root="${DYLINT_DRIVER_PATH:-${HOME}/.dylint_drivers}"; driver_path="$driver_root/nightly-2026-05-28-aarch64-apple-darwin/dylint-driver"; test -x "$driver_path"; test "$("$driver_path" -V | awk '{print $NF}')" = '6.0.3'
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 clippy --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets -- -F unsafe-code -D warnings
 test ! -e tools/surgeist-layout-audits/target
