@@ -72,11 +72,12 @@ and nested block comments, ordinary/byte/raw strings, chars, and every balanced
 item gated by exact `cfg(test)` before inspecting production tokens. Its
 mandatory `--self-test` covers nested delimiters in literals/comments plus
 test-gated `use`, function, and module items, and proves an adjacent production
-violation remains visible. In each selected production token stream it rejects
+violation plus an extracted UFCS lookup binding followed by invocation remain
+visible. In each selected production token stream it rejects
 every qualified or unqualified `NodeInput`/`NodeInputOf` token, every
-`LayoutInput`/`LayoutInputOf` token, and every call-form `node_input(` token;
+`LayoutInput`/`LayoutInputOf` token, and every `node_input` identifier;
 this covers dot, associated-function, UFCS, borrowed binding, direct field,
-default-scalar, variant extraction, and local alias spellings. Input owners are
+method-item extraction, default-scalar, variant extraction, and local alias spellings. Input owners are
 separately rejected if they type-alias or reexport either complete aggregate;
 they may only consume it to construct projections. `grid-container` is the
 intentionally narrow pre-item stage; T06 explicitly owns `grid/mod.rs`, lanes,
