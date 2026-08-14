@@ -1226,20 +1226,22 @@ reviewer explicitly selects a named lint for one audit run at one independently
 reviewed lint revision and decides the meaning of its diagnostics against the
 current plan and source. A diagnostic that proves a lint defect rather than a
 product finding returns to the lint task for a focused UI regression, correction,
-and independent re-review; the coordinator may then select the corrected revision
-for one final audit run. No revision is selected twice, and only a zero-diagnostic
-run at the final reviewed revision permits deletion of a superseded audit. No
-catalog lint is added to
-ordinary Cargo tasks, `just verify`, Clippy, CI, publication, or a standing cycle
-gate. Retained lint names begin with the normalized planning path that originated
-the question, and their documentation records the exact plan path/revision, audit
+and independent re-review; the coordinator then selects that corrected revision
+for exactly one final audit run. A genuine product diagnostic instead retains the
+superseded audit, stops R06A, and returns the projection boundary to a fresh
+reviewed R06 correction before R06A can resume from a republished candidate. No
+lint revision is selected twice, and only a zero-diagnostic run at the final
+reviewed revision permits deletion of a superseded audit. No catalog lint is added
+to ordinary Cargo tasks, `just verify`, Clippy, CI, publication, or a standing
+cycle gate. Retained lint names begin with the normalized planning path that
+originated the question, and their documentation records the exact plan path/revision, audit
 question, original scope, interpretation after later architecture changes, and any
 superseded script or source-proxy test.
 
 From the repository root, the one-lint selection contract is:
 
 ```sh
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" \
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" \
   DYLINT_RUSTFLAGS='-D p01_i08_s02_r06_t02_node_projection_boundary' \
   cargo dylint --path tools/surgeist-layout-audits
 ```
@@ -1269,12 +1271,18 @@ the public aggregate identities `NodeInput`, `NodeInputOf`, `LayoutInput`, and
 identity is `LayoutTree::node_input`. The construction owners may borrow
 the aggregates only to create their role projection; in every owner the lint still
 reports a type alias or visibility reexport whose resolved target is a protected
-aggregate. An expression whose compiler span proves that its tokens were defined
-by a macro in one of those owners is owner construction even when that macro is
-expanded in a consumer; caller-supplied macro arguments retain caller ownership
-and remain subject to the consumer rule. Scope follows compiler module and macro
-definition identity, so a newly compiled descendant is covered automatically and
-no consumer filename or line allowlist exists.
+aggregate. For expression inspection only, an expression whose compiler span
+proves that its tokens were defined by a macro in one of those owners is owner
+construction even when that macro is expanded in a consumer. Caller-supplied
+expression tokens retain caller ownership and remain subject to the consumer rule.
+Protected type uses, type aliases, and visibility reexports expanded into a
+consumer remain consumer violations regardless of the defining macro; aliases and
+visibility reexports remain violations even in a construction owner. UI fixtures
+prove the allowed owner-defined expression expansion, the rejected caller-supplied
+aggregate expression, and the rejected macro-generated consumer type and item
+forms. Scope follows compiler module and macro definition identity, so a newly
+compiled descendant is covered automatically and no consumer filename or line
+allowlist exists.
 
 Later remediation work may add another planning-path-named lint only when a real
 audit question benefits from compiler semantics. R08 classifies the underlying
