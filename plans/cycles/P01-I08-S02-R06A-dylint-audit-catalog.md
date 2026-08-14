@@ -163,8 +163,8 @@ families. Product tests do not inspect source.
 **RED/acceptance:** add the smallest UI fixtures first and prove the absent lint
 or missing diagnostic is RED. The final selected UI suite passes with exact
 diagnostics, the lint remains `Allow` when not explicitly selected, catalog
-format/Clippy checks pass on the pinned nightly, and authored catalog Rust has no
-unsafe match.
+format and strict compiler checks pass with already-installed tooling, and
+authored catalog Rust has no unsafe match.
 
 The first UI attempt established only a setup failure because the authorized
 toolchain driver was absent; it is not RED evidence. Before resuming test-first
@@ -190,8 +190,8 @@ CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +night
 ```sh
 set -e
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 clippy --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets -- -F unsafe-code -D warnings
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 fmt --manifest-path tools/surgeist-layout-audits/Cargo.toml --check
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets
+cargo fmt --manifest-path tools/surgeist-layout-audits/Cargo.toml --check
 test ! -e tools/surgeist-layout-audits/target
 git diff --check
 ```
@@ -264,7 +264,8 @@ rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^rustc
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^llvm-tools-'
 driver_root="${DYLINT_DRIVER_PATH:-${HOME}/.dylint_drivers}"; driver_path="$driver_root/nightly-2026-05-28-aarch64-apple-darwin/dylint-driver"; test -x "$driver_path"; test "$("$driver_path" -V | awk '{print $NF}')" = '6.0.3'
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 clippy --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets -- -F unsafe-code -D warnings
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets
+cargo fmt --manifest-path tools/surgeist-layout-audits/Cargo.toml --check
 test ! -e tools/surgeist-layout-audits/target
 test ! -e scripts/audit-node-projection-boundaries.sh
 CARGO_NET_OFFLINE=true just verify
