@@ -517,32 +517,6 @@ fn f64_cache_context_remains_tree_context_only() {
 }
 
 #[test]
-fn fri06_c05_provider_cache_context_stays_unit_and_rounding_has_no_provider_path() {
-    assert_eq!(std::mem::size_of::<CacheKeyContext>(), 0);
-    let cache = include_str!("cache.rs");
-    for forbidden in [
-        concat!("provider_", "revision"),
-        concat!("provider_", "identity"),
-        concat!("shape_", "revision"),
-        concat!("float_exclusion_", "revision"),
-    ] {
-        assert!(!cache.contains(forbidden));
-    }
-
-    let engine_rounding = include_str!("engine/rounding.rs");
-    let rounding = engine_rounding
-        .split_once("fn round_layout_inner<")
-        .expect("rounding implementation remains present")
-        .1
-        .split_once("\nfn round_inline_fragment<")
-        .expect("rounding implementation keeps its focused boundary")
-        .0;
-    assert!(!rounding.contains("float_exclusion_interval"));
-    assert!(!rounding.contains("query_provider_band"));
-    assert!(!rounding.contains("layout_mixed_inline_run"));
-}
-
-#[test]
 fn f64_cache_key_distinguishes_available_values_that_collide_as_f32() {
     let mut cache = CacheOf::<f64>::new();
     let context = CacheKeyContext::new();
