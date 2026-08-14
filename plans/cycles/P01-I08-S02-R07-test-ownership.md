@@ -39,10 +39,12 @@ commands, CI, or the Dylint catalog. Browser execution, generation, and new
 artifact writes remain prohibited. Generator architecture expansion and FRI-09
 implementation remain excluded.
 
-The only production-file edit permitted is the `#[cfg(test)]` path update in
-`src/grid/mod.rs` needed to load `src/grid_tests/mod.rs`. `src/lib.rs` and every
-other production source remain byte-identical to the cycle base. No production
-visibility or test hook is added.
+Every production source, including `src/grid/mod.rs` and `src/lib.rs`, remains
+byte-identical to the cycle base. Each existing `*_tests.rs` file becomes a slim
+test-only composition facade and retains its existing loader path. Every child
+file also ends in `_tests.rs`, preserving the legacy production-source
+classifier unchanged until R08 removes that proxy. No production visibility or
+test hook is added.
 
 The existing source-text proxy tests are temporary R08 debt. R07 neither adds
 one nor changes their assertion semantics. A moved proxy may receive only the
@@ -72,10 +74,10 @@ Partition every test by the primary production responsibility whose observable
 contract it asserts. A test spanning settled phases goes to that suite's named
 composition module. Keep a macro and every test it generates together. Keep a
 helper local when one partition consumes it; move a helper used by multiple
-partitions to that suite's `fixtures.rs`, its sole shared-fixture owner. Every
-partition imports shared fixtures explicitly through its test parent. The
-directory `mod.rs` composes modules and exposes only test-private imports or
-fixtures; it does not become a second monolith.
+partitions to that suite's `fixtures_tests.rs`, its sole shared-fixture owner.
+Every partition imports shared fixtures explicitly through its test parent. The
+existing `*_tests.rs` facade composes modules and exposes only test-private
+imports or fixtures; it does not remain a second monolith.
 
 Body and assertion preservation is literal except for module wrappers, imports,
 test-private visibility, and relative fixture/source paths forced by the move.
@@ -106,9 +108,8 @@ Workers do not acquire it. No other acquisition is authorized.
 
 ### 3.1 `P01/I08/S02/R07/T01` Partition Grid Verification
 
-**Area:** replace `src/grid_tests.rs` with
-`src/grid_tests/{mod,fixtures,topology_placement,tracks_intrinsic,lanes_subgrid,child_baseline,scroll_composition,oracle_comparison,browser_controls}.rs`;
-update only the test path in `src/grid/mod.rs`.
+**Area:** reduce `src/grid_tests.rs` to the composition facade and add
+`src/grid_tests/{fixtures,topology_placement,tracks_intrinsic,lanes_subgrid,child_baseline,scroll_composition,oracle_comparison,browser_controls}_tests.rs`.
 
 **Outcome:** grid tests follow topology/placement, tracks/intrinsic sizing,
 lanes/subgrid, settled child/baseline, scroll/composition, oracle comparison,
@@ -118,9 +119,10 @@ test namespace and no production grid API changes.
 **Characterization/migration evidence:** before mutation, run the full
 `grid::tests::` prefix and record 1,017 passing-or-ignored discovered tests plus
 the exact leaf multiset above. The structural migration probe is RED because
-`src/grid_tests.rs` exists and the directory does not. After the move, the old
-file is absent, all nine files exist, the same prefix is executable, and the
-same count/digest/ignored leaf is discovered.
+`src/grid_tests.rs` is the monolith and the directory does not exist. After the
+move, the facade plus all eight child files exist, the facade contains only
+composition/imports/shared-fixture exposure, the same prefix is executable, and
+the same count/digest/ignored leaf is discovered.
 
 **Acceptance:** every existing test body and assertion is present exactly once;
 the four existing production-source proxy bodies retain their semantics and
@@ -137,8 +139,8 @@ Dependency: published R06A. Commit: `refactor(test): partition grid verification
 
 ### 3.2 `P01/I08/S02/R07/T02` Partition Root Verification
 
-**Area:** replace `src/root_tests.rs` with
-`src/root_tests/{mod,fixtures,requests,containing_contexts,transaction_cache,measurement,rounding}.rs`.
+**Area:** reduce `src/root_tests.rs` to the composition facade and add
+`src/root_tests/{fixtures,requests,containing_contexts,transaction_cache,measurement,rounding}_tests.rs`.
 
 **Outcome:** root tests follow root requests, containing contexts,
 transaction/cache behavior, measurement, rounding, and shared-fixture owners.
@@ -147,8 +149,8 @@ owner whose published outcome they principally verify.
 
 **Characterization/migration evidence:** before mutation, run `root_tests::`
 and record 235 discovered tests and the exact leaf multiset above. The
-structural probe is RED because only `src/root_tests.rs` exists. After the move,
-the old file is absent, all seven files exist, and the count/digest remain exact.
+structural probe is RED because only the monolith exists. After the move, the
+facade plus all six child files exist and the count/digest remain exact.
 
 **Acceptance:** bodies/assertions are preserved exactly once; the three existing
 source-proxy tests retain their semantics and receive only required
@@ -164,8 +166,8 @@ Dependency: T01. Commit: `refactor(test): partition root verification`.
 
 ### 3.3 `P01/I08/S02/R07/T03` Partition Flex Verification
 
-**Area:** replace `src/flex_tests.rs` with
-`src/flex_tests/{mod,fixtures,items,lines_distribution,alignment_baselines,intrinsic_absolute_scroll}.rs`.
+**Area:** reduce `src/flex_tests.rs` to the composition facade and add
+`src/flex_tests/{fixtures,items,lines_distribution,alignment_baselines,intrinsic_absolute_scroll}_tests.rs`.
 
 **Outcome:** flex tests follow item collection/sizing, line collection and
 distribution, alignment/baselines, intrinsic/absolute/scroll composition, and
@@ -173,8 +175,8 @@ shared-fixture owners.
 
 **Characterization/migration evidence:** before mutation, run `flex_tests::`
 and record 169 discovered tests and the exact leaf multiset above. The
-structural probe is RED because only `src/flex_tests.rs` exists. After the move,
-the old file is absent, all six files exist, and the count/digest remain exact.
+structural probe is RED because only the monolith exists. After the move, the
+facade plus all five child files exist and the count/digest remain exact.
 
 **Acceptance:** bodies/assertions and property cases are preserved exactly once;
 all cross-partition fixtures have one test-only owner; no production helper or
@@ -189,17 +191,16 @@ Dependency: T02. Commit: `refactor(test): partition flex verification`.
 
 ### 3.4 `P01/I08/S02/R07/T04` Partition Block Verification
 
-**Area:** replace `src/block_tests.rs` with
-`src/block_tests/{mod,fixtures,in_flow_margins,inline_runs,floats_bfcs,absolute,sizing_scroll}.rs`.
+**Area:** reduce `src/block_tests.rs` to the composition facade and add
+`src/block_tests/{fixtures,in_flow_margins,inline_runs,floats_bfcs,absolute,sizing_scroll}_tests.rs`.
 
 **Outcome:** block tests follow in-flow/margins, inline runs, floats/BFCs,
 absolute layout, sizing/scroll composition, and shared-fixture owners.
 
 **Characterization/migration evidence:** before mutation, run `block_tests::`
 and record 212 discovered tests and the exact leaf multiset above. The
-structural probe is RED because only `src/block_tests.rs` exists. After the
-move, the old file is absent, all seven files exist, and the count/digest remain
-exact.
+structural probe is RED because only the monolith exists. After the move, the
+facade plus all six child files exist and the count/digest remain exact.
 
 **Acceptance:** bodies/assertions remain exact and unique; fixtures have one
 test-only owner; no production helper or visibility is added; focused/full
@@ -256,10 +257,10 @@ For each task, set its exact `task_base`, `task_head`, and `task_id`, then run:
 
 ```sh
 case "$task_id" in
-  T01) allowed='^(src/grid/mod\.rs|src/grid_tests\.rs|src/grid_tests/[^/]+\.rs)$' ;;
-  T02) allowed='^(src/root_tests\.rs|src/root_tests/[^/]+\.rs)$' ;;
-  T03) allowed='^(src/flex_tests\.rs|src/flex_tests/[^/]+\.rs)$' ;;
-  T04) allowed='^(src/block_tests\.rs|src/block_tests/[^/]+\.rs)$' ;;
+  T01) allowed='^(src/grid_tests\.rs|src/grid_tests/[^/]+_tests\.rs)$' ;;
+  T02) allowed='^(src/root_tests\.rs|src/root_tests/[^/]+_tests\.rs)$' ;;
+  T03) allowed='^(src/flex_tests\.rs|src/flex_tests/[^/]+_tests\.rs)$' ;;
+  T04) allowed='^(src/block_tests\.rs|src/block_tests/[^/]+_tests\.rs)$' ;;
   *) exit 1 ;;
 esac
 task_paths="$(git diff --name-only "$task_base..$task_head" | LC_ALL=C sort -u)"
@@ -291,11 +292,11 @@ and proves the checkout Git HEAD is
 Final discovery reruns the exact command above. No cargo test reads Rust source
 to establish this inventory.
 
-The exact final file inventory is the four directory layouts in section 3; the
-four superseded `.rs` monoliths are absent. Outside this plan, those test trees,
-and the one `src/grid/mod.rs` test-path line, the cycle diff is empty. `src/lib.rs`,
-all production behavior, Cargo manifests and locks, README, scripts, catalog,
-fixtures, and generated artifacts match the cycle base.
+The exact final file inventory is the four slim facades and directory layouts in
+section 3. Outside this plan and those test trees, the cycle diff is empty.
+`src/lib.rs`, `src/grid/mod.rs`, all production behavior, Cargo manifests and
+locks, README, scripts, catalog, fixtures, and generated artifacts match the
+cycle base.
 
 Final commands are:
 
@@ -327,22 +328,22 @@ and safety predicates:
 ```sh
 set -e
 expected_test_files="$(printf '%s\n' \
-  src/block_tests/{absolute,fixtures,floats_bfcs,in_flow_margins,inline_runs,mod,sizing_scroll}.rs \
-  src/flex_tests/{alignment_baselines,fixtures,intrinsic_absolute_scroll,items,lines_distribution,mod}.rs \
-  src/grid_tests/{browser_controls,child_baseline,fixtures,lanes_subgrid,mod,oracle_comparison,scroll_composition,topology_placement,tracks_intrinsic}.rs \
-  src/root_tests/{containing_contexts,fixtures,measurement,mod,requests,rounding,transaction_cache}.rs \
+  src/{block,flex,grid,root}_tests.rs \
+  src/block_tests/{absolute,fixtures,floats_bfcs,in_flow_margins,inline_runs,sizing_scroll}_tests.rs \
+  src/flex_tests/{alignment_baselines,fixtures,intrinsic_absolute_scroll,items,lines_distribution}_tests.rs \
+  src/grid_tests/{browser_controls,child_baseline,fixtures,lanes_subgrid,oracle_comparison,scroll_composition,topology_placement,tracks_intrinsic}_tests.rs \
+  src/root_tests/{containing_contexts,fixtures,measurement,requests,rounding,transaction_cache}_tests.rs \
   | LC_ALL=C sort)"
-actual_test_files="$(find src/block_tests src/flex_tests src/grid_tests src/root_tests \
-  -type f -name '*.rs' -print | LC_ALL=C sort)"
+actual_test_files="$({ printf '%s\n' src/{block,flex,grid,root}_tests.rs; \
+  find src/block_tests src/flex_tests src/grid_tests src/root_tests \
+    -type f -name '*.rs' -print; } | LC_ALL=C sort)"
 test "$actual_test_files" = "$expected_test_files"
-test ! -e src/block_tests.rs; test ! -e src/flex_tests.rs
-test ! -e src/grid_tests.rs; test ! -e src/root_tests.rs
 cycle_paths="$(git diff --name-only \
   496baae07f7a1216cab51267848231da82970941..HEAD | LC_ALL=C sort -u)"
 test -z "$(printf '%s\n' "$cycle_paths" | rg -v \
-  '^(plans/cycles/P01-I08-S02-R07-test-ownership\.md|src/grid/mod\.rs|src/(block_tests|flex_tests|grid_tests|root_tests)(\.rs|/[^/]+\.rs))$')"
+  '^(plans/cycles/P01-I08-S02-R07-test-ownership\.md|src/(block_tests|flex_tests|grid_tests|root_tests)(\.rs|/[^/]+_tests\.rs))$')"
 test "$(git diff 496baae07f7a1216cab51267848231da82970941..HEAD \
-  -- Cargo.toml Cargo.lock README.md Justfile src/lib.rs tools tests scripts | wc -l | tr -d ' ')" = 0
+  -- Cargo.toml Cargo.lock README.md Justfile src/lib.rs src/grid/mod.rs tools tests scripts | wc -l | tr -d ' ')" = 0
 base_suppressions="$(while IFS= read -r p; do
   git show "496baae07f7a1216cab51267848231da82970941:$p" \
     | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) {$m=$&;$m=~s/\s+/ /g;print "$m\n"}'
