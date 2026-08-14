@@ -6081,24 +6081,6 @@ mod root_layout_oracle {
             .assert_layout();
     }
 
-    #[ignore = "enable after production baseline helper exists"]
-    #[test]
-    fn layout_oracle_grid_baseline_offset_matches_oracle() {
-        let oracle_offset = grid::baseline_offset(
-            grid::BaselineGroupKind::Major,
-            20.0,
-            grid::BaselineGeometry {
-                available_span_size: 75.0,
-                margin_box_size: 38.0,
-                major_baseline: 11.0,
-                minor_baseline: 11.0,
-            },
-        );
-
-        // Compare the future production baseline offset helper to `oracle::grid::baseline_offset`.
-        assert_eq!(oracle_offset, 9.0);
-    }
-
     #[test]
     fn subgrid_child_items_resolve_against_local_lines() {
         let expected_columns = TrackSizingSlice::definite_columns(200.0, 10.0)

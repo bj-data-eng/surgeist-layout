@@ -1013,8 +1013,17 @@ fn ordinary_block_child_receives_parent_non_horizontal_containing_flow() {
 }
 
 #[test]
-fn block_line_break_conversion_with_metadata_preserves_current_output() {
-    let metrics = InlineMetrics::from_line_height_and_baseline(24.0, 18.0).unwrap();
+fn block_line_break_metadata_positions_rtl_lines_and_preserves_two_line_extent() {
+    let containing_inline_extent = 100.0;
+    let line_block_extent = 24.0;
+    let baseline_from_line_start = 18.0;
+    let first_line_block_start = 0.0;
+    let second_line_block_start = line_block_extent;
+    let first_atomic_size = Size::new(20.0, 10.0);
+    let second_atomic_size = Size::new(15.0, 12.0);
+    let metrics =
+        InlineMetrics::from_line_height_and_baseline(line_block_extent, baseline_from_line_start)
+            .unwrap();
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3])
         .style(
@@ -1030,7 +1039,10 @@ fn block_line_break_conversion_with_metadata_preserves_current_output() {
             NodeInput {
                 display: Display::InlineBlock,
                 atomic_inline_participation: Some(fri06_atomic_participation()),
-                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
+                size: Size::new(
+                    PreferredSize::px(first_atomic_size.width),
+                    PreferredSize::px(first_atomic_size.height),
+                ),
                 ..NodeInput::DEFAULT
             },
         )
@@ -1048,7 +1060,10 @@ fn block_line_break_conversion_with_metadata_preserves_current_output() {
             NodeInput {
                 display: Display::InlineBlock,
                 atomic_inline_participation: Some(fri06_atomic_participation()),
-                size: Size::new(PreferredSize::px(15.0), PreferredSize::px(12.0)),
+                size: Size::new(
+                    PreferredSize::px(second_atomic_size.width),
+                    PreferredSize::px(second_atomic_size.height),
+                ),
                 ..NodeInput::DEFAULT
             },
         );
@@ -1056,18 +1071,42 @@ fn block_line_break_conversion_with_metadata_preserves_current_output() {
     compute_root(
         &mut tree,
         0,
-        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        Size::new(
+            Available::definite(containing_inline_extent),
+            Available::MAX_CONTENT,
+        ),
     )
     .unwrap();
     round_layout(&mut tree, 0).unwrap();
 
-    assert_eq!(tree.inputs(2), &[]);
+    assert_eq!(tree.final_layout(1).unwrap().size, first_atomic_size);
+    assert_eq!(
+        tree.final_layout(1).unwrap().location,
+        Point::new(
+            containing_inline_extent - first_atomic_size.width,
+            first_line_block_start,
+        )
+    );
     assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
     assert_eq!(
         tree.final_layout(2).unwrap().location,
-        Point::new(80.0, 18.0)
+        Point::new(
+            containing_inline_extent - first_atomic_size.width,
+            first_line_block_start + baseline_from_line_start,
+        )
     );
-    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 48.0));
+    assert_eq!(tree.final_layout(3).unwrap().size, second_atomic_size);
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(
+            containing_inline_extent - second_atomic_size.width,
+            second_line_block_start + baseline_from_line_start - second_atomic_size.height,
+        )
+    );
+    assert_eq!(
+        tree.final_layout(0).unwrap().size,
+        Size::new(containing_inline_extent, line_block_extent * 2.0)
+    );
 }
 
 #[test]

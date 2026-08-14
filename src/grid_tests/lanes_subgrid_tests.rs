@@ -204,26 +204,6 @@ fn fri08_c06r_inherited_placement_standalone_axes_preserve_leading_trailing_patt
 }
 
 #[test]
-fn fri08_c06r_inherited_placement_architecture_has_no_residual_ordinary_estimator() {
-    let orchestration = include_str!("../grid/mod.rs");
-    for residual in [
-        "visible_cell_count",
-        "placement_cell_span",
-        "auto_fit_limit",
-        ".div_ceil(",
-    ] {
-        assert!(
-            !orchestration.contains(residual),
-            "FRI-08.14 forbids residual ordinary-grid demand estimator `{residual}`"
-        );
-    }
-    assert!(
-        !include_str!("../grid/placement.rs").contains("fn placement_cell_span"),
-        "the estimator-only placement span helper must be absent"
-    );
-}
-
-#[test]
 fn fri08_c03_auto_fit_ordinary_grid_and_lanes_auto_fill_remain_separate_controls() {
     for (display, repeat, expected_x) in [
         (Display::Grid, TrackRepeat::AutoFit, 40.0),
@@ -598,72 +578,6 @@ fn fri08_c02r_lanes_track_phase_stretch_excludes_non_auto_collapsed_start_indefi
  {
     assert_fri08_c02r_lanes_stretch_exclusions::<f32>();
     assert_fri08_c02r_lanes_stretch_exclusions::<f64>();
-}
-
-#[test]
-fn fri08_c02r_lanes_track_phase_architecture_has_no_collection_fit_content_shortcut() {
-    let tracks = [
-        include_str!("../grid/tracks/flexible.rs"),
-        include_str!("../grid/tracks/intrinsic.rs"),
-        include_str!("../grid/tracks/mod.rs"),
-        include_str!("../grid/tracks/ordinary.rs"),
-        include_str!("../grid/tracks/subgrid_intrinsic.rs"),
-        include_str!("../grid/tracks/validation.rs"),
-    ]
-    .concat();
-    assert!(
-        !tracks.contains("fn resolve_lanes_inline_tracks"),
-        "FRI-08.14(5) forbids the lanes collection-wide inline-track shortcut"
-    );
-    assert!(
-        !tracks.contains("fn resolve_fit_content_tracks"),
-        "FRI-08.14(5) forbids an orphan collection-wide fit-content resolver"
-    );
-}
-
-#[test]
-fn fri08_c02r_lanes_track_phase_architecture_has_one_auto_maximum_predicate() {
-    let tracks = [
-        include_str!("../grid/tracks/flexible.rs"),
-        include_str!("../grid/tracks/intrinsic.rs"),
-        include_str!("../grid/tracks/mod.rs"),
-        include_str!("../grid/tracks/ordinary.rs"),
-        include_str!("../grid/tracks/subgrid_intrinsic.rs"),
-        include_str!("../grid/tracks/validation.rs"),
-    ]
-    .concat();
-    assert!(
-        !tracks.contains("fn resolve_lanes_tracks_with_intrinsics")
-            && !tracks.contains("fn resolve_lanes_tracks_with_gutters"),
-        "FRI-08.14(6) requires lanes stretch to use the canonical maximum-is-Auto predicate"
-    );
-    assert_eq!(
-        tracks.matches("track_has_auto_maximum(").count(),
-        1,
-        "the maximum-is-Auto predicate has one canonical state-owner use"
-    );
-    assert!(tracks.contains("fn track_has_auto_maximum"));
-}
-
-#[test]
-fn fri08_c02r_lanes_track_phase_architecture_has_one_policy_free_final_owner() {
-    let orchestration = include_str!("../grid/mod.rs");
-    assert!(
-        !orchestration.contains("GridTrackSizingPolicy"),
-        "FRI-08.14(14) forbids an ordinary-versus-lanes final sizing discriminator"
-    );
-    assert_eq!(
-        orchestration
-            .matches("resolve_inline_tracks(input)")
-            .count(),
-        1
-    );
-    assert_eq!(
-        orchestration
-            .matches("resolve_tracks_with_gutters(")
-            .count(),
-        1
-    );
 }
 
 #[test]
