@@ -82,11 +82,21 @@ binaries/toolchain/components; create package `surgeist-layout-audits`, library
 crates.io pins; exclude the tool tree from product packaging; keep every catalog
 command on repository-root `target/dylint-audits` with no nested target.
 
-**RED/acceptance:** the preflight is RED because the exact binaries, nightly,
-components, catalog, and package exclusion are absent. After installation and
-scaffolding, exact version/component/package/lock/isolation probes pass. Product
-`Cargo.lock`, dependency graph, features, MSRV, and ordinary stable package
-checks remain unchanged.
+**RED/acceptance:** retained historical RED proves the exact binaries, nightly,
+components, catalog, and package exclusion were absent at cycle entry. The
+current retry first proves the installed-package/toolchain inventory is GREEN
+without reacquisition, then remains RED only because the catalog and package
+exclusion are absent. After scaffolding, exact
+version/component/package/lock/isolation probes pass. Product `Cargo.lock`,
+dependency graph, features, MSRV, and ordinary stable package checks remain
+unchanged.
+
+Current retry RED:
+
+```sh
+test ! -e tools/surgeist-layout-audits
+if rg -q '^exclude = \["tools/surgeist-layout-audits/\*\*"\]$' Cargo.toml; then exit 1; fi
+```
 
 ```sh
 set -e
