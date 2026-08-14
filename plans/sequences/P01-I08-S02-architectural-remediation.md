@@ -9,22 +9,25 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed post-C08 remediation in
 `plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md`, normalized
 semantic-content SHA-256
-`d9c6a61eae363331d7e8ce05d88916099111e11b8793b8dc31cc55e3e5c80a6a`,
-committed as `b9cb82aadf70d5690d605bb9ffeaa6da9512bd3d`.
+`f12c1aed35aabcb35231cca372eca6381daff57bfe2b6a053679bcf2f4d2d94f`,
+committed as `a7ade7927e053ab8114bb49697d1493f578242d2`.
 
-The specification owns the seven accepted pressure findings, compatibility,
-module ownership, frozen artifacts, verification, the FRI-09 hold, and final
-acceptance. This sequence owns only durable cycle order and boundaries. Each
-cycle receives its detailed plan only after its predecessor is published,
-remotely read back, process-clean, and post-cycle-cleaned.
+The specification owns the eight accepted pressure findings, compatibility,
+module ownership, audit-tooling boundary, frozen artifacts, verification, the
+FRI-09 hold, and final acceptance. This sequence owns only durable cycle order
+and boundaries. Each cycle receives its detailed plan only after its predecessor
+is published, remotely read back, process-clean, and post-cycle-cleaned.
 
 ## 2 Sequence Boundary
 
 Every cycle is owned by `surgeist-layout` and preserves public layout behavior,
-public API, dependencies, features, MSRV, and the complete browser artifact
-state. Root, siblings, authored CSS/style lowering, shaping, rendering, retained
-identity, FRI-09 implementation, generator changes, browser execution,
-generation, and acquisition remain excluded.
+public API, product dependencies, features, MSRV, and the complete browser
+artifact state. R06A alone adds the exactly pinned, package-excluded audit-tool
+dependencies in `FRI-08.27.2`; their acquisition remains prohibited until the
+user explicitly authorizes those exact crates.io packages and Rust components.
+Root, siblings, authored CSS/style lowering, shaping, rendering, retained
+identity, FRI-09 implementation, generator changes, browser execution, and
+generation remain excluded.
 
 The immutable entry is the published planning baseline at
 `28d4016e7bf1005b8541868e8b1d251b0e03012c`, whose history contains the
@@ -39,6 +42,7 @@ R01 neutral engine and sizing contracts
   -> R03 scroll module ownership
        -> R04 block and flex phase ownership --+
        -> R05 grid tracks and child ownership --+-> R06 node projections and compatible public API map
+  -> R06A planning-path Dylint audit catalog
   -> R07 test ownership
   -> R08 whole-crate testing-reference conformance and final candidate
 ```
@@ -48,9 +52,12 @@ compute ownership before algorithm files are partitioned. R03 settles the
 cross-format scroll substrate before R04 and R05 move its consumers. R04 and R05
 are independently ready after R03 and may execute in either order; neither
 consumes the other's source. R06 waits for both algorithm boundaries so
-projections follow actual semantic roles. R07 moves tests only after production
-ownership is stable. R08 then enforces the testing reference across the entire
-crate after file ownership and test partitioning can no longer churn its audit.
+projections follow actual semantic roles. R06A then replaces the temporary
+node-projection lexical audit with the opt-in compiler-semantic catalog that R07
+and R08 may consume. R07 moves tests only after production ownership and the
+audit catalog are stable. R08 then enforces the testing reference across the
+entire crate after file ownership and test partitioning can no longer churn its
+audit.
 
 ## 4 `P01/I08/S02/R01` Neutral Engine And Sizing Contracts
 
@@ -109,8 +116,8 @@ satisfy the cited specification sections.
 scroll projection boundary in `FRI-08.25`,
 `fri08_remediation_scroll_construction_and_rounding_equivalence` and
 `fri08_remediation_public_api_inventory_is_compatible` in `FRI-08.27`, and
-acceptance rows `FRI-08.28(1)`, `FRI-08.28(5)`, and `FRI-08.28(8)` through
-`FRI-08.28(10)`.
+acceptance rows `FRI-08.28(1)`, `FRI-08.28(5)`, and `FRI-08.28(9)` through
+`FRI-08.28(11)`.
 
 **Entry:** R02's engine boundaries are published and canonical scroll callers
 remain behaviorally unchanged.
@@ -133,8 +140,8 @@ satisfy the cited specification sections.
 block/flex projection boundary in `FRI-08.25`, the block/flex cases of
 `fri08_remediation_algorithm_phase_composition_equivalence` plus
 `fri08_remediation_public_api_inventory_is_compatible` in `FRI-08.27`, and
-acceptance rows `FRI-08.28(1)`, `FRI-08.28(5)`, and `FRI-08.28(8)` through
-`FRI-08.28(10)`.
+acceptance rows `FRI-08.28(1)`, `FRI-08.28(5)`, and `FRI-08.28(9)` through
+`FRI-08.28(11)`.
 
 **Entry:** R03's canonical scroll owners and R02's engine services are
 published; R05 is not a prerequisite.
@@ -157,8 +164,8 @@ R05 is also complete.
 grid projection boundary in `FRI-08.25`, the grid cases of
 `fri08_remediation_algorithm_phase_composition_equivalence` plus
 `fri08_remediation_public_api_inventory_is_compatible` in `FRI-08.27`, and
-acceptance rows `FRI-08.28(1)`, `FRI-08.28(5)`, and `FRI-08.28(8)` through
-`FRI-08.28(10)`.
+acceptance rows `FRI-08.28(1)`, `FRI-08.28(5)`, and `FRI-08.28(9)` through
+`FRI-08.28(11)`.
 
 **Entry:** R03 has published stable engine and scroll boundaries; R04 is not a
 prerequisite.
@@ -182,8 +189,8 @@ is also complete.
 **Specification:** `FRI-08.20` row `AR-005`, `FRI-08.21`, all of
 `FRI-08.25`, `fri08_remediation_node_projection_role_boundaries` and
 `fri08_remediation_public_api_inventory_is_compatible` in `FRI-08.27`, and
-acceptance rows `FRI-08.28(1)`, `FRI-08.28(6)`, and `FRI-08.28(8)` through
-`FRI-08.28(10)`.
+acceptance rows `FRI-08.28(1)`, `FRI-08.28(6)`, and `FRI-08.28(9)` through
+`FRI-08.28(11)`.
 
 **Entry:** R03 through R05 expose stable algorithm roles from which projections
 can be derived.
@@ -196,17 +203,45 @@ unchanged public snapshot and root facade.
 inventory equality, compile contracts, documentation, full algorithm behavior,
 and frozen artifacts satisfy the cited specification sections.
 
-**Handoff:** publish the compatible model/API candidate to R07.
+**Handoff:** publish the compatible model/API candidate to R06A.
 
-## 10 `P01/I08/S02/R07` Test Ownership
+## 10 `P01/I08/S02/R06A` Planning-Path Dylint Audit Catalog
+
+**Owner:** `surgeist-layout`.
+
+**Specification:** `FRI-08.20` row `AR-008`, `FRI-08.21`,
+`FRI-08.27.1`, all of `FRI-08.27.2`, and acceptance rows
+`FRI-08.28(1)`, `FRI-08.28(7)`, and `FRI-08.28(10)` through
+`FRI-08.28(12)`.
+
+**Entry:** R06 is published, remotely read back, process-clean, and cleaned;
+the user has explicitly authorized acquisition of the exact Dylint 6.0.3 and
+nightly-2026-05-28 stack named in `FRI-08.27.2`. Without that exact authority,
+R06A remains blocked before acquisition or implementation.
+
+**Outcome:** one isolated, package-excluded, opt-in Dylint catalog retains the
+planning-path-named node-projection semantic audit, deletes its superseded
+lexical script, and records pilot lessons without entering product tests,
+ordinary verification, CI, publication gates, or permanent architecture policy.
+
+**Exit evidence:** exact tool/dependency/toolchain pins and isolation, catalog
+UI fixtures, selected-lint semantics across the published R06 candidate, script
+deletion, product package/API/behavior/artifact equivalence, authored-source
+safety, absence from standing commands, publication/readback, process hygiene,
+and target cleanup satisfy the cited specification sections.
+
+**Handoff:** publish the audited candidate and pilot lessons to R07 and R08;
+shared skill-reference work remains a later separately authorized transition.
+
+## 11 `P01/I08/S02/R07` Test Ownership
 
 **Owner:** `surgeist-layout`.
 
 **Specification:** `FRI-08.20` row `AR-006`, `FRI-08.21`, `FRI-08.26`, and
 the partition-preservation and ordinary verification portions of `FRI-08.27`.
 
-**Entry:** R01 through R06 are published; all production owners and public
-compatibility evidence are stable.
+**Entry:** R01 through R06A are published; all production owners, public
+compatibility evidence, and the opt-in audit catalog are stable.
 
 **Outcome:** the four large companion suites follow semantic production owners
 and shared fixtures have one test-only owner, without coverage, API, behavior,
@@ -220,7 +255,7 @@ and final acceptance remain R08-owned.
 
 **Handoff:** publish the partitioned test candidate to R08.
 
-## 11 `P01/I08/S02/R08` Whole-Crate Testing-Reference Conformance
+## 12 `P01/I08/S02/R08` Whole-Crate Testing-Reference Conformance
 
 **Owner:** `surgeist-layout`.
 
@@ -228,15 +263,18 @@ and final acceptance remain R08-owned.
 all of `FRI-08.28`.
 
 **Entry:** R01 through R07 are published; production and test file ownership is
-stable. The cycle begins from a complete inventory of every tracked Rust test,
-its evidence class, and the exact ignored list.
+stable and R06A's opt-in audit catalog is available. The cycle begins from a
+complete inventory of every tracked Rust test, its evidence class, and the exact
+ignored list.
 
 **Outcome:** the entire crate test suite conforms to the installed Surgeist
 testing reference. Source/token/symbol/file-placement proxies, planning and
 workflow state checks, current-output oracles, and unjustified ignored tests are
 removed or replaced. Legitimate declared artifact, manifest, schema, report,
 and serialization contracts are exercised through their consumers where
-possible. Workflow audits remain outside `cargo test`.
+possible. Useful architecture-only questions may become planning-path-named
+opt-in catalog lints; workflow audits remain outside `cargo test` and no new
+lexical audit script is introduced.
 
 **Exit evidence:** every removed or replaced test has an explicit disposition;
 behavioral, compile-contract, oracle, artifact-consumer, scalar, cache,
@@ -249,7 +287,8 @@ dependency, MSRV, safety, artifact, publication, readback, and cleanup gate in
 **Handoff:** publish and read back the immutable final FRI-08 remediation leaf
 candidate; record the still-held FRI-09 sequence and stop.
 
-## 12 Sequence Completion
+## 13 Sequence Completion
 
-This sequence is complete only when R01 through R08 satisfy their exits in order
-and `FRI-08.28` is satisfied. It does not revise or begin FRI-09.
+This sequence is complete only when R01 through R06, R06A, R07, and R08 satisfy
+their exits in order and `FRI-08.28` is satisfied. It does not revise or begin
+FRI-09.
