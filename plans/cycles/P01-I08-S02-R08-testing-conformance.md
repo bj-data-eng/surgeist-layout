@@ -139,9 +139,14 @@ artifact consumer. Rename/refactor, without count change:
 
 Dependency: T04. Commit: `test(conformance): make parity evidence behavior owned`.
 
-Commands: T05 integration entry-list command, then locked/offline integration filters
-`runs_fri_02_ fixture_against_surgeist_layout outputs_match adapter_template_areas normalized_flex_collapse_ manifest_active_outputs_`, full integration/package,
-`just corpus-check`, and strict gates.
+Commands: T05 integration entry-list command, then locked/offline integration
+filters `runs_fri_02_ fixture_against_surgeist_layout outputs_match
+adapter_template_areas`. Before the rename, additionally run
+`fri07_c04_browser_parity_exact_twelve_ordinary_variants_match_production`,
+`fri07_c04_browser_parity_exact_twelve_chrome_variants_reproduce_reviewed_signatures`,
+and `fri08_c06_exact_seventy_two_owned_rows_match_production`; afterward run
+`normalized_flex_collapse_` and `manifest_active_outputs_`. Then run full
+integration/package, `just corpus-check`, and strict gates.
 
 ### T06 `P01/I08/S02/R08/T06` Declared Generator Artifacts
 
@@ -171,6 +176,9 @@ target's `-- --list` and the ledger names, never Rust source parsing. Every
 retained focused family must be nonzero before and after. A deletion task's RED
 is the external conformance predicate finding the listed executed entry tests;
 do not invent a behavioral failure.
+For T05's three planned renames, the exact old names are nonzero before and the
+replacement-name filters are nonzero after; the unchanged focused families are
+nonzero on both sides.
 
 The exact ordered entry-list commands are:
 
