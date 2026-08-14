@@ -12,6 +12,10 @@ use crate::geometry::{LogicalPointOf, LogicalSizeOf};
 #[cfg(test)]
 use std::cell::Cell;
 
+mod input;
+
+pub(crate) use input::{InlineParticipantKindOf, InlineParticipantProjection};
+
 #[cfg(test)]
 thread_local! {
     static INLINE_CANDIDATE_SCAN_VISITS: Cell<usize> = const { Cell::new(0) };

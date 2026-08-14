@@ -51,7 +51,7 @@ fn fri06_c02_contract_block_has_no_c02_text_fallback_spelling() {
 
 #[test]
 fn fri06_c02_contract_inline_has_no_shaping_or_measurement_path() {
-    let inline = include_str!("inline.rs");
+    let inline = include_str!("inline/mod.rs");
     for forbidden in ["shape", "glyph", "font", "measure_leaf"] {
         assert!(
             !inline.contains(forbidden),
@@ -62,7 +62,7 @@ fn fri06_c02_contract_inline_has_no_shaping_or_measurement_path() {
 
 #[test]
 fn fri06_c02_contract_text_source_has_no_owned_dead_code_allowance() {
-    let inline = include_str!("inline.rs");
+    let inline = include_str!("inline/mod.rs");
     let text_source = inline
         .split_once("pub(super) struct ShapedTextParticipantOf")
         .unwrap()

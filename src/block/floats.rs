@@ -1,5 +1,5 @@
-use super::Constants;
 use super::scroll::retained_child_scroll_geometry;
+use super::{Constants, with_block_scroll_projections};
 use crate::error::layout_child_geometry_error;
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
 use crate::inline::PostLineClearIntent;
@@ -8,7 +8,7 @@ use crate::{
     AvailableOf, Clear, Compute, Edges, Float, FloatExclusion, FloatExclusionIntervalErrorOf,
     FloatExclusionIntervalOf, FloatExclusionQueryOf, LayoutErrorKindOf, LayoutErrorOf,
     LayoutErrorSiteOf, LayoutInvalidInputOf, LayoutMissingContext, LayoutOperation, LayoutResultOf,
-    LayoutScalar, NodeInputOf, NodeOutputOf, Point, ScrollGeometryOf, ScrollRectOf, Size, Traverse,
+    LayoutScalar, NodeOutputOf, Point, ScrollGeometryOf, ScrollRectOf, Size, Traverse,
 };
 
 pub(super) struct PendingFloat<Node, S: LayoutScalar> {
@@ -22,7 +22,7 @@ pub(super) struct PendingFloat<Node, S: LayoutScalar> {
     pub(super) border: Edges<S>,
     pub(super) padding: Edges<S>,
     pub(super) margin: Edges<S>,
-    pub(super) style: Box<NodeInputOf<S>>,
+    pub(super) float_exclusion: FloatExclusion,
     pub(super) child_compute_geometry: Option<ScrollGeometryOf<S>>,
 }
 
@@ -275,7 +275,7 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
                 self.ledger.push(FloatLedgerEntry {
                     node: float.node,
                     side,
-                    exclusion: float.style.float_exclusion,
+                    exclusion: float.float_exclusion,
                     physical_margin_box: PhysicalMarginBox {
                         origin: physical_margin_origin,
                         size: physical_margin_size,
@@ -667,14 +667,20 @@ where
             },
             float,
         )?;
-        let scroll_geometry = retained_child_scroll_geometry(
-            crate::scroll::ScrollBoxProjection::from_node(&float.style),
-            crate::scroll::ScrollTargetProjection::from_node(&float.style),
-            float.size,
-            float.content_size,
-            float.padding,
-            float.border,
-            float.child_compute_geometry,
+        let scroll_geometry = with_block_scroll_projections::<Tree, M, _>(
+            tree,
+            float.node,
+            |box_projection, target_projection| {
+                retained_child_scroll_geometry(
+                    box_projection,
+                    target_projection,
+                    float.size,
+                    float.content_size,
+                    float.padding,
+                    float.border,
+                    float.child_compute_geometry,
+                )
+            },
         )
         .map_err(|error| layout_child_geometry_error(container, float.node, error))?;
         contributions

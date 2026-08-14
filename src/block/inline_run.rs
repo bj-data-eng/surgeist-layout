@@ -16,8 +16,8 @@ where
     Tree: Compute<M>,
 {
     while index < children.len() {
-        match tree.layout_input(children[index]) {
-            LayoutInputOf::Box(style) => {
+        match InlineParticipantProjection::lookup::<Tree, M>(tree, children[index]).into_kind() {
+            InlineParticipantKindOf::Box(style) => {
                 if style.display == crate::Display::None || style.position == Position::Absolute {
                     index += 1;
                     continue;
@@ -26,7 +26,7 @@ where
                     break;
                 }
             }
-            LayoutInputOf::LineBreak(input) => {
+            InlineParticipantKindOf::LineBreak(input) => {
                 if input.display().is_none() {
                     index += 1;
                     continue;
@@ -38,8 +38,8 @@ where
                     constants.direction,
                 );
             }
-            LayoutInputOf::InlineText(_) => {}
-            LayoutInputOf::InlineBoundary(_) => {
+            InlineParticipantKindOf::InlineText(_) => {}
+            InlineParticipantKindOf::InlineBoundary(_) => {
                 visible_inline_boundary_in_flow(
                     tree,
                     children[index],
@@ -62,7 +62,9 @@ pub(super) fn visible_line_break_in_flow<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let LayoutInputOf::LineBreak(line_break) = tree.layout_input(child) else {
+    let InlineParticipantKindOf::LineBreak(line_break) =
+        InlineParticipantProjection::lookup::<Tree, M>(tree, child).into_kind()
+    else {
         return None;
     };
     if line_break.display().is_none() {
@@ -83,7 +85,9 @@ pub(super) fn visible_inline_boundary_in_flow<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let LayoutInputOf::InlineBoundary(boundary) = tree.layout_input(child) else {
+    let InlineParticipantKindOf::InlineBoundary(boundary) =
+        InlineParticipantProjection::lookup::<Tree, M>(tree, child).into_kind()
+    else {
         return None;
     };
     if boundary.writing_mode() != flow_writing_mode || boundary.direction() != flow_direction {
@@ -297,8 +301,10 @@ where
     let mut static_positions = Vec::new();
     for (offset, child) in run.iter().copied().enumerate() {
         let source_index = source_index_start + offset;
-        let child_style = match tree.layout_input(child) {
-            LayoutInputOf::InlineText(text) => {
+        let child_style = match InlineParticipantProjection::lookup::<Tree, M>(tree, child)
+            .into_kind()
+        {
+            InlineParticipantKindOf::InlineText(text) => {
                 published_text.push((child, source_index, Vec::new(), None, None));
                 participants.extend(text.segments().iter().copied().map(|segment| {
                     MixedInlineParticipantOf::ShapedText(ShapedTextParticipantOf {
@@ -308,8 +314,8 @@ where
                 }));
                 continue;
             }
-            LayoutInputOf::Box(style) => *style,
-            LayoutInputOf::LineBreak(line_break) => {
+            InlineParticipantKindOf::Box(style) => style,
+            InlineParticipantKindOf::LineBreak(line_break) => {
                 if line_break.display().is_none() {
                     if set_layout {
                         tree.set_unrounded(
@@ -334,7 +340,7 @@ where
                 control_children.push((child, source_index));
                 continue;
             }
-            LayoutInputOf::InlineBoundary(_) => {
+            InlineParticipantKindOf::InlineBoundary(_) => {
                 let boundary = visible_inline_boundary_in_flow(
                     tree,
                     child,
@@ -433,7 +439,7 @@ where
         let child_margin = resolve_atomic_inline_margin(unresolved_margin);
         let item = atomic_inline_box_participant(
             source_index,
-            child_style.clone(),
+            child_style.as_ref().clone(),
             output,
             child_margin,
             child_padding,
@@ -656,14 +662,20 @@ where
         scroll_content_size = max_content_size(scroll_content_size, contribution);
 
         if set_layout {
-            let scroll_geometry = retained_child_scroll_geometry(
-                crate::scroll::ScrollBoxProjection::from_node(&child_style),
-                crate::scroll::ScrollTargetProjection::from_node(&child_style),
-                source.item.size,
-                source.item.content_size,
-                source.item.padding,
-                source.item.border,
-                output.scroll_geometry,
+            let scroll_geometry = with_block_scroll_projections::<Tree, M, _>(
+                tree,
+                child,
+                |box_projection, target_projection| {
+                    retained_child_scroll_geometry(
+                        box_projection,
+                        target_projection,
+                        source.item.size,
+                        source.item.content_size,
+                        source.item.padding,
+                        source.item.border,
+                        output.scroll_geometry,
+                    )
+                },
             )
             .map_err(|error| layout_child_geometry_error(container, child, error))?;
             contributions
@@ -770,7 +782,7 @@ fn record_inline_run_baselines<S: LayoutScalar>(
 
 fn atomic_inline_box_participant<S: LayoutScalar>(
     source_index: usize,
-    child_style: NodeInputOf<S>,
+    child_style: BlockChildProjection<S>,
     output: ComputeOutputOf<S>,
     margin: Edges<S>,
     padding: Edges<S>,

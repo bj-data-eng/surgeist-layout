@@ -1,10 +1,11 @@
-use super::Constants;
 use super::scroll::retained_child_scroll_geometry;
 use super::sizing::{
     maximum_size, minimum_size, preferred_size, resolve_auto_optional, resolve_length_or_zero,
 };
+use super::{Constants, with_block_scroll_projections};
 use crate::error::layout_child_geometry_error;
 use crate::geometry::{LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
+use crate::inline::{InlineParticipantKindOf, InlineParticipantProjection};
 use crate::layout_math::{
     MaxBeforeMinOptionalSizeClampExt, MaxBeforeMinScalarClampExt, MaxBeforeMinSizeClampExt,
     OptionalSizeExt, OptionalSizeMaxExt,
@@ -13,8 +14,8 @@ use crate::scroll::ScrollContributionAccumulatorOf;
 use crate::sizing::resolve::{EdgesResultExt, SizeResultExt};
 use crate::{
     AvailableOf, BoxSizing, Compute, ComputeInputOf, ContainingLayoutContext, Direction, Edges,
-    LayoutInputOf, LayoutResultOf, LayoutScalar, NodeOutputOf, ParentFormattingContext, Point,
-    Position, RequestedAxis, RunMode, Size, SizingAlgorithm, SizingMode, Traverse,
+    LayoutResultOf, LayoutScalar, NodeOutputOf, ParentFormattingContext, Point, Position,
+    RequestedAxis, RunMode, Size, SizingAlgorithm, SizingMode, Traverse,
 };
 
 pub(super) fn absolute_static_position<S: LayoutScalar>(
@@ -71,7 +72,9 @@ where
     );
 
     for (source_index, child) in children.iter().copied().enumerate() {
-        let LayoutInputOf::Box(style) = tree.layout_input(child) else {
+        let InlineParticipantKindOf::Box(style) =
+            InlineParticipantProjection::lookup::<Tree, M>(tree, child).into_kind()
+        else {
             continue;
         };
         if style.position != Position::Absolute || style.display == crate::Display::None {
@@ -248,14 +251,20 @@ where
             }
             .location(),
         );
-        let scroll_geometry = retained_child_scroll_geometry(
-            crate::scroll::ScrollBoxProjection::from_node(&style),
-            crate::scroll::ScrollTargetProjection::from_node(&style),
-            final_size,
-            output.content_size,
-            padding,
-            border,
-            output.scroll_geometry,
+        let scroll_geometry = with_block_scroll_projections::<Tree, M, _>(
+            tree,
+            child,
+            |box_projection, target_projection| {
+                retained_child_scroll_geometry(
+                    box_projection,
+                    target_projection,
+                    final_size,
+                    output.content_size,
+                    padding,
+                    border,
+                    output.scroll_geometry,
+                )
+            },
         )
         .map_err(|error| layout_child_geometry_error(container_node, child, error))?;
         contributions

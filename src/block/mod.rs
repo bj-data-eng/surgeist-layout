@@ -2,18 +2,19 @@ use std::collections::BTreeMap;
 
 use super::inline::{
     AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineBoundaryControlOf,
-    InlineControlAlignment, InlineFlowOf, LogicalLineBandQueryResultOf, MixedInlineParticipantOf,
-    MixedInlineRunInputOf, ShapedTextParticipantOf, layout_mixed_inline_run_with_band_source,
+    InlineControlAlignment, InlineFlowOf, InlineParticipantKindOf, InlineParticipantProjection,
+    LogicalLineBandQueryResultOf, MixedInlineParticipantOf, MixedInlineRunInputOf,
+    ShapedTextParticipantOf, layout_mixed_inline_run_with_band_source,
 };
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
     AvailableOf, BaselinesOf, BoxSizing, Clear, CollapsibleMarginOf, Compute, ComputeInputOf,
     ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges, Float,
     InlineBoundaryInputOf, InlineFragmentOutputOf, LayoutErrorKindOf, LayoutErrorOf,
-    LayoutErrorSiteOf, LayoutInputOf, LayoutInvalidInputOf, LayoutOperation, LayoutResultOf,
-    LayoutScalar, LengthAutoOf, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow,
-    ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis,
-    RunMode, Size, SizingAlgorithm, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    LayoutErrorSiteOf, LayoutInvalidInputOf, LayoutOperation, LayoutResultOf, LayoutScalar,
+    LengthAutoOf, LineBreakInputOf, NodeOutputOf, Overflow, ParentFormattingContext,
+    PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis, RunMode, Size, SizingAlgorithm,
+    SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::error::{
     AtomicInlineParticipationRoleError, layout_child_geometry_error, layout_own_geometry_error,
@@ -30,16 +31,19 @@ use crate::scroll::{
 use crate::sizing::resolve::{EdgesResultExt, SizeResultExt};
 
 #[cfg(test)]
-use super::LengthOf;
+use super::{LengthOf, NodeInputOf};
 
 mod absolute;
 mod floats;
 mod in_flow;
 mod inline_run;
+mod input;
 mod scroll;
 mod sizing;
 
 use absolute::layout_absolute_children;
+pub(crate) use input::BlockChildProjection;
+use input::{BlockContainerProjection, block_container_projection, with_block_scroll_projections};
 use scroll::{finish_scroll_geometry, prepare_scroll_contributions};
 use sizing::{
     BlockOptionalSizeSubExt, maximum_size, minimum_size, preferred_size, resolve_auto_optional,
@@ -92,7 +96,9 @@ fn compute_block_with_optional_inherited_float_exclusions<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let scrollbar_width = tree.node_input(node).scrollbar_width.get();
+    let scrollbar_width = block_container_projection::<Tree, M>(tree, node)
+        .scrollbar_width
+        .get();
     let mut pass_input = input;
     loop {
         let output = compute_block_inner::<Tree, Tree::Scalar, M>(
@@ -131,8 +137,8 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    let style = tree.node_input(node).clone();
-    let constants = Constants::new::<Tree, M>(tree, node, &style, input)?;
+    let style = block_container_projection::<Tree, M>(tree, node);
+    let constants = Constants::from_projection::<Tree, M>(tree, node, &style, input)?;
     let children = tree.children(node).collect::<Vec<_>>();
 
     if children.is_empty()
@@ -272,17 +278,18 @@ where
         output.block_margin_collapse = block_margin_collapse;
         Ok(output)
     } else {
-        let scroll_box_projection = crate::scroll::ScrollBoxProjection::from_node(&style);
-        let scroll_target_projection = crate::scroll::ScrollTargetProjection::from_node(&style);
-        let mut contributions = prepare_scroll_contributions::<_, _, M>(
-            node,
-            input.run_mode(),
-            scroll_box_projection,
-            &final_constants,
-            output_size,
-            final_pass.scroll_content_size,
-            final_pass.contributions,
-        )?;
+        let mut contributions =
+            with_block_scroll_projections::<Tree, M, _>(tree, node, |scroll_box_projection, _| {
+                prepare_scroll_contributions::<_, _, M>(
+                    node,
+                    input.run_mode(),
+                    scroll_box_projection,
+                    &final_constants,
+                    output_size,
+                    final_pass.scroll_content_size,
+                    final_pass.contributions,
+                )
+            })?;
         layout_floats(
             tree,
             node,
@@ -300,14 +307,20 @@ where
             &final_constants,
             &mut contributions,
         )?;
-        let published_scroll = finish_scroll_geometry::<Tree, S, M>(
+        let published_scroll = with_block_scroll_projections::<Tree, M, _>(
+            tree,
             node,
-            input.run_mode(),
-            scroll_box_projection,
-            scroll_target_projection,
-            &final_constants,
-            output_size,
-            contributions,
+            |scroll_box_projection, scroll_target_projection| {
+                finish_scroll_geometry::<Tree, S, M>(
+                    node,
+                    input.run_mode(),
+                    scroll_box_projection,
+                    scroll_target_projection,
+                    &final_constants,
+                    output_size,
+                    contributions,
+                )
+            },
         )?;
         let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
             output_size,
@@ -448,10 +461,10 @@ impl<S: LayoutScalar> Constants<S> {
         self
     }
 
-    fn new<Tree, M>(
+    fn from_projection<Tree, M>(
         tree: &Tree,
         node: <Tree as Traverse>::Node,
-        style: &NodeInputOf<S>,
+        style: &BlockContainerProjection<S>,
         input: ComputeInputOf<S>,
     ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
     where
@@ -624,6 +637,24 @@ impl<S: LayoutScalar> Constants<S> {
                 && logical_style_size.block.is_none(),
             can_collapse_through,
         })
+    }
+
+    #[cfg(test)]
+    fn new<Tree, M>(
+        tree: &Tree,
+        node: <Tree as Traverse>::Node,
+        style: &NodeInputOf<S>,
+        input: ComputeInputOf<S>,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Self::from_projection(
+            tree,
+            node,
+            &BlockContainerProjection::from_node(style),
+            input,
+        )
     }
 }
 

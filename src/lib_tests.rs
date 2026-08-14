@@ -2064,7 +2064,7 @@ fn fri05_c05_audit_legacy_source(
         }
         let owner = enclosing_owner(&tokens, index);
         let previous = index.checked_sub(1);
-        let allowed = if path == "src/inline.rs"
+        let allowed = if path == "src/inline/mod.rs"
             && previous.is_some_and(|previous| {
                 has(
                     &tokens,
@@ -2078,7 +2078,7 @@ fn fri05_c05_audit_legacy_source(
             ) {
             accounting.inline_carrier_fields += 1;
             true
-        } else if path == "src/inline.rs"
+        } else if path == "src/inline/mod.rs"
             && owner == Some("InlineParticipantLayoutItem")
             && (has(
                 &tokens,
@@ -2092,7 +2092,7 @@ fn fri05_c05_audit_legacy_source(
         {
             accounting.inline_carrier_writers += 1;
             true
-        } else if path == "src/inline.rs"
+        } else if path == "src/inline/mod.rs"
             && previous.is_some_and(|previous| has(&tokens, previous, &[".", "scrollbar_size"]))
             && index >= 2
             && tokens[index - 2].text == "item"
@@ -2368,6 +2368,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             "src/block/inline_run.rs",
             include_str!("block/inline_run.rs"),
         ),
+        ("src/block/input.rs", include_str!("block/input.rs")),
         ("src/block/mod.rs", include_str!("block/mod.rs")),
         ("src/block/scroll.rs", include_str!("block/scroll.rs")),
         ("src/block/sizing.rs", include_str!("block/sizing.rs")),
@@ -2443,7 +2444,8 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             "src/grid/tracks/validation.rs",
             include_str!("grid/tracks/validation.rs"),
         ),
-        ("src/inline.rs", include_str!("inline.rs")),
+        ("src/inline/input.rs", include_str!("inline/input.rs")),
+        ("src/inline/mod.rs", include_str!("inline/mod.rs")),
         ("src/layout_math.rs", include_str!("layout_math.rs")),
         ("src/lib.rs", include_str!("lib.rs")),
         ("src/measurement.rs", include_str!("measurement.rs")),
@@ -2553,7 +2555,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
                 }
             ),
             &(
-                "src/inline.rs",
+                "src/inline/mod.rs",
                 LegacyScrollbarAccounting {
                     inline_carrier_fields: 1,
                     ..LegacyScrollbarAccounting::default()

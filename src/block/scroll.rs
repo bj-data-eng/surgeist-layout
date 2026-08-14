@@ -1,5 +1,5 @@
-use super::Constants;
 use super::in_flow::block_final_in_flow_end;
+use super::{BlockChildProjection, Constants};
 use crate::error::{layout_child_geometry_error, layout_own_geometry_error};
 use crate::geometry::LogicalSizeOf;
 use crate::scroll::{
@@ -9,8 +9,8 @@ use crate::scroll::{
     ScrollTargetProjection, canonical_scroll_box_from_source, scrollbar_size_from_overflow,
 };
 use crate::{
-    Compute, Edges, LayoutErrorOf, LayoutResultOf, LayoutScalar, LogicalAxis, NodeInputOf, Point,
-    RunMode, ScrollGeometryOf, ScrollRectOf, Size, Traverse,
+    Compute, Edges, LayoutErrorOf, LayoutResultOf, LayoutScalar, LogicalAxis, Point, RunMode,
+    ScrollGeometryOf, ScrollRectOf, Size, Traverse,
 };
 
 pub(super) fn prepare_scroll_contributions<Node, S, M>(
@@ -174,7 +174,7 @@ pub(super) fn retained_child_scroll_geometry<S: LayoutScalar>(
     )
 }
 
-pub(super) fn child_scrollbar_size<S: LayoutScalar>(style: &NodeInputOf<S>) -> Size<S> {
+pub(super) fn child_scrollbar_size<S: LayoutScalar>(style: &BlockChildProjection<S>) -> Size<S> {
     scrollbar_size_from_overflow(
         style.overflow,
         style.item_is_replaced,
