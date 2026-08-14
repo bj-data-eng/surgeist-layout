@@ -16,9 +16,12 @@ where
     Tree: Compute<M>,
 {
     while index < children.len() {
-        match InlineParticipantProjection::lookup::<Tree, M>(tree, children[index]).into_kind() {
+        let projection = InlineParticipantProjection::lookup::<Tree, M>(tree, children[index]);
+        match projection.kind() {
             InlineParticipantKindOf::Box(style) => {
-                if style.display == crate::Display::None || style.position == Position::Absolute {
+                if style.display == crate::Display::None
+                    || style.common.position == Position::Absolute
+                {
                     index += 1;
                     continue;
                 }
@@ -62,9 +65,8 @@ pub(super) fn visible_line_break_in_flow<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let InlineParticipantKindOf::LineBreak(line_break) =
-        InlineParticipantProjection::lookup::<Tree, M>(tree, child).into_kind()
-    else {
+    let projection = InlineParticipantProjection::lookup::<Tree, M>(tree, child);
+    let InlineParticipantKindOf::LineBreak(line_break) = projection.kind() else {
         return None;
     };
     if line_break.display().is_none() {
@@ -85,9 +87,8 @@ pub(super) fn visible_inline_boundary_in_flow<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let InlineParticipantKindOf::InlineBoundary(boundary) =
-        InlineParticipantProjection::lookup::<Tree, M>(tree, child).into_kind()
-    else {
+    let projection = InlineParticipantProjection::lookup::<Tree, M>(tree, child);
+    let InlineParticipantKindOf::InlineBoundary(boundary) = projection.kind() else {
         return None;
     };
     if boundary.writing_mode() != flow_writing_mode || boundary.direction() != flow_direction {
@@ -301,9 +302,8 @@ where
     let mut static_positions = Vec::new();
     for (offset, child) in run.iter().copied().enumerate() {
         let source_index = source_index_start + offset;
-        let child_style = match InlineParticipantProjection::lookup::<Tree, M>(tree, child)
-            .into_kind()
-        {
+        let projection = InlineParticipantProjection::lookup::<Tree, M>(tree, child);
+        let child_style = match projection.kind() {
             InlineParticipantKindOf::InlineText(text) => {
                 published_text.push((child, source_index, Vec::new(), None, None));
                 participants.extend(text.segments().iter().copied().map(|segment| {
@@ -376,7 +376,7 @@ where
             }
             continue;
         }
-        if child_style.position == Position::Absolute {
+        if child_style.common.position == Position::Absolute {
             static_positions.push((
                 child,
                 absolute_static_position(cursor_block, constants, containing_size),
@@ -396,7 +396,7 @@ where
         let child_padding = constants
             .flow_axes
             .zip_physical_edges_with_inline_extent(
-                child_style.padding,
+                *child_style.common.padding,
                 node_inner_size,
                 |length, basis| resolve_length_or_zero(length, basis),
             )
@@ -404,7 +404,7 @@ where
         let child_border = constants
             .flow_axes
             .zip_physical_edges_with_inline_extent(
-                child_style.border,
+                *child_style.common.border,
                 node_inner_size,
                 |length, basis| resolve_length_or_zero(length, basis),
             )
@@ -431,7 +431,7 @@ where
         let unresolved_margin = constants
             .flow_axes
             .zip_physical_edges_with_inline_extent(
-                child_style.margin,
+                *child_style.common.margin,
                 node_inner_size,
                 |length, basis| resolve_auto_optional(length, basis),
             )
@@ -450,7 +450,7 @@ where
             item,
             participation,
         });
-        atomic_children.push((child, source_index, child_style, output));
+        atomic_children.push((child, source_index, projection, output));
     }
     let logical_content_box_inset = constants.logical_content_box_inset();
     let mut provider_error = None;
@@ -633,11 +633,14 @@ where
         let logical_size = constants.flow_axes.logical_size(source.item.size);
         let projected_location =
             project_point(source.inline_start, source.block_start, logical_size);
+        let InlineParticipantKindOf::Box(child_projection) = child_style.kind() else {
+            unreachable!("atomic child retains its settled box projection");
+        };
         let inset_offset = relative_inset_offset(
             constants
                 .flow_axes
                 .zip_physical_edges_with_inline_extent(
-                    child_style.inset,
+                    *child_projection.common.inset,
                     node_inner_size,
                     |length, basis| resolve_auto_optional(length, basis),
                 )
@@ -655,8 +658,8 @@ where
             ),
             source.item.size,
             output.content_size,
-            child_style.overflow,
-            child_style.item_is_replaced,
+            child_projection.common.overflow,
+            child_projection.common.item_is_replaced,
         );
         content_size = max_content_size(content_size, contribution);
         scroll_content_size = max_content_size(scroll_content_size, contribution);
@@ -782,7 +785,7 @@ fn record_inline_run_baselines<S: LayoutScalar>(
 
 fn atomic_inline_box_participant<S: LayoutScalar>(
     source_index: usize,
-    child_style: BlockChildProjection<S>,
+    child_style: BlockChildProjection<'_, S>,
     output: ComputeOutputOf<S>,
     margin: Edges<S>,
     padding: Edges<S>,
@@ -790,8 +793,10 @@ fn atomic_inline_box_participant<S: LayoutScalar>(
     containing_flow_axes: crate::geometry::FlowAxes,
 ) -> AtomicInlineBoxParticipant<S> {
     let logical_size = containing_flow_axes.logical_size(output.size);
-    let used_overflow =
-        UsedOverflow::from_computed(child_style.overflow, child_style.item_is_replaced);
+    let used_overflow = UsedOverflow::from_computed(
+        child_style.common.overflow,
+        child_style.common.item_is_replaced,
+    );
     let block_overflow = match containing_flow_axes.block_axis() {
         PhysicalAxis::Horizontal => used_overflow.x(),
         PhysicalAxis::Vertical => used_overflow.y(),

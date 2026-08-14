@@ -464,22 +464,22 @@ impl<S: LayoutScalar> Constants<S> {
     fn from_projection<Tree, M>(
         tree: &Tree,
         node: <Tree as Traverse>::Node,
-        style: &BlockContainerProjection<S>,
+        style: &BlockContainerProjection<'_, S>,
         input: ComputeInputOf<S>,
     ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
     where
         Tree: Compute<M, Scalar = S>,
     {
-        let flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
+        let flow_axes = style.common.flow_axes;
         let (padding, border) = resolve_containing_padding_border(
             input.containing_flow_axes(),
             input.parent(),
-            style.padding,
-            style.border,
+            *style.common.padding,
+            *style.common.border,
             resolve_length_or_zero,
             |edges| edges.transpose_with_node(tree, node),
         )?;
-        let own_logical_margin = flow_axes.logical_edges(style.margin);
+        let own_logical_margin = flow_axes.logical_edges(*style.common.margin);
         let collapsible_margin = flow_axes.physical_edges(LogicalEdgesOf::new(
             LengthAutoOf::ZERO,
             LengthAutoOf::ZERO,
@@ -495,7 +495,7 @@ impl<S: LayoutScalar> Constants<S> {
             )
             .transpose_with_node(tree, node)?;
         let padding_border_size = (padding + border).sum_axes();
-        let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
+        let box_sizing_adjustment = if style.common.box_sizing == BoxSizing::ContentBox {
             padding_border_size
         } else {
             Size::ZERO
@@ -503,28 +503,32 @@ impl<S: LayoutScalar> Constants<S> {
         let (style_size, min_size, max_size) = match input.sizing_mode() {
             SizingMode::ContentSize => (Size::NONE, Size::NONE, Size::NONE),
             SizingMode::InherentSize => {
-                let style_size =
-                    preferred_size(&style.size, input.parent(), SizingAlgorithm::Block, true)
-                        .transpose_with_node(tree, node)?
-                        .apply_aspect_ratio(style.aspect_ratio)
-                        .add_optional(box_sizing_adjustment);
-                let min_size = minimum_size(
-                    &style.min_size,
+                let style_size = preferred_size(
+                    style.common.size,
                     input.parent(),
                     SizingAlgorithm::Block,
                     true,
                 )
                 .transpose_with_node(tree, node)?
-                .apply_aspect_ratio(style.aspect_ratio)
+                .apply_aspect_ratio(*style.common.aspect_ratio)
+                .add_optional(box_sizing_adjustment);
+                let min_size = minimum_size(
+                    style.common.min_size,
+                    input.parent(),
+                    SizingAlgorithm::Block,
+                    true,
+                )
+                .transpose_with_node(tree, node)?
+                .apply_aspect_ratio(*style.common.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
                 let max_size = maximum_size(
-                    &style.max_size,
+                    style.common.max_size,
                     input.parent(),
                     SizingAlgorithm::Block,
                     true,
                 )
                 .transpose_with_node(tree, node)?
-                .apply_aspect_ratio(style.aspect_ratio)
+                .apply_aspect_ratio(*style.common.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
                 (style_size, min_size, max_size)
             }
@@ -536,14 +540,17 @@ impl<S: LayoutScalar> Constants<S> {
         let is_root = input.run_mode() == RunMode::PerformRootLayout;
         let boundary_margins_can_collapse =
             input.parent_formatting_context() == ParentFormattingContext::BlockFlow;
-        let blocks_margin_collapse =
-            !style.item_is_replaced && style.overflow.establishes_independent_formatting_context();
+        let blocks_margin_collapse = !style.common.item_is_replaced
+            && style
+                .common
+                .overflow
+                .establishes_independent_formatting_context();
         let is_margin_collapsing_block = style.display == super::Display::Block;
         let can_collapse_through = is_margin_collapsing_block
             && boundary_margins_can_collapse
             && !is_root
             && !blocks_margin_collapse
-            && style.position == Position::Relative
+            && style.common.position == Position::Relative
             && flow_axes.logical_edges(padding).block_start == S::ZERO
             && flow_axes.logical_edges(padding).block_end == S::ZERO
             && flow_axes.logical_edges(border).block_start == S::ZERO
@@ -564,8 +571,8 @@ impl<S: LayoutScalar> Constants<S> {
             .zip_map(padding_border_size, |size, minimum| size.max(minimum));
         let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
             flow_axes,
-            computed_overflow: style.overflow,
-            item_is_replaced: style.item_is_replaced,
+            computed_overflow: style.common.overflow,
+            item_is_replaced: style.common.item_is_replaced,
             border_box_size: scroll_box_size,
             border,
             padding,
@@ -603,8 +610,8 @@ impl<S: LayoutScalar> Constants<S> {
                 .map(|value| value.map(ChildContainingBlockExtent::Definite)),
             node_min_size: min_size,
             node_max_size: max_size,
-            direction: style.direction,
-            writing_mode: style.writing_mode,
+            direction: flow_axes.direction(),
+            writing_mode: flow_axes.writing_mode(),
             text_align: style.text_align,
             border,
             padding,
@@ -623,14 +630,14 @@ impl<S: LayoutScalar> Constants<S> {
             collapse_top_margin: is_margin_collapsing_block
                 && boundary_margins_can_collapse
                 && !is_root
-                && style.position == Position::Relative
+                && style.common.position == Position::Relative
                 && !blocks_margin_collapse
                 && logical_padding.block_start == S::ZERO
                 && logical_border.block_start == S::ZERO,
             collapse_bottom_margin: is_margin_collapsing_block
                 && boundary_margins_can_collapse
                 && !is_root
-                && style.position == Position::Relative
+                && style.common.position == Position::Relative
                 && !blocks_margin_collapse
                 && logical_padding.block_end == S::ZERO
                 && logical_border.block_end == S::ZERO

@@ -72,19 +72,18 @@ where
     );
 
     for (source_index, child) in children.iter().copied().enumerate() {
-        let InlineParticipantKindOf::Box(style) =
-            InlineParticipantProjection::lookup::<Tree, M>(tree, child).into_kind()
-        else {
+        let projection = InlineParticipantProjection::lookup::<Tree, M>(tree, child);
+        let InlineParticipantKindOf::Box(style) = projection.kind() else {
             continue;
         };
-        if style.position != Position::Absolute || style.display == crate::Display::None {
+        if style.common.position != Position::Absolute || style.display == crate::Display::None {
             continue;
         }
 
         let padding = constants
             .flow_axes
             .zip_physical_edges_with_inline_extent(
-                style.padding,
+                *style.common.padding,
                 area_size.map(Some),
                 resolve_length_or_zero,
             )
@@ -92,7 +91,7 @@ where
         let border = constants
             .flow_axes
             .zip_physical_edges_with_inline_extent(
-                style.border,
+                *style.common.border,
                 area_size.map(Some),
                 resolve_length_or_zero,
             )
@@ -100,48 +99,48 @@ where
         let unresolved_margin = constants
             .flow_axes
             .zip_physical_edges_with_inline_extent(
-                style.margin,
+                *style.common.margin,
                 area_size.map(Some),
                 resolve_auto_optional,
             )
             .transpose_with_node(tree, child)?;
         let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(S::ZERO));
         let padding_border = padding + border;
-        let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
+        let box_sizing_adjustment = if style.common.box_sizing == BoxSizing::ContentBox {
             padding_border.sum_axes()
         } else {
             Size::ZERO
         };
         let min_size = minimum_size(
-            &style.min_size,
+            style.common.min_size,
             area_size.map(Some),
             SizingAlgorithm::Positioned,
             true,
         )
         .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(style.aspect_ratio)
+        .apply_aspect_ratio(*style.common.aspect_ratio)
         .add_optional(box_sizing_adjustment)
         .or(padding_border.sum_axes().map(Some))
         .max_optional(padding_border.sum_axes().map(Some));
         let max_size = maximum_size(
-            &style.max_size,
+            style.common.max_size,
             area_size.map(Some),
             SizingAlgorithm::Positioned,
             true,
         )
         .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(style.aspect_ratio)
+        .apply_aspect_ratio(*style.common.aspect_ratio)
         .add_optional(box_sizing_adjustment);
         let style_size = preferred_size(
-            &style.size,
+            style.common.size,
             area_size.map(Some),
             SizingAlgorithm::Positioned,
             true,
         )
         .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(style.aspect_ratio)
+        .apply_aspect_ratio(*style.common.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-        let aspect_max_size = if style.aspect_ratio.is_some()
+        let aspect_max_size = if style.common.aspect_ratio.is_some()
             && style_size.width.is_none()
             && style_size.height.is_none()
             && max_size.width.is_some()
@@ -155,6 +154,7 @@ where
             .or(aspect_max_size)
             .clamp_max_before_min_optional(min_size, max_size);
         let inset = style
+            .common
             .inset
             .zip_size(area_size.map(Some), resolve_auto_optional)
             .transpose_with_node(tree, child)?;
@@ -167,7 +167,7 @@ where
                     .clamp_max_before_min_optional(min_size.width, max_size.width),
             );
             known_size = known_size
-                .apply_aspect_ratio(style.aspect_ratio)
+                .apply_aspect_ratio(*style.common.aspect_ratio)
                 .clamp_max_before_min_optional(min_size, max_size);
         }
         if known_size.height.is_none()
@@ -179,7 +179,7 @@ where
                     .clamp_max_before_min_optional(min_size.height, max_size.height),
             );
             known_size = known_size
-                .apply_aspect_ratio(style.aspect_ratio)
+                .apply_aspect_ratio(*style.common.aspect_ratio)
                 .clamp_max_before_min_optional(min_size, max_size);
         }
 

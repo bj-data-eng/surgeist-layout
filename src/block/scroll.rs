@@ -174,10 +174,12 @@ pub(super) fn retained_child_scroll_geometry<S: LayoutScalar>(
     )
 }
 
-pub(super) fn child_scrollbar_size<S: LayoutScalar>(style: &BlockChildProjection<S>) -> Size<S> {
+pub(super) fn child_scrollbar_size<S: LayoutScalar>(
+    style: &BlockChildProjection<'_, S>,
+) -> Size<S> {
     scrollbar_size_from_overflow(
-        style.overflow,
-        style.item_is_replaced,
+        style.common.overflow,
+        style.common.item_is_replaced,
         style.scrollbar_width.get(),
     )
 }

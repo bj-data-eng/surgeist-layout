@@ -17,7 +17,8 @@ where
     Tree: Compute<M>,
 {
     children.iter().copied().any(|child| {
-        let style = match InlineParticipantProjection::lookup::<Tree, M>(tree, child).into_kind() {
+        let projection = InlineParticipantProjection::lookup::<Tree, M>(tree, child);
+        let style = match projection.kind() {
             InlineParticipantKindOf::InlineText(_) => return true,
             InlineParticipantKindOf::Box(style) => style,
             InlineParticipantKindOf::LineBreak(input) => {
@@ -29,7 +30,7 @@ where
             }
         };
         if style.display == crate::Display::None
-            || style.position == Position::Absolute
+            || style.common.position == Position::Absolute
             || style.float != Float::None
         {
             return false;
@@ -98,9 +99,9 @@ pub(super) struct InFlowPassContext<'a, S: LayoutScalar, Node> {
     pub(super) inherited: Option<&'a InheritedFloatExclusions<S, Node>>,
 }
 
-enum InFlowChildStart<S: LayoutScalar> {
+enum InFlowChildStart<'a, S: LayoutScalar> {
     VisibleInlineRun(VisibleInlineRunTransition),
-    FlowBox(Box<BlockChildProjection<S>>),
+    FlowBox(Box<BlockChildProjection<'a, S>>),
 }
 
 pub(super) fn layout_in_flow_children<Tree, S, M>(
@@ -177,101 +178,101 @@ where
     while index < children.len() {
         let source_index = index;
         let child = children[index];
-        let child_start =
-            match InlineParticipantProjection::lookup::<Tree, M>(tree, child).into_kind() {
-                InlineParticipantKindOf::Box(style) => {
-                    if style.display == crate::Display::None {
-                        if set_layout {
-                            tree.set_unrounded(
-                                child,
-                                NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(
-                                    source_index,
-                                )),
-                            );
-                            tree.compute_child(
-                                child,
-                                ComputeInputOf::<S>::hidden_in_containing_pass(
-                                    ContainingLayoutContext::new(
-                                        constants.flow_axes,
-                                        ParentFormattingContext::BlockFlow,
-                                    ),
-                                    input.settled_auto_scrollbars(),
-                                ),
-                            )?;
-                        }
-                        index += 1;
-                        continue;
-                    }
-                    if style.position == Position::Absolute {
-                        static_positions.push((
+        let projection = InlineParticipantProjection::lookup::<Tree, M>(tree, child);
+        let child_start = match projection.kind() {
+            InlineParticipantKindOf::Box(style) => {
+                if style.display == crate::Display::None {
+                    if set_layout {
+                        tree.set_unrounded(
                             child,
-                            absolute_static_position(
-                                cursor_block + active_margin.resolve(),
-                                constants,
-                                constants.containing_size(logical_node_inner_size),
+                            NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(
+                                source_index,
+                            )),
+                        );
+                        tree.compute_child(
+                            child,
+                            ComputeInputOf::<S>::hidden_in_containing_pass(
+                                ContainingLayoutContext::new(
+                                    constants.flow_axes,
+                                    ParentFormattingContext::BlockFlow,
+                                ),
+                                input.settled_auto_scrollbars(),
                             ),
-                        ));
-                        index += 1;
-                        continue;
+                        )?;
                     }
-                    if style.display.is_inline_level() && style.float.is_none() {
-                        let run_start = index;
-                        index = inline_run_end(tree, children, constants, index + 1);
-                        InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
-                            run_start, index,
-                        ))
-                    } else {
-                        InFlowChildStart::FlowBox(style)
-                    }
+                    index += 1;
+                    continue;
                 }
-                InlineParticipantKindOf::InlineText(_) => {
-                    let run_start = index;
-                    index = inline_run_end(tree, children, constants, index + 1);
-                    InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
-                        run_start, index,
-                    ))
-                }
-                InlineParticipantKindOf::LineBreak(line_break) => {
-                    if line_break.display().is_none() {
-                        if set_layout {
-                            tree.set_unrounded(
-                                child,
-                                NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(
-                                    source_index,
-                                )),
-                            );
-                        }
-                        index += 1;
-                        continue;
-                    }
-                    visible_line_break_in_flow(
-                        tree,
+                if style.common.position == Position::Absolute {
+                    static_positions.push((
                         child,
-                        constants.writing_mode,
-                        constants.direction,
-                    );
-
+                        absolute_static_position(
+                            cursor_block + active_margin.resolve(),
+                            constants,
+                            constants.containing_size(logical_node_inner_size),
+                        ),
+                    ));
+                    index += 1;
+                    continue;
+                }
+                if style.display.is_inline_level() && style.float.is_none() {
                     let run_start = index;
                     index = inline_run_end(tree, children, constants, index + 1);
                     InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
                         run_start, index,
                     ))
+                } else {
+                    InFlowChildStart::FlowBox(style)
                 }
-                InlineParticipantKindOf::InlineBoundary(_) => {
-                    visible_inline_boundary_in_flow(
-                        tree,
-                        child,
-                        constants.writing_mode,
-                        constants.direction,
-                    );
+            }
+            InlineParticipantKindOf::InlineText(_) => {
+                let run_start = index;
+                index = inline_run_end(tree, children, constants, index + 1);
+                InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
+                    run_start, index,
+                ))
+            }
+            InlineParticipantKindOf::LineBreak(line_break) => {
+                if line_break.display().is_none() {
+                    if set_layout {
+                        tree.set_unrounded(
+                            child,
+                            NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(
+                                source_index,
+                            )),
+                        );
+                    }
+                    index += 1;
+                    continue;
+                }
+                visible_line_break_in_flow(
+                    tree,
+                    child,
+                    constants.writing_mode,
+                    constants.direction,
+                );
 
-                    let run_start = index;
-                    index = inline_run_end(tree, children, constants, index + 1);
-                    InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
-                        run_start, index,
-                    ))
-                }
-            };
+                let run_start = index;
+                index = inline_run_end(tree, children, constants, index + 1);
+                InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
+                    run_start, index,
+                ))
+            }
+            InlineParticipantKindOf::InlineBoundary(_) => {
+                visible_inline_boundary_in_flow(
+                    tree,
+                    child,
+                    constants.writing_mode,
+                    constants.direction,
+                );
+
+                let run_start = index;
+                index = inline_run_end(tree, children, constants, index + 1);
+                InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
+                    run_start, index,
+                ))
+            }
+        };
         let child_style = match child_start {
             InFlowChildStart::VisibleInlineRun(transition) => {
                 transition.apply(
@@ -310,14 +311,14 @@ where
         };
 
         let unresolved_margin = constants.flow_axes.zip_physical_edges_with_inline_extent(
-            child_style.margin,
+            *child_style.common.margin,
             node_inner_size,
             |length, basis| length.resolve_auto_with_status(basis),
         );
         let child_padding = constants
             .flow_axes
             .zip_physical_edges_with_inline_extent(
-                child_style.padding,
+                *child_style.common.padding,
                 node_inner_size,
                 |length, basis| resolve_length_or_zero(length, basis),
             )
@@ -325,7 +326,7 @@ where
         let child_border = constants
             .flow_axes
             .zip_physical_edges_with_inline_extent(
-                child_style.border,
+                *child_style.common.border,
                 node_inner_size,
                 |length, basis| resolve_length_or_zero(length, basis),
             )
@@ -334,7 +335,7 @@ where
         let parent_logical_available = constants
             .flow_axes
             .logical_size(constants.available_content);
-        let child_flow_axes = child_style.flow_axes;
+        let child_flow_axes = child_style.common.flow_axes;
         let child_parent_size = constants.child_containing_block_size(child_flow_axes);
         let child_logical_node_inner_size = child_flow_axes.logical_size(child_parent_size);
         let child_logical_available = child_flow_axes.logical_size(constants.available_content);
@@ -613,7 +614,7 @@ where
             constants
                 .flow_axes
                 .zip_physical_edges_with_inline_extent(
-                    child_style.inset,
+                    *child_style.common.inset,
                     node_inner_size,
                     |length, basis| resolve_auto_optional(length, basis),
                 )
@@ -754,8 +755,8 @@ where
             ),
             output.size,
             output.content_size,
-            child_style.overflow,
-            child_style.item_is_replaced,
+            child_style.common.overflow,
+            child_style.common.item_is_replaced,
         );
         let logical_contribution = constants.flow_axes.logical_size(contribution);
         let child_inline_content = (logical_child_margin.inline_sum() + logical_child_size.inline)
@@ -812,29 +813,36 @@ where
     })
 }
 
-fn child_margin_can_collapse_with_parent<S: LayoutScalar>(style: &BlockChildProjection<S>) -> bool {
-    style.display == crate::Display::Block && style.position == Position::Relative
+fn child_margin_can_collapse_with_parent<S: LayoutScalar>(
+    style: &BlockChildProjection<'_, S>,
+) -> bool {
+    style.display == crate::Display::Block && style.common.position == Position::Relative
 }
 
-fn block_child_avoids_float_exclusions<S: LayoutScalar>(style: &BlockChildProjection<S>) -> bool {
+fn block_child_avoids_float_exclusions<S: LayoutScalar>(
+    style: &BlockChildProjection<'_, S>,
+) -> bool {
     style.display != crate::Display::None
         && !style.display.is_inline_level()
-        && style.position != Position::Absolute
+        && style.common.position != Position::Absolute
         && style.float.is_none()
         && (matches!(
             style.display,
             crate::Display::Flex | crate::Display::Grid | crate::Display::GridLanes
-        ) || (!style.item_is_replaced
-            && style.overflow.establishes_independent_formatting_context()))
+        ) || (!style.common.item_is_replaced
+            && style
+                .common
+                .overflow
+                .establishes_independent_formatting_context()))
 }
 
 fn parent_inline_preferred_size_is_auto<S: LayoutScalar>(
-    style: &BlockChildProjection<S>,
+    style: &BlockChildProjection<'_, S>,
     parent_flow_axes: crate::geometry::FlowAxes,
 ) -> bool {
     match parent_flow_axes.inline_axis() {
-        PhysicalAxis::Horizontal => style.size.width.is_auto(),
-        PhysicalAxis::Vertical => style.size.height.is_auto(),
+        PhysicalAxis::Horizontal => style.common.size.width.is_auto(),
+        PhysicalAxis::Vertical => style.common.size.height.is_auto(),
     }
 }
 
@@ -856,7 +864,7 @@ fn set_parent_inline_available<S: LayoutScalar>(
 fn in_flow_child_known_size<Tree, M>(
     tree: &Tree,
     child: <Tree as Traverse>::Node,
-    style: &BlockChildProjection<Tree::Scalar>,
+    style: &BlockChildProjection<'_, Tree::Scalar>,
     padding_border: Edges<Tree::Scalar>,
     child_flow_axes: crate::geometry::FlowAxes,
     parent: LogicalSizeOf<Option<Tree::Scalar>>,
@@ -866,28 +874,29 @@ where
     Tree: Compute<M>,
 {
     let parent = child_flow_axes.physical_size(parent);
-    let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
+    let box_sizing_adjustment = if style.common.box_sizing == BoxSizing::ContentBox {
         padding_border.sum_axes()
     } else {
         Size::ZERO
     };
-    let min_size = minimum_size(&style.min_size, parent, SizingAlgorithm::Block, true)
+    let min_size = minimum_size(style.common.min_size, parent, SizingAlgorithm::Block, true)
         .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(style.aspect_ratio)
+        .apply_aspect_ratio(*style.common.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-    let mut max_size = maximum_size(&style.max_size, parent, SizingAlgorithm::Block, true)
+    let mut max_size = maximum_size(style.common.max_size, parent, SizingAlgorithm::Block, true)
         .transpose_with_node(tree, child)?
         .add_optional(box_sizing_adjustment);
     let aspect_height_limit = style
+        .common
         .aspect_ratio
         .zip(max_size.height)
         .and_then(|(ratio, height)| max_size.width.is_none().then_some(height * ratio.get()));
     if let Some(width) = aspect_height_limit {
         max_size.width = Some(width);
     }
-    let known = preferred_size(&style.size, parent, SizingAlgorithm::Block, true)
+    let known = preferred_size(style.common.size, parent, SizingAlgorithm::Block, true)
         .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(style.aspect_ratio)
+        .apply_aspect_ratio(*style.common.aspect_ratio)
         .add_optional(box_sizing_adjustment)
         .clamp_max_before_min_optional(min_size, max_size);
 
@@ -895,11 +904,11 @@ where
     let min_size = child_flow_axes.logical_size(min_size);
     let max_size = child_flow_axes.logical_size(max_size);
     let inline_size = match child_flow_axes.inline_axis() {
-        crate::PhysicalAxis::Horizontal => style.size.width.clone(),
-        crate::PhysicalAxis::Vertical => style.size.height.clone(),
+        crate::PhysicalAxis::Horizontal => style.common.size.width.clone(),
+        crate::PhysicalAxis::Vertical => style.common.size.height.clone(),
     };
-    if !style.item_is_table
-        && !style.item_is_replaced
+    if !style.common.item_is_table
+        && !style.common.item_is_replaced
         && known.inline.is_none()
         && !inline_size.is_min_content()
         && !inline_size.is_max_content()
@@ -910,7 +919,7 @@ where
             let physical_known = child_flow_axes.physical_size(known);
             known = child_flow_axes.logical_size(
                 physical_known
-                    .apply_aspect_ratio(style.aspect_ratio)
+                    .apply_aspect_ratio(*style.common.aspect_ratio)
                     .clamp_max_before_min_optional(
                         child_flow_axes.physical_size(min_size),
                         child_flow_axes.physical_size(max_size),
@@ -923,14 +932,14 @@ where
 }
 
 fn in_flow_child_available_inline<S: LayoutScalar>(
-    style: &BlockChildProjection<S>,
+    style: &BlockChildProjection<'_, S>,
     child_flow_axes: crate::geometry::FlowAxes,
     available_inline: Option<S>,
     fallback: AvailableOf<S>,
 ) -> AvailableOf<S> {
     let inline_size = match child_flow_axes.inline_axis() {
-        crate::PhysicalAxis::Horizontal => style.size.width.clone(),
-        crate::PhysicalAxis::Vertical => style.size.height.clone(),
+        crate::PhysicalAxis::Horizontal => style.common.size.width.clone(),
+        crate::PhysicalAxis::Vertical => style.common.size.height.clone(),
     };
     if inline_size.is_min_content() {
         AvailableOf::<S>::MIN_CONTENT
