@@ -57,6 +57,19 @@ tests may receive only minimal path aggregation or recursive inventory updates;
 no source/token/file-placement test is added or strengthened. R08 still removes
 that entire test class.
 
+T02 adds `scripts/audit-node-projection-boundaries.sh` as a workflow-only audit,
+never a cargo test. It has fixed modes `scroll`, `block-inline`, `flex`,
+`grid-container`, `grid`, and `all`. The only allowed complete-input owners in
+algorithm trees are `src/{block,flex,grid,scroll,inline}/input.rs`; the shared
+constructor owner is `src/node_projection.rs`. Every other selected Rust file is
+scanned fail-closed with multiline PCRE for any identifier parameter or field of
+`NodeInputOf`, `Box<NodeInputOf`, a `NodeInputOf` return, or a cloned
+`tree.node_input(...)`. `grid-container` applies the same check to container,
+parent, and wrapper style identifiers before the item task; `grid` checks every
+identifier afterward. The script has no line/text allowlist and exits nonzero
+after printing every violation. T02 through T06 run the mode for the boundary
+they close; T07 and final acceptance run `all`.
+
 Public API classification: source-compatible documentation/internal ownership
 change only. Dependencies, features, Cargo files, MSRV, root integration, and
 generated API artifacts: unchanged. Documentation: README gains one grouped API
@@ -107,7 +120,8 @@ Dependency: none. Commit: `refactor(input): partition public type ownership`.
 
 ### 2.2 `P01/I08/S02/R06/T02` Common Box And Scroll Projections
 
-**Area:** new `src/node_projection.rs`, new `src/scroll/input.rs`,
+**Area:** new `src/node_projection.rs`, new `src/scroll/input.rs`, new
+`scripts/audit-node-projection-boundaries.sh`,
 `src/scroll/mod.rs`, construction/model/box-geometry/contribution callers,
 algorithm scroll-publication entry callers, focused scroll tests, and exact
 production inventory additions only.
@@ -127,6 +141,7 @@ mappings, clips, gutters, ranges, snap metadata, errors, and both scalar lanes.
 ```sh
 set -e; for f in canonical_geometry_ scroll_projection_ fri08_c07_t02_scroll_source_ scroll_snap_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test -f src/node_projection.rs; test -f src/scroll/input.rs; test "$(rg -l 'struct CommonBoxProjection' src --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct ScrollBoxProjection' src/scroll --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct ScrollTargetProjection' src/scroll --glob '*.rs' | wc -l | tr -d ' ')" = 1
+scripts/audit-node-projection-boundaries.sh scroll
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -135,8 +150,9 @@ Dependency: T01. Commit: `refactor(input): add common and scroll projections`.
 ### 2.3 `P01/I08/S02/R06/T03` Block And Inline Role Projections
 
 **Area:** new `src/block/input.rs`, `src/block/{mod,in_flow,inline_run,floats,
-absolute,sizing,scroll}.rs`, `src/inline.rs`, focused block/inline tests, and exact
-production inventory additions only.
+absolute,sizing,scroll}.rs`, replace `src/inline.rs` with
+`src/inline/{mod,input}.rs`, focused block/inline tests, and exact production
+inventory additions only.
 
 **Outcome:** block owns `BlockContainerProjection` and `BlockChildProjection`;
 inline owns `InlineParticipantProjection`. Entry/child lookup constructs them
@@ -151,7 +167,8 @@ inline participation, errors, caches, scroll geometry, and scalar lanes.
 
 ```sh
 set -e; for f in ordinary_block_flow_ block_atomic_inline_run_ block_absolute_child_ fri06_c04_float_ inline_layout_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
-test -f src/block/input.rs; test "$(rg -l 'struct BlockContainerProjection' src/block --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct BlockChildProjection' src/block --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct InlineParticipantProjection' src/inline.rs src/block --glob '*.rs' | wc -l | tr -d ' ')" = 1
+test -f src/block/input.rs; test -f src/inline/mod.rs; test -f src/inline/input.rs; test ! -e src/inline.rs; test "$(rg -l 'struct BlockContainerProjection' src/block --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct BlockChildProjection' src/block --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct InlineParticipantProjection' src/inline --glob '*.rs' | wc -l | tr -d ' ')" = 1
+scripts/audit-node-projection-boundaries.sh block-inline
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -177,6 +194,7 @@ caches/publication, and both scalar lanes.
 ```sh
 set -e; for f in flex_order_modified_sequence_ flex_replaced_automatic_minimum_ flex_row_aligns_ fri07_c02_collapsed_output_ fri05_c04_flex_contribution_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test -f src/flex/input.rs; test "$(rg -l 'struct FlexContainerProjection' src/flex --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct FlexItemProjection' src/flex --glob '*.rs' | wc -l | tr -d ' ')" = 1
+scripts/audit-node-projection-boundaries.sh flex
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -202,6 +220,7 @@ subgrid inheritance, errors, and scalar lanes.
 ```sh
 set -e; for f in fri08_c01_topology_ grid_fraction_tracks_ grid_stretch_ grid_lanes_ fri08_c02_auto_fit_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test -f src/grid/input.rs; test "$(rg -l 'struct GridContainerProjection' src/grid --glob '*.rs' | wc -l | tr -d ' ')" = 1
+scripts/audit-node-projection-boundaries.sh grid-container
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -228,6 +247,7 @@ transport, scroll publication, atomic failure, and both scalar lanes.
 ```sh
 set -e; for f in grid_absolute_child_ subgrid_child_ fri08_c04_baseline_ fri05_c05_grid_contribution_ fri08_c03_nested_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test "$(rg -l 'struct GridItemProjection' src/grid --glob '*.rs' | wc -l | tr -d ' ')" = 1
+scripts/audit-node-projection-boundaries.sh grid
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -247,13 +267,13 @@ duplicated into algorithm-specific carriers; no projection or helper is public.
 **RED/acceptance:** `compute_layout_`, `fri06_c02_cache_`,
 `fri06_c03_lifecycle_`, `fri08_c07_t03_optional_math_`, and all block/flex/grid
 writing-mode families pass before and after. The workflow-only aggregate source
-audit is RED at the assignment base and GREEN when reviewed production prefixes
-contain no `NodeInputOf` parameter/storage outside projection or entry-boundary
-owners. No Rust test parses source or asserts ownership.
+audit is RED at the assignment base and GREEN only when fixed `all` mode finds
+no `NodeInputOf` parameter/storage/return or cloned tree input outside the six
+algorithm input owners. No Rust test parses source or asserts ownership.
 
 ```sh
 set -e; for f in compute_layout_ fri06_c02_cache_ fri06_c03_lifecycle_ fri08_c07_t03_optional_math_ writing_mode_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
-rg -n 'NodeInputOf' src/{block,flex,grid,scroll} src/inline.rs src/node_projection.rs --glob '*.rs'
+scripts/audit-node-projection-boundaries.sh all
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -280,6 +300,7 @@ or counts; existing temporary source audits are not strengthened.
 
 ```sh
 set -e; rg -q '^## Public API Map$' README.md; for h in 'Computation and tree' 'Node input' 'Sizing' 'Geometry and scroll' 'Output' 'Finite grid utilities'; do rg -q "^### $h$" README.md; done
+scripts/audit-node-projection-boundaries.sh all
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_public_api_inventory_is_compatible; CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout node_input_; CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --doc
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
@@ -315,6 +336,7 @@ cargo fmt --check; git diff --check
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_remediation_public_api_inventory_is_compatible
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri05_c05_grid_legacy_absence_inventories_every_production_source
 rg -q '^## Public API Map$' README.md; for h in 'Computation and tree' 'Node input' 'Sizing' 'Geometry and scroll' 'Output' 'Finite grid utilities'; do rg -q "^### $h$" README.md; done
+scripts/audit-node-projection-boundaries.sh all
 : "${TASK_SPANS:?set TASK_SPANS to the newline-delimited ordered exact full-SHA spans from the eight CLEAN task reviews}"
 expected_paths="$({ printf '%s\n' plans/cycles/P01-I08-S02-R06-node-projections-and-compatible-api-map.md; while IFS= read -r span; do git diff --name-only "$span"; done <<< "$TASK_SPANS"; } | LC_ALL=C sort -u)"; actual_paths="$(git diff --name-only 05a531dd661937aa3518678524c9accb0a99063d..HEAD | LC_ALL=C sort -u)"; test "$actual_paths" = "$expected_paths"
 base_suppressions="$(while IFS= read -r p; do git show "05a531dd661937aa3518678524c9accb0a99063d:$p" | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }'; done < <(git ls-tree -r --name-only 05a531dd661937aa3518678524c9accb0a99063d | rg '\.rs$') | LC_ALL=C sort)"; current_suppressions="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }' | LC_ALL=C sort)"; test -z "$(comm -13 <(printf '%s\n' "$base_suppressions") <(printf '%s\n' "$current_suppressions"))"
