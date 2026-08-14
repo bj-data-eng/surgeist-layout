@@ -81,15 +81,18 @@ to this cycle.
 ### 2.1 `P01/I08/S02/R06A/T01` Pin And Isolate The Audit Catalog
 
 **Area:** product `Cargo.toml`; new
-`tools/surgeist-layout-audits/{Cargo.toml,Cargo.lock,rust-toolchain.toml,src/lib.rs}`;
+`tools/surgeist-layout-audits/{.cargo/config.toml,Cargo.toml,Cargo.lock,rust-toolchain.toml,src/lib.rs}`;
 user-scoped Cargo and rustup installations authorized above.
 
 **Outcome:** verify the already installed exact authorized
 binaries/toolchain/components; create package `surgeist-layout-audits`, library
 `surgeist_layout_audits`,
 `publish = false`, `crate-type = ["cdylib"]`, its own `[workspace]`, and exact
-crates.io pins; exclude the tool tree from product packaging; keep every catalog
-command on repository-root `target/dylint-audits` with no nested target.
+crates.io pins; configure installed `dylint-link` only for the exact
+`aarch64-apple-darwin` catalog target so release builds publish Dylint's
+toolchain-suffixed library; exclude the tool tree from product packaging; keep
+every catalog command on repository-root `target/dylint-audits` with no nested
+target.
 
 **RED/acceptance:** retained historical RED proves the exact binaries, nightly,
 components, catalog, and package exclusion were absent at cycle entry. The
@@ -105,6 +108,18 @@ Current retry RED:
 ```sh
 test ! -e tools/surgeist-layout-audits
 if rg -q '^exclude = \["tools/surgeist-layout-audits/\*\*"\]$' Cargo.toml; then exit 1; fi
+```
+
+The later pre-audit setup failure adds one T01 correction RED without replacing
+the retained entry evidence: the catalog linker configuration and required
+toolchain-suffixed release library are absent while the ordinary unsuffixed
+library exists. The T01 correction adds only the missing linker configuration
+and proves the suffixed release artifact without invoking the product lint.
+
+```sh
+test ! -e tools/surgeist-layout-audits/.cargo/config.toml
+test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits.dylib"
+test ! -e "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
 ```
 
 ```sh
@@ -124,10 +139,14 @@ rg -q '^\[workspace\]$' tools/surgeist-layout-audits/Cargo.toml
 rg -q '^channel = "nightly-2026-05-28"$' tools/surgeist-layout-audits/rust-toolchain.toml
 rg -q '^components = \["rustc-dev", "llvm-tools-preview"\]$' tools/surgeist-layout-audits/rust-toolchain.toml
 rg -q '^profile = "minimal"$' tools/surgeist-layout-audits/rust-toolchain.toml
+rg -q '^\[target\.aarch64-apple-darwin\]$' tools/surgeist-layout-audits/.cargo/config.toml
+rg -q '^linker = "dylint-link"$' tools/surgeist-layout-audits/.cargo/config.toml
 cargo +nightly-2026-05-28 generate-lockfile --manifest-path tools/surgeist-layout-audits/Cargo.toml
 test -f tools/surgeist-layout-audits/Cargo.lock
 perl -0777 -ne 'exit !(/\[\[package\]\]\nname = "dylint_linting"\nversion = "6\.0\.3"\nsource = "registry\+https:\/\/github\.com\/rust-lang\/crates\.io-index"/s && /\[\[package\]\]\nname = "dylint_testing"\nversion = "6\.0\.3"\nsource = "registry\+https:\/\/github\.com\/rust-lang\/crates\.io-index"/s)' tools/surgeist-layout-audits/Cargo.lock
 CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 check --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin" cargo +nightly-2026-05-28 build --release --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
+test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
 test ! -e tools/surgeist-layout-audits/target
 package_files="$(CARGO_NET_OFFLINE=true cargo package --locked --offline --allow-dirty --list)"; test -z "$(printf '%s\n' "$package_files" | rg '^tools/surgeist-layout-audits/' || true)"
 rg -q '^exclude = \["tools/surgeist-layout-audits/\*\*"\]$' Cargo.toml
@@ -207,15 +226,23 @@ script deletion requires reconciliation.
 
 **Coordinator transition:** after T02 is independently CLEAN and before T03 is
 dispatched, the coordinator runs the explicitly selected lint against the
-unchanged R06 product source and records zero diagnostics with this exact sole
-selected invocation:
+unchanged R06 product source and records zero diagnostics with the exact semantic
+invocation below:
+
+The first command attempt at `9b88ecafbaaba34d8d0e88d8b7cf30c5e1d5e84b`
+stopped during library discovery before loading the lint or compiling product
+source: the catalog lacked Dylint's required `dylint-link` target configuration,
+so only the ordinary unsuffixed library existed. It produced no semantic audit
+result and T03 was not dispatched. After the corrected T01 range is independently
+CLEAN and its suffixed-library probe passes, the command below performs the one
+semantic audit run required by the specification.
 
 ```sh
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo dylint --path tools/surgeist-layout-audits -- -D p01_i08_s02_r06_t02_node_projection_boundary
 ```
 
-A failure returns to T02; a worker never performs or repeats this selected-lint
-invocation, and it does not recur in the final matrix.
+A semantic diagnostic failure returns to T02; a worker never performs or repeats
+the successful semantic audit, and it does not recur in the final matrix.
 
 **Outcome:** consume the coordinator's zero-diagnostic semantic audit evidence
 and delete the superseded lexical script.
@@ -263,6 +290,8 @@ cargo install --list | perl -0ne 'exit !(/^cargo-dylint v6\.0\.3:\n    cargo-dyl
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^rustc-dev-'
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^llvm-tools-'
 driver_root="${DYLINT_DRIVER_PATH:-${HOME}/.dylint_drivers}"; driver_path="$driver_root/nightly-2026-05-28-aarch64-apple-darwin/dylint-driver"; test -x "$driver_path"; test "$("$driver_path" -V | awk '{print $NF}')" = '6.0.3'
+rg -q '^\[target\.aarch64-apple-darwin\]$' tools/surgeist-layout-audits/.cargo/config.toml; rg -q '^linker = "dylint-link"$' tools/surgeist-layout-audits/.cargo/config.toml
+test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets
 cargo fmt --manifest-path tools/surgeist-layout-audits/Cargo.toml --check
