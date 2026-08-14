@@ -337,7 +337,7 @@ locked/offline generator test passes; generator check and strict Clippy, stable
 formatting, diff, safety, and exact one-file scope pass. The Taffy-dependent
 lineage failure remains a separate acquisition blocker.
 
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_recovery_inputs_owned_sources_match_reviewed_freeze`; `CARGO_NET_OFFLINE=true cargo check --locked --offline -p surgeist-layout --features layout-golden-generate`; `CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --features layout-golden-generate --all-targets -- -F unsafe-code -D warnings`; `cargo fmt --check`; `git diff --check`.
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_recovery_inputs_owned_sources_match_reviewed_freeze`; `CARGO_NET_OFFLINE=true cargo check --locked --offline -p surgeist-layout --features layout-golden-generate`; `CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --features layout-golden-generate --all-targets -- -F unsafe-code -D warnings`; `cargo fmt --check`; `git diff --check`; `test "$(git diff --name-only HEAD^..HEAD)" = tests/bin/surgeist-layout-generate/generator.rs`.
 
 Dependency: T03. Commit: `test(generator): decouple audit package exclusion`.
 
@@ -353,9 +353,8 @@ Dylint stack and one explicitly authorized pinned Taffy restoration is permitted
 The coordinator's selected-lint results are immutable cycle evidence. The final
 matrix does not repeat any selected invocation.
 
-After exact user authority exists, the coordinator runs the documented
-`import-taffy` command once, proves the pinned target checkout exists and Git has
-no artifact delta, and then runs the matrix below. A worker never acquires it.
+After exact user authority exists, the coordinator runs once
+`CARGO_NET_OFFLINE=true cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- import-taffy`, proves the target Git HEAD is the exact pinned commit and `git diff --exit-code` is empty, then runs the matrix below. A worker never acquires it.
 
 ```sh
 set -e
