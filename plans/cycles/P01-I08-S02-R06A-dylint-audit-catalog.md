@@ -261,8 +261,15 @@ result and T03 was not dispatched. After the corrected T01 range is independentl
 CLEAN and its suffixed-library probe passes, the command below performs the one
 semantic audit run required by the specification.
 
+The next command attempt at `a8e73cfefbd99fcf192e64055f81ded2dc1657b2`
+loaded the library but supplied `-D` after Dylint's Cargo-argument separator, so
+Cargo rejected it before invoking rustc or compiling product source. It also
+produced no semantic audit result. Dylint `6.0.3` requires lint-level rustc flags
+through `DYLINT_RUSTFLAGS`; the corrected invocation below owns the first and only
+semantic product audit.
+
 ```sh
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo dylint --path tools/surgeist-layout-audits -- -D p01_i08_s02_r06_t02_node_projection_boundary
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" DYLINT_RUSTFLAGS='-D p01_i08_s02_r06_t02_node_projection_boundary' cargo dylint --path tools/surgeist-layout-audits
 ```
 
 A semantic diagnostic failure returns to T02; a worker never performs or repeats
