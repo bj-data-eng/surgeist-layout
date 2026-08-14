@@ -193,7 +193,7 @@ import-Taffy, locking, helper runtime, parser, and serializer contracts.
 ## Reconciled Final Inventory
 
 - library: 2,042 (entry 2,087 minus T01 37, T02 7, and the T04 support test);
-- grid prefix: 1,014 (entry 1,020 minus T02's five grid tests and T04 support);
+- grid prefix: 1,011 (entry 1,017 minus T02's five grid tests and T04 support);
 - root prefix: 233; flex prefix: 169; block prefix: 212;
 - integration: 215 (entry 244 minus T04 five and T05 24);
 - default package including 72 doctests: 2,329;
