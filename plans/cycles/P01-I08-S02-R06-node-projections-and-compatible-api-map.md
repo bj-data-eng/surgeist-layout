@@ -148,8 +148,14 @@ distinct `ScrollBoxProjection` and `ScrollTargetProjection`. Canonical scroll
 source construction and target contribution consume projections rather than the
 full public property bag, with no duplicate geometry or resolver.
 
+Direct behavior tests construct non-default f32/f64 public inputs and assert the
+common, scroll-box, and scroll-target projections select the exact shared and
+role facts through their real constructors; they inspect values, never source.
+
 **RED/acceptance:** `canonical_geometry_`, `scroll_projection_`,
-`fri08_c07_t02_scroll_source_`, and `fri05_c01_scroll_input_` pass before and after. The
+`fri08_c07_t02_scroll_source_`, `fri05_c01_scroll_input_`, and
+`node_projection_common_scroll_` pass after implementation, with the first four
+nonzero before and after. The
 external probe is RED until both new owners exist and is GREEN with singular
 projection declarations and no production `NodeInputOf` parameter in
 `src/scroll/{box_geometry,construction,contribution}.rs`. Preserve all flow
@@ -160,6 +166,7 @@ set -e; for f in canonical_geometry_ scroll_projection_ fri08_c07_t02_scroll_sou
 test -f src/node_projection.rs; test -f src/scroll/input.rs; test "$(rg -l 'struct CommonBoxProjection' src --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct ScrollBoxProjection' src/scroll --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct ScrollTargetProjection' src/scroll --glob '*.rs' | wc -l | tr -d ' ')" = 1
 scripts/audit-node-projection-boundaries.sh --self-test
 scripts/audit-node-projection-boundaries.sh scroll
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout node_projection_common_scroll_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -179,6 +186,10 @@ inline owns `InlineParticipantProjection`. Entry/child lookup constructs them
 from borrowed public input. Settled in-flow, float, inline-run, absolute, sizing,
 and publication phases no longer pass a complete `NodeInputOf`.
 
+Direct f32/f64 behavior tests construct non-default inputs and assert block
+container/child and inline-participant projections select their exact role facts
+while composing the shared carrier; they do not inspect source or placement.
+
 **RED/acceptance:** `ordinary_block_flow_`, `block_atomic_inline_run_`,
 `block_absolute_child_`, `fri06_c04_float_`, and `inline_layout_` pass before and
 after. The external probe is RED until the three projection owners exist and
@@ -189,6 +200,7 @@ inline participation, errors, caches, scroll geometry, and scalar lanes.
 set -e; for f in ordinary_block_flow_ block_atomic_inline_run_ block_absolute_child_ fri06_c04_float_ inline_layout_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test -f src/block/input.rs; test -f src/inline/mod.rs; test -f src/inline/input.rs; test ! -e src/inline.rs; test "$(rg -l 'struct BlockContainerProjection' src/block --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct BlockChildProjection' src/block --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct InlineParticipantProjection' src/inline --glob '*.rs' | wc -l | tr -d ' ')" = 1
 scripts/audit-node-projection-boundaries.sh block-inline
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout node_projection_block_inline_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -204,6 +216,9 @@ exact production inventory additions only.
 line resolution, alignment, intrinsic, absolute, and scroll phases consume the
 settled projection rather than the full public input.
 
+Direct f32/f64 behavior tests construct non-default public inputs and assert the
+container/item projections select exact flex facts and compose shared facts.
+
 **RED/acceptance:** `flex_order_modified_sequence_`,
 `flex_replaced_automatic_minimum_`, `flex_row_aligns_`,
 `fri07_c02_collapsed_output_`, and `fri05_c04_flex_contribution_` pass before and
@@ -215,6 +230,7 @@ caches/publication, and both scalar lanes.
 set -e; for f in flex_order_modified_sequence_ flex_replaced_automatic_minimum_ flex_row_aligns_ fri07_c02_collapsed_output_ fri05_c04_flex_contribution_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test -f src/flex/input.rs; test "$(rg -l 'struct FlexContainerProjection' src/flex --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct FlexItemProjection' src/flex --glob '*.rs' | wc -l | tr -d ' ')" = 1
 scripts/audit-node-projection-boundaries.sh flex
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout node_projection_flex_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -233,6 +249,9 @@ The fixed topology plus validation/ordinary/flexible track phase set consumes it
 broad ordinary-grid, lanes, subgrid, intrinsic, and child entry paths are
 explicitly deferred to T06 rather than claimed by this task.
 
+Direct f32/f64 behavior tests assert non-default grid-container projection facts
+through the real constructor for this settled phase set.
+
 **RED/acceptance:** `fri08_c01_topology_`, `grid_fraction_tracks_`,
 `grid_stretch_`, `grid_lanes_`, and `fri08_c02_auto_fit_` pass before and after.
 The external probe is RED until the projection has one owner. Preserve placement
@@ -243,6 +262,7 @@ subgrid inheritance, errors, and scalar lanes.
 set -e; for f in fri08_c01_topology_ grid_fraction_tracks_ grid_stretch_ grid_lanes_ fri08_c02_auto_fit_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test -f src/grid/input.rs; test "$(rg -l 'struct GridContainerProjection' src/grid --glob '*.rs' | wc -l | tr -d ' ')" = 1
 scripts/audit-node-projection-boundaries.sh grid-container
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout node_projection_grid_container_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
@@ -262,6 +282,9 @@ replaced/table/positioned state, item alignment, sizing/box/flow, baseline,
 overflow, and scroll facts. Collection constructs it once per settled child and
 track-intrinsic, child, baseline, absolute, subgrid, and lanes phases consume it.
 
+Direct f32/f64 behavior tests assert the completed container and item projections
+select exact non-default grid, placement, alignment, sizing, and shared facts.
+
 **RED/acceptance:** `grid_absolute_child_`, `subgrid_child_`,
 `fri08_c04_baseline_`, `fri05_c05_grid_contribution_`, and
 `fri08_c03_nested_` pass before and after. The external probe is RED until the
@@ -275,6 +298,7 @@ set -e; for f in grid_absolute_child_ subgrid_child_ fri08_c04_baseline_ fri05_c
 test "$(rg -l 'struct GridItemProjection' src/grid --glob '*.rs' | wc -l | tr -d ' ')" = 1
 scripts/audit-node-projection-boundaries.sh grid
 scripts/audit-node-projection-boundaries.sh all
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout node_projection_grid_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
 
