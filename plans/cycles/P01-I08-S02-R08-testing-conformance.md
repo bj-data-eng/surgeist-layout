@@ -118,10 +118,11 @@ and integration, with that support test also compiled by the generator target;
 remove dead history/census helpers. Dependency: T03. Commit:
 `test(conformance): remove browser workflow proxies`.
 
-Commands: T04 integration and library entry-list commands, then locked/offline integration filters
+Commands: T04 integration, library, and generator entry-list commands, then locked/offline integration filters
 `fri06_c08r_ fri06_c12_t07_ support::tests::`, matching library browser-control
 filter `grid::tests::browser_controls::fri06_c12_t08_browser_front_door::tests::`,
-then full integration/library/package and strict gates.
+then the full generator target, `just verify-generator`, generator-feature strict
+Clippy, and the common full-target and strict gates.
 
 ### T05 `P01/I08/S02/R08/T05` Behavior-Owned Parity Evidence
 
@@ -181,6 +182,7 @@ CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --featur
 # T04
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout -- --list
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib -- --list
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- --list
 # T05
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout -- --list
 ```
@@ -196,7 +198,7 @@ cargo fmt --check
 git diff --check
 ```
 
-T03 and T06 first run
+T03, T04, and T06 first run
 `CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate`, then
 `CARGO_NET_OFFLINE=true just verify-generator`, then exact generator strict
 Clippy
