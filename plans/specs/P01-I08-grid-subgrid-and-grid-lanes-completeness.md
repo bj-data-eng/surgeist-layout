@@ -1222,8 +1222,14 @@ Surgeist-owned unsafe construct outside that external macro expansion, the pilot
 stops without accepting the tool.
 
 The catalog library registers lints at `Allow` by default. A coordinator or
-reviewer explicitly selects a named lint for one audit run and decides the meaning
-of its diagnostics against the current plan and source. No catalog lint is added to
+reviewer explicitly selects a named lint for one audit run at one independently
+reviewed lint revision and decides the meaning of its diagnostics against the
+current plan and source. A diagnostic that proves a lint defect rather than a
+product finding returns to the lint task for a focused UI regression, correction,
+and independent re-review; the coordinator may then select the corrected revision
+for one final audit run. No revision is selected twice, and only a zero-diagnostic
+run at the final reviewed revision permits deletion of a superseded audit. No
+catalog lint is added to
 ordinary Cargo tasks, `just verify`, Clippy, CI, publication, or a standing cycle
 gate. Retained lint names begin with the normalized planning path that originated
 the question, and their documentation records the exact plan path/revision, audit
@@ -1234,8 +1240,8 @@ From the repository root, the one-lint selection contract is:
 
 ```sh
 CARGO_TARGET_DIR="$PWD/target/dylint-audits" \
-  cargo dylint --path tools/surgeist-layout-audits \
-  -- -D p01_i08_s02_r06_t02_node_projection_boundary
+  DYLINT_RUSTFLAGS='-D p01_i08_s02_r06_t02_node_projection_boundary' \
+  cargo dylint --path tools/surgeist-layout-audits
 ```
 
 The explicit `-D` applies only to that selected audit invocation. Every other
@@ -1249,9 +1255,10 @@ same complete-input and `node_input` escapes with compiler-resolved identities,
 including aliases, reexports, UFCS, extracted method references, and new compiled
 modules, without fixed consumer-file inventories or lexical masking. Isolated UI
 fixtures prove allowed owner construction and each rejected escape; product tests
-do not read or parse Rust source. The lint runs once against the published R06
-candidate to audit the completed projection work, after which the script is
-deleted.
+do not read or parse Rust source. Each independently reviewed lint revision runs
+at most once against the published R06 candidate. A false positive returns to the
+lint task under the correction rule above; the script is deleted only after the
+final reviewed revision produces zero diagnostics.
 
 The first lint inspects every production HIR item whose module is within the
 `block`, `inline`, `flex`, `grid`, or `scroll` algorithm tree. Outside the six
@@ -1262,8 +1269,12 @@ the public aggregate identities `NodeInput`, `NodeInputOf`, `LayoutInput`, and
 identity is `LayoutTree::node_input`. The construction owners may borrow
 the aggregates only to create their role projection; in every owner the lint still
 reports a type alias or visibility reexport whose resolved target is a protected
-aggregate. Scope follows compiler module ancestry, so a newly compiled descendant
-is covered automatically and no consumer filename or line allowlist exists.
+aggregate. An expression whose compiler span proves that its tokens were defined
+by a macro in one of those owners is owner construction even when that macro is
+expanded in a consumer; caller-supplied macro arguments retain caller ownership
+and remain subject to the consumer rule. Scope follows compiler module and macro
+definition identity, so a newly compiled descendant is covered automatically and
+no consumer filename or line allowlist exists.
 
 Later remediation work may add another planning-path-named lint only when a real
 audit question benefits from compiler semantics. R08 classifies the underlying
