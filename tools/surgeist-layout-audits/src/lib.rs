@@ -258,21 +258,22 @@ fn path_eq(actual: &[Symbol], expected: &[&str]) -> bool {
 }
 
 fn is_test_only(cx: &LateContext<'_>, hir_id: HirId) -> bool {
-    std::iter::once(hir_id)
-        .chain(
-            cx.tcx
-                .hir_parent_iter(hir_id)
-                .map(|(parent_id, _)| parent_id),
-        )
-        .any(|parent_id| {
-            cx.tcx.hir_attrs(parent_id).iter().any(|attr| {
-                attr.has_name(sym::test)
-                    || (attr.has_name(sym::cfg)
-                        && attr
-                            .meta_item_list()
-                            .is_some_and(|items| items.iter().any(|item| item.has_name(sym::test))))
+    cx.tcx.sess.is_test_crate()
+        || std::iter::once(hir_id)
+            .chain(
+                cx.tcx
+                    .hir_parent_iter(hir_id)
+                    .map(|(parent_id, _)| parent_id),
+            )
+            .any(|parent_id| {
+                cx.tcx.hir_attrs(parent_id).iter().any(|attr| {
+                    attr.has_name(sym::test)
+                        || (attr.has_name(sym::cfg)
+                            && attr.meta_item_list().is_some_and(|items| {
+                                items.iter().any(|item| item.has_name(sym::test))
+                            }))
+                })
             })
-        })
 }
 
 fn is_within_type_alias(cx: &LateContext<'_>, hir_id: HirId) -> bool {
@@ -297,6 +298,9 @@ mod tests {
         build_test_library();
         install_test_library_name();
         dylint_testing::ui_test(env!("CARGO_PKG_NAME"), "ui");
+        dylint_testing::ui::Test::src_base(env!("CARGO_PKG_NAME"), "ui-test-only")
+            .rustc_flags(["--test"])
+            .run();
     }
 
     fn build_test_library() {
