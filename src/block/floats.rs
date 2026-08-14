@@ -668,7 +668,8 @@ where
             float,
         )?;
         let scroll_geometry = retained_child_scroll_geometry(
-            &float.style,
+            crate::scroll::ScrollBoxProjection::from_node(&float.style),
+            crate::scroll::ScrollTargetProjection::from_node(&float.style),
             float.size,
             float.content_size,
             float.padding,

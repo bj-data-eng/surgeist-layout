@@ -153,11 +153,13 @@ where
         )?
     };
     let container_sizes = container_sizes(input, &layout_constants, &resolved_items, &lines);
+    let scroll_box_projection = crate::scroll::ScrollBoxProjection::from_node(&style);
+    let scroll_target_projection = crate::scroll::ScrollTargetProjection::from_node(&style);
     let final_scroll_box = if input.run_mode().is_perform_layout() {
         Some(flex_container_scroll_box::<_, S, M>(
             node,
             input.run_mode(),
-            &style,
+            scroll_box_projection,
             &layout_constants,
             container_sizes.output,
         )?)
@@ -209,7 +211,8 @@ where
         let scroll_geometry = flex_container_scroll_geometry::<_, S, M>(
             node,
             input.run_mode(),
-            &style,
+            scroll_box_projection,
+            scroll_target_projection,
             &layout_constants,
             scroll_box,
             contributions,

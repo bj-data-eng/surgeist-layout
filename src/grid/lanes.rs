@@ -2093,7 +2093,8 @@ where
             tree.compute_child(child, child_input)?
         };
         let scroll_geometry = retained_grid_child_scroll_geometry(
-            &child_style,
+            crate::scroll::ScrollBoxProjection::from_node(&child_style),
+            crate::scroll::ScrollTargetProjection::from_node(&child_style),
             output.size,
             output.content_size,
             padding,

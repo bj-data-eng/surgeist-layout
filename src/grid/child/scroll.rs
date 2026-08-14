@@ -1,8 +1,8 @@
 use super::*;
 use crate::scroll::{
-    CanonicalScrollGeometryErrorOf, ClipMarginSourceOf, MeasuredLeafScrollGeometrySourceOf,
-    OptimalRegionInsetsOf, OptionalPhysicalContributionIntervalsOf,
-    ScrollContributionAccumulatorOf, UsedOverflow, canonical_measured_leaf_scroll_geometry,
+    CanonicalScrollGeometryErrorOf, MeasuredLeafScrollGeometrySourceOf,
+    OptionalPhysicalContributionIntervalsOf, ScrollBoxProjection, ScrollContributionAccumulatorOf,
+    ScrollTargetProjection, UsedOverflow, canonical_measured_leaf_scroll_geometry,
     rebuild_canonical_scroll_geometry_for_border_box,
 };
 
@@ -26,7 +26,8 @@ pub(in crate::grid) fn empty_grid_contributions<S: LayoutScalar>()
 }
 
 pub(in crate::grid) fn retained_grid_child_scroll_geometry<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    box_projection: ScrollBoxProjection<'_, S>,
+    target_projection: ScrollTargetProjection<'_, S>,
     size: Size<S>,
     content_size: Size<S>,
     padding: Edges<S>,
@@ -40,27 +41,14 @@ pub(in crate::grid) fn retained_grid_child_scroll_geometry<S: LayoutScalar>(
         return rebuild_canonical_scroll_geometry_for_border_box(geometry, size, border, padding);
     }
 
-    let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
     canonical_measured_leaf_scroll_geometry(MeasuredLeafScrollGeometrySourceOf {
-        flow_axes,
-        computed_overflow: style.overflow,
-        item_is_replaced: style.item_is_replaced,
+        box_projection,
+        target_projection,
         border_box_size: size,
         border,
         padding,
-        scrollbar_gutter: style.scrollbar_gutter,
-        scrollbar_width: style.scrollbar_width,
         settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
-        clip_margin: ClipMarginSourceOf::new(
-            style.overflow_clip_margin.clip_box(),
-            style.overflow_clip_margin.margin(),
-        ),
-        scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
         measured_content_size: content_size,
-        scroll_snap_type: style.scroll_snap_type,
-        target_scroll_margin: style.scroll_margin,
-        target_snap_align: style.scroll_snap_align,
-        target_snap_stop: style.scroll_snap_stop,
     })
 }
 pub(in crate::grid) fn grid_scroll_contributions<S: LayoutScalar>(

@@ -3,17 +3,17 @@ use super::items::{FinalFlexItem, ResolvedFlexItem};
 use super::lines::FlexLine;
 use super::{AlignContent, Constants};
 use crate::error::layout_own_geometry_error;
-use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalSide};
+use crate::geometry::{LogicalAxis, PhysicalAxis, PhysicalSide};
 use crate::layout_math::OptionalSizeExt;
 use crate::scroll::{
     CanonicalRetainedScrollSourceOf, CanonicalScrollBoxOf, CanonicalScrollBoxSourceOf,
     CanonicalScrollGeometryErrorOf, CanonicalScrollRangeSeedPolicy, CanonicalScrollSourceBuilderOf,
-    ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression,
-    canonical_scroll_box_from_source,
+    ScrollBoxProjection, ScrollContributionAccumulatorOf, ScrollOriginAxes,
+    ScrollOriginProgression, ScrollTargetProjection, canonical_scroll_box_from_source,
 };
 use crate::{
-    ComputeOutputOf, Edges, LayoutResultOf, LayoutScalar, NodeInputOf, Point, RunMode,
-    ScrollGeometryOf, ScrollRectOf, Size, Traverse,
+    ComputeOutputOf, Edges, LayoutResultOf, LayoutScalar, Point, RunMode, ScrollGeometryOf,
+    ScrollRectOf, Size, Traverse,
 };
 
 pub(super) fn retain_flex_scroll_geometry<S: LayoutScalar>(
@@ -45,7 +45,7 @@ pub(super) type FlexChildContributionsResult<Tree, M> = LayoutResultOf<
 pub(super) fn flex_container_scroll_box<Node, S, M>(
     node: Node,
     run_mode: RunMode,
-    style: &NodeInputOf<S>,
+    projection: ScrollBoxProjection<'_, S>,
     constants: &Constants<S>,
     output_size: Size<S>,
 ) -> LayoutResultOf<Node, CanonicalScrollBoxOf<S>, S, M>
@@ -53,17 +53,13 @@ where
     Node: Copy,
     S: LayoutScalar,
 {
-    canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
-        flow_axes: constants.flow_axes,
-        computed_overflow: style.overflow,
-        item_is_replaced: style.item_is_replaced,
-        border_box_size: output_size,
-        border: constants.border,
-        padding: constants.padding,
-        scrollbar_gutter: style.scrollbar_gutter,
-        scrollbar_width: style.scrollbar_width,
-        settled_auto_scrollbars: constants.settled_auto_scrollbars,
-    })
+    canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf::from_projection(
+        projection,
+        output_size,
+        constants.border,
+        constants.padding,
+        constants.settled_auto_scrollbars,
+    ))
     .map_err(|error| layout_own_geometry_error(node, run_mode, error))
 }
 
@@ -304,7 +300,8 @@ fn include_farthest_flow_end<S: LayoutScalar>(
 pub(super) fn flex_container_scroll_geometry<Node, S, M>(
     node: Node,
     run_mode: RunMode,
-    style: &NodeInputOf<S>,
+    box_projection: ScrollBoxProjection<'_, S>,
+    target_projection: ScrollTargetProjection<'_, S>,
     constants: &Constants<S>,
     scroll_box: CanonicalScrollBoxOf<S>,
     contributions: ScrollContributionAccumulatorOf<S>,
@@ -314,8 +311,8 @@ where
     S: LayoutScalar,
 {
     CanonicalScrollSourceBuilderOf::for_node(
-        style,
-        constants.flow_axes,
+        box_projection,
+        target_projection,
         scroll_box.border_box().size(),
         constants.border,
         constants.padding,
@@ -327,22 +324,22 @@ where
 }
 
 pub(super) fn retained_flex_child_scroll_geometry<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    box_projection: ScrollBoxProjection<'_, S>,
+    target_projection: ScrollTargetProjection<'_, S>,
     size: Size<S>,
     content_size: Size<S>,
     padding: Edges<S>,
     border: Edges<S>,
     child_compute_geometry: Option<ScrollGeometryOf<S>>,
 ) -> Result<ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {
-    let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
     let settled_auto_scrollbars = crate::scroll::SettledAutoScrollbarState::INITIAL;
     let source = match child_compute_geometry {
         Some(ref geometry) => CanonicalRetainedScrollSourceOf::Existing(geometry),
         None => CanonicalRetainedScrollSourceOf::Reconstruct { content_size },
     };
     CanonicalScrollSourceBuilderOf::for_node(
-        style,
-        flow_axes,
+        box_projection,
+        target_projection,
         size,
         border,
         padding,

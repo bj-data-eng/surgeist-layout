@@ -1,4 +1,5 @@
 use super::{
+    ScrollBoxProjection, ScrollTargetProjection,
     box_geometry::{
         AutoScrollbarOverflowObservation, CanonicalScrollBoxOf, CanonicalScrollBoxSourceOf,
         ClipMarginSourceOf, OptimalRegionInsetsOf, ScrollBoxClipGutterErrorOf,
@@ -15,9 +16,9 @@ use super::{
     },
 };
 use crate::{
-    ComputedOverflow, DefaultScalar, Edges, FlowAxes, LayoutScalar, LogicalAxis, NodeInputOf,
-    PhysicalAxis, PhysicalSide, Point, ScrollMarginOf, ScrollSnapAlign, ScrollSnapStop,
-    ScrollSnapType, ScrollbarGutter, ScrollbarWidthOf, Size,
+    ComputedOverflow, DefaultScalar, Edges, FlowAxes, LayoutScalar, LogicalAxis, PhysicalAxis,
+    PhysicalSide, Point, ScrollMarginOf, ScrollSnapAlign, ScrollSnapStop, ScrollSnapType,
+    ScrollbarGutter, ScrollbarWidthOf, Size,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -71,6 +72,7 @@ pub(crate) struct CanonicalScrollSourceBuilderOf<S: LayoutScalar> {
     origin_axes: ScrollOriginAxes,
     scroll_snap_type: ScrollSnapType,
     target_scroll_margin: ScrollMarginOf<S>,
+    target_flow_axes: FlowAxes,
     target_snap_align: ScrollSnapAlign,
     target_snap_stop: ScrollSnapStop,
 }
@@ -78,8 +80,8 @@ pub(crate) struct CanonicalScrollSourceBuilderOf<S: LayoutScalar> {
 impl<S: LayoutScalar> CanonicalScrollSourceBuilderOf<S> {
     #[must_use]
     pub(crate) fn for_node(
-        style: &NodeInputOf<S>,
-        flow_axes: FlowAxes,
+        box_projection: ScrollBoxProjection<'_, S>,
+        target_projection: ScrollTargetProjection<'_, S>,
         border_box_size: Size<S>,
         border: Edges<S>,
         padding: Edges<S>,
@@ -87,25 +89,28 @@ impl<S: LayoutScalar> CanonicalScrollSourceBuilderOf<S> {
         origin_axes: ScrollOriginAxes,
     ) -> Self {
         Self {
-            flow_axes,
-            computed_overflow: style.overflow,
-            item_is_replaced: style.item_is_replaced,
+            flow_axes: box_projection.common.flow_axes,
+            computed_overflow: box_projection.common.overflow,
+            item_is_replaced: box_projection.common.item_is_replaced,
             border_box_size,
             border,
             padding,
-            scrollbar_gutter: style.scrollbar_gutter,
-            scrollbar_width: style.scrollbar_width,
+            scrollbar_gutter: box_projection.scrollbar_gutter,
+            scrollbar_width: box_projection.scrollbar_width,
             settled_auto_scrollbars,
             clip_margin: ClipMarginSourceOf::new(
-                style.overflow_clip_margin.clip_box(),
-                style.overflow_clip_margin.margin(),
+                box_projection.overflow_clip_margin.clip_box(),
+                box_projection.overflow_clip_margin.margin(),
             ),
-            scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
+            scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(
+                *box_projection.scroll_padding,
+            ),
             origin_axes,
-            scroll_snap_type: style.scroll_snap_type,
-            target_scroll_margin: style.scroll_margin,
-            target_snap_align: style.scroll_snap_align,
-            target_snap_stop: style.scroll_snap_stop,
+            scroll_snap_type: box_projection.scroll_snap_type,
+            target_scroll_margin: *target_projection.scroll_margin,
+            target_flow_axes: target_projection.flow_axes,
+            target_snap_align: target_projection.snap_align,
+            target_snap_stop: target_projection.snap_stop,
         }
     }
 
@@ -131,7 +136,7 @@ impl<S: LayoutScalar> CanonicalScrollSourceBuilderOf<S> {
             scroll_snap_type: self.scroll_snap_type,
             target_border_box,
             target_scroll_margin: self.target_scroll_margin,
-            target_flow_axes: self.flow_axes,
+            target_flow_axes: self.target_flow_axes,
             target_snap_align: self.target_snap_align,
             target_snap_stop: self.target_snap_stop,
         })
@@ -192,23 +197,14 @@ impl<S: LayoutScalar> CanonicalScrollSourceBuilderOf<S> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct MeasuredLeafScrollGeometrySourceOf<S: LayoutScalar> {
-    pub(crate) flow_axes: FlowAxes,
-    pub(crate) computed_overflow: ComputedOverflow,
-    pub(crate) item_is_replaced: bool,
+pub(crate) struct MeasuredLeafScrollGeometrySourceOf<'a, S: LayoutScalar> {
+    pub(crate) box_projection: ScrollBoxProjection<'a, S>,
+    pub(crate) target_projection: ScrollTargetProjection<'a, S>,
     pub(crate) border_box_size: Size<S>,
     pub(crate) border: Edges<S>,
     pub(crate) padding: Edges<S>,
-    pub(crate) scrollbar_gutter: ScrollbarGutter,
-    pub(crate) scrollbar_width: ScrollbarWidthOf<S>,
     pub(crate) settled_auto_scrollbars: SettledAutoScrollbarState,
-    pub(crate) clip_margin: ClipMarginSourceOf<S>,
-    pub(crate) scroll_padding: OptimalRegionInsetsOf<S>,
     pub(crate) measured_content_size: Size<S>,
-    pub(crate) scroll_snap_type: ScrollSnapType,
-    pub(crate) target_scroll_margin: ScrollMarginOf<S>,
-    pub(crate) target_snap_align: ScrollSnapAlign,
-    pub(crate) target_snap_stop: ScrollSnapStop,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -403,36 +399,43 @@ pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
 }
 
 pub(crate) fn canonical_measured_leaf_scroll_geometry<S: LayoutScalar>(
-    source: MeasuredLeafScrollGeometrySourceOf<S>,
+    source: MeasuredLeafScrollGeometrySourceOf<'_, S>,
 ) -> Result<ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {
-    let used_overflow =
-        UsedOverflow::from_computed(source.computed_overflow, source.item_is_replaced);
+    let box_projection = source.box_projection;
+    let target_projection = source.target_projection;
+    let flow_axes = box_projection.common.flow_axes;
+    let used_overflow = UsedOverflow::from_computed(
+        box_projection.common.overflow,
+        box_projection.common.item_is_replaced,
+    );
+    let clip_margin = ClipMarginSourceOf::new(
+        box_projection.overflow_clip_margin.clip_box(),
+        box_projection.overflow_clip_margin.margin(),
+    );
+    let scroll_padding = OptimalRegionInsetsOf::from_scroll_padding(*box_projection.scroll_padding);
     let boxes = derive_scroll_box_clip_gutter(ScrollBoxClipGutterSourceOf {
-        flow_axes: source.flow_axes,
+        flow_axes,
         used_overflow,
         border_box_size: source.border_box_size,
         border: source.border,
         padding: source.padding,
-        scrollbar_gutter: source.scrollbar_gutter,
-        scrollbar_width: source.scrollbar_width,
+        scrollbar_gutter: box_projection.scrollbar_gutter,
+        scrollbar_width: box_projection.scrollbar_width,
         settled_auto_scrollbars: source.settled_auto_scrollbars,
-        clip_margin: source.clip_margin,
-        optimal_region_insets: source.scroll_padding,
+        clip_margin,
+        optimal_region_insets: scroll_padding,
     })
     .map_err(CanonicalScrollGeometryErrorOf::BoxClipGutter)?;
-    let measured_content = measured_leaf_content_rect(
-        source.flow_axes,
-        boxes.content_box,
-        source.measured_content_size,
-    )
-    .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)?;
+    let measured_content =
+        measured_leaf_content_rect(flow_axes, boxes.content_box, source.measured_content_size)
+            .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)?;
     let mut contributions = ScrollContributionAccumulatorOf::new(boxes.padding_box);
     contributions.exclude_reserved_gutter_from_scroll_container_axes(used_overflow);
     contributions.include_direct_line(measured_content);
     for axis in [LogicalAxis::Inline, LogicalAxis::Block] {
         let side = match axis {
-            LogicalAxis::Inline => source.flow_axes.inline_end(),
-            LogicalAxis::Block => source.flow_axes.block_end(),
+            LogicalAxis::Inline => flow_axes.inline_end(),
+            LogicalAxis::Block => flow_axes.block_end(),
         };
         let coordinate = match side {
             PhysicalSide::Top => measured_content.origin().y,
@@ -441,7 +444,7 @@ pub(crate) fn canonical_measured_leaf_scroll_geometry<S: LayoutScalar>(
             PhysicalSide::Left => measured_content.origin().x,
         };
         contributions
-            .record_final_in_flow_end(source.flow_axes, axis, coordinate)
+            .record_final_in_flow_end(flow_axes, axis, coordinate)
             .map_err(CanonicalScrollGeometryErrorOf::Contribution)?;
     }
     contributions
@@ -449,28 +452,28 @@ pub(crate) fn canonical_measured_leaf_scroll_geometry<S: LayoutScalar>(
         .map_err(CanonicalScrollGeometryErrorOf::Contribution)?;
 
     canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
-        flow_axes: source.flow_axes,
-        computed_overflow: source.computed_overflow,
-        item_is_replaced: source.item_is_replaced,
+        flow_axes,
+        computed_overflow: box_projection.common.overflow,
+        item_is_replaced: box_projection.common.item_is_replaced,
         border_box_size: source.border_box_size,
         border: source.border,
         padding: source.padding,
-        scrollbar_gutter: source.scrollbar_gutter,
-        scrollbar_width: source.scrollbar_width,
+        scrollbar_gutter: box_projection.scrollbar_gutter,
+        scrollbar_width: box_projection.scrollbar_width,
         settled_auto_scrollbars: source.settled_auto_scrollbars,
-        clip_margin: source.clip_margin,
-        scroll_padding: source.scroll_padding,
+        clip_margin,
+        scroll_padding,
         contributions,
         origin_axes: ScrollOriginAxes::new(
             ScrollOriginProgression::FlowEndward,
             ScrollOriginProgression::FlowEndward,
         ),
-        scroll_snap_type: source.scroll_snap_type,
+        scroll_snap_type: box_projection.scroll_snap_type,
         target_border_box: boxes.border_box,
-        target_scroll_margin: source.target_scroll_margin,
-        target_flow_axes: source.flow_axes,
-        target_snap_align: source.target_snap_align,
-        target_snap_stop: source.target_snap_stop,
+        target_scroll_margin: *target_projection.scroll_margin,
+        target_flow_axes: target_projection.flow_axes,
+        target_snap_align: target_projection.snap_align,
+        target_snap_stop: target_projection.snap_stop,
     })
 }
 

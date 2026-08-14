@@ -9332,7 +9332,8 @@ fn assert_fri06_mr02_scroll_padding_grid_child<S: LayoutScalar>() {
             ..NodeInputOf::default()
         };
         let geometry = super::child::retained_grid_child_scroll_geometry(
-            &style,
+            crate::scroll::ScrollBoxProjection::from_node(&style),
+            crate::scroll::ScrollTargetProjection::from_node(&style),
             size,
             size,
             Edges::ZERO,

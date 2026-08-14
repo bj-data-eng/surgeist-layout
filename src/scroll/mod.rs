@@ -9,6 +9,7 @@ use crate::geometry::LogicalEdgesOf;
 mod box_geometry;
 mod construction;
 mod contribution;
+mod input;
 mod model;
 pub(crate) mod rounding;
 
@@ -29,6 +30,8 @@ pub(crate) use contribution::{
     ScrollContributionAccumulatorOf, ScrollContributionErrorOf, ScrollOriginAxes,
     ScrollOriginProgression,
 };
+
+pub(crate) use input::{ScrollBoxProjection, ScrollTargetProjection};
 
 use construction::CanonicalScrollRectFact;
 pub(crate) use construction::{

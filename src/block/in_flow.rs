@@ -707,7 +707,8 @@ where
         };
         if set_layout {
             let scroll_geometry = retained_child_scroll_geometry(
-                &child_style,
+                crate::scroll::ScrollBoxProjection::from_node(&child_style),
+                crate::scroll::ScrollTargetProjection::from_node(&child_style),
                 output.size,
                 output.content_size,
                 child_padding,

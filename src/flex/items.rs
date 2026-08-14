@@ -839,7 +839,8 @@ where
             item.final_cross_location(constants, output.size),
         );
         let scroll_geometry = retained_flex_child_scroll_geometry(
-            &style,
+            crate::scroll::ScrollBoxProjection::from_node(&style),
+            crate::scroll::ScrollTargetProjection::from_node(&style),
             output.size,
             output.content_size,
             item.padding,

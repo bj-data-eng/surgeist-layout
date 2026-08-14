@@ -9,9 +9,9 @@ use crate::layout_math::{
     OptionalSizeExt,
 };
 use crate::scroll::{
-    CanonicalScrollGeometryErrorOf, ClipMarginSourceOf, MeasuredLeafContentBoxInsetSourceOf,
-    MeasuredLeafScrollGeometrySourceOf, OptimalRegionInsetsOf,
-    canonical_measured_leaf_scroll_geometry, measured_leaf_content_box_inset,
+    CanonicalScrollGeometryErrorOf, MeasuredLeafContentBoxInsetSourceOf,
+    MeasuredLeafScrollGeometrySourceOf, canonical_measured_leaf_scroll_geometry,
+    measured_leaf_content_box_inset,
 };
 use crate::sizing::resolve::{
     ResolvedPreferredSize, SizingResolutionError, resolution_optional_fallible,
@@ -436,25 +436,13 @@ where
         );
         let geometry =
             canonical_measured_leaf_scroll_geometry(MeasuredLeafScrollGeometrySourceOf {
-                flow_axes: leaf_flow_axes,
-                computed_overflow: style.overflow,
-                item_is_replaced: style.item_is_replaced,
+                box_projection: crate::scroll::ScrollBoxProjection::from_node(style),
+                target_projection: crate::scroll::ScrollTargetProjection::from_node(style),
                 border_box_size: aspect_size,
                 border: resolved.border,
                 padding: resolved.padding,
-                scrollbar_gutter: style.scrollbar_gutter,
-                scrollbar_width: style.scrollbar_width,
                 settled_auto_scrollbars: pass_input.settled_auto_scrollbars(),
-                clip_margin: ClipMarginSourceOf::new(
-                    style.overflow_clip_margin.clip_box(),
-                    style.overflow_clip_margin.margin(),
-                ),
-                scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
                 measured_content_size: measured,
-                scroll_snap_type: style.scroll_snap_type,
-                target_scroll_margin: style.scroll_margin,
-                target_snap_align: style.scroll_snap_align,
-                target_snap_stop: style.scroll_snap_stop,
             })
             .map_err(|error| leaf_scroll_error_at_site(site, pass_input.run_mode(), error))?;
         let next_state = pass_input.settled_auto_scrollbars().transition(geometry);

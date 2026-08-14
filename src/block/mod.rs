@@ -272,10 +272,12 @@ where
         output.block_margin_collapse = block_margin_collapse;
         Ok(output)
     } else {
+        let scroll_box_projection = crate::scroll::ScrollBoxProjection::from_node(&style);
+        let scroll_target_projection = crate::scroll::ScrollTargetProjection::from_node(&style);
         let mut contributions = prepare_scroll_contributions::<_, _, M>(
             node,
             input.run_mode(),
-            &style,
+            scroll_box_projection,
             &final_constants,
             output_size,
             final_pass.scroll_content_size,
@@ -301,7 +303,8 @@ where
         let published_scroll = finish_scroll_geometry::<Tree, S, M>(
             node,
             input.run_mode(),
-            &style,
+            scroll_box_projection,
+            scroll_target_projection,
             &final_constants,
             output_size,
             contributions,

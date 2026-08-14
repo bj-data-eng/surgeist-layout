@@ -2466,6 +2466,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             "src/node_input/scroll.rs",
             include_str!("node_input/scroll.rs"),
         ),
+        ("src/node_projection.rs", include_str!("node_projection.rs")),
         ("src/output.rs", include_str!("output.rs")),
         ("src/scalar.rs", include_str!("scalar.rs")),
         (
@@ -2480,6 +2481,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             "src/scroll/contribution.rs",
             include_str!("scroll/contribution.rs"),
         ),
+        ("src/scroll/input.rs", include_str!("scroll/input.rs")),
         ("src/scroll/mod.rs", include_str!("scroll/mod.rs")),
         ("src/scroll/model.rs", include_str!("scroll/model.rs")),
         ("src/scroll/rounding.rs", include_str!("scroll/rounding.rs")),

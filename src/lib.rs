@@ -206,6 +206,7 @@ mod inline;
 mod layout_math;
 mod measurement;
 mod node_input;
+mod node_projection;
 mod output;
 mod scalar;
 mod scroll;

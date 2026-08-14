@@ -352,6 +352,29 @@ pub(crate) struct CanonicalScrollBoxSourceOf<S: LayoutScalar> {
     pub(crate) settled_auto_scrollbars: SettledAutoScrollbarState,
 }
 
+impl<S: LayoutScalar> CanonicalScrollBoxSourceOf<S> {
+    #[must_use]
+    pub(crate) fn from_projection(
+        projection: ScrollBoxProjection<'_, S>,
+        border_box_size: Size<S>,
+        border: Edges<S>,
+        padding: Edges<S>,
+        settled_auto_scrollbars: SettledAutoScrollbarState,
+    ) -> Self {
+        Self {
+            flow_axes: projection.common.flow_axes,
+            computed_overflow: projection.common.overflow,
+            item_is_replaced: projection.common.item_is_replaced,
+            border_box_size,
+            border,
+            padding,
+            scrollbar_gutter: projection.scrollbar_gutter,
+            scrollbar_width: projection.scrollbar_width,
+            settled_auto_scrollbars,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct CanonicalScrollBoxOf<S: LayoutScalar> {
     pub(super) border_box: ScrollRectOf<S>,

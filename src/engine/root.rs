@@ -177,7 +177,6 @@ where
         return Ok(None);
     }
 
-    let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
     let settled_auto_scrollbars = SettledAutoScrollbarState::INITIAL;
     let source = match output.scroll_geometry {
         Some(ref geometry) => CanonicalRetainedScrollSourceOf::Existing(geometry),
@@ -186,8 +185,8 @@ where
         },
     };
     CanonicalScrollSourceBuilderOf::for_node(
-        style,
-        flow_axes,
+        crate::scroll::ScrollBoxProjection::from_node(style),
+        crate::scroll::ScrollTargetProjection::from_node(style),
         output.size,
         edges.border,
         edges.padding,

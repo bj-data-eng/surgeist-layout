@@ -249,7 +249,8 @@ where
             .location(),
         );
         let scroll_geometry = retained_child_scroll_geometry(
-            &style,
+            crate::scroll::ScrollBoxProjection::from_node(&style),
+            crate::scroll::ScrollTargetProjection::from_node(&style),
             final_size,
             output.content_size,
             padding,
