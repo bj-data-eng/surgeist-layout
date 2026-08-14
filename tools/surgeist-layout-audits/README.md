@@ -34,8 +34,9 @@ owner files. The semantic lint supersedes
 `scripts/audit-node-projection-boundaries.sh`: it follows resolved compiler
 definitions, type aliases, reexports, trait methods, UFCS, and extracted method
 items across every compiled descendant instead of depending on source spelling
-or a fixed file list. The script remains present only until R06A/T03 performs
-its separately reviewed deletion.
+or a fixed file list. R06A/T03 deleted the superseded script after the corrected,
+independently reviewed lint revision audited the published R06 source with zero
+diagnostics.
 
 After later architecture changes, a diagnostic means only that the current
 source no longer answers the original R06 question the same way. Reviewers must
@@ -51,3 +52,52 @@ ordinary strings and comments, excluded test-only code, exact diagnostics, and
 the default-`Allow` behavior. Macro-provenance coverage accepts expressions
 defined by a macro in an allowed owner while retaining consumer diagnostics for
 caller-supplied aggregate expressions and macro-generated type and item escapes.
+
+## Pilot lessons
+
+- Setup is part of the audit's semantics, not incidental bootstrap detail. The
+  working stack is exactly `cargo-dylint` 6.0.3, `dylint-link` 6.0.3,
+  `dylint_linting = "=6.0.3"`, `dylint_testing = "=6.0.3"`, and
+  `nightly-2026-05-28` with `rustc-dev` and `llvm-tools-preview`; the installed
+  Dylint driver also reports 6.0.3. Dylint library discovery requires the
+  target-specific `dylint-link` configuration to produce the toolchain-suffixed
+  dynamic library. Every catalog build and test shares the repository-root
+  `target/dylint-audits`; letting nested Cargo use
+  `tools/surgeist-layout-audits/target` breaks that single cleanup and discovery
+  boundary.
+- HIR and `DefId` resolution replaced spelling-based guesses. The lint resolves
+  qpaths, type-dependent method identities, aliases, reexports, UFCS paths, and
+  extracted method items, then checks definition-module ancestry so unrelated
+  types or methods with the same names are not findings. Macro expansion identity
+  needs separate treatment: an expression defined by an allowed-owner macro
+  retains that definition's ownership, while caller-supplied expressions and
+  macro-generated consumer items retain consumer provenance and remain
+  diagnosable.
+- UI fixtures should isolate one compiler behavior at a time. `allowed_owners.rs`
+  proves the six owners, `semantic_escapes.rs` fixes the positive diagnostic
+  inventory, `default_allow.rs` proves unselected findings compile, and the
+  `ui-test-only/test_only.rs` crate is compiled with the test harness rather than
+  merely parsed. `macro_provenance.rs` and its exact stderr distinguish
+  owner-defined expressions from caller expressions and generated type, alias,
+  and visibility escapes.
+- Exact diagnostics exposed a real lint false positive before script retirement:
+  the first semantic product audit reported six owner-defined macro-expression
+  findings. The correction used macro-definition identity and added focused UI
+  coverage while preserving caller-expression and generated-item findings. A
+  reviewed lint revision is selected at most once; a lint defect returns to a
+  focused correction and fresh review, while a genuine product finding returns
+  to the owning product cycle.
+- Maintenance remains question-scoped. The lint name, historical plan and
+  revision, owners, diagnostic meanings, fixtures, and false-positive history
+  travel together in review. A diagnostic is evidence that the old R06 question
+  now has a different answer, not automatic proof that later architecture is
+  wrong. Changes to the audit require matching UI evidence and independent review
+  before another one-time selection.
+- Default `Allow` means opt-in interpretation, not silent standing enforcement.
+  Ordinary product Cargo commands, catalog checks, task runners, CI, and
+  publication do not select the lint. A coordinator or reviewer explicitly
+  selects the named question for one reviewed revision and interprets any result
+  against the current architecture.
+- These are leaf-local pilot lessons only. Turning them into reusable shared
+  skill-reference guidance is a separate artifact and requires later explicit
+  authorization; this catalog does not create or update that shared policy.

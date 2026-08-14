@@ -90,6 +90,10 @@ R06 acceptance repeat `all`.
 R06 retains that reviewed lexical audit through its own publication. The
 immediate successor R06A, not this cycle, owns the pinned opt-in Dylint catalog,
 compiler-semantic replacement, script deletion, and pilot lessons.
+R06A/T03 subsequently deleted the superseded script after the corrected semantic
+lint audited the published R06 source with zero diagnostics. Script invocations
+below are immutable R06 execution evidence, not standing commands or current
+usage instructions.
 
 Public API classification: source-compatible documentation/internal ownership
 change only. Dependencies, features, Cargo files, MSRV, root integration, and
