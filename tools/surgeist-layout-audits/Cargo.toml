@@ -1,0 +1,17 @@
+[package]
+name = "surgeist-layout-audits"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "surgeist_layout_audits"
+crate-type = ["cdylib"]
+
+[dependencies]
+dylint_linting = "=6.0.3"
+
+[dev-dependencies]
+dylint_testing = "=6.0.3"
+
+[workspace]
