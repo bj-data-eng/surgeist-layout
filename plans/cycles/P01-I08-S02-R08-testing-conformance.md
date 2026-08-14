@@ -24,7 +24,7 @@ Testing authority: installed `surgeist-agent/references/testing.md`.
 
 Reviewed entry-disposition attachment:
 `plans/cycles/P01-I08-S02-R08-test-disposition-ledger.md`, SHA-256
-`f2f9092e9303a0e4319472ec09f33c1a42fb93b967b9eb3269f29a4d1a7483f7`.
+`6c4c946ef8a18fe838e288537646aea8d35f942b9b699791a85ba943455c07b1`.
 
 ## 1 Outcome And Boundaries
 
@@ -55,7 +55,7 @@ R07's locked/offline entry inventory is authoritative:
 | `block_tests::` | 212 | `a73897032730d7b3b0d3c10746a17f16403baab9ffb1de4fedcdca01e2b3822f` | 212 |
 | integration | 244 | recorded R07 list | 215 |
 | default package incl. 72 doctests | 2,403 | recorded R07 list | 2,329 |
-| generator binary | 386 (384 pass, 2 ignored) | recorded R07 list | 350 pass |
+| generator binary | 386 (384 pass, 2 ignored) | recorded R07 list | 349 pass |
 
 Entry ignored leaves are
 `layout_oracle_grid_baseline_offset_matches_oracle` and
@@ -114,7 +114,8 @@ Commands: T03 generator entry-list command, then locked/offline generator filter
 
 Paths: `tests/layout/browser_parity.rs` and support test module only. Apply ledger
 T04: remove four integration tests and one support test compiled in both library
-and integration; remove dead history/census helpers. Dependency: T03. Commit:
+and integration, with that support test also compiled by the generator target;
+remove dead history/census helpers. Dependency: T03. Commit:
 `test(conformance): remove browser workflow proxies`.
 
 Commands: T04 integration and library entry-list commands, then locked/offline integration filters

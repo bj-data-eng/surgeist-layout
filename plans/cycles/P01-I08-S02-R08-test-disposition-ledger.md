@@ -197,5 +197,6 @@ import-Taffy, locking, helper runtime, parser, and serializer contracts.
 - root prefix: 233; flex prefix: 169; block prefix: 212;
 - integration: 215 (entry 244 minus T04 five and T05 24);
 - default package including 72 doctests: 2,329;
-- generator binary: 350 (entry 386 minus T03 13 and T06 23);
+- generator binary: 349 (entry 386 minus T03 13, T04's shared support test,
+  and T06 23);
 - ignored: only `runs_all_checked_in_browser_parity_xml`.
