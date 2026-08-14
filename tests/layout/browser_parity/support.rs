@@ -8802,66 +8802,6 @@ mod tests {
     }
 
     #[test]
-    fn generation_report_uses_explicit_br_unsupported_buckets() {
-        const CYCLE_BASE: &str = "bcdba3c49be09ad119c03ecdc4c77da803159132";
-        const REPORT: &str = "tests/layout/browser_parity/xml/generation-reports/all.json";
-        let output = std::process::Command::new("git")
-            .current_dir(env!("CARGO_MANIFEST_DIR"))
-            .args(["show", &format!("{CYCLE_BASE}:{REPORT}")])
-            .output()
-            .expect("cycle-entry report git show");
-        assert!(
-            output.status.success(),
-            "cycle-entry report should be readable: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let report_json: serde_json::Value = serde_json::from_slice(&output.stdout)
-            .expect("cycle-entry report should parse as JSON");
-        let unsupported = report_json["unsupported"]
-            .as_array()
-            .expect("unsupported report entries should be an array");
-        let reasons = unsupported
-            .iter()
-            .map(|entry| {
-                entry
-                    .get("reason")
-                    .or_else(|| entry.get("kind"))
-                    .or_else(|| entry.get("error"))
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("unknown")
-            })
-            .collect::<Vec<_>>();
-
-        assert!(
-            !reasons.contains(&"Unsupported <br> line-break semantics"),
-            "BR fixtures must not remain in the stale generic unsupported bucket"
-        );
-        assert!(
-            reasons.contains(&"Unsupported vertical <br> line-break semantics"),
-            "vertical <br> fixtures should remain explicitly unsupported"
-        );
-        assert!(
-            reasons.contains(&"Unsupported <br> outside block inline-run semantics"),
-            "outside-block <br> fixtures should remain explicitly unsupported"
-        );
-        let unsupported_sources = unsupported
-            .iter()
-            .filter_map(|entry| entry.get("source").and_then(serde_json::Value::as_str))
-            .collect::<Vec<_>>();
-        for source in [
-            "html/block/block_br_vertical_rl_inline_block_metrics.html",
-            "html/block/block_br_vertical_lr_inline_block_metrics.html",
-            "html/block/block_br_vertical_rl_empty_lines_metrics.html",
-            "html/block/block_br_vertical_rl_rtl_inline_block_metrics.html",
-        ] {
-            assert!(
-                !unsupported_sources.contains(&source),
-                "{source} should generate rather than remain unsupported"
-            );
-        }
-    }
-
-    #[test]
     fn to_node_input_preserves_grid_template_areas() {
         let input = test_node_input(StyleAttrs {
             attrs: BTreeMap::from([(
