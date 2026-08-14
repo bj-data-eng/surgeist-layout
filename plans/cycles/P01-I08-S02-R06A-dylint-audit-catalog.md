@@ -73,8 +73,14 @@ unsafe construct. The external `dylint_linting` macro alone owns Dylint's
 dynamic-library ABI expansion. If the pinned stack requires any other authored
 or retained unsafe construct, implementation stops. No Git dependency,
 `clippy_utils`, wrapper script, source-parsing Rust test, generated artifact,
-browser execution, corpus acquisition, or shared skill-reference work belongs
-to this cycle.
+browser execution, new source-parsing Rust test, corpus artifact delta, or shared
+skill-reference work belongs to this cycle.
+
+The entry `cargo clean` removed the pinned Taffy checkout required by the
+configured generator and corpus checks. No local copy remains. Restoring exactly
+`https://github.com/DioxusLabs/taffy.git` commit
+`d1ff7e339b9ee35b33858779f8d7653197e93d92` under the documented target cache is
+acquisition-capable and remains blocked until the user explicitly authorizes it.
 
 ## 2 Tasks
 
@@ -314,17 +320,42 @@ cargo fmt --check; git diff --check
 Dependency: T02. Commit:
 `tooling(audit): replace lexical projection audit`.
 
+### 2.4 `P01/I08/S02/R06A/T04` Reconcile The Package Exclusion Freeze
+
+**Area:** only the existing generator test
+`fri06_c08_recovery_inputs_owned_sources_match_reviewed_freeze`.
+
+**Outcome:** remove its unrelated byte-freeze row for product `Cargo.toml`; the
+intentional R06A package exclusion is not generator semantics. Retain every other
+historical row for R08's whole-crate source-proxy disposition. Add no replacement
+proxy, product behavior, or generated delta.
+
+**RED/acceptance:** the first final matrix ran the exact generator suite and this
+test failed only because current `Cargo.toml` SHA-256 `8e4f3689...` differed from
+the historical `b1b16783...`. After the row is removed, the exact focused
+locked/offline generator test passes; generator check and strict Clippy, stable
+formatting, diff, safety, and exact one-file scope pass. The Taffy-dependent
+lineage failure remains a separate acquisition blocker.
+
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_recovery_inputs_owned_sources_match_reviewed_freeze`; `CARGO_NET_OFFLINE=true cargo check --locked --offline -p surgeist-layout --features layout-golden-generate`; `CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --features layout-golden-generate --all-targets -- -F unsafe-code -D warnings`; `cargo fmt --check`; `git diff --check`.
+
+Dependency: T03. Commit: `test(generator): decouple audit package exclusion`.
+
 ## 3 Completion
 
-R06A requires three independently CLEAN task ranges, status `complete`, a GREEN
+R06A requires four independently CLEAN task ranges, status `complete`, a GREEN
 final matrix, CLEAN holistic review, publication/readback, process hygiene,
 successful repository-root `cargo clean`, absence of both target paths, and an
 immutable R07/R08 handoff. No catalog output, product dependency/API/behavior,
-fixture, generated artifact, browser, generator, acquisition beyond the exact
-authorized stack, or shared skill-reference delta is permitted.
+fixture, generated artifact, browser, or acquisition beyond the exact authorized
+Dylint stack and one explicitly authorized pinned Taffy restoration is permitted.
 
 The coordinator's selected-lint results are immutable cycle evidence. The final
 matrix does not repeat any selected invocation.
+
+After exact user authority exists, the coordinator runs the documented
+`import-taffy` command once, proves the pinned target checkout exists and Git has
+no artifact delta, and then runs the matrix below. A worker never acquires it.
 
 ```sh
 set -e
@@ -340,6 +371,7 @@ audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFL
 (set -e; cd tools/surgeist-layout-audits; cargo +stable fmt --check)
 test ! -e tools/surgeist-layout-audits/target
 test ! -e scripts/audit-node-projection-boundaries.sh
+test -d target/surgeist-sources/taffy/d1ff7e339b9ee35b33858779f8d7653197e93d92/.git
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
@@ -348,7 +380,7 @@ package_files="$(CARGO_NET_OFFLINE=true cargo package --locked --offline --list)
 rg -q '^exclude = \["tools/surgeist-layout-audits/\*\*"\]$' Cargo.toml
 diff -u <(git show 20ad8202e536c4c63f0bd211f0872653462116bf:Cargo.toml | awk '1; /^description = / { print "exclude = [\"tools/surgeist-layout-audits/**\"]" }') Cargo.toml
 test "$(git diff 20ad8202e536c4c63f0bd211f0872653462116bf..HEAD -- Cargo.lock | wc -l | tr -d ' ')" = 0
-actual_paths="$(git diff --name-only 20ad8202e536c4c63f0bd211f0872653462116bf..HEAD | LC_ALL=C sort -u)"; test -z "$(printf '%s\n' "$actual_paths" | rg -v '^(Cargo\.toml|plans/cycles/P01-I08-S02-R06-node-projections-and-compatible-api-map\.md|plans/cycles/P01-I08-S02-R06A-dylint-audit-catalog\.md|plans/sequences/P01-I08-S02-architectural-remediation\.md|plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness\.md|scripts/audit-node-projection-boundaries\.sh|tools/surgeist-layout-audits/)')"
+actual_paths="$(git diff --name-only 20ad8202e536c4c63f0bd211f0872653462116bf..HEAD | LC_ALL=C sort -u)"; test -z "$(printf '%s\n' "$actual_paths" | rg -v '^(Cargo\.toml|plans/cycles/P01-I08-S02-R06-node-projections-and-compatible-api-map\.md|plans/cycles/P01-I08-S02-R06A-dylint-audit-catalog\.md|plans/sequences/P01-I08-S02-architectural-remediation\.md|plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness\.md|scripts/audit-node-projection-boundaries\.sh|tests/bin/surgeist-layout-generate/generator\.rs|tools/surgeist-layout-audits/)')"
 standing_paths=(Justfile src tests); test ! -d .github || standing_paths+=(.github); if rg -n 'cargo[[:space:]]+dylint|surgeist-layout-audits|p01_i08_s02_r06_t02_node_projection_boundary' "${standing_paths[@]}"; then exit 1; fi
 base_suppressions="$(while IFS= read -r p; do git show "20ad8202e536c4c63f0bd211f0872653462116bf:$p" | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }'; done < <(git ls-tree -r --name-only 20ad8202e536c4c63f0bd211f0872653462116bf | rg '\.rs$') | LC_ALL=C sort)"; current_suppressions="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }' | LC_ALL=C sort)"; test -z "$(comm -13 <(printf '%s\n' "$base_suppressions") <(printf '%s\n' "$current_suppressions"))"
 if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{'; then exit 1; fi
@@ -363,6 +395,6 @@ cargo fmt --check; git diff --check; test -z "$(git status --porcelain=v1)"
 After publication/readback, prove no cycle-owned Dylint, Cargo, Rust, layout,
 test, or generator process remains. Run repository-root `cargo clean`; prove
 `target/` and `tools/surgeist-layout-audits/target` absent and Git clean. Record
-the immutable candidate, exact pins/acquisition, three ordered task ranges and
+the immutable candidate, exact pins/acquisition, four ordered task ranges and
 verdicts, selected-lint and UI evidence, script deletion, pilot lessons, product
 equivalence, remote readback, cleanup, and R07/R08 handoff.
