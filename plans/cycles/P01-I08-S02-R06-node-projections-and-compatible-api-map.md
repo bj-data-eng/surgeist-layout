@@ -4,7 +4,7 @@ Cycle ID: `P01/I08/S02/R06`
 
 Owning repository: `surgeist-layout`
 
-Status: `complete`
+Status: `in_progress`
 
 Cycle base: `05a531dd661937aa3518678524c9accb0a99063d`
 
@@ -368,7 +368,7 @@ rg -q '^## Public API Map$' README.md; for h in 'Computation and tree' 'Node inp
 scripts/audit-node-projection-boundaries.sh all
 scripts/audit-node-projection-boundaries.sh --self-test
 : "${TASK_SPANS:?set TASK_SPANS to the newline-delimited ordered exact full-SHA spans from the seven CLEAN task reviews}"
-expected_paths="$({ printf '%s\n' plans/cycles/P01-I08-S02-R06-node-projections-and-compatible-api-map.md; while IFS= read -r span; do git diff --name-only "$span"; done <<< "$TASK_SPANS"; } | LC_ALL=C sort -u)"; actual_paths="$(git diff --name-only 05a531dd661937aa3518678524c9accb0a99063d..HEAD | LC_ALL=C sort -u)"; test "$actual_paths" = "$expected_paths"
+expected_paths="$({ printf '%s\n' plans/cycles/P01-I08-S02-R06-node-projections-and-compatible-api-map.md plans/sequences/P01-I08-S02-architectural-remediation.md plans/specs/P01-I08-grid-subgrid-and-grid-lanes-completeness.md; while IFS= read -r span; do git diff --name-only "$span"; done <<< "$TASK_SPANS"; } | LC_ALL=C sort -u)"; actual_paths="$(git diff --name-only 05a531dd661937aa3518678524c9accb0a99063d..HEAD | LC_ALL=C sort -u)"; test "$actual_paths" = "$expected_paths"
 base_suppressions="$(while IFS= read -r p; do git show "05a531dd661937aa3518678524c9accb0a99063d:$p" | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }'; done < <(git ls-tree -r --name-only 05a531dd661937aa3518678524c9accb0a99063d | rg '\.rs$') | LC_ALL=C sort)"; current_suppressions="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }' | LC_ALL=C sort)"; test -z "$(comm -13 <(printf '%s\n' "$base_suppressions") <(printf '%s\n' "$current_suppressions"))"
 if { git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{'; then exit 1; fi
 test "$(shasum -a 256 tests/layout/browser_parity/corpus.toml | awk '{print $1}')" = c6e6f1422e14a5e4aa474c143998063ce0de4d0a9123b69875b35a4ed009a8f6
