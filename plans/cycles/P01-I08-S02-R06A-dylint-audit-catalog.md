@@ -4,7 +4,7 @@ Cycle ID: `P01/I08/S02/R06A`
 
 Owning repository: `surgeist-layout`
 
-Status: `draft`
+Status: `reviewed`
 
 Cycle base: `20ad8202e536c4c63f0bd211f0872653462116bf`
 
