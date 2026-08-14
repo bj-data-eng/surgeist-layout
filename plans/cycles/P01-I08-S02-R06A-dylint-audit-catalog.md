@@ -46,6 +46,15 @@ shown incompatible with Dylint `6.0.3`; the repository returned clean without a
 task commit. T01 resumes by verifying the installed packages through Cargo's
 package inventory and must not uninstall or reacquire them merely to repeat RED.
 
+On 2026-08-14 the user additionally authorized Dylint `6.0.3`'s one-time
+crates.io acquisition and local build of exact `dylint_driver = "=6.0.3"` and
+its Cargo-resolved transitive dependencies. Dylint may create its ephemeral
+toolchain wrapper package
+`dylint_driver-nightly-2026-05-28-aarch64-apple-darwin` `0.1.0` and persist only
+the resulting driver beneath the configured `DYLINT_DRIVER_PATH` or default
+user Dylint-driver directory. This authority does not permit another driver
+version, toolchain, catalog dependency, lockfile update, or repository artifact.
+
 The catalog lives only at `tools/surgeist-layout-audits/`, has its own
 workspace, lockfile, and toolchain, and writes all build state to
 `target/dylint-audits` at the repository root. The product package excludes the
@@ -157,10 +166,28 @@ diagnostics, the lint remains `Allow` when not explicitly selected, catalog
 format/Clippy checks pass on the pinned nightly, and authored catalog Rust has no
 unsafe match.
 
+The first UI attempt established only a setup failure because the authorized
+toolchain driver was absent; it is not RED evidence. Before resuming test-first
+work, run the catalog UI test once with network access solely so Dylint can
+acquire and build the newly authorized exact driver. Prove the driver exists and
+the catalog manifest, lockfile, and toolchain pin are unchanged, then rerun the
+focused UI test locked and offline. Only that offline missing-diagnostic failure
+is the valid T02 RED.
+
+One-time authorized driver bootstrap:
+
+```sh
+CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml node_projection_boundary_ui
+driver_root="${DYLINT_DRIVER_PATH:-${HOME}/.dylint_drivers}"
+test -x "$driver_root/nightly-2026-05-28-aarch64-apple-darwin/dylint-driver"
+git diff --exit-code bfd76dab2c52df5ec009f52595fba9ce6e5ac6e2 -- tools/surgeist-layout-audits/Cargo.toml tools/surgeist-layout-audits/Cargo.lock tools/surgeist-layout-audits/rust-toolchain.toml
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml node_projection_boundary_ui
+```
+
 ```sh
 set -e
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 clippy --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets -- -F unsafe-code -D warnings
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 clippy --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets -- -F unsafe-code -D warnings
 CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 fmt --manifest-path tools/surgeist-layout-audits/Cargo.toml --check
 test ! -e tools/surgeist-layout-audits/target
 git diff --check
@@ -181,7 +208,7 @@ unchanged R06 product source and records zero diagnostics with this exact sole
 selected invocation:
 
 ```sh
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo dylint --path tools/surgeist-layout-audits -- -D p01_i08_s02_r06_t02_node_projection_boundary
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo dylint --path tools/surgeist-layout-audits -- -D p01_i08_s02_r06_t02_node_projection_boundary
 ```
 
 A failure returns to T02; a worker never performs or repeats this selected-lint
@@ -205,7 +232,7 @@ audit and is not repeated.
 set -e
 test ! -e scripts/audit-node-projection-boundaries.sh
 test ! -e tools/surgeist-layout-audits/target
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check; git diff --check
@@ -232,8 +259,8 @@ test "$(cargo dylint --version)" = 'cargo-dylint 6.0.3'
 cargo install --list | perl -0ne 'exit !(/^cargo-dylint v6\.0\.3:\n    cargo-dylint$/m && /^dylint-link v6\.0\.3:\n    dylint-link$/m)'
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^rustc-dev-'
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^llvm-tools-'
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 clippy --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets -- -F unsafe-code -D warnings
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 clippy --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets -- -F unsafe-code -D warnings
 test ! -e tools/surgeist-layout-audits/target
 test ! -e scripts/audit-node-projection-boundaries.sh
 CARGO_NET_OFFLINE=true just verify
