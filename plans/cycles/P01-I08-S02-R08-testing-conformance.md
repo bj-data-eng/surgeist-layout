@@ -24,7 +24,7 @@ Testing authority: installed `surgeist-agent/references/testing.md`.
 
 Reviewed entry-disposition attachment:
 `plans/cycles/P01-I08-S02-R08-test-disposition-ledger.md`, SHA-256
-`6c4c946ef8a18fe838e288537646aea8d35f942b9b699791a85ba943455c07b1`.
+`728cedfeb45cc868300d0e7b6896eea9fb42b47e148091d69a0537445f68fafb`.
 
 ## 1 Outcome And Boundaries
 
@@ -49,7 +49,7 @@ R07's locked/offline entry inventory is authoritative:
 | Target/prefix | Entry | Entry leaf digest | Final |
 | --- | ---: | --- | ---: |
 | library | 2,087 | `e0da19f5f8ff509122a3b1f846f0257cbd1e2c0ff850bf3cbbdeaa84f59eb87b` | 2,042 |
-| `grid::tests::` | 1,017 | `7d183fadd0668543df877f58247158c02a36541b3c327230b92eced892541adf` | 1,011 |
+| `grid::tests::` | 1,020 | `a4c73d33ed969f92509b5e94b85c8af69628e11033b8e471ca70bc70b63239ed` | 1,014 |
 | `root_tests::` | 235 | `2e616af2e7c7b7a0f480cba90b63b7807831bc72da4d42d5464a9e49e04610dc` | 233 |
 | `flex_tests::` | 169 | `5a1cd29203c4ee0eea91169e18512ffdd79bea40fe6237120d261490f8a6c0d5` | 169 |
 | `block_tests::` | 212 | `a73897032730d7b3b0d3c10746a17f16403baab9ffb1de4fedcdca01e2b3822f` | 212 |
