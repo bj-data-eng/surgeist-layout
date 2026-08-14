@@ -149,14 +149,14 @@ source construction and target contribution consume projections rather than the
 full public property bag, with no duplicate geometry or resolver.
 
 **RED/acceptance:** `canonical_geometry_`, `scroll_projection_`,
-`fri08_c07_t02_scroll_source_`, and `scroll_snap_` pass before and after. The
+`fri08_c07_t02_scroll_source_`, and `fri05_c01_scroll_input_` pass before and after. The
 external probe is RED until both new owners exist and is GREEN with singular
 projection declarations and no production `NodeInputOf` parameter in
 `src/scroll/{box_geometry,construction,contribution}.rs`. Preserve all flow
 mappings, clips, gutters, ranges, snap metadata, errors, and both scalar lanes.
 
 ```sh
-set -e; for f in canonical_geometry_ scroll_projection_ fri08_c07_t02_scroll_source_ scroll_snap_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
+set -e; for f in canonical_geometry_ scroll_projection_ fri08_c07_t02_scroll_source_ fri05_c01_scroll_input_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test -f src/node_projection.rs; test -f src/scroll/input.rs; test "$(rg -l 'struct CommonBoxProjection' src --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct ScrollBoxProjection' src/scroll --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct ScrollTargetProjection' src/scroll --glob '*.rs' | wc -l | tr -d ' ')" = 1
 scripts/audit-node-projection-boundaries.sh --self-test
 scripts/audit-node-projection-boundaries.sh scroll
