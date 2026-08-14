@@ -83,7 +83,7 @@ canonical-scroll behavior is the replacement authority. No production item or
 visibility changes. Dependency: cycle base. Commit:
 `test(conformance): remove source proxy contracts`.
 
-Commands: entry-list proof plus locked/offline library filters
+Commands: T01 library entry-list command, then locked/offline library filters
 `fri05_c01_ fri05_c02_ fri05_c03_ fri05_c04_ fri05_c05_ fri05_c07_ fri06_c01_ fri06_c02_ fri06_c05_ canonical_geometry_`, then full library/package and strict gates.
 
 ### T02 `P01/I08/S02/R08/T02` Internal Architecture And Oracle Proxies
@@ -96,7 +96,7 @@ tests; rename/re-oracle the line-break test exactly to
 No production change. Dependency: T01. Commit:
 `test(conformance): replace internal architecture proxies`.
 
-Commands: entry-list proof plus locked/offline library filters
+Commands: T02 library entry-list command, then locked/offline library filters
 `fri08_c06r_inherited_placement_ fri08_c02r_lanes_track_phase_ fri06_c04_float_ fri06_c03_lifecycle_ block_line_break_ grid::tests::oracle_comparison::`, then full library/package and strict gates.
 
 ### T03 `P01/I08/S02/R08/T03` Generator Source/Workflow Proxies
@@ -106,7 +106,7 @@ tests and dead source/census/entry helpers. Retain temporary-Git import behavior
 and `track_definition_serializes_subgrid_line_names`. Dependency: T02. Commit:
 `test(conformance): remove generator workflow proxies`.
 
-Commands: entry-list proof and locked/offline generator binary filters
+Commands: T03 generator entry-list command, then locked/offline generator filters
 `fri06_c08_new_ fri06_c08_existing_ fri06_c08_range_ink_ fri06_c08_recovery_ fri06_c08r_ track_definition_`, then the full generator binary target,
 `just verify-generator`, and strict generator-feature Clippy.
 
@@ -117,9 +117,10 @@ T04: remove four integration tests and one support test compiled in both library
 and integration; remove dead history/census helpers. Dependency: T03. Commit:
 `test(conformance): remove browser workflow proxies`.
 
-Commands: entry-list proof plus locked/offline integration filters
+Commands: T04 integration and library entry-list commands, then locked/offline integration filters
 `fri06_c08r_ fri06_c12_t07_ support::tests::`, matching library browser-control
-filters, then full integration/library/package and strict gates.
+filter `grid::tests::browser_controls::fri06_c12_t08_browser_front_door::tests::`,
+then full integration/library/package and strict gates.
 
 ### T05 `P01/I08/S02/R08/T05` Behavior-Owned Parity Evidence
 
@@ -136,7 +137,7 @@ artifact consumer. Rename/refactor, without count change:
 
 Dependency: T04. Commit: `test(conformance): make parity evidence behavior owned`.
 
-Commands: entry-list proof plus locked/offline integration filters
+Commands: T05 integration entry-list command, then locked/offline integration filters
 `runs_fri_02_ fixture_against_surgeist_layout outputs_match adapter_template_areas normalized_flex_collapse_ manifest_active_outputs_`, full integration/package,
 `just corpus-check`, and strict gates.
 
@@ -151,7 +152,7 @@ integrity, serialization, XML, check-corpus, import, locking, helper runtime,
 parser, and serializer contracts. Dependency: T05. Commit:
 `test(conformance): consolidate declared artifacts`.
 
-Commands: entry-list proof plus locked/offline generator filters
+Commands: T06 generator entry-list command, then locked/offline generator filters
 `centralized_provenance_ corpus_manifest_ generation_report_ xml_generation_ import_taffy_ track_definition_`, full generator binary target,
 `just verify-generator`, and strict generator-feature Clippy.
 
@@ -168,6 +169,39 @@ target's `-- --list` and the ledger names, never Rust source parsing. Every
 retained focused family must be nonzero before and after. A deletion task's RED
 is the external conformance predicate finding the listed executed entry tests;
 do not invent a behavioral failure.
+
+The exact ordered entry-list commands are:
+
+```sh
+# T01 and T02
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib -- --list
+# T03 and T06
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- --list
+# T04
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout -- --list
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib -- --list
+# T05
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout -- --list
+```
+
+After the listed focused commands, every task runs this exact ordered GREEN gate:
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
+CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
+cargo fmt --check
+git diff --check
+```
+
+T03 and T06 first run
+`CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate`, then
+`CARGO_NET_OFFLINE=true just verify-generator`, then exact generator strict
+Clippy
+`CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --features layout-golden-generate --all-targets -- -F unsafe-code -D warnings`,
+before the common GREEN gate. T05 runs `CARGO_NET_OFFLINE=true just corpus-check`
+before the common gate. This ordering is mandatory.
 
 ## 4 Scope And Preservation Gates
 
@@ -187,19 +221,28 @@ git diff --check "$task_base..$task_head"
 ```
 
 Production-prefix hashes remain exact for construction
-`d4dd66dbdac97cab557d6dda0acce3bee4d73768d5c45072fd644bbe40303b8a`,
+`a0ff41e7b5ec666961fedd90e3b66c158497c6c1206c2098a3e8437f97a5de23`,
 generator
-`ba6b4ccf6006239f19349616e00cf2fa9ce3d87b24675f34e97823fe65cb99d4`,
+`cc8054c393b7ac8307c033b17bf4aea5eb6cca9a7a75200f58a6cce0de35b526`,
 and support
-`88d4d0baf4206f487f85e63de400875876319fb112838595e372b1c4a5648ad1`,
-split before their existing test-module markers. Marker movement is a defect.
+`39403ce2bb7c1e20024d0a90a4e5f19c115a273c9eb7a5a3dbd3e6ded4331518`.
+The exact gates are:
+
+```sh
+test "$(perl -0ne '($p)=split(/#\[cfg\(test\)\]\npub\(super\) mod fri05_c02_factory_tests \{/); print $p' src/scroll/construction.rs | shasum -a 256 | awk '{print $1}')" = a0ff41e7b5ec666961fedd90e3b66c158497c6c1206c2098a3e8437f97a5de23
+test "$(perl -0ne '($p)=split(/#\[cfg\(test\)\]\nmod tests \{/); print $p' tests/bin/surgeist-layout-generate/generator.rs | shasum -a 256 | awk '{print $1}')" = cc8054c393b7ac8307c033b17bf4aea5eb6cca9a7a75200f58a6cce0de35b526
+test "$(perl -0ne '($p)=split(/#\[cfg\(test\)\]\nmod tests \{/); print $p' tests/layout/browser_parity/support.rs | shasum -a 256 | awk '{print $1}')" = 39403ce2bb7c1e20024d0a90a4e5f19c115a273c9eb7a5a3dbd3e6ded4331518
+```
+
+Marker movement is a defect.
 
 All tasks run affected full targets, default package, strict locked/offline
 Clippy `--all-targets -- -F unsafe-code -D warnings`, format, diff, exact scope,
 no-new-suppression, and complete owned-Rust unsafe gates. No worker runs a
 browser, generation, import/acquisition, Dylint/catalog command, or `cargo clean`.
 
-Cycle paths are limited to this plan, its ledger, and the 12 task paths above.
+Cycle paths are limited to this plan, its ledger, and the exact 11 unique task
+paths matched by the task allowlists above.
 Cargo files, README, Justfile, `src/lib.rs`, all other production sources,
 `tools/`, `scripts/`, corpus manifest, HTML/XML, helper, reports, and generated
 artifacts match the cycle base.
