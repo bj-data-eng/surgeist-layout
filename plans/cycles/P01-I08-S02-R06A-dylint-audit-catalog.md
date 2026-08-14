@@ -94,6 +94,12 @@ toolchain-suffixed library; exclude the tool tree from product packaging; keep
 every catalog command on repository-root `target/dylint-audits` with no nested
 target.
 
+Every command that builds, tests, or checks the lint executes with the catalog
+directory as its current directory so Cargo discovers the nested target linker
+configuration; a repository-root variable keeps build output in the required
+root target. The selected product audit remains at the product root, while
+Dylint builds its `--path` library from that library's package root.
+
 **RED/acceptance:** retained historical RED proves the exact binaries, nightly,
 components, catalog, and package exclusion were absent at cycle entry. The
 current retry first proves the installed-package/toolchain inventory is GREEN
@@ -131,7 +137,7 @@ test "$(cargo dylint --version)" = 'cargo-dylint 6.0.3'
 cargo install --list | perl -0ne 'exit !(/^cargo-dylint v6\.0\.3:\n    cargo-dylint$/m && /^dylint-link v6\.0\.3:\n    dylint-link$/m)'
 rg -q '^\[target\.aarch64-apple-darwin\]$' tools/surgeist-layout-audits/.cargo/config.toml
 rg -q '^linker = "dylint-link"$' tools/surgeist-layout-audits/.cargo/config.toml
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin" cargo +nightly-2026-05-28 build --release --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin" cargo +nightly-2026-05-28 build --release --locked --offline)
 test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
 git diff --exit-code bfd76dab2c52df5ec009f52595fba9ce6e5ac6e2 -- tools/surgeist-layout-audits/Cargo.toml tools/surgeist-layout-audits/Cargo.lock tools/surgeist-layout-audits/rust-toolchain.toml
 cargo fmt --manifest-path tools/surgeist-layout-audits/Cargo.toml --check
@@ -161,8 +167,8 @@ rg -q '^linker = "dylint-link"$' tools/surgeist-layout-audits/.cargo/config.toml
 CARGO_NET_OFFLINE=true cargo +nightly-2026-05-28 generate-lockfile --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
 test -f tools/surgeist-layout-audits/Cargo.lock
 perl -0777 -ne 'exit !(/\[\[package\]\]\nname = "dylint_linting"\nversion = "6\.0\.3"\nsource = "registry\+https:\/\/github\.com\/rust-lang\/crates\.io-index"/s && /\[\[package\]\]\nname = "dylint_testing"\nversion = "6\.0\.3"\nsource = "registry\+https:\/\/github\.com\/rust-lang\/crates\.io-index"/s)' tools/surgeist-layout-audits/Cargo.lock
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 check --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin" cargo +nightly-2026-05-28 build --release --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 check --locked --offline)
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin" cargo +nightly-2026-05-28 build --release --locked --offline)
 test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
 git diff --exit-code bfd76dab2c52df5ec009f52595fba9ce6e5ac6e2 -- tools/surgeist-layout-audits/Cargo.toml tools/surgeist-layout-audits/Cargo.lock tools/surgeist-layout-audits/rust-toolchain.toml
 test ! -e tools/surgeist-layout-audits/target
@@ -217,18 +223,18 @@ One-time authorized driver bootstrap:
 driver_root="${DYLINT_DRIVER_PATH:-${HOME}/.dylint_drivers}"
 driver_path="$driver_root/nightly-2026-05-28-aarch64-apple-darwin/dylint-driver"
 test ! -e "$driver_path"
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml node_projection_boundary_ui
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked node_projection_boundary_ui)
 test -x "$driver_path"
 test "$("$driver_path" -V | awk '{print $NF}')" = '6.0.3'
 git diff --exit-code bfd76dab2c52df5ec009f52595fba9ce6e5ac6e2 -- tools/surgeist-layout-audits/Cargo.toml tools/surgeist-layout-audits/Cargo.lock tools/surgeist-layout-audits/rust-toolchain.toml
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml node_projection_boundary_ui
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline node_projection_boundary_ui)
 ```
 
 ```sh
 set -e
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets
-cargo fmt --manifest-path tools/surgeist-layout-audits/Cargo.toml --check
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline)
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --all-targets)
+(set -e; cd tools/surgeist-layout-audits; cargo fmt --check)
 test ! -e tools/surgeist-layout-audits/target
 git diff --check
 ```
@@ -280,7 +286,7 @@ audit and is not repeated.
 set -e
 test ! -e scripts/audit-node-projection-boundaries.sh
 test ! -e tools/surgeist-layout-audits/target
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline)
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout
 CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 cargo fmt --check; git diff --check
@@ -310,9 +316,9 @@ rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^llvm-
 driver_root="${DYLINT_DRIVER_PATH:-${HOME}/.dylint_drivers}"; driver_path="$driver_root/nightly-2026-05-28-aarch64-apple-darwin/dylint-driver"; test -x "$driver_path"; test "$("$driver_path" -V | awk '{print $NF}')" = '6.0.3'
 rg -q '^\[target\.aarch64-apple-darwin\]$' tools/surgeist-layout-audits/.cargo/config.toml; rg -q '^linker = "dylint-link"$' tools/surgeist-layout-audits/.cargo/config.toml
 test -f "target/dylint-audits/dylint/libraries/nightly-2026-05-28-aarch64-apple-darwin/release/libsurgeist_layout_audits@nightly-2026-05-28-aarch64-apple-darwin.dylib"
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml
-CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$PWD/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets
-cargo fmt --manifest-path tools/surgeist-layout-audits/Cargo.toml --check
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --offline)
+audit_repo_root="$PWD"; (set -e; cd tools/surgeist-layout-audits; CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="$audit_repo_root/target/dylint-audits" RUSTFLAGS='-F unsafe-code -D warnings' cargo +nightly-2026-05-28 check --locked --offline --all-targets)
+(set -e; cd tools/surgeist-layout-audits; cargo fmt --check)
 test ! -e tools/surgeist-layout-audits/target
 test ! -e scripts/audit-node-projection-boundaries.sh
 CARGO_NET_OFFLINE=true just verify
