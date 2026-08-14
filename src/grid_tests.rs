@@ -12,6 +12,215 @@ use crate::test_support::{
 };
 use crate::*;
 
+macro_rules! grid_container_projection {
+    ($input:expr) => {
+        GridContainerProjection::from_node($input)
+    };
+}
+
+macro_rules! grid_item_projection {
+    ($input:expr) => {
+        GridItemProjection::from_node($input)
+    };
+}
+
+fn default_grid_item_projection<S: LayoutScalar>() -> GridItemProjection<S> {
+    grid_item_projection!(&NodeInputOf::default())
+}
+
+fn single_grid_placement_context<S: LayoutScalar>(
+    child: u32,
+    style: &NodeInputOf<S>,
+) -> GridPlacementContext<u32, S> {
+    GridPlacementContext::new_with_item_inputs(
+        vec![child],
+        vec![ResolvedGridItemPlacement {
+            column: GridPlacement::AUTO,
+            row: GridPlacement::AUTO,
+            absolute_column: GridPlacement::AUTO,
+            absolute_row: GridPlacement::AUTO,
+            in_flow: true,
+        }],
+        vec![grid_item_projection!(style)],
+    )
+}
+
+fn subgrid_axis_report<S: LayoutScalar>(
+    parent_style: &NodeInputOf<S>,
+    child_style: &NodeInputOf<S>,
+    axis: GridAxisKind,
+) -> SubgridAxisReport {
+    super::subgrid_axis_report(
+        &grid_container_projection!(parent_style),
+        &grid_item_projection!(child_style),
+        axis,
+    )
+}
+
+#[derive(Clone, Copy)]
+struct GridAxisMappingInput<'a, S: LayoutScalar = Scalar> {
+    queried_axis: GridAxisKind,
+    parent_style: &'a NodeInputOf<S>,
+    child_style: &'a NodeInputOf<S>,
+}
+
+fn map_grid_axis<S: LayoutScalar>(input: GridAxisMappingInput<'_, S>) -> GridAxisMappingReport {
+    super::map_grid_axis(super::axis::GridAxisMappingInput {
+        queried_axis: input.queried_axis,
+        parent_style: &grid_container_projection!(input.parent_style),
+        child_style: &grid_item_projection!(input.child_style),
+    })
+}
+
+#[derive(Clone, Copy)]
+struct SubgridEligibilityInput<'a, S: LayoutScalar = Scalar> {
+    axis: GridAxisKind,
+    parent_style: &'a NodeInputOf<S>,
+    has_parent_grid: bool,
+    child_style: &'a NodeInputOf<S>,
+}
+
+fn subgrid_eligibility<S: LayoutScalar>(
+    input: SubgridEligibilityInput<'_, S>,
+) -> SubgridEligibility {
+    super::subgrid_eligibility(super::subgrid::SubgridEligibilityInput {
+        axis: input.axis,
+        parent_style: &grid_container_projection!(input.parent_style),
+        has_parent_grid: input.has_parent_grid,
+        child_style: &grid_item_projection!(input.child_style),
+    })
+}
+
+fn child_subgrid_gap<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    axis: GridAxisKind,
+    area_size: Size<S>,
+) -> Result<ResolvedSubgridGap<S>, crate::LengthResolutionStatus<S>> {
+    super::child::child_subgrid_gap(&grid_item_projection!(style), axis, area_size)
+}
+
+fn needs_intrinsic_subgrid_context<Node: Copy, S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    item: SubgridItemReport<Node>,
+    area: GridArea<S>,
+) -> bool {
+    super::tracks::needs_intrinsic_subgrid_context(&grid_item_projection!(style), item, area)
+}
+
+fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
+    child_style: &NodeInputOf<S>,
+    container_style: &NodeInputOf<S>,
+    area_size: Size<S>,
+    containing_physical_size: Size<Option<S>>,
+    grid_flow_axes: crate::geometry::FlowAxes,
+) -> Result<GridItemSizing<S>, SizingResolutionError<S>> {
+    super::child::grid_item_sizing_with_grid_flow_status(
+        &grid_item_projection!(child_style),
+        &grid_container_projection!(container_style),
+        area_size,
+        containing_physical_size,
+        grid_flow_axes,
+    )
+}
+
+#[derive(Clone, Copy)]
+struct SubgridChildParentContextInput<'a, Node, S: LayoutScalar = Scalar> {
+    item: SubgridItemReport<Node>,
+    child_style: &'a NodeInputOf<S>,
+    area: GridArea<S>,
+    content_box_size: Size<S>,
+    columns: &'a [S],
+    rows: &'a [S],
+    gap: LogicalSizeOf<S>,
+    parent_named_columns: &'a NamedGridLines,
+    parent_named_rows: &'a NamedGridLines,
+    parent_area_facts: Option<&'a GridAreaNameFacts>,
+    parent_baseline_groups: &'a GridBaselineGroups<S>,
+    margin: Edges<Option<S>>,
+    border: Edges<S>,
+    padding: Edges<S>,
+}
+
+fn with_projected_subgrid_child_input<Node: Copy, S: LayoutScalar, R>(
+    input: SubgridChildParentContextInput<'_, Node, S>,
+    consume: impl FnOnce(super::child::SubgridChildParentContextInput<'_, Node, S>) -> R,
+) -> R {
+    let child_style = grid_item_projection!(input.child_style);
+    consume(super::child::SubgridChildParentContextInput {
+        item: input.item,
+        child_style: &child_style,
+        area: input.area,
+        content_box_size: input.content_box_size,
+        columns: input.columns,
+        rows: input.rows,
+        gap: input.gap,
+        parent_named_columns: input.parent_named_columns,
+        parent_named_rows: input.parent_named_rows,
+        parent_area_facts: input.parent_area_facts,
+        parent_baseline_groups: input.parent_baseline_groups,
+        margin: input.margin,
+        border: input.border,
+        padding: input.padding,
+    })
+}
+
+fn subgrid_child_parent_context<Node: Copy + PartialEq, S: LayoutScalar>(
+    input: SubgridChildParentContextInput<'_, Node, S>,
+) -> Result<GridParentContext<S, Node>, SubgridChildContextError<S>> {
+    with_projected_subgrid_child_input(input, super::child::subgrid_child_parent_context)
+}
+
+fn subgrid_child_parent_context_with_geometry<Node: Copy + PartialEq, S: LayoutScalar>(
+    input: SubgridChildParentContextInput<'_, Node, S>,
+    column_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+    row_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+) -> Result<GridParentContext<S, Node>, SubgridChildContextError<S>> {
+    with_projected_subgrid_child_input(input, |input| {
+        super::child::subgrid_child_parent_context_with_geometry(
+            input,
+            column_geometry,
+            row_geometry,
+        )
+    })
+}
+
+fn subgrid_child_parent_context_from_ancestor_groups<Node: Copy + PartialEq, S: LayoutScalar>(
+    input: SubgridChildParentContextInput<'_, Node, S>,
+    ancestor_baseline_groups: &FinalAncestorBaselineGroups<Node, S>,
+    parent_grid: Node,
+) -> Result<GridParentContext<S, Node>, SubgridChildContextError<S>> {
+    with_projected_subgrid_child_input(input, |input| {
+        super::child::subgrid_child_parent_context_from_ancestor_groups(
+            input,
+            ancestor_baseline_groups,
+            parent_grid,
+        )
+    })
+}
+
+fn subgrid_child_parent_context_from_ancestor_groups_with_geometry<
+    Node: Copy + PartialEq,
+    S: LayoutScalar,
+>(
+    input: SubgridChildParentContextInput<'_, Node, S>,
+    ancestor_baseline_groups: &FinalAncestorBaselineGroups<Node, S>,
+    parent_template_area_expanded_axes: TemplateAreaExpandedAxes,
+    parent_grid: Node,
+    column_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+    row_geometry: Option<&UsedGridAxisGeometryOf<S>>,
+) -> Result<GridParentContext<S, Node>, SubgridChildContextError<S>> {
+    with_projected_subgrid_child_input(input, |input| {
+        super::child::subgrid_child_parent_context_from_ancestor_groups_with_geometry(
+            input,
+            ancestor_baseline_groups,
+            parent_template_area_expanded_axes,
+            parent_grid,
+            column_geometry,
+            row_geometry,
+        )
+    })
+}
+
 mod fri06_c12_t08_browser_front_door {
     use crate as surgeist_layout;
 
@@ -9332,8 +9541,7 @@ fn assert_fri06_mr02_scroll_padding_grid_child<S: LayoutScalar>() {
             ..NodeInputOf::default()
         };
         let geometry = super::child::retained_grid_child_scroll_geometry(
-            crate::scroll::ScrollBoxProjection::from_node(&style),
-            crate::scroll::ScrollTargetProjection::from_node(&style),
+            &grid_item_projection!(&style),
             size,
             size,
             Edges::ZERO,
@@ -10894,6 +11102,7 @@ fn fri08_c08_t05_impossible_state_standalone_nested_lanes_intrinsic_scroll_and_o
         ancestor_track_intrinsic_min_eligibility: IntrinsicMinTrackFacts::Known(&[true]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1_u32,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Standalone,
             reversed: false,
             span_in_parent: GridTrackSpan::new(1, 2),
@@ -12361,7 +12570,10 @@ where
         absolute_row: GridPlacement::try_line(1).expect("one is a valid grid line"),
         in_flow,
     };
-    let placements = GridPlacementContext::new(
+    let item_inputs = (1..=6)
+        .map(|child| grid_item_projection!(tree.node_input(child)))
+        .collect();
+    let placements = GridPlacementContext::new_with_item_inputs(
         vec![1, 2, 3, 4, 5, 6],
         vec![
             placement(
@@ -12383,6 +12595,7 @@ where
                 true,
             ),
         ],
+        item_inputs,
     )
     .with_order_modified_indexes(vec![
         SourceIndex::new(2),
@@ -12403,11 +12616,14 @@ where
         border: Edges::ZERO,
     };
     let tracks = [TrackSizingOf::AUTO, TrackSizingOf::AUTO];
-    let subgrid_report = collect_subgrid_report(&tree, 0, tree.node_input(0));
+    let container_input = tree.node_input(0).clone();
+    let container_style = grid_container_projection!(&container_input);
+    let subgrid_report = collect_subgrid_report(&container_style, &placements);
     let intrinsic_sizes = lane_intrinsic_track_sizes(
         &mut tree,
         0,
         LaneIntrinsicTrackSizeInput {
+            container_style: &container_style,
             constants: &constants,
             axis: GridAxisKind::Column,
             tracks: &tracks,
@@ -12525,6 +12741,8 @@ where
                 .children(1, [])
                 .style(1, child_style.clone())
                 .measure(1, measured);
+            let container_projection = grid_container_projection!(&container_style);
+            let child_projection = grid_item_projection!(&child_style);
             let constants = Constants {
                 flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
                 explicit_definite_content_size: Size::NONE,
@@ -12541,8 +12759,8 @@ where
                 &mut tree,
                 1,
                 LaneAxisMarginBoxMeasureInput {
-                    child_style: &child_style,
-                    container_style: &container_style,
+                    child_style: &child_projection,
+                    container_style: &container_projection,
                     constants: &constants,
                     lane_axis: match grid_axis {
                         GridAxisKind::Column => GridAxisKind::Row,
@@ -13639,7 +13857,7 @@ fn grid_lanes_layout_rejects_overflowed_affine_tolerance_resolution() {
     let err = resolve_grid_lanes_placement_with_resolved_tracks(
         &mut tree,
         1,
-        &style,
+        &grid_container_projection!(&style),
         &constants,
         context,
         &[10.0],
@@ -27333,8 +27551,13 @@ fn fri08_c01_topology_uses_larger_area_or_sized_list_dimension_without_losing_na
         },
         ..NodeInput::DEFAULT
     };
-    let named = named::build_grid_named_context(&style, 1, 3, &GridParentContext::none())
-        .expect("valid mixed topology inputs");
+    let named = named::build_grid_named_context(
+        &grid_container_projection!(&style),
+        1,
+        3,
+        &GridParentContext::none(),
+    )
+    .expect("valid mixed topology inputs");
     assert_eq!(named.columns.explicit_track_count, 3);
     assert_eq!(named.rows.explicit_track_count, 3);
     assert_eq!(
@@ -27877,13 +28100,15 @@ fn lane_axis_margin_box_measurement_resolves_affine_margins_against_grid_axis() 
         ),
         last_input: None,
     };
+    let child_projection = grid_item_projection!(&child_style);
+    let container_projection = grid_container_projection!(&container_style);
 
     let measured = measure_lane_axis_margin_box_with_grid_axis(
         &mut tree,
         LaneMarginMeasureTree::CHILD,
         LaneAxisMarginBoxMeasureInput {
-            child_style: &child_style,
-            container_style: &container_style,
+            child_style: &child_projection,
+            container_style: &container_projection,
             constants: &constants,
             lane_axis: GridAxisKind::Column,
             containing_block: GridLanesItemContainingBlockOf::new(
@@ -28455,6 +28680,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         border: Edges::ZERO,
     };
     let style = NodeInputOf::<f64>::default();
+    let style_projection = grid_container_projection!(&style);
     let tracks = vec![TrackSizingOf::<f64>::AUTO];
     let placements = GridPlacementContext::new(Vec::<usize>::new(), Vec::new());
     let subgrid_report = GridSubgridReport { items: Vec::new() };
@@ -28471,7 +28697,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         report: GridComputationReport::default(),
     };
     let _track_input = GridTrackResolutionInput::<usize, f64> {
-        style: &style,
+        style: &style_projection,
         constants: &constants,
         column_tracks: &tracks,
         row_tracks: &tracks,
@@ -28498,7 +28724,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
     };
     let _child_input = GridChildLayoutInput::<usize, f64> {
         sizing_phases,
-        style: &style,
+        style: &style_projection,
         constants: &constants,
         column_tracks: &tracks,
         row_tracks: &tracks,
@@ -28515,7 +28741,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState::INITIAL,
     };
     let _layout_context = GridLayoutContext::<usize, f64> {
-        style: &style,
+        style: &style_projection,
         constants: &constants,
         container_content_size: Size::new(100.0, 100.0),
         columns: &[10.0],
@@ -28615,6 +28841,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
     };
     let item = PendingGridItem::<_, f64> {
         node: "child",
+        style: grid_item_projection!(&NodeInputOf::default()),
         source_index: 0,
         area,
         output: ComputeOutputOf::<f64>::from_sizes_and_baselines(
@@ -28744,9 +28971,10 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
     assert_eq!(layout_gap, 10.0);
 
     let offset_style = NodeInputOf::<f64>::default();
+    let offset_style_projection = grid_container_projection!(&offset_style);
     let offset_geometry = UsedGridAxisGeometryOf::new(vec![12.5, 17.5], vec![false, false], 3.25);
     let offsets = grid_axis_offsets(GridAxisOffsetsInput::<f64> {
-        style: &offset_style,
+        style: &offset_style_projection,
         axis: GridAxisKind::Column,
         tracks: &[12.5, 17.5],
         geometry: &offset_geometry,
@@ -29000,8 +29228,13 @@ fn fri08_c01_topology_authored_and_area_name_collision_is_one_lookup_occurrence(
         },
         ..NodeInput::DEFAULT
     };
-    let context = named::build_grid_named_context(&style, 2, 1, &GridParentContext::none())
-        .expect("valid authored names and rectangular areas");
+    let context = named::build_grid_named_context(
+        &grid_container_projection!(&style),
+        2,
+        1,
+        &GridParentContext::none(),
+    )
+    .expect("valid authored names and rectangular areas");
 
     let positive = named::resolve_grid_placement(
         &context.columns,
@@ -29075,7 +29308,7 @@ fn fri08_c01_topology_for_style<S: LayoutScalar>(
         expand_track_components_with_origins(&style.grid_template_rows, row_basis, S::ZERO, None)
             .expect("valid row topology input");
     let named = named::build_grid_named_context(
-        style,
+        &grid_container_projection!(style),
         columns.tracks.len(),
         rows.tracks.len(),
         &GridParentContext::none(),
@@ -30048,10 +30281,10 @@ fn subgrid_area_facts_preserve_reversed_orientation_and_axis_validity() {
     };
 
     let context = named::build_grid_named_context(
-        &NodeInput {
+        &grid_container_projection!(&NodeInput {
             grid_template_columns: subgrid_track(),
             ..NodeInput::DEFAULT
-        },
+        }),
         2,
         1,
         &parent_context,
@@ -30085,7 +30318,7 @@ fn subgrid_local_area_facts_clamp_to_inherited_span() {
     };
 
     let context = named::build_grid_named_context(
-        &NodeInput {
+        &grid_container_projection!(&NodeInput {
             grid_template_columns: subgrid_track(),
             grid_template_areas: crate::GridTemplateAreas {
                 rows: vec![crate::GridTemplateAreaRow {
@@ -30098,7 +30331,7 @@ fn subgrid_local_area_facts_clamp_to_inherited_span() {
                 }],
             },
             ..NodeInput::DEFAULT
-        },
+        }),
         2,
         1,
         &parent_context,
@@ -30140,7 +30373,7 @@ fn subgrid_duplicate_area_facts_merge_with_parent_clipped_boundaries() {
     };
 
     let context = named::build_grid_named_context(
-        &NodeInput {
+        &grid_container_projection!(&NodeInput {
             grid_template_columns: subgrid_track(),
             grid_template_areas: crate::GridTemplateAreas {
                 rows: vec![crate::GridTemplateAreaRow {
@@ -30148,7 +30381,7 @@ fn subgrid_duplicate_area_facts_merge_with_parent_clipped_boundaries() {
                 }],
             },
             ..NodeInput::DEFAULT
-        },
+        }),
         3,
         1,
         &parent_context,
@@ -30383,6 +30616,10 @@ fn baseline_test_item(
 ) -> PendingGridItem<()> {
     PendingGridItem {
         node: (),
+        style: grid_item_projection!(&NodeInput {
+            align_self: Some(align_self),
+            ..NodeInput::default()
+        }),
         source_index: 0,
         area: GridArea {
             row,
@@ -31019,6 +31256,7 @@ fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
     let child_flow_axes = crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
     PendingGridItem {
         node: (),
+        style: default_grid_item_projection(),
         source_index: 0,
         area: GridArea {
             column: 0,
@@ -31680,6 +31918,7 @@ fn vertical_subgrid_percentage_edges_use_physical_area_basis() {
 
     let children = [2];
     let placed_areas = [Some(area)];
+    let placements = single_grid_placement_context(2, &child_style);
     let subgrid_report = GridSubgridReport {
         items: vec![SubgridItemReport {
             node: 2,
@@ -31697,6 +31936,7 @@ fn vertical_subgrid_percentage_edges_use_physical_area_basis() {
             ),
             children: &children,
             placed_areas: &placed_areas,
+            placements: &placements,
             subgrid_report: &subgrid_report,
             named_columns: &named_columns,
             named_rows: &named_rows,
@@ -31750,6 +31990,7 @@ fn orthogonal_subgrid_percentage_edges_use_containing_physical_area_basis() {
 
     let children = [2];
     let placed_areas = [Some(area)];
+    let placements = single_grid_placement_context(2, &child_style);
     let subgrid_report = GridSubgridReport {
         items: vec![SubgridItemReport {
             node: 2,
@@ -31767,6 +32008,7 @@ fn orthogonal_subgrid_percentage_edges_use_containing_physical_area_basis() {
             ),
             children: &children,
             placed_areas: &placed_areas,
+            placements: &placements,
             subgrid_report: &subgrid_report,
             named_columns: &named_columns,
             named_rows: &named_rows,
@@ -31851,6 +32093,7 @@ fn nested_subgrid_same_flow_projects_physical_edge_sums_before_local_track_sizin
     };
     let children = [2];
     let placed_areas = [Some(area)];
+    let placements = single_grid_placement_context(2, &outer_style);
     let subgrid_report = GridSubgridReport {
         items: vec![SubgridItemReport {
             node: 2,
@@ -31868,6 +32111,7 @@ fn nested_subgrid_same_flow_projects_physical_edge_sums_before_local_track_sizin
             ),
             children: &children,
             placed_areas: &placed_areas,
+            placements: &placements,
             subgrid_report: &subgrid_report,
             named_columns: &named::NamedGridLines::new(GridAxisKind::Column, 2),
             named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
@@ -31945,6 +32189,7 @@ fn orthogonal_subgrid_grandchild_percentage_edges_use_immediate_containing_flow(
     };
     let children = [2];
     let placed_areas = [Some(area)];
+    let placements = single_grid_placement_context(2, &outer_style);
     let subgrid_report = GridSubgridReport {
         items: vec![SubgridItemReport {
             node: 2,
@@ -31962,6 +32207,7 @@ fn orthogonal_subgrid_grandchild_percentage_edges_use_immediate_containing_flow(
             ),
             children: &children,
             placed_areas: &placed_areas,
+            placements: &placements,
             subgrid_report: &subgrid_report,
             named_columns: &named::NamedGridLines::new(GridAxisKind::Column, 2),
             named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
@@ -32026,9 +32272,10 @@ fn vertical_grid_axis_offsets_add_local_inset_to_inherited_offsets() {
         bottom: 0.0,
     };
     let geometry = UsedGridAxisGeometryOf::new(tracks.to_vec(), vec![false; tracks.len()], 5.0);
+    let style_projection = grid_container_projection!(&style);
 
     let column_offsets = grid_axis_offsets(GridAxisOffsetsInput {
-        style: &style,
+        style: &style_projection,
         axis: GridAxisKind::Column,
         tracks: &tracks,
         geometry: &geometry,
@@ -32039,7 +32286,7 @@ fn vertical_grid_axis_offsets_add_local_inset_to_inherited_offsets() {
         alignment,
     });
     let row_offsets = grid_axis_offsets(GridAxisOffsetsInput {
-        style: &style,
+        style: &style_projection,
         axis: GridAxisKind::Row,
         tracks: &tracks,
         geometry: &geometry,
@@ -32955,6 +33202,7 @@ fn subgrid_child_context_rejects_inheritable_axis_without_parent_tracks() {
 fn traversal_leaf(node: u32, start: usize, end: usize) -> SubgridTraversalChild<u32> {
     SubgridTraversalChild::Leaf(SubgridTraversalLeaf {
         node,
+        style: default_grid_item_projection(),
         span_in_parent: GridTrackSpan::new(start, end),
         available_inline_size: None,
         available_inline_size_is_known: false,
@@ -32970,6 +33218,7 @@ fn traversal_subgrid(
 ) -> SubgridTraversalChild<u32> {
     SubgridTraversalChild::Subgrid(SubgridTraversalNode {
         node,
+        style: default_grid_item_projection(),
         axis: SubgridTraversalAxis::Inherited,
         reversed: false,
         span_in_parent: GridTrackSpan::new(start, end),
@@ -32993,6 +33242,7 @@ fn subgrid_traversal_keeps_edge_lower_bounds_off_non_intrinsic_tracks() {
         ancestor_track_intrinsic_min_eligibility: IntrinsicMinTrackFacts::Known(&[false, false]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Inherited,
             reversed: false,
             span_in_parent: GridTrackSpan::new(1, 3),
@@ -33025,6 +33275,7 @@ fn subgrid_traversal_places_edge_lower_bounds_in_ancestor_track_space() {
         ]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Inherited,
             reversed: false,
             span_in_parent: GridTrackSpan::new(2, 5),
@@ -33068,6 +33319,7 @@ fn subgrid_traversal_accumulates_edge_adjustment_in_nested_translated_span() {
         ]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Inherited,
             reversed: false,
             span_in_parent: GridTrackSpan::new(1, 4),
@@ -33086,6 +33338,7 @@ fn subgrid_traversal_accumulates_edge_adjustment_in_nested_translated_span() {
             subgrid_gap: 0.0,
             children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
                 node: 2,
+                style: default_grid_item_projection(),
                 axis: SubgridTraversalAxis::Inherited,
                 reversed: false,
                 span_in_parent: GridTrackSpan::new(2, 3),
@@ -33123,6 +33376,7 @@ fn subgrid_traversal_accumulates_gap_adjustment_through_nested_subgrids() {
         ]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Inherited,
             reversed: false,
             span_in_parent: GridTrackSpan::new(1, 4),
@@ -33138,6 +33392,7 @@ fn subgrid_traversal_accumulates_gap_adjustment_through_nested_subgrids() {
             subgrid_gap: 20.0,
             children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
                 node: 2,
+                style: default_grid_item_projection(),
                 axis: SubgridTraversalAxis::Inherited,
                 reversed: false,
                 span_in_parent: GridTrackSpan::new(2, 3),
@@ -33171,6 +33426,7 @@ fn subgrid_traversal_applies_gap_adjustment_to_internal_edges() {
         ]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Inherited,
             reversed: false,
             span_in_parent: GridTrackSpan::new(1, 4),
@@ -33204,6 +33460,7 @@ fn subgrid_traversal_uses_positive_gap_adjustments_as_empty_track_lower_bounds()
         ]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Inherited,
             reversed: false,
             span_in_parent: GridTrackSpan::new(1, 5),
@@ -33233,6 +33490,7 @@ fn subgrid_traversal_combines_empty_edge_and_gap_lower_bounds() {
         ]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Inherited,
             reversed: false,
             span_in_parent: GridTrackSpan::new(1, 5),
@@ -33263,6 +33521,7 @@ fn subgrid_traversal_ignores_gap_adjustment_for_single_track_subgrid() {
         ancestor_track_intrinsic_min_eligibility: IntrinsicMinTrackFacts::Known(&[true]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Inherited,
             reversed: false,
             span_in_parent: GridTrackSpan::new(1, 2),
@@ -33290,6 +33549,7 @@ fn subgrid_traversal_keeps_standalone_as_one_boundary_leaf() {
         ancestor_track_intrinsic_min_eligibility: IntrinsicMinTrackFacts::Known(&[true]),
         root_children: vec![SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node: 1,
+            style: default_grid_item_projection(),
             axis: SubgridTraversalAxis::Standalone,
             reversed: false,
             span_in_parent: GridTrackSpan::new(1, 2),

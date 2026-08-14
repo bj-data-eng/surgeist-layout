@@ -162,7 +162,7 @@ struct PlacementAxes {
 
 pub(super) fn derive_grid_placement_demand<Node, S: LayoutScalar>(
     topology: &mut ExpandedGridTopology<S>,
-    placements: &mut GridPlacementContext<Node>,
+    placements: &mut GridPlacementContext<Node, S>,
     flow: GridAutoFlow,
 ) -> Result<(), GridPlacementDemandError> {
     let mut demand = PlacementDemand::new(topology, placements.items.len())?;
@@ -177,9 +177,9 @@ pub(super) fn derive_grid_placement_demand<Node, S: LayoutScalar>(
     Ok(())
 }
 
-fn derive_grid_placement_demand_inner<Node>(
+fn derive_grid_placement_demand_inner<Node, S: LayoutScalar>(
     demand: &mut PlacementDemand,
-    placements: &GridPlacementContext<Node>,
+    placements: &GridPlacementContext<Node, S>,
     flow: GridAutoFlow,
 ) -> Result<(), GridPlacementDemandError> {
     if !placements.items.iter().any(|item| item.in_flow) {
@@ -295,9 +295,9 @@ fn derive_grid_placement_demand_inner<Node>(
     Ok(())
 }
 
-fn grow_for_definite_placements<Node>(
+fn grow_for_definite_placements<Node, S: LayoutScalar>(
     demand: &mut PlacementDemand,
-    placements: &GridPlacementContext<Node>,
+    placements: &GridPlacementContext<Node, S>,
 ) -> Result<(), GridPlacementDemandError> {
     for axis in [GridAxisKind::Column, GridAxisKind::Row] {
         let explicit_count = demand.axis_explicit_count(axis);
@@ -740,7 +740,7 @@ pub(super) fn leading_implicit_tracks_for_placement(
         .max()
 }
 
-pub(super) fn is_in_flow_grid_child<S: LayoutScalar>(style: &NodeInputOf<S>) -> bool {
+pub(super) fn is_in_flow_grid_child<S: LayoutScalar>(style: &GridItemProjection<S>) -> bool {
     style.display != super::Display::None && style.position != Position::Absolute
 }
 
@@ -1324,8 +1324,8 @@ pub(super) fn resolve_grid_child_areas_with_geometry<Node, S: LayoutScalar>(
 
 pub(super) struct ResolveGridChildAreasInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) children: &'a [Node],
-    pub(super) placements: &'a GridPlacementContext<Node>,
-    pub(super) style: &'a NodeInputOf<S>,
+    pub(super) placements: &'a GridPlacementContext<Node, S>,
+    pub(super) style: &'a GridContainerProjection<'a, S>,
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
     pub(super) gap: LogicalSizeOf<S>,
@@ -1339,7 +1339,7 @@ pub(super) enum PlacementPhase {
 }
 
 pub(super) fn place_grid_child_area_phase<Node, S: LayoutScalar>(
-    placements: &GridPlacementContext<Node>,
+    placements: &GridPlacementContext<Node, S>,
     traversal: &[crate::SourceIndex],
     areas: &mut [Option<GridArea<S>>],
     occupancy: &mut [bool],

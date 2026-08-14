@@ -80,9 +80,9 @@ pub(super) struct SubgridEligibility {
 #[derive(Clone, Copy)]
 pub(super) struct SubgridEligibilityInput<'a, S: LayoutScalar = Scalar> {
     pub(super) axis: GridAxisKind,
-    pub(super) parent_style: &'a NodeInputOf<S>,
+    pub(super) parent_style: &'a GridContainerProjection<'a, S>,
     pub(super) has_parent_grid: bool,
-    pub(super) child_style: &'a NodeInputOf<S>,
+    pub(super) child_style: &'a GridItemProjection<S>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -169,6 +169,7 @@ type SubgridTraversalChildren<Node, S = Scalar> = Vec<SubgridTraversalChild<Node
 #[derive(Clone, Debug)]
 pub(super) struct SubgridTraversalNode<Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
+    pub(super) style: GridItemProjection<S>,
     pub(super) axis: SubgridTraversalAxis,
     pub(super) reversed: bool,
     pub(super) span_in_parent: GridTrackSpan,
@@ -188,6 +189,7 @@ pub(super) struct SubgridTraversalNode<Node, S: LayoutScalar = Scalar> {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct SubgridTraversalLeaf<Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
+    pub(super) style: GridItemProjection<S>,
     pub(super) span_in_parent: GridTrackSpan,
     pub(super) available_inline_size: Option<S>,
     pub(super) available_inline_size_is_known: bool,
@@ -199,6 +201,7 @@ pub(super) struct SubgridLeafContribution<Node, S: LayoutScalar = Scalar> {
     pub(super) root_node: Option<Node>,
     pub(super) root_axis_fully_inherited: bool,
     pub(super) node: Node,
+    pub(super) style: GridItemProjection<S>,
     pub(super) ancestor_span: GridTrackSpan,
     pub(super) available_inline_size: Option<S>,
     pub(super) available_inline_size_is_known: bool,
@@ -323,6 +326,7 @@ where
                     root_node: context.root_node.or(Some(leaf.node)),
                     root_axis_fully_inherited: context.root_axis_fully_inherited,
                     node: leaf.node,
+                    style: leaf.style,
                     ancestor_span: translate_span_to_ancestor(&context, leaf.span_in_parent)?,
                     available_inline_size: leaf
                         .available_inline_size
@@ -348,6 +352,7 @@ where
                         root_node: context.root_node.or(Some(subgrid.node)),
                         root_axis_fully_inherited: false,
                         node: subgrid.node,
+                        style: subgrid.style,
                         ancestor_span: translate_span_to_ancestor(
                             &context,
                             subgrid.span_in_parent,
@@ -1599,18 +1604,17 @@ fn consume_track_space<S: LayoutScalar>(tracks: &mut [S], mut amount: S, edge: T
     }
 }
 
-pub(super) fn collect_subgrid_report<Tree, M>(
-    tree: &Tree,
-    node: <Tree as Traverse>::Node,
-    parent_style: &NodeInputOf<Tree::Scalar>,
-) -> GridSubgridReport<<Tree as Traverse>::Node>
-where
-    Tree: Compute<M>,
-{
-    let items = tree
-        .children(node)
-        .map(|child| {
-            let child_style = tree.node_input(child);
+pub(super) fn collect_subgrid_report<Node: Copy, S: LayoutScalar>(
+    parent_style: &GridContainerProjection<'_, S>,
+    placements: &GridPlacementContext<Node, S>,
+) -> GridSubgridReport<Node> {
+    let items = placements
+        .children
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, child)| {
+            let child_style = placements.item_input(index);
             SubgridItemReport {
                 node: child,
                 column: subgrid_axis_report(parent_style, child_style, GridAxisKind::Column),
@@ -1628,6 +1632,7 @@ pub(super) struct GridSubgridIntrinsicTraversalInput<'a, Node, S: LayoutScalar =
     pub(super) children: &'a [Node],
     pub(super) placed_areas: &'a [Option<GridArea<S>>],
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
+    pub(super) placements: &'a GridPlacementContext<Node, S>,
     pub(super) named_columns: &'a NamedGridLines,
     pub(super) named_rows: &'a NamedGridLines,
     pub(super) area_facts: Option<&'a GridAreaNameFacts>,
@@ -1663,17 +1668,18 @@ where
         UsedGridAxisGeometryOf::from_sizing_gutters(input.row_sizes.to_vec(), gutters)
     });
     let mut root_children = Vec::new();
-    for ((child, area), item_report) in input
+    for (index, ((child, area), item_report)) in input
         .children
         .iter()
         .copied()
         .zip(input.placed_areas.iter().copied())
         .zip(input.subgrid_report.items.iter().copied())
+        .enumerate()
     {
         let Some(area) = area else {
             continue;
         };
-        let child_style = tree.node_input(child);
+        let child_style = input.placements.item_input(index);
         if !is_in_flow_grid_child(child_style) {
             continue;
         }
@@ -1738,7 +1744,7 @@ where
 fn subgrid_traversal_child<Tree, M>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
-    style: &NodeInputOf<Tree::Scalar>,
+    style: &GridItemProjection<Tree::Scalar>,
     area: GridArea<Tree::Scalar>,
     area_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
@@ -1772,6 +1778,7 @@ where
     if !queried_axis_requests_subgrid && !is_grid_container {
         return Ok(Some(SubgridTraversalChild::Leaf(SubgridTraversalLeaf {
             node,
+            style: style.clone(),
             span_in_parent: area_span(area, queried_axis),
             available_inline_size: (queried_axis == GridAxisKind::Row)
                 .then_some(area_size.width)
@@ -1864,6 +1871,7 @@ where
         .map_err(|error| subgrid_child_context_container_error(node, node, error))?;
         return Ok(Some(SubgridTraversalChild::Subgrid(SubgridTraversalNode {
             node,
+            style: style.clone(),
             axis,
             reversed,
             span_in_parent,
@@ -1923,6 +1931,7 @@ where
 
     Ok(Some(SubgridTraversalChild::Subgrid(SubgridTraversalNode {
         node,
+        style: style.clone(),
         axis,
         reversed,
         span_in_parent,
@@ -1954,7 +1963,7 @@ where
 fn subgrid_traversal_children<Tree, M>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
-    style: &NodeInputOf<Tree::Scalar>,
+    style: &GridItemProjection<Tree::Scalar>,
     area: GridArea<Tree::Scalar>,
     content_box_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
@@ -1999,11 +2008,17 @@ where
         ),
     };
     let available = Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT);
-    let intrinsic_minimum = standalone_intrinsic_minimum_phases(style, &parent_context);
-    let traversal_style = standalone_intrinsic_minimum_probe_style(
-        style,
-        intrinsic_minimum.map(|minimum| minimum.is_some()),
-    );
+    let container_style = style.nested_container_projection();
+    let intrinsic_minimum = standalone_intrinsic_minimum_phases(&container_style, &parent_context);
+    let intrinsic_axes = intrinsic_minimum.map(|minimum| minimum.is_some());
+    let mut traversal_item = style.clone();
+    if intrinsic_axes.width {
+        traversal_item.min_size.width = MinSizeOf::AUTO;
+    }
+    if intrinsic_axes.height {
+        traversal_item.min_size.height = MinSizeOf::AUTO;
+    }
+    let traversal_style = traversal_item.nested_container_projection();
     let constants = Constants::new_with_reservation::<Tree, M>(
         tree,
         node,
@@ -2026,7 +2041,7 @@ where
     let initialized = initialize_grid_tracks::<Tree, M>(
         tree,
         node,
-        style,
+        &container_style,
         &constants,
         &parent_context,
         available,
@@ -2074,7 +2089,7 @@ where
     let placed_areas = resolve_grid_child_areas(ResolveGridChildAreasInput {
         children: &children,
         placements: &initialized.placements,
-        style,
+        style: &container_style,
         columns: &zero_columns,
         rows: &zero_rows,
         gap: LogicalSizeOf::new(gap.width, gap.height),
@@ -2089,15 +2104,16 @@ where
                 GridAxisKind::Row => area.row_end <= inherited_queried_track_count,
             });
     let mut traversal_children = Vec::new();
-    for ((child, child_area), child_report) in children
+    for (index, ((child, child_area), child_report)) in children
         .into_iter()
         .zip(placed_areas)
         .zip(initialized.subgrid_report.items)
+        .enumerate()
     {
         let Some(child_area) = child_area else {
             continue;
         };
-        let child_style = tree.node_input(child);
+        let child_style = initialized.placements.item_input(index);
         if !is_in_flow_grid_child(child_style) {
             continue;
         }
@@ -2120,7 +2136,7 @@ where
             child_area_size,
             child_report,
             child_axis,
-            crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
+            crate::geometry::FlowAxes::new(container_style.writing_mode, container_style.direction),
             gap,
             Some(&traversal_column_geometry),
             Some(&traversal_row_geometry),
@@ -2128,8 +2144,8 @@ where
             &initialized.context.named_rows,
             initialized.context.area_facts.as_ref(),
             match queried_axis {
-                GridAxisKind::Column => child_style.justify_self.or(style.justify_items),
-                GridAxisKind::Row => child_style.align_self.or(style.align_items),
+                GridAxisKind::Column => child_style.justify_self.or(container_style.justify_items),
+                GridAxisKind::Row => child_style.align_self.or(container_style.align_items),
             }
             .unwrap_or(AlignItems::Stretch),
         )? {
@@ -2141,7 +2157,7 @@ where
 }
 
 pub(super) fn inherited_subgrid_axis_for_parent_axis<Node, S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     item_report: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> Option<GridAxisKind>
@@ -2163,7 +2179,7 @@ where
 }
 
 fn traversal_child_axis_for_parent_axis<Node, S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     item_report: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> GridAxisKind
@@ -2293,7 +2309,7 @@ fn axis_size<S: LayoutScalar>(size: Size<S>, axis: GridAxisKind) -> S {
 }
 
 fn resolved_subgrid_axis_gap<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     axis: GridAxisKind,
     report: SubgridAxisReport,
     parent_gap: Size<S>,
@@ -2443,8 +2459,8 @@ pub(super) fn subgrid_eligibility<S: LayoutScalar>(
 }
 
 pub(super) fn subgrid_axis_report<S: LayoutScalar>(
-    parent_style: &NodeInputOf<S>,
-    child_style: &NodeInputOf<S>,
+    parent_style: &GridContainerProjection<'_, S>,
+    child_style: &GridItemProjection<S>,
     axis: GridAxisKind,
 ) -> SubgridAxisReport {
     SubgridAxisReport {
@@ -2463,7 +2479,7 @@ pub(super) fn subgrid_axis_report<S: LayoutScalar>(
 }
 
 pub(super) fn subgrid_requested<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     axis: GridAxisKind,
 ) -> bool {
     let components = match axis {
@@ -2480,13 +2496,13 @@ const fn subgrid_container_display_supported(display: Display) -> bool {
     display.establishes_grid_formatting_context()
 }
 
-const fn excluded_from_normal_layout<S: LayoutScalar>(style: &NodeInputOf<S>) -> bool {
+const fn excluded_from_normal_layout<S: LayoutScalar>(style: &GridItemProjection<S>) -> bool {
     matches!(style.display, Display::None) || matches!(style.position, Position::Absolute)
 }
 
 fn parent_is_lanes_in_resolved_axis<S: LayoutScalar>(
-    parent_style: &NodeInputOf<S>,
-    child_style: &NodeInputOf<S>,
+    parent_style: &GridContainerProjection<'_, S>,
+    child_style: &GridItemProjection<S>,
     child_axis: GridAxisKind,
 ) -> bool {
     if !parent_style
@@ -2512,7 +2528,8 @@ mod tests {
     use crate::{
         Compute, ComputeInput, ComputeOutput, DefaultScalar, LayoutErrorKind, LayoutErrorSite,
         LayoutInput, LayoutInvalidInput, LayoutOperation, LayoutResultOf, LengthPercentageOf,
-        NodeInput, NodeOutput, PreferredSize, Size, SubgridTrack, TrackComponent, Traverse,
+        NodeInput, NodeInputOf, NodeOutput, PreferredSize, Size, SubgridTrack, TrackComponent,
+        Traverse,
     };
 
     struct TraversalTree {
@@ -2576,15 +2593,17 @@ mod tests {
                 display: Display::Grid,
                 ..NodeInputOf::default()
             };
+            let item_projection = GridItemProjection::from_node(&style);
+            let parent_projection = GridContainerProjection::from_node(&parent_style);
 
             for (axis, expected) in [
                 (GridAxisKind::Column, S::from_f64(11.0)),
                 (GridAxisKind::Row, S::from_f64(7.0)),
             ] {
                 let actual = resolved_subgrid_axis_gap(
-                    &style,
+                    &item_projection,
                     axis,
-                    subgrid_axis_report(&parent_style, &style, axis),
+                    subgrid_axis_report(&parent_projection, &item_projection, axis),
                     Size::ZERO,
                     Size::splat(S::from_f64(100.0)),
                 )
@@ -2626,10 +2645,12 @@ mod tests {
         let tree = TraversalTree {
             input: style.clone(),
         };
+        let item_projection = GridItemProjection::from_node(&style);
+        let parent_projection = GridContainerProjection::from_node(&parent_style);
         let item_report = SubgridItemReport {
             node: 0,
-            column: subgrid_axis_report(&parent_style, &style, GridAxisKind::Column),
-            row: subgrid_axis_report(&parent_style, &style, GridAxisKind::Row),
+            column: subgrid_axis_report(&parent_projection, &item_projection, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_projection, &item_projection, GridAxisKind::Row),
         };
         let named_columns = NamedGridLines::new(GridAxisKind::Column, 1);
         let named_rows = NamedGridLines::new(GridAxisKind::Row, 1);
@@ -2637,7 +2658,7 @@ mod tests {
         let error = subgrid_traversal_children::<TraversalTree, Infallible>(
             &tree,
             0,
-            &style,
+            &item_projection,
             GridArea {
                 column: 0,
                 row: 0,

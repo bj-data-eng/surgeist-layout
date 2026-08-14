@@ -1,9 +1,9 @@
 use crate::{
-    GridPlacement, GridTemplateAreas, LayoutScalar, NodeInputOf, RawGridLine, RawGridPlacement,
+    GridPlacement, GridTemplateAreas, LayoutScalar, RawGridLine, RawGridPlacement,
     SubgridLineNameComponent, SubgridLineNameRepeatCount, TrackComponentOf, TrackRepeat,
 };
 
-use super::{GridAxisKind, GridParentContext, InheritedGridAxis};
+use super::{GridAxisKind, GridContainerProjection, GridParentContext, InheritedGridAxis};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct NamedGridLines {
@@ -955,7 +955,7 @@ pub(super) struct GridNamedContext {
     )
 )]
 pub(super) fn build_grid_named_context<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridContainerProjection<'_, S>,
     explicit_columns: usize,
     explicit_rows: usize,
     parent_context: &GridParentContext<S>,
@@ -965,7 +965,7 @@ pub(super) fn build_grid_named_context<S: LayoutScalar>(
 }
 
 pub(super) fn build_grid_named_context_with_report<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridContainerProjection<'_, S>,
     explicit_columns: usize,
     explicit_rows: usize,
     parent_context: &GridParentContext<S>,
@@ -974,7 +974,7 @@ pub(super) fn build_grid_named_context_with_report<S: LayoutScalar>(
     let style_area_facts = if style.grid_template_areas.rows.is_empty() {
         None
     } else {
-        match GridAreaNameFacts::from_specified_areas(&style.grid_template_areas) {
+        match GridAreaNameFacts::from_specified_areas(style.grid_template_areas) {
             Ok(facts) => Some(facts),
             Err(error) => {
                 report.push_error(error);
@@ -995,7 +995,7 @@ pub(super) fn build_grid_named_context_with_report<S: LayoutScalar>(
         let mut columns = inherited_subgrid_axis_named_lines(
             GridAxisKind::Column,
             parent_axis,
-            &style.grid_template_columns,
+            style.grid_template_columns,
             None,
         )?;
         if let Some(facts) = &merged_area_facts {
@@ -1006,7 +1006,7 @@ pub(super) fn build_grid_named_context_with_report<S: LayoutScalar>(
     } else {
         let mut columns = named_lines_from_track_components(
             GridAxisKind::Column,
-            &style.grid_template_columns,
+            style.grid_template_columns,
             explicit_columns,
         )?;
         if let Some(facts) = &style_area_facts {
@@ -1019,7 +1019,7 @@ pub(super) fn build_grid_named_context_with_report<S: LayoutScalar>(
         let mut rows = inherited_subgrid_axis_named_lines(
             GridAxisKind::Row,
             parent_axis,
-            &style.grid_template_rows,
+            style.grid_template_rows,
             None,
         )?;
         if let Some(facts) = &merged_area_facts {
@@ -1029,7 +1029,7 @@ pub(super) fn build_grid_named_context_with_report<S: LayoutScalar>(
     } else {
         let mut rows = named_lines_from_track_components(
             GridAxisKind::Row,
-            &style.grid_template_rows,
+            style.grid_template_rows,
             explicit_rows,
         )?;
         if let Some(facts) = &style_area_facts {

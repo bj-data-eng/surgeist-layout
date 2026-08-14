@@ -224,7 +224,7 @@ where
         .zip(subgrid_report.items.iter())
         .enumerate()
     {
-        let child_style = tree.node_input(child).clone();
+        let child_style = placements.item_input(source_index).clone();
         if child_style.display == super::Display::None {
             tree.set_unrounded(
                 child,
@@ -385,8 +385,7 @@ where
             tree.compute_child(child, child_input)?
         };
         let scroll_geometry = retained_grid_child_scroll_geometry(
-            crate::scroll::ScrollBoxProjection::from_node(&child_style),
-            crate::scroll::ScrollTargetProjection::from_node(&child_style),
+            &child_style,
             output.size,
             output.content_size,
             padding,
@@ -444,6 +443,7 @@ where
         );
         pending_items.push(PendingGridItem {
             node: child,
+            style: child_style.clone(),
             source_index,
             area,
             output,
@@ -494,6 +494,7 @@ where
             gap,
             children: &children,
             placed_areas: &placed_areas,
+            placements,
             subgrid_report,
             named_columns: &named_columns,
             named_rows: &named_rows,
@@ -539,7 +540,7 @@ where
     for item in &pending_items {
         let area_origin =
             grid_area_logical_origin(&logical_column_offsets, &logical_row_offsets, item.area);
-        let child_style = tree.node_input(item.node);
+        let child_style = &item.style;
         let subgrid_item = subgrid_report.items.get(item.source_index).copied();
         let inherited_columns =
             ancestor_baseline_groups.inherited_targets_for_axis(GridAxisKind::Column);
@@ -782,7 +783,7 @@ pub(super) fn grid_axis_logical_offsets<S: LayoutScalar>(
 
 #[derive(Clone, Copy)]
 pub(super) struct GridAxisOffsetsInput<'a, S: LayoutScalar = Scalar> {
-    pub(super) style: &'a NodeInputOf<S>,
+    pub(super) style: &'a GridContainerProjection<'a, S>,
     pub(super) axis: GridAxisKind,
     pub(super) tracks: &'a [S],
     pub(super) geometry: &'a UsedGridAxisGeometryOf<S>,
@@ -859,6 +860,7 @@ fn grid_physical_axis_progression(
 #[derive(Clone)]
 pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
+    pub(super) style: GridItemProjection<S>,
     pub(super) source_index: usize,
     pub(super) area: GridArea<S>,
     pub(super) output: ComputeOutputOf<S>,
@@ -912,8 +914,8 @@ impl<S: LayoutScalar> GridItemMinimum<S> {
 pub(super) fn grid_item_sizing_for_grid_flow<Tree, M>(
     _tree: &Tree,
     child: <Tree as Traverse>::Node,
-    child_style: &NodeInputOf<Tree::Scalar>,
-    container_style: &NodeInputOf<Tree::Scalar>,
+    child_style: &GridItemProjection<Tree::Scalar>,
+    container_style: &GridContainerProjection<'_, Tree::Scalar>,
     area_size: Size<Tree::Scalar>,
     containing_physical_size: Size<Option<Tree::Scalar>>,
     grid_flow_axes: FlowAxes,
@@ -932,8 +934,8 @@ where
 }
 
 pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
-    child_style: &NodeInputOf<S>,
-    container_style: &NodeInputOf<S>,
+    child_style: &GridItemProjection<S>,
+    container_style: &GridContainerProjection<'_, S>,
     area_size: Size<S>,
     containing_physical_size: Size<Option<S>>,
     grid_flow_axes: FlowAxes,
@@ -1113,7 +1115,7 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
 
 fn resolve_standalone_subgrid_item_minimum_optional<S: LayoutScalar>(
     value: &MinSizeOf<S>,
-    child_style: &NodeInputOf<S>,
+    child_style: &GridItemProjection<S>,
     algorithm: SizingAlgorithm,
     physical_axis: PhysicalAxis,
     basis: Option<S>,

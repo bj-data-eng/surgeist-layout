@@ -3,7 +3,7 @@ use super::*;
 #[derive(Clone, Copy)]
 pub(in crate::grid) struct SubgridChildParentContextInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(in crate::grid) item: SubgridItemReport<Node>,
-    pub(in crate::grid) child_style: &'a NodeInputOf<S>,
+    pub(in crate::grid) child_style: &'a GridItemProjection<S>,
     pub(in crate::grid) area: GridArea<S>,
     pub(in crate::grid) content_box_size: Size<S>,
     pub(in crate::grid) columns: &'a [S],
@@ -162,7 +162,7 @@ struct SubgridChildAxisContextInput<'a, Node, S: LayoutScalar = Scalar> {
     current_grid: Node,
     axis: GridAxisKind,
     report: SubgridAxisReport,
-    child_style: &'a NodeInputOf<S>,
+    child_style: &'a GridItemProjection<S>,
     area: GridArea<S>,
     content_box_size: Size<S>,
     parent_columns: &'a [S],
@@ -773,7 +773,7 @@ fn axis_margin_border_padding<S: LayoutScalar>(
 }
 
 pub(in crate::grid) fn child_subgrid_gap<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     axis: GridAxisKind,
     area_size: Size<S>,
 ) -> Result<ResolvedSubgridGap<S>, LengthResolutionStatus<S>> {
@@ -829,7 +829,7 @@ fn apply_final_subgrid_axis_constraint<S: LayoutScalar>(
 
 pub(super) struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
-    pub(super) container_style: &'a NodeInputOf<S>,
+    pub(super) container_style: &'a GridContainerProjection<'a, S>,
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
     pub(super) column_geometry: &'a UsedGridAxisGeometryOf<S>,
@@ -869,7 +869,7 @@ where
             continue;
         }
 
-        let child_style = tree.node_input(item.node).clone();
+        let child_style = item.style.clone();
         let physical_area_size = grid_area_physical_size(
             FlowAxes::new(
                 input.container_style.writing_mode,
@@ -974,8 +974,7 @@ where
             ..
         } = result;
         let scroll_geometry = retained_grid_child_scroll_geometry(
-            crate::scroll::ScrollBoxProjection::from_node(&child_style),
-            crate::scroll::ScrollTargetProjection::from_node(&child_style),
+            &child_style,
             output.size,
             output.content_size,
             padding,

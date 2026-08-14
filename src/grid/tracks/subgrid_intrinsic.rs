@@ -22,7 +22,7 @@ fn axis_available<S: LayoutScalar>(
 }
 
 pub(super) struct IntrinsicGridChildInput<'a, Node, S: LayoutScalar = Scalar> {
-    pub(super) child_style: &'a NodeInputOf<S>,
+    pub(super) child_style: &'a GridItemProjection<S>,
     pub(super) grid: IntrinsicGrid<'a, Node, S>,
     pub(super) area: GridArea<S>,
     pub(super) columns: &'a [S],
@@ -259,7 +259,7 @@ fn exact_static_track_span<S: LayoutScalar>(
 }
 
 pub(in crate::grid) fn needs_intrinsic_subgrid_context<Node, S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     item: SubgridItemReport<Node>,
     area: GridArea<S>,
 ) -> bool
@@ -369,7 +369,8 @@ fn apply_resolved_intrinsic_subgrid_area_constraints<S: LayoutScalar>(
 pub(super) struct SubgridIntrinsicContributionInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) owner: Node,
     pub(super) constants: &'a Constants<S>,
-    pub(super) container_style: &'a NodeInputOf<S>,
+    pub(super) container_style: &'a GridContainerProjection<'a, S>,
+    pub(super) placements: &'a GridPlacementContext<Node, S>,
     pub(super) axis: GridAxisKind,
     pub(super) tracks: &'a [TrackSizingOf<S>],
     pub(super) sizes: &'a mut [S],
@@ -436,6 +437,7 @@ where
             children: input.children,
             placed_areas: input.placed_areas,
             subgrid_report: input.subgrid_report,
+            placements: input.placements,
             named_columns: input.named_columns,
             named_rows: input.named_rows,
             area_facts: input.area_facts,
@@ -481,7 +483,7 @@ where
     let mut ancestor_baseline_members = Vec::new();
     let mut contributing_roots = Vec::new();
     for leaf in leaves {
-        let child_style = tree.node_input(leaf.node).clone();
+        let child_style = leaf.style.clone();
         if !is_in_flow_grid_child(&child_style) {
             continue;
         }
@@ -632,7 +634,7 @@ where
         if let Some(member) = member {
             ancestor_baseline_members.push(member);
         }
-        flattened_contributions.push((flattened, member));
+        flattened_contributions.push((flattened, member, child_style));
     }
 
     if input.axis == GridAxisKind::Column {
@@ -646,10 +648,10 @@ where
             let Some(area) = area else {
                 continue;
             };
-            let child_style = tree.node_input(child).clone();
-            if !is_in_flow_grid_child(&child_style)
+            let child_style = input.placements.item_input(index);
+            if !is_in_flow_grid_child(child_style)
                 || input.subgrid_report.items.get(index).is_some_and(|item| {
-                    item_inherits_parent_axis(&child_style, *item, GridAxisKind::Column)
+                    item_inherits_parent_axis(child_style, *item, GridAxisKind::Column)
                 })
             {
                 continue;
@@ -681,14 +683,14 @@ where
                 ),
             )?;
             let margin = intrinsic_contribution_margin(
-                &child_style,
+                child_style,
                 input.constants.flow_axes,
                 input.constants.node_inner_size,
             )
             .map_err(|status| crate::error::value_resolution_error(child, status))?;
             let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
             let block_auto_margins = block_auto_margins_for_intrinsic_contribution(
-                &child_style,
+                child_style,
                 input.constants,
                 child_flow_axes,
             )
@@ -725,7 +727,7 @@ where
         ancestor_baseline_members,
     );
     let mut row_contributions = Vec::new();
-    for (flattened, member) in flattened_contributions {
+    for (flattened, member, child_style) in flattened_contributions {
         let start = flattened.ancestor_span.start - 1;
         let end = flattened.ancestor_span.end - 1;
         let Some(span_tracks) = input.tracks.get(start..end) else {
@@ -752,11 +754,10 @@ where
                 .iter()
                 .all(|track| track_flex_factor(track).is_none())
         {
-            let child_style = tree.node_input(flattened.source);
             distribute_min_content_span_with_percent(
                 &mut input.sizes[start..end],
                 span_tracks,
-                grid_axis_used_overflow(child_style, input.constants.flow_axes, input.axis),
+                grid_axis_used_overflow(&child_style, input.constants.flow_axes, input.axis),
                 input.percent_basis,
                 contribution,
             );
@@ -779,7 +780,7 @@ where
 }
 
 fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     flow_axes: FlowAxes,
     axis: GridAxisKind,
 ) -> bool {
@@ -787,7 +788,7 @@ fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
 }
 
 fn subgrid_leaf_size_depends_on_queried_axis<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     flow_axes: FlowAxes,
     axis: GridAxisKind,
 ) -> bool {
@@ -795,7 +796,7 @@ fn subgrid_leaf_size_depends_on_queried_axis<S: LayoutScalar>(
 }
 
 pub(in crate::grid) fn item_inherits_parent_axis<Node, S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     item: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> bool
@@ -817,7 +818,7 @@ where
 }
 
 fn track_components_request_subgrid<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     axis: GridAxisKind,
 ) -> bool {
     let components = match axis {
@@ -832,7 +833,7 @@ fn track_components_request_subgrid<S: LayoutScalar>(
 
 #[derive(Clone, Copy)]
 pub(in crate::grid) struct PercentTrackContent<'a, Node, S: LayoutScalar = Scalar> {
-    pub(in crate::grid) style: &'a NodeInputOf<S>,
+    pub(in crate::grid) style: &'a GridContainerProjection<'a, S>,
     pub(in crate::grid) constants: &'a Constants<S>,
     pub(in crate::grid) sizing_flow_axes: FlowAxes,
     pub(in crate::grid) parent_context: &'a GridParentContext<S, Node>,
@@ -844,7 +845,7 @@ pub(in crate::grid) struct PercentTrackContent<'a, Node, S: LayoutScalar = Scala
     pub(in crate::grid) column_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     pub(in crate::grid) row_gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     pub(in crate::grid) lines: GridLines,
-    pub(in crate::grid) placements: &'a GridPlacementContext<Node>,
+    pub(in crate::grid) placements: &'a GridPlacementContext<Node, S>,
 }
 
 pub(in crate::grid) fn cyclic_percent_track_content_size<Tree, M>(
@@ -917,9 +918,9 @@ where
         inherits_opposite_subgrid_axis(parent_context, GridAxisKind::Row);
     let mut column_content: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; columns.len()];
     let mut row_content: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; rows.len()];
-    for (child, area) in children.into_iter().zip(placed_areas) {
-        let child_style = tree.node_input(child).clone();
-        if !is_in_flow_grid_child(&child_style) {
+    for (index, (child, area)) in children.into_iter().zip(placed_areas).enumerate() {
+        let child_style = placements.item_input(index);
+        if !is_in_flow_grid_child(child_style) {
             continue;
         }
         let Some(area) = area else {
@@ -1354,18 +1355,24 @@ mod tests {
         let named_rows = NamedGridLines::new(GridAxisKind::Row, 1);
         let placements = GridPlacementContext::new(Vec::<u32>::new(), Vec::new());
         let subgrid_report = GridSubgridReport { items: Vec::new() };
+        let parent_projection = GridContainerProjection::from_node(&parent_style);
+        let child_projection = GridItemProjection::from_node(&child_style);
         let subgrid_item = SubgridItemReport {
             node: 2,
-            column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
-            row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+            column: subgrid_axis_report(
+                &parent_projection,
+                &child_projection,
+                GridAxisKind::Column,
+            ),
+            row: subgrid_axis_report(&parent_projection, &child_projection, GridAxisKind::Row),
         };
         let output = compute_intrinsic_grid_child(
             &mut tree,
             2,
             IntrinsicGridChildInput {
-                child_style: &child_style,
+                child_style: &child_projection,
                 grid: IntrinsicGrid {
-                    style: &parent_style,
+                    style: &parent_projection,
                     constants: &constants,
                     sizing_flow_axes: constants.flow_axes,
                     column_tracks: &[TrackSizing::px(200.0)],
@@ -1466,18 +1473,24 @@ mod tests {
         let named_rows = NamedGridLines::new(GridAxisKind::Row, 1);
         let placements = GridPlacementContext::new(Vec::<u32>::new(), Vec::new());
         let subgrid_report = GridSubgridReport { items: Vec::new() };
+        let parent_projection = GridContainerProjection::from_node(&parent_style);
+        let child_projection = GridItemProjection::from_node(&child_style);
         let subgrid_item = SubgridItemReport {
             node: 2,
-            column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
-            row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+            column: subgrid_axis_report(
+                &parent_projection,
+                &child_projection,
+                GridAxisKind::Column,
+            ),
+            row: subgrid_axis_report(&parent_projection, &child_projection, GridAxisKind::Row),
         };
         compute_intrinsic_grid_child(
             &mut tree,
             2,
             IntrinsicGridChildInput {
-                child_style: &child_style,
+                child_style: &child_projection,
                 grid: IntrinsicGrid {
-                    style: &parent_style,
+                    style: &parent_projection,
                     constants: &constants,
                     sizing_flow_axes: constants.flow_axes,
                     column_tracks: &[TrackSizing::px(100.0), TrackSizing::px(100.0)],

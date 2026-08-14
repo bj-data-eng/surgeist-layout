@@ -1,9 +1,8 @@
 use super::*;
 use crate::scroll::{
     CanonicalScrollGeometryErrorOf, MeasuredLeafScrollGeometrySourceOf,
-    OptionalPhysicalContributionIntervalsOf, ScrollBoxProjection, ScrollContributionAccumulatorOf,
-    ScrollTargetProjection, UsedOverflow, canonical_measured_leaf_scroll_geometry,
-    rebuild_canonical_scroll_geometry_for_border_box,
+    OptionalPhysicalContributionIntervalsOf, ScrollContributionAccumulatorOf, UsedOverflow,
+    canonical_measured_leaf_scroll_geometry, rebuild_canonical_scroll_geometry_for_border_box,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -26,8 +25,7 @@ pub(in crate::grid) fn empty_grid_contributions<S: LayoutScalar>()
 }
 
 pub(in crate::grid) fn retained_grid_child_scroll_geometry<S: LayoutScalar>(
-    box_projection: ScrollBoxProjection<'_, S>,
-    target_projection: ScrollTargetProjection<'_, S>,
+    item: &GridItemProjection<S>,
     size: Size<S>,
     content_size: Size<S>,
     padding: Edges<S>,
@@ -41,14 +39,16 @@ pub(in crate::grid) fn retained_grid_child_scroll_geometry<S: LayoutScalar>(
         return rebuild_canonical_scroll_geometry_for_border_box(geometry, size, border, padding);
     }
 
-    canonical_measured_leaf_scroll_geometry(MeasuredLeafScrollGeometrySourceOf {
-        box_projection,
-        target_projection,
-        border_box_size: size,
-        border,
-        padding,
-        settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
-        measured_content_size: content_size,
+    item.with_scroll_projections(|box_projection, target_projection| {
+        canonical_measured_leaf_scroll_geometry(MeasuredLeafScrollGeometrySourceOf {
+            box_projection,
+            target_projection,
+            border_box_size: size,
+            border,
+            padding,
+            settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
+            measured_content_size: content_size,
+        })
     })
 }
 pub(in crate::grid) fn grid_scroll_contributions<S: LayoutScalar>(

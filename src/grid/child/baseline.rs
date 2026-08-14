@@ -447,8 +447,8 @@ pub(super) fn owner_progression_track_frame_origins<S: LayoutScalar>(
 
 pub(super) struct BaselineAlignedAxisInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) item: &'a PendingGridItem<Node, S>,
-    pub(super) child_style: &'a NodeInputOf<S>,
-    pub(super) container_style: &'a NodeInputOf<S>,
+    pub(super) child_style: &'a GridItemProjection<S>,
+    pub(super) container_style: &'a GridContainerProjection<'a, S>,
     pub(super) group: &'a AncestorBaselineGroup<Node, S>,
     pub(super) axis: GridAxisKind,
     pub(super) geometry: &'a UsedGridAxisGeometryOf<S>,
@@ -724,8 +724,8 @@ struct DirectAncestorBaselineMembers<Node, S: LayoutScalar = Scalar> {
 }
 
 fn direct_ancestor_baseline_members<Tree, M>(
-    tree: &Tree,
-    container_style: &NodeInputOf<Tree::Scalar>,
+    _tree: &Tree,
+    container_style: &GridContainerProjection<'_, Tree::Scalar>,
     row_tracks: &[TrackSizingOf<Tree::Scalar>],
     items: &[PendingGridItem<<Tree as Traverse>::Node, Tree::Scalar>],
     subgrid_report: &GridSubgridReport<<Tree as Traverse>::Node>,
@@ -737,7 +737,7 @@ where
     let mut columns = Vec::new();
     let mut rows = Vec::new();
     for item in items {
-        let style = tree.node_input(item.node);
+        let style = &item.style;
         let subgrid_item = subgrid_report.items.get(item.source_index).copied();
         let block_auto_margins = matches!(
             item.child_flow_axes.line_over_edge(style.margin),
@@ -799,7 +799,7 @@ where
 pub(super) struct FinalAncestorBaselineGroupsInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
     pub(super) constants: &'a Constants<S>,
-    pub(super) container_style: &'a NodeInputOf<S>,
+    pub(super) container_style: &'a GridContainerProjection<'a, S>,
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
     pub(super) column_geometry: &'a UsedGridAxisGeometryOf<S>,
@@ -808,6 +808,7 @@ pub(super) struct FinalAncestorBaselineGroupsInput<'a, Node, S: LayoutScalar = S
     pub(super) gap: LogicalSizeOf<S>,
     pub(super) children: &'a [Node],
     pub(super) placed_areas: &'a [Option<GridArea<S>>],
+    pub(super) placements: &'a GridPlacementContext<Node, S>,
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
     pub(super) named_columns: &'a NamedGridLines,
     pub(super) named_rows: &'a NamedGridLines,
@@ -851,6 +852,7 @@ where
             available: column_available,
             children: input.children,
             placed_areas: input.placed_areas,
+            placements: input.placements,
             subgrid_report: input.subgrid_report,
             named_columns: input.named_columns,
             named_rows: input.named_rows,
@@ -886,6 +888,7 @@ where
             available: row_available,
             children: input.children,
             placed_areas: input.placed_areas,
+            placements: input.placements,
             subgrid_report: input.subgrid_report,
             named_columns: input.named_columns,
             named_rows: input.named_rows,

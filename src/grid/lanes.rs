@@ -384,7 +384,9 @@ pub const fn grid_axis_for_lanes(auto_flow: GridAutoFlow) -> GridAxisKind {
     }
 }
 
-pub(super) fn lane_axis_for_grid_lanes<S: LayoutScalar>(style: &NodeInputOf<S>) -> GridAxisKind {
+pub(super) fn lane_axis_for_grid_lanes<S: LayoutScalar>(
+    style: &GridContainerProjection<'_, S>,
+) -> GridAxisKind {
     let has_columns = !style.grid_template_columns.is_empty();
     let has_rows = !style.grid_template_rows.is_empty();
     match (has_columns, has_rows) {
@@ -394,21 +396,25 @@ pub(super) fn lane_axis_for_grid_lanes<S: LayoutScalar>(style: &NodeInputOf<S>) 
     }
 }
 
-pub(super) fn grid_axis_for_grid_lanes<S: LayoutScalar>(style: &NodeInputOf<S>) -> GridAxisKind {
+pub(super) fn grid_axis_for_grid_lanes<S: LayoutScalar>(
+    style: &GridContainerProjection<'_, S>,
+) -> GridAxisKind {
     match lane_axis_for_grid_lanes(style) {
         GridAxisKind::Column => GridAxisKind::Row,
         GridAxisKind::Row => GridAxisKind::Column,
     }
 }
 
-pub(super) fn column_flow_for_grid_lanes<S: LayoutScalar>(style: &NodeInputOf<S>) -> bool {
+pub(super) fn column_flow_for_grid_lanes<S: LayoutScalar>(
+    style: &GridContainerProjection<'_, S>,
+) -> bool {
     grid_axis_for_grid_lanes(style) == GridAxisKind::Row
 }
 
 pub(super) fn apply_grid_lanes_auto_fit_policy<Node, S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridContainerProjection<'_, S>,
     topology: &mut ExpandedGridTopology<S>,
-    placements: &GridPlacementContext<Node>,
+    placements: &GridPlacementContext<Node, S>,
     track_count: usize,
     explicit_start: usize,
 ) -> Result<(), GridPlacementDemandError> {
@@ -830,12 +836,12 @@ fn span_overlaps_content_tracks(span: LaneTrackSpan, content_sized_tracks: &[usi
 pub(super) fn resolve_grid_lanes_placement_with_resolved_tracks<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
-    style: &NodeInputOf<Tree::Scalar>,
+    style: &GridContainerProjection<'_, Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     context: GridContainerContext<Tree::Scalar>,
     columns: &[Tree::Scalar],
     rows: &[Tree::Scalar],
-    placements: &GridPlacementContext<<Tree as Traverse>::Node>,
+    placements: &GridPlacementContext<<Tree as Traverse>::Node, Tree::Scalar>,
     grid_axis_gap: Tree::Scalar,
     container_content_box_size: LogicalSizeOf<Option<Tree::Scalar>>,
 ) -> LayoutResultOf<
@@ -888,8 +894,8 @@ where
         let source_slot = source_index.get();
         let child = children[source_slot];
         let placement = placements.items[source_slot];
-        let child_style = tree.node_input(child).clone();
-        if !is_in_flow_grid_child(&child_style) {
+        let child_style = placements.item_input(source_slot);
+        if !is_in_flow_grid_child(child_style) {
             continue;
         }
         let placement = match grid_axis {
@@ -962,7 +968,7 @@ where
             tree,
             child,
             LaneAxisMarginBoxMeasureInput {
-                child_style: &child_style,
+                child_style,
                 container_style: style,
                 constants,
                 lane_axis,
@@ -1004,7 +1010,7 @@ where
 }
 
 pub(super) struct GridLanesLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
-    pub(super) style: &'a NodeInputOf<S>,
+    pub(super) style: &'a GridContainerProjection<'a, S>,
     pub(super) constants: &'a Constants<S>,
     pub(super) container_content_box_size: LogicalSizeOf<S>,
     pub(super) columns: &'a [S],
@@ -1012,12 +1018,13 @@ pub(super) struct GridLanesLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) gap: LogicalSizeOf<S>,
     pub(super) context: GridContainerContext<S>,
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
-    pub(super) placements: &'a GridPlacementContext<Node>,
+    pub(super) placements: &'a GridPlacementContext<Node, S>,
     pub(super) containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
 }
 
 #[derive(Clone, Copy)]
 pub(super) struct LaneIntrinsicTrackSizeInput<'a, Node, S: LayoutScalar = Scalar> {
+    pub(super) container_style: &'a GridContainerProjection<'a, S>,
     pub(super) constants: &'a Constants<S>,
     pub(super) axis: GridAxisKind,
     pub(super) tracks: &'a [TrackSizingOf<S>],
@@ -1026,7 +1033,7 @@ pub(super) struct LaneIntrinsicTrackSizeInput<'a, Node, S: LayoutScalar = Scalar
     pub(super) available_basis: Option<S>,
     pub(super) gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     pub(super) lines: GridLines,
-    pub(super) placements: &'a GridPlacementContext<Node>,
+    pub(super) placements: &'a GridPlacementContext<Node, S>,
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
 }
 
@@ -1048,6 +1055,7 @@ where
     Tree: Compute<M>,
 {
     let LaneIntrinsicTrackSizeInput {
+        container_style,
         constants,
         axis,
         tracks,
@@ -1068,7 +1076,6 @@ where
         return Ok(Ok(vec![Tree::Scalar::ZERO; tracks.len()]));
     }
 
-    let container_style = tree.node_input(node).clone();
     let children = tree.children(node).collect::<Vec<_>>();
     let mut items = Vec::new();
     let _ = placements.checked_child_placements(&children);
@@ -1076,11 +1083,11 @@ where
         let source_slot = source_index.get();
         let child = children[source_slot];
         let placement = placements.items[source_slot];
-        let child_style = tree.node_input(child).clone();
-        if !is_in_flow_grid_child(&child_style) {
+        let child_style = placements.item_input(source_slot);
+        if !is_in_flow_grid_child(child_style) {
             continue;
         }
-        if scroll_container_auto_minimum_zero(&child_style, constants.flow_axes, axis) {
+        if scroll_container_auto_minimum_zero(child_style, constants.flow_axes, axis) {
             continue;
         }
         let placement = match axis {
@@ -1095,7 +1102,7 @@ where
             .copied()
             .expect("grid-lanes subgrid report must preserve one item per child");
         if let Some(child_axis) =
-            inherited_subgrid_axis_for_parent_axis(&child_style, item_report, axis)
+            inherited_subgrid_axis_for_parent_axis(child_style, item_report, axis)
         {
             let axis_report = match child_axis {
                 GridAxisKind::Column => item_report.column,
@@ -1113,7 +1120,7 @@ where
             let wrapper_edges = lane_child_edge_facts(
                 tree,
                 child,
-                &child_style,
+                child_style,
                 constants.flow_axes,
                 constants.node_inner_size,
                 axis,
@@ -1121,7 +1128,7 @@ where
             collect_nested_lane_intrinsic_items(
                 tree,
                 child,
-                &child_style,
+                child_style,
                 constants,
                 NestedLaneIntrinsicProjectionOf {
                     root_track_count: tracks.len(),
@@ -1141,9 +1148,9 @@ where
         let child_facts = lane_child_contribution_facts(
             tree,
             child,
-            &child_style,
+            child_style,
             LaneChildIntrinsicMeasurementContextOf {
-                container_style: &container_style,
+                container_style,
                 constants,
                 containing_flow_axes: constants.flow_axes,
                 axis,
@@ -1307,7 +1314,7 @@ pub(super) fn nested_lane_candidate_groups<S: LayoutScalar>(
 fn collect_nested_lane_intrinsic_items<Tree, M>(
     tree: &mut Tree,
     wrapper: <Tree as Traverse>::Node,
-    wrapper_style: &NodeInputOf<Tree::Scalar>,
+    wrapper_style: &GridItemProjection<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     mut projection: NestedLaneIntrinsicProjectionOf<Tree::Scalar>,
     available: AvailableOf<Tree::Scalar>,
@@ -1341,12 +1348,16 @@ where
     projection.wrapper_edges.end_half_gap = half_gap_difference;
 
     let children = tree.children(wrapper).collect::<Vec<_>>();
-    let order = item_order_permutation(
-        &children
+    let child_inputs = children
+        .iter()
+        .copied()
+        .map(|child| input::project_grid_item!(tree, child))
+        .collect::<Vec<_>>();
+    let order = order_modified_indexes(
+        &child_inputs
             .iter()
             .enumerate()
-            .filter_map(|(index, child)| {
-                let style = tree.node_input(*child);
+            .filter_map(|(index, style)| {
                 is_in_flow_grid_child(style)
                     .then_some((style.item_order, crate::SourceIndex::new(index)))
             })
@@ -1354,9 +1365,9 @@ where
     );
     for source_index in order {
         let child = children[source_index.get()];
-        let child_style = tree.node_input(child).clone();
-        if !is_in_flow_grid_child(&child_style)
-            || scroll_container_auto_minimum_zero(&child_style, wrapper_flow_axes, projection.axis)
+        let child_style = &child_inputs[source_index.get()];
+        if !is_in_flow_grid_child(child_style)
+            || scroll_container_auto_minimum_zero(child_style, wrapper_flow_axes, projection.axis)
         {
             continue;
         }
@@ -1382,13 +1393,14 @@ where
             continue;
         }
 
+        let wrapper_container = wrapper_style.nested_container_projection();
         let item_report = SubgridItemReport {
             node: child,
-            column: subgrid_axis_report(wrapper_style, &child_style, GridAxisKind::Column),
-            row: subgrid_axis_report(wrapper_style, &child_style, GridAxisKind::Row),
+            column: subgrid_axis_report(&wrapper_container, child_style, GridAxisKind::Column),
+            row: subgrid_axis_report(&wrapper_container, child_style, GridAxisKind::Row),
         };
         if let Some(child_axis) =
-            inherited_subgrid_axis_for_parent_axis(&child_style, item_report, projection.axis)
+            inherited_subgrid_axis_for_parent_axis(child_style, item_report, projection.axis)
         {
             let axis_report = match child_axis {
                 GridAxisKind::Column => item_report.column,
@@ -1398,7 +1410,7 @@ where
             let wrapper_edges = lane_child_edge_facts(
                 tree,
                 child,
-                &child_style,
+                child_style,
                 wrapper_flow_axes,
                 constants.node_inner_size,
                 projection.axis,
@@ -1407,7 +1419,7 @@ where
                 collect_nested_lane_intrinsic_items(
                     tree,
                     child,
-                    &child_style,
+                    child_style,
                     constants,
                     NestedLaneIntrinsicProjectionOf {
                         root_track_count: projection.root_track_count,
@@ -1429,9 +1441,9 @@ where
         let child_facts = lane_child_contribution_facts(
             tree,
             child,
-            &child_style,
+            child_style,
             LaneChildIntrinsicMeasurementContextOf {
-                container_style: wrapper_style,
+                container_style: &wrapper_container,
                 constants,
                 containing_flow_axes: wrapper_flow_axes,
                 axis: projection.axis,
@@ -1471,7 +1483,7 @@ where
 fn lane_child_edge_facts<Tree, M>(
     tree: &Tree,
     child: <Tree as Traverse>::Node,
-    child_style: &NodeInputOf<Tree::Scalar>,
+    child_style: &GridItemProjection<Tree::Scalar>,
     containing_flow_axes: crate::geometry::FlowAxes,
     containing_size: Size<Option<Tree::Scalar>>,
     axis: GridAxisKind,
@@ -1510,7 +1522,7 @@ where
 
 #[derive(Clone, Copy)]
 struct LaneChildIntrinsicMeasurementContextOf<'a, S: LayoutScalar = Scalar> {
-    container_style: &'a NodeInputOf<S>,
+    container_style: &'a GridContainerProjection<'a, S>,
     constants: &'a Constants<S>,
     containing_flow_axes: crate::geometry::FlowAxes,
     axis: GridAxisKind,
@@ -1520,7 +1532,7 @@ struct LaneChildIntrinsicMeasurementContextOf<'a, S: LayoutScalar = Scalar> {
 fn lane_child_contribution_facts<Tree, M>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
-    child_style: &NodeInputOf<Tree::Scalar>,
+    child_style: &GridItemProjection<Tree::Scalar>,
     context: LaneChildIntrinsicMeasurementContextOf<'_, Tree::Scalar>,
 ) -> LayoutResultOf<
     <Tree as Traverse>::Node,
@@ -1669,7 +1681,7 @@ where
 }
 
 fn automatic_minimum_applies<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     flow_axes: crate::geometry::FlowAxes,
     axis: GridAxisKind,
 ) -> bool {
@@ -1677,7 +1689,7 @@ fn automatic_minimum_applies<S: LayoutScalar>(
 }
 
 fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+    style: &GridItemProjection<S>,
     flow_axes: crate::geometry::FlowAxes,
     axis: GridAxisKind,
 ) -> bool {
@@ -1894,7 +1906,7 @@ where
     for (source_index, (child, placement)) in
         placements.checked_child_placements(&children).enumerate()
     {
-        let child_style = tree.node_input(child).clone();
+        let child_style = placements.item_input(source_index).clone();
         if child_style.display == Display::None {
             tree.set_unrounded(
                 child,
@@ -2093,8 +2105,7 @@ where
             tree.compute_child(child, child_input)?
         };
         let scroll_geometry = retained_grid_child_scroll_geometry(
-            crate::scroll::ScrollBoxProjection::from_node(&child_style),
-            crate::scroll::ScrollTargetProjection::from_node(&child_style),
+            &child_style,
             output.size,
             output.content_size,
             padding,
@@ -2154,6 +2165,7 @@ where
         );
         pending_items.push(PendingGridItem {
             node: child,
+            style: child_style.clone(),
             source_index,
             area,
             output,
@@ -2352,8 +2364,8 @@ where
 }
 
 fn normalize_grid_lanes_stacking_axis_sizing<S: LayoutScalar>(
-    child_style: &NodeInputOf<S>,
-    container_style: &NodeInputOf<S>,
+    child_style: &GridItemProjection<S>,
+    container_style: &GridContainerProjection<'_, S>,
     lane_axis: GridAxisKind,
     flow_axes: crate::geometry::FlowAxes,
     lane_axis_margin_box: S,
@@ -2400,8 +2412,8 @@ fn normalize_grid_lanes_stacking_axis_sizing<S: LayoutScalar>(
 
 #[derive(Clone, Copy)]
 pub(super) struct LaneAxisMarginBoxMeasureInput<'a, S: LayoutScalar = Scalar> {
-    pub(super) child_style: &'a NodeInputOf<S>,
-    pub(super) container_style: &'a NodeInputOf<S>,
+    pub(super) child_style: &'a GridItemProjection<S>,
+    pub(super) container_style: &'a GridContainerProjection<'a, S>,
     pub(super) constants: &'a Constants<S>,
     pub(super) lane_axis: GridAxisKind,
     pub(super) containing_block: GridLanesItemContainingBlockOf<S>,
@@ -2573,7 +2585,7 @@ fn definite_preferred_size<S: LayoutScalar>(dimension: ResolvedPreferredSize<S>)
 }
 
 fn grid_lanes_child_sizing_preflight<S: LayoutScalar>(
-    child_style: &NodeInputOf<S>,
+    child_style: &GridItemProjection<S>,
     parent: Size<Option<S>>,
 ) -> Result<Size<ResolvedPreferredSize<S>>, SizingResolutionError<S>> {
     let preferred_size = Size::new(

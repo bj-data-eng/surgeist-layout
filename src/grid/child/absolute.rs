@@ -9,7 +9,7 @@ use crate::sizing::resolve::{
 
 #[derive(Clone, Copy)]
 struct OrdinaryAbsoluteGridContext<'a, S: LayoutScalar> {
-    container_style: &'a NodeInputOf<S>,
+    container_style: &'a GridContainerProjection<'a, S>,
     constants: &'a Constants<S>,
     containing_size: Size<S>,
     column: super::GridPlacement,
@@ -31,7 +31,7 @@ pub(in crate::grid) struct AbsoluteGridContext<'a, S: LayoutScalar>(
 );
 
 pub(in crate::grid) struct OrdinaryAbsoluteGridContextInput<'a, S: LayoutScalar> {
-    pub(in crate::grid) container_style: &'a NodeInputOf<S>,
+    pub(in crate::grid) container_style: &'a GridContainerProjection<'a, S>,
     pub(in crate::grid) constants: &'a Constants<S>,
     pub(in crate::grid) containing_size: Size<S>,
     pub(in crate::grid) column: super::GridPlacement,
@@ -45,7 +45,7 @@ pub(in crate::grid) struct OrdinaryAbsoluteGridContextInput<'a, S: LayoutScalar>
 }
 
 pub(in crate::grid) struct OrdinaryAbsoluteGridGeometryContextInput<'a, S: LayoutScalar> {
-    pub(in crate::grid) container_style: &'a NodeInputOf<S>,
+    pub(in crate::grid) container_style: &'a GridContainerProjection<'a, S>,
     pub(in crate::grid) constants: &'a Constants<S>,
     pub(in crate::grid) containing_size: Size<S>,
     pub(in crate::grid) column: super::GridPlacement,
@@ -169,7 +169,7 @@ pub(in crate::grid) fn layout_absolute_grid_child<Tree, M>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
     source_index: usize,
-    child_style: &NodeInputOf<Tree::Scalar>,
+    child_style: &GridItemProjection<Tree::Scalar>,
     context: AbsoluteGridContext<'_, Tree::Scalar>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, GridChildContribution<Tree::Scalar>, Tree::Scalar, M>
 where
@@ -392,8 +392,7 @@ where
     };
 
     let scroll_geometry = retained_grid_child_scroll_geometry(
-        crate::scroll::ScrollBoxProjection::from_node(child_style),
-        crate::scroll::ScrollTargetProjection::from_node(child_style),
+        child_style,
         final_size,
         output.content_size,
         padding,
