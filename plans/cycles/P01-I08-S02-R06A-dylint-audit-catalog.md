@@ -106,6 +106,8 @@ perl -0777 -ne 'exit !(/\[\[package\]\]\nname = "dylint_linting"\nversion = "6\.
 CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 check --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml
 test ! -e tools/surgeist-layout-audits/target
 package_files="$(CARGO_NET_OFFLINE=true cargo package --locked --offline --allow-dirty --list)"; test -z "$(printf '%s\n' "$package_files" | rg '^tools/surgeist-layout-audits/' || true)"
+rg -q '^exclude = \["tools/surgeist-layout-audits/\*\*"\]$' Cargo.toml
+diff -u <(git show 20ad8202e536c4c63f0bd211f0872653462116bf:Cargo.toml | awk '1; /^description = / { print "exclude = [\"tools/surgeist-layout-audits/**\"]" }') Cargo.toml
 test "$(git diff 20ad8202e536c4c63f0bd211f0872653462116bf -- Cargo.lock | wc -l | tr -d ' ')" = 0
 CARGO_NET_OFFLINE=true cargo check --locked --offline -p surgeist-layout
 cargo fmt --check; git diff --check
@@ -174,7 +176,8 @@ script or standing command is added.
 semantic lint passes and the script exists; after deletion, the default-Allow
 isolated UI suite passes, no standing command references the catalog, and product
 API/behavior/package/artifact evidence is identical to the R06 entry. The
-coordinator repeats the selected semantic audit in the final matrix.
+coordinator's recorded transition result is the cycle's sole selected semantic
+audit and is not repeated.
 
 ```sh
 set -e
@@ -198,8 +201,8 @@ immutable R07/R08 handoff. No catalog output, product dependency/API/behavior,
 fixture, generated artifact, browser, generator, acquisition beyond the exact
 authorized stack, or shared skill-reference delta is permitted.
 
-The coordinator owns every explicitly selected-lint command in the following
-final matrix.
+The coordinator's single selected-lint result recorded between T02 and T03 is
+immutable cycle evidence. The final matrix does not repeat that invocation.
 
 ```sh
 set -e
@@ -209,7 +212,6 @@ rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^rustc
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^llvm-tools-'
 CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml
 CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 clippy --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml --all-targets -- -F unsafe-code -D warnings
-CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo dylint --path tools/surgeist-layout-audits -- -D p01_i08_s02_r06_t02_node_projection_boundary
 test ! -e tools/surgeist-layout-audits/target
 test ! -e scripts/audit-node-projection-boundaries.sh
 CARGO_NET_OFFLINE=true just verify
@@ -217,6 +219,8 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 package_files="$(CARGO_NET_OFFLINE=true cargo package --locked --offline --list)"; test -z "$(printf '%s\n' "$package_files" | rg '^tools/surgeist-layout-audits/' || true)"
+rg -q '^exclude = \["tools/surgeist-layout-audits/\*\*"\]$' Cargo.toml
+diff -u <(git show 20ad8202e536c4c63f0bd211f0872653462116bf:Cargo.toml | awk '1; /^description = / { print "exclude = [\"tools/surgeist-layout-audits/**\"]" }') Cargo.toml
 test "$(git diff 20ad8202e536c4c63f0bd211f0872653462116bf..HEAD -- Cargo.lock | wc -l | tr -d ' ')" = 0
 actual_paths="$(git diff --name-only 20ad8202e536c4c63f0bd211f0872653462116bf..HEAD | LC_ALL=C sort -u)"; test -z "$(printf '%s\n' "$actual_paths" | rg -v '^(Cargo\.toml|plans/cycles/P01-I08-S02-R06A-dylint-audit-catalog\.md|scripts/audit-node-projection-boundaries\.sh|tools/surgeist-layout-audits/)')"
 standing_paths=(Justfile src tests); test ! -d .github || standing_paths+=(.github); if rg -n 'cargo[[:space:]]+dylint|surgeist-layout-audits|p01_i08_s02_r06_t02_node_projection_boundary' "${standing_paths[@]}"; then exit 1; fi
