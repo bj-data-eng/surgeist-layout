@@ -39,6 +39,13 @@ dependencies `dylint_linting = "=6.0.3"` and
 and `llvm-tools-preview` from the official rustup distribution, solely for this
 audit-tooling pilot.
 
+T01's initial preflight preserved RED evidence that this exact stack, catalog,
+and package exclusion were absent. That attempt completed only the authorized
+user-scoped installations before the original direct-binary version probes were
+shown incompatible with Dylint `6.0.3`; the repository returned clean without a
+task commit. T01 resumes by verifying the installed packages through Cargo's
+package inventory and must not uninstall or reacquire them merely to repeat RED.
+
 The catalog lives only at `tools/surgeist-layout-audits/`, has its own
 workspace, lockfile, and toolchain, and writes all build state to
 `target/dylint-audits` at the repository root. The product package excludes the
@@ -68,8 +75,9 @@ to this cycle.
 `tools/surgeist-layout-audits/{Cargo.toml,Cargo.lock,rust-toolchain.toml,src/lib.rs}`;
 user-scoped Cargo and rustup installations authorized above.
 
-**Outcome:** install only the exact authorized binaries/toolchain/components;
-create package `surgeist-layout-audits`, library `surgeist_layout_audits`,
+**Outcome:** verify the already installed exact authorized
+binaries/toolchain/components; create package `surgeist-layout-audits`, library
+`surgeist_layout_audits`,
 `publish = false`, `crate-type = ["cdylib"]`, its own `[workspace]`, and exact
 crates.io pins; exclude the tool tree from product packaging; keep every catalog
 command on repository-root `target/dylint-audits` with no nested target.
@@ -82,11 +90,8 @@ checks remain unchanged.
 
 ```sh
 set -e
-cargo install --locked cargo-dylint --version 6.0.3
-cargo install --locked dylint-link --version 6.0.3
-rustup toolchain install nightly-2026-05-28 --profile minimal --component rustc-dev --component llvm-tools-preview
-test "$(cargo-dylint --version)" = 'cargo-dylint 6.0.3'
-test "$(dylint-link --version)" = 'dylint-link 6.0.3'
+test "$(cargo dylint --version)" = 'cargo-dylint 6.0.3'
+cargo install --list | perl -0ne 'exit !(/^cargo-dylint v6\.0\.3:\n    cargo-dylint$/m && /^dylint-link v6\.0\.3:\n    dylint-link$/m)'
 rustup toolchain list | rg -q '^nightly-2026-05-28-'
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^rustc-dev-'
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^llvm-tools-'
@@ -213,8 +218,8 @@ immutable cycle evidence. The final matrix does not repeat that invocation.
 
 ```sh
 set -e
-test "$(cargo-dylint --version)" = 'cargo-dylint 6.0.3'
-test "$(dylint-link --version)" = 'dylint-link 6.0.3'
+test "$(cargo dylint --version)" = 'cargo-dylint 6.0.3'
+cargo install --list | perl -0ne 'exit !(/^cargo-dylint v6\.0\.3:\n    cargo-dylint$/m && /^dylint-link v6\.0\.3:\n    dylint-link$/m)'
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^rustc-dev-'
 rustup component list --toolchain nightly-2026-05-28 --installed | rg -q '^llvm-tools-'
 CARGO_TARGET_DIR="$PWD/target/dylint-audits" cargo +nightly-2026-05-28 test --locked --manifest-path tools/surgeist-layout-audits/Cargo.toml
