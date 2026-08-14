@@ -23,6 +23,7 @@ fn axis_available<S: LayoutScalar>(
 
 pub(super) struct IntrinsicGridChildInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) child_style: &'a GridItemProjection<S>,
+    pub(super) child_container: Option<&'a GridContainerInput<S>>,
     pub(super) grid: IntrinsicGrid<'a, Node, S>,
     pub(super) area: GridArea<S>,
     pub(super) columns: &'a [S],
@@ -41,6 +42,7 @@ where
 {
     let IntrinsicGridChildInput {
         child_style,
+        child_container,
         grid,
         area,
         columns,
@@ -85,10 +87,10 @@ where
         [column_constraint, row_constraint],
     );
     let sizing = grid_item_sizing_for_grid_flow::<Tree, M>(
-        tree,
         child,
         child_style,
         grid.style,
+        Some(subgrid_item),
         physical_area_size,
         physical_area_size.map(Some),
         grid.sizing_flow_axes,
@@ -100,7 +102,11 @@ where
     ) {
         return tree.compute_child(child, input);
     }
-    let needs_context = needs_intrinsic_subgrid_context(child_style, subgrid_item, area);
+    let child_container = child_container
+        .expect("an intrinsic subgrid child must retain its container projection input");
+    let child_container_style = child_container.projection();
+    let needs_context =
+        needs_intrinsic_subgrid_context(&child_container_style, child_style, subgrid_item, area);
     if !input.run_mode().is_perform_layout() && !needs_context {
         return tree.compute_child(child, input);
     }
@@ -137,6 +143,7 @@ where
     let child_context = subgrid_child_parent_context(SubgridChildParentContextInput {
         item: subgrid_item,
         child_style,
+        child_container_style: Some(child_container_style),
         area,
         content_box_size,
         columns,
@@ -259,6 +266,7 @@ fn exact_static_track_span<S: LayoutScalar>(
 }
 
 pub(in crate::grid) fn needs_intrinsic_subgrid_context<Node, S: LayoutScalar>(
+    container_style: &GridContainerProjection<'_, S>,
     style: &GridItemProjection<S>,
     item: SubgridItemReport<Node>,
     area: GridArea<S>,
@@ -266,17 +274,17 @@ pub(in crate::grid) fn needs_intrinsic_subgrid_context<Node, S: LayoutScalar>(
 where
     Node: Copy,
 {
-    let inherits_rows = item_inherits_parent_axis(style, item, GridAxisKind::Row);
-    let inherits_columns = item_inherits_parent_axis(style, item, GridAxisKind::Column);
+    let inherits_rows = item_inherits_parent_axis(item, GridAxisKind::Row);
+    let inherits_columns = item_inherits_parent_axis(item, GridAxisKind::Column);
     let spans_multiple_inherited_columns = area.column_end > area.column + 1;
 
     (inherits_rows && inherits_columns && spans_multiple_inherited_columns)
         || (inherits_rows
-            && (style.grid_auto_flow.is_column()
-                || track_components_have_percent_sizing(&style.grid_template_columns)))
+            && (container_style.grid_auto_flow.is_column()
+                || track_components_have_percent_sizing(container_style.grid_template_columns)))
         || (inherits_columns
             && !style.size.height.is_auto()
-            && track_components_have_percent_sizing(&style.grid_template_rows))
+            && track_components_have_percent_sizing(container_style.grid_template_rows))
 }
 
 pub(in crate::grid) fn track_components_have_percent_sizing<S: LayoutScalar>(
@@ -650,9 +658,11 @@ where
             };
             let child_style = input.placements.item_input(index);
             if !is_in_flow_grid_child(child_style)
-                || input.subgrid_report.items.get(index).is_some_and(|item| {
-                    item_inherits_parent_axis(child_style, *item, GridAxisKind::Column)
-                })
+                || input
+                    .subgrid_report
+                    .items
+                    .get(index)
+                    .is_some_and(|item| item_inherits_parent_axis(*item, GridAxisKind::Column))
             {
                 continue;
             }
@@ -795,8 +805,7 @@ fn subgrid_leaf_size_depends_on_queried_axis<S: LayoutScalar>(
     grid_axis_size(flow_axes, style.size.clone(), axis).depends_on_basis()
 }
 
-pub(in crate::grid) fn item_inherits_parent_axis<Node, S: LayoutScalar>(
-    style: &GridItemProjection<S>,
+pub(in crate::grid) fn item_inherits_parent_axis<Node>(
     item: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> bool
@@ -806,29 +815,12 @@ where
     [GridAxisKind::Column, GridAxisKind::Row]
         .into_iter()
         .any(|child_axis| {
-            if !track_components_request_subgrid(style, child_axis) {
-                return false;
-            }
             let report = match child_axis {
                 GridAxisKind::Column => item.column,
                 GridAxisKind::Row => item.row,
             };
             report.can_inherit() && report.mapping.parent_axis == parent_axis
         })
-}
-
-fn track_components_request_subgrid<S: LayoutScalar>(
-    style: &GridItemProjection<S>,
-    axis: GridAxisKind,
-) -> bool {
-    let components = match axis {
-        GridAxisKind::Column => &style.grid_template_columns,
-        GridAxisKind::Row => &style.grid_template_rows,
-    };
-
-    components
-        .iter()
-        .any(|component| matches!(component, TrackComponentOf::Subgrid(_)))
 }
 
 #[derive(Clone, Copy)]
@@ -1356,21 +1348,18 @@ mod tests {
         let placements = GridPlacementContext::new(Vec::<u32>::new(), Vec::new());
         let subgrid_report = GridSubgridReport { items: Vec::new() };
         let parent_projection = GridContainerProjection::from_node(&parent_style);
-        let child_projection = GridItemProjection::from_node(&child_style);
+        let child_input = GridChildInput::from_node(&child_style);
         let subgrid_item = SubgridItemReport {
             node: 2,
-            column: subgrid_axis_report(
-                &parent_projection,
-                &child_projection,
-                GridAxisKind::Column,
-            ),
-            row: subgrid_axis_report(&parent_projection, &child_projection, GridAxisKind::Row),
+            column: subgrid_axis_report(&parent_projection, &child_input, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_projection, &child_input, GridAxisKind::Row),
         };
         let output = compute_intrinsic_grid_child(
             &mut tree,
             2,
             IntrinsicGridChildInput {
-                child_style: &child_projection,
+                child_style: child_input.item(),
+                child_container: child_input.nested_container(),
                 grid: IntrinsicGrid {
                     style: &parent_projection,
                     constants: &constants,
@@ -1474,21 +1463,18 @@ mod tests {
         let placements = GridPlacementContext::new(Vec::<u32>::new(), Vec::new());
         let subgrid_report = GridSubgridReport { items: Vec::new() };
         let parent_projection = GridContainerProjection::from_node(&parent_style);
-        let child_projection = GridItemProjection::from_node(&child_style);
+        let child_input = GridChildInput::from_node(&child_style);
         let subgrid_item = SubgridItemReport {
             node: 2,
-            column: subgrid_axis_report(
-                &parent_projection,
-                &child_projection,
-                GridAxisKind::Column,
-            ),
-            row: subgrid_axis_report(&parent_projection, &child_projection, GridAxisKind::Row),
+            column: subgrid_axis_report(&parent_projection, &child_input, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_projection, &child_input, GridAxisKind::Row),
         };
         compute_intrinsic_grid_child(
             &mut tree,
             2,
             IntrinsicGridChildInput {
-                child_style: &child_projection,
+                child_style: child_input.item(),
+                child_container: child_input.nested_container(),
                 grid: IntrinsicGrid {
                     style: &parent_projection,
                     constants: &constants,

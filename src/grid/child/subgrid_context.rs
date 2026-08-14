@@ -4,6 +4,7 @@ use super::*;
 pub(in crate::grid) struct SubgridChildParentContextInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(in crate::grid) item: SubgridItemReport<Node>,
     pub(in crate::grid) child_style: &'a GridItemProjection<S>,
+    pub(in crate::grid) child_container_style: Option<GridContainerProjection<'a, S>>,
     pub(in crate::grid) area: GridArea<S>,
     pub(in crate::grid) content_box_size: Size<S>,
     pub(in crate::grid) columns: &'a [S],
@@ -113,6 +114,7 @@ where
             axis: GridAxisKind::Column,
             report: input.item.column,
             child_style: input.child_style,
+            child_container_style: input.child_container_style,
             area: input.area,
             content_box_size: input.content_box_size,
             parent_columns: input.columns,
@@ -136,6 +138,7 @@ where
             axis: GridAxisKind::Row,
             report: input.item.row,
             child_style: input.child_style,
+            child_container_style: input.child_container_style,
             area: input.area,
             content_box_size: input.content_box_size,
             parent_columns: input.columns,
@@ -163,6 +166,7 @@ struct SubgridChildAxisContextInput<'a, Node, S: LayoutScalar = Scalar> {
     axis: GridAxisKind,
     report: SubgridAxisReport,
     child_style: &'a GridItemProjection<S>,
+    child_container_style: Option<GridContainerProjection<'a, S>>,
     area: GridArea<S>,
     content_box_size: Size<S>,
     parent_columns: &'a [S],
@@ -223,8 +227,14 @@ fn subgrid_child_axis_context<Node: Copy + PartialEq, S: LayoutScalar>(
             start_mbp,
             end_mbp,
             parent_gap: parent_axis.gap,
-            subgrid_gap: child_subgrid_gap(input.child_style, input.axis, input.content_box_size)
-                .map_err(SubgridChildContextError::ValueResolution)?,
+            subgrid_gap: child_subgrid_gap(
+                &input
+                    .child_container_style
+                    .expect("an inheriting subgrid axis must retain its container projection"),
+                input.axis,
+                input.content_box_size,
+            )
+            .map_err(SubgridChildContextError::ValueResolution)?,
         },
         parent_axis.geometry,
     )
@@ -773,12 +783,12 @@ fn axis_margin_border_padding<S: LayoutScalar>(
 }
 
 pub(in crate::grid) fn child_subgrid_gap<S: LayoutScalar>(
-    style: &GridItemProjection<S>,
+    style: &GridContainerProjection<'_, S>,
     axis: GridAxisKind,
     area_size: Size<S>,
 ) -> Result<ResolvedSubgridGap<S>, LengthResolutionStatus<S>> {
     let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
-    let logical_gap = flow_axes.logical_size(style.gap);
+    let logical_gap = flow_axes.logical_size(*style.gap);
     let logical_area_size = flow_axes.logical_size(area_size);
     let (gap, basis) = match axis.logical_axis() {
         LogicalAxis::Inline => (logical_gap.inline, Some(logical_area_size.inline)),
@@ -879,10 +889,10 @@ where
         );
         let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
         let mut sizing = grid_item_sizing_for_grid_flow::<Tree, M>(
-            tree,
             item.node,
             &child_style,
             input.container_style,
+            Some(subgrid_item),
             physical_area_size,
             physical_area_size.map(Some),
             container_flow_axes,
@@ -916,10 +926,15 @@ where
             - padding.sum_axes()
             - border.sum_axes())
         .max(Size::ZERO);
+        let child_container_style = item
+            .nested_container
+            .as_ref()
+            .map(GridContainerInput::projection);
         let child_context = subgrid_child_parent_context_from_ancestor_groups_with_geometry(
             SubgridChildParentContextInput {
                 item: subgrid_item,
                 child_style: &child_style,
+                child_container_style,
                 area: item.area,
                 content_box_size: subgrid_content_box_size,
                 columns: input.columns,

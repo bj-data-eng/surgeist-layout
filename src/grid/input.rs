@@ -131,6 +131,7 @@ impl<'a, S: LayoutScalar> GridContainerProjection<'a, S> {
 }
 
 /// Owns the complete public snapshot only long enough to lend a container projection.
+#[derive(Clone, Debug)]
 pub(super) struct GridContainerInput<S: LayoutScalar> {
     source: NodeInputOf<S>,
 }
@@ -166,13 +167,13 @@ macro_rules! project_grid_container {
 
 pub(super) use project_grid_container;
 
-macro_rules! project_grid_item {
+macro_rules! project_grid_child_input {
     ($tree:expr, $node:expr) => {
-        $crate::grid::input::GridItemProjection::from_node($tree.node_input($node))
+        $crate::grid::input::GridChildInput::from_node($tree.node_input($node))
     };
 }
 
-pub(super) use project_grid_item;
+pub(super) use project_grid_child_input;
 
 #[must_use]
 pub(super) fn order_modified_indexes(
@@ -212,18 +213,6 @@ pub(super) struct GridItemProjection<S: LayoutScalar> {
     pub(super) border: Edges<LengthOf<S>>,
     pub(super) align_self: Option<AlignItems>,
     pub(super) justify_self: Option<AlignItems>,
-    pub(super) align_items: Option<AlignItems>,
-    pub(super) justify_items: Option<AlignItems>,
-    pub(super) align_content: Option<AlignContent>,
-    pub(super) justify_content: Option<AlignContent>,
-    pub(super) gap: Size<LengthOf<S>>,
-    pub(super) grid_template_columns: Vec<TrackComponentOf<S>>,
-    pub(super) grid_template_rows: Vec<TrackComponentOf<S>>,
-    pub(super) grid_template_areas: GridTemplateAreas,
-    pub(super) grid_auto_columns: Vec<TrackComponentOf<S>>,
-    pub(super) grid_auto_rows: Vec<TrackComponentOf<S>>,
-    pub(super) grid_auto_flow: GridAutoFlow,
-    pub(super) grid_flow_tolerance: GridFlowToleranceOf<S>,
     pub(super) grid_column: GridPlacement,
     pub(super) grid_row: GridPlacement,
     pub(super) raw_grid_column: RawGridPlacement,
@@ -262,80 +251,10 @@ impl<S: LayoutScalar> GridItemProjection<S> {
             border: input.border,
             align_self: input.align_self,
             justify_self: input.justify_self,
-            align_items: input.align_items,
-            justify_items: input.justify_items,
-            align_content: input.align_content,
-            justify_content: input.justify_content,
-            gap: input.gap,
-            grid_template_columns: input.grid_template_columns.clone(),
-            grid_template_rows: input.grid_template_rows.clone(),
-            grid_template_areas: input.grid_template_areas.clone(),
-            grid_auto_columns: input.grid_auto_columns.clone(),
-            grid_auto_rows: input.grid_auto_rows.clone(),
-            grid_auto_flow: input.grid_auto_flow,
-            grid_flow_tolerance: input.grid_flow_tolerance,
             grid_column: input.grid_column,
             grid_row: input.grid_row,
             raw_grid_column: input.raw_grid_column.clone(),
             raw_grid_row: input.raw_grid_row.clone(),
-        }
-    }
-
-    #[must_use]
-    pub(super) fn nested_container_projection(&self) -> GridContainerProjection<'_, S> {
-        GridContainerProjection {
-            common: CommonBoxProjection {
-                size: &self.size,
-                min_size: &self.min_size,
-                max_size: &self.max_size,
-                aspect_ratio: &self.aspect_ratio,
-                margin: &self.margin,
-                padding: &self.padding,
-                border: &self.border,
-                box_sizing: self.box_sizing,
-                flow_axes: self.flow_axes,
-                overflow: self.overflow,
-                position: self.position,
-                inset: &self.inset,
-                item_is_replaced: self.item_is_replaced,
-                item_is_table: self.item_is_table,
-            },
-            display: self.display,
-            item_is_replaced: self.item_is_replaced,
-            item_is_table: self.item_is_table,
-            box_sizing: self.box_sizing,
-            writing_mode: self.writing_mode,
-            direction: self.direction,
-            overflow: self.overflow,
-            overflow_clip_margin: self.overflow_clip_margin,
-            scroll_padding: self.scroll_padding,
-            scroll_margin: self.scroll_margin,
-            scroll_snap_type: self.scroll_snap_type,
-            scroll_snap_align: self.scroll_snap_align,
-            scroll_snap_stop: self.scroll_snap_stop,
-            position: self.position,
-            inset: &self.inset,
-            size: &self.size,
-            min_size: &self.min_size,
-            max_size: &self.max_size,
-            aspect_ratio: &self.aspect_ratio,
-            margin: &self.margin,
-            padding: &self.padding,
-            border: &self.border,
-            align_items: self.align_items,
-            justify_items: self.justify_items,
-            align_content: self.align_content,
-            justify_content: self.justify_content,
-            gap: &self.gap,
-            grid_template_columns: &self.grid_template_columns,
-            grid_template_rows: &self.grid_template_rows,
-            grid_template_areas: &self.grid_template_areas,
-            grid_auto_columns: &self.grid_auto_columns,
-            grid_auto_rows: &self.grid_auto_rows,
-            grid_auto_flow: self.grid_auto_flow,
-            grid_flow_tolerance: self.grid_flow_tolerance,
-            scrollbar_gutter: self.scrollbar_gutter,
-            scrollbar_width: self.scrollbar_width,
         }
     }
 
@@ -346,36 +265,87 @@ impl<S: LayoutScalar> GridItemProjection<S> {
             crate::scroll::ScrollTargetProjection<'_, S>,
         ) -> R,
     ) -> R {
-        let source = NodeInputOf {
-            item_is_table: self.item_is_table,
-            item_is_replaced: self.item_is_replaced,
+        let common = CommonBoxProjection {
+            size: &self.size,
+            min_size: &self.min_size,
+            max_size: &self.max_size,
+            aspect_ratio: &self.aspect_ratio,
+            margin: &self.margin,
+            padding: &self.padding,
+            border: &self.border,
             box_sizing: self.box_sizing,
-            writing_mode: self.writing_mode,
-            direction: self.direction,
+            flow_axes: self.flow_axes,
             overflow: self.overflow,
-            overflow_clip_margin: self.overflow_clip_margin,
-            scrollbar_gutter: self.scrollbar_gutter,
-            scrollbar_width: self.scrollbar_width,
-            scroll_padding: self.scroll_padding,
-            scroll_margin: self.scroll_margin,
-            scroll_snap_type: self.scroll_snap_type,
-            scroll_snap_align: self.scroll_snap_align,
-            scroll_snap_stop: self.scroll_snap_stop,
             position: self.position,
-            inset: self.inset,
-            size: self.size.clone(),
-            min_size: self.min_size.clone(),
-            max_size: self.max_size.clone(),
-            aspect_ratio: self.aspect_ratio,
-            margin: self.margin,
-            padding: self.padding,
-            border: self.border,
-            ..NodeInputOf::default()
+            inset: &self.inset,
+            item_is_replaced: self.item_is_replaced,
+            item_is_table: self.item_is_table,
         };
         consume(
-            crate::scroll::ScrollBoxProjection::from_node(&source),
-            crate::scroll::ScrollTargetProjection::from_node(&source),
+            crate::scroll::ScrollBoxProjection::from_settled(
+                common,
+                &self.overflow_clip_margin,
+                self.scrollbar_gutter,
+                self.scrollbar_width,
+                &self.scroll_padding,
+                self.scroll_snap_type,
+            ),
+            crate::scroll::ScrollTargetProjection::from_settled(
+                self.flow_axes,
+                &self.scroll_margin,
+                self.scroll_snap_align,
+                self.scroll_snap_stop,
+            ),
         )
+    }
+}
+
+/// Distinct settled roles collected while the complete child input is available.
+#[derive(Clone, Debug)]
+pub(super) struct GridChildInput<S: LayoutScalar> {
+    item: GridItemProjection<S>,
+    nested_container: Option<GridContainerInput<S>>,
+    requested_subgrid_axes: Size<bool>,
+}
+
+impl<S: LayoutScalar> GridChildInput<S> {
+    #[must_use]
+    pub(super) fn from_node(input: &NodeInputOf<S>) -> Self {
+        Self {
+            item: GridItemProjection::from_node(input),
+            nested_container: input
+                .display
+                .establishes_grid_formatting_context()
+                .then(|| GridContainerInput::from_node(input)),
+            requested_subgrid_axes: Size::new(
+                input
+                    .grid_template_columns
+                    .iter()
+                    .any(|component| matches!(component, TrackComponentOf::Subgrid(_))),
+                input
+                    .grid_template_rows
+                    .iter()
+                    .any(|component| matches!(component, TrackComponentOf::Subgrid(_))),
+            ),
+        }
+    }
+
+    #[must_use]
+    pub(super) fn item(&self) -> &GridItemProjection<S> {
+        &self.item
+    }
+
+    #[must_use]
+    pub(super) fn nested_container(&self) -> Option<&GridContainerInput<S>> {
+        self.nested_container.as_ref()
+    }
+
+    #[must_use]
+    pub(super) fn subgrid_requested(&self, axis: crate::GridAxisKind) -> bool {
+        match axis {
+            crate::GridAxisKind::Column => self.requested_subgrid_axes.width,
+            crate::GridAxisKind::Row => self.requested_subgrid_axes.height,
+        }
     }
 }
 
@@ -391,7 +361,7 @@ impl<S: LayoutScalar> GridOverflowFacts for GridItemProjection<S> {
 
 #[cfg(test)]
 mod tests {
-    use super::{GridContainerProjection, GridItemProjection};
+    use super::{GridChildInput, GridContainerProjection};
     use crate::{
         AlignContent, AlignItems, AspectRatioOf, BoxSizing, ComputedOverflow, Direction, Display,
         Edges, FlowAxes, GridAutoFlow, GridFlowToleranceOf, GridPlacement, GridTemplateAreaRow,
@@ -742,7 +712,28 @@ mod tests {
             ..NodeInputOf::default()
         };
 
-        let projection = GridItemProjection::from_node(&input);
+        let settled = GridChildInput::from_node(&input);
+        let projection = settled.item();
+        let mut container_variant = input.clone();
+        container_variant.align_items = Some(AlignItems::Stretch);
+        container_variant.justify_items = Some(AlignItems::Center);
+        container_variant.align_content = Some(AlignContent::SpaceEvenly);
+        container_variant.justify_content = Some(AlignContent::SafeCenter);
+        container_variant.gap = Size::new(length(165.0), length(166.0));
+        container_variant.grid_template_columns = vec![TrackComponentOf::MAX_CONTENT];
+        container_variant.grid_template_rows = vec![TrackComponentOf::MIN_CONTENT];
+        container_variant.grid_template_areas = GridTemplateAreas::default();
+        container_variant.grid_auto_columns = vec![TrackComponentOf::MIN_CONTENT];
+        container_variant.grid_auto_rows = vec![TrackComponentOf::MAX_CONTENT];
+        container_variant.grid_auto_flow = GridAutoFlow::RowDense;
+        container_variant.grid_flow_tolerance = GridFlowToleranceOf::Percent(scalar(0.75));
+        let container_variant_settled = GridChildInput::from_node(&container_variant);
+        let container_variant_projection = container_variant_settled.item();
+
+        assert_eq!(
+            projection, container_variant_projection,
+            "container-only grid facts must not affect the settled item projection"
+        );
 
         assert_eq!(projection.display, Display::InlineGrid);
         assert!(projection.item_is_replaced);
@@ -769,18 +760,6 @@ mod tests {
         assert_eq!(projection.inset, expected_inset);
         assert_eq!(projection.align_self, Some(AlignItems::LastBaseline));
         assert_eq!(projection.justify_self, Some(AlignItems::SafeCenter));
-        assert_eq!(projection.align_items, Some(AlignItems::Baseline));
-        assert_eq!(projection.justify_items, Some(AlignItems::SafeFlexEnd));
-        assert_eq!(projection.align_content, Some(AlignContent::SpaceAround));
-        assert_eq!(projection.justify_content, Some(AlignContent::SpaceBetween));
-        assert_eq!(projection.gap, expected_gap);
-        assert_eq!(projection.grid_template_columns, expected_template_columns);
-        assert_eq!(projection.grid_template_rows, expected_template_rows);
-        assert_eq!(projection.grid_template_areas, expected_template_areas);
-        assert_eq!(projection.grid_auto_columns, expected_auto_columns);
-        assert_eq!(projection.grid_auto_rows, expected_auto_rows);
-        assert_eq!(projection.grid_auto_flow, GridAutoFlow::ColumnDense);
-        assert_eq!(projection.grid_flow_tolerance, expected_tolerance);
         assert_eq!(projection.grid_column, expected_column);
         assert_eq!(projection.grid_row, expected_row);
         assert_eq!(projection.raw_grid_column, expected_raw_column);
@@ -792,6 +771,59 @@ mod tests {
         assert_eq!(projection.scroll_snap_stop, ScrollSnapStop::Always);
         assert_eq!(projection.scrollbar_gutter, ScrollbarGutter::Stable);
         assert_eq!(projection.scrollbar_width, expected_scrollbar_width);
+
+        projection.with_scroll_projections(|scroll_box, scroll_target| {
+            assert_eq!(
+                scroll_box,
+                crate::scroll::ScrollBoxProjection::from_node(&input)
+            );
+            assert_eq!(
+                scroll_target,
+                crate::scroll::ScrollTargetProjection::from_node(&input)
+            );
+        });
+
+        let nested_container = settled
+            .nested_container()
+            .expect("inline-grid child must retain distinct nested-container facts")
+            .projection();
+        assert_eq!(nested_container.align_items, Some(AlignItems::Baseline));
+        assert_eq!(
+            nested_container.justify_items,
+            Some(AlignItems::SafeFlexEnd)
+        );
+        assert_eq!(
+            nested_container.align_content,
+            Some(AlignContent::SpaceAround)
+        );
+        assert_eq!(
+            nested_container.justify_content,
+            Some(AlignContent::SpaceBetween)
+        );
+        assert_eq!(*nested_container.gap, expected_gap);
+        assert_eq!(
+            nested_container.grid_template_columns,
+            expected_template_columns
+        );
+        assert_eq!(nested_container.grid_template_rows, expected_template_rows);
+        assert_eq!(
+            *nested_container.grid_template_areas,
+            expected_template_areas
+        );
+        assert_eq!(nested_container.grid_auto_columns, expected_auto_columns);
+        assert_eq!(nested_container.grid_auto_rows, expected_auto_rows);
+        assert_eq!(nested_container.grid_auto_flow, GridAutoFlow::ColumnDense);
+        assert_eq!(nested_container.grid_flow_tolerance, expected_tolerance);
+
+        let variant_container = container_variant_settled
+            .nested_container()
+            .expect("inline-grid variant must retain distinct nested-container facts")
+            .projection();
+        assert_ne!(nested_container.gap, variant_container.gap);
+        assert_ne!(
+            nested_container.grid_template_columns,
+            variant_container.grid_template_columns
+        );
     }
 
     #[test]

@@ -293,10 +293,10 @@ where
 
         let physical_area_size = grid_area_physical_size(constants.flow_axes, area.size);
         let mut item = grid_item_sizing_for_grid_flow::<Tree, M>(
-            tree,
             child,
             &child_style,
             style,
+            Some(*subgrid_item),
             physical_area_size,
             physical_area_size.map(Some),
             constants.flow_axes,
@@ -332,10 +332,14 @@ where
             - padding.sum_axes()
             - border.sum_axes())
         .max(Size::ZERO);
+        let child_container_style = placements
+            .nested_container_input(source_index)
+            .map(GridContainerInput::projection);
         let child_context = subgrid_child_parent_context_with_geometry(
             SubgridChildParentContextInput {
                 item: *subgrid_item,
                 child_style: &child_style,
+                child_container_style,
                 area,
                 content_box_size: subgrid_content_box_size,
                 columns,
@@ -444,6 +448,7 @@ where
         pending_items.push(PendingGridItem {
             node: child,
             style: child_style.clone(),
+            nested_container: placements.nested_container_input(source_index).cloned(),
             source_index,
             area,
             output,
@@ -861,6 +866,7 @@ fn grid_physical_axis_progression(
 pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
     pub(super) style: GridItemProjection<S>,
+    pub(super) nested_container: Option<GridContainerInput<S>>,
     pub(super) source_index: usize,
     pub(super) area: GridArea<S>,
     pub(super) output: ComputeOutputOf<S>,
@@ -912,10 +918,10 @@ impl<S: LayoutScalar> GridItemMinimum<S> {
 }
 
 pub(super) fn grid_item_sizing_for_grid_flow<Tree, M>(
-    _tree: &Tree,
     child: <Tree as Traverse>::Node,
     child_style: &GridItemProjection<Tree::Scalar>,
     container_style: &GridContainerProjection<'_, Tree::Scalar>,
+    subgrid_item: Option<SubgridItemReport<<Tree as Traverse>::Node>>,
     area_size: Size<Tree::Scalar>,
     containing_physical_size: Size<Option<Tree::Scalar>>,
     grid_flow_axes: FlowAxes,
@@ -926,6 +932,10 @@ where
     grid_item_sizing_with_grid_flow_status(
         child_style,
         container_style,
+        Size::new(
+            subgrid_item.is_some_and(|item| item.column.requested()),
+            subgrid_item.is_some_and(|item| item.row.requested()),
+        ),
         area_size,
         containing_physical_size,
         grid_flow_axes,
@@ -936,6 +946,7 @@ where
 pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
     child_style: &GridItemProjection<S>,
     container_style: &GridContainerProjection<'_, S>,
+    subgrid_requests: Size<bool>,
     area_size: Size<S>,
     containing_physical_size: Size<Option<S>>,
     grid_flow_axes: FlowAxes,
@@ -997,6 +1008,7 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
         resolve_standalone_subgrid_item_minimum_optional(
             &child_style.min_size.width,
             child_style,
+            subgrid_requests,
             algorithm,
             PhysicalAxis::Horizontal,
             area_parent.width,
@@ -1005,6 +1017,7 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
         resolve_standalone_subgrid_item_minimum_optional(
             &child_style.min_size.height,
             child_style,
+            subgrid_requests,
             algorithm,
             PhysicalAxis::Vertical,
             area_parent.height,
@@ -1116,6 +1129,7 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
 fn resolve_standalone_subgrid_item_minimum_optional<S: LayoutScalar>(
     value: &MinSizeOf<S>,
     child_style: &GridItemProjection<S>,
+    subgrid_requests: Size<bool>,
     algorithm: SizingAlgorithm,
     physical_axis: PhysicalAxis,
     basis: Option<S>,
@@ -1132,9 +1146,17 @@ fn resolve_standalone_subgrid_item_minimum_optional<S: LayoutScalar>(
         GridAxisKind::Column => GridAxisKind::Row,
         GridAxisKind::Row => GridAxisKind::Column,
     };
+    let queried_axis_requested = match queried_axis {
+        GridAxisKind::Column => subgrid_requests.width,
+        GridAxisKind::Row => subgrid_requests.height,
+    };
+    let other_axis_requested = match other_axis {
+        GridAxisKind::Column => subgrid_requests.width,
+        GridAxisKind::Row => subgrid_requests.height,
+    };
     if (value.is_min_content() || value.is_max_content())
-        && !subgrid_requested(child_style, queried_axis)
-        && subgrid_requested(child_style, other_axis)
+        && !queried_axis_requested
+        && other_axis_requested
     {
         let minimum = if value.is_min_content() {
             StandaloneIntrinsicMinimum::MinContent

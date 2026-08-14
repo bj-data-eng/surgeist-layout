@@ -17,15 +17,34 @@ pub(crate) struct ScrollBoxProjection<'a, S: LayoutScalar> {
 
 impl<'a, S: LayoutScalar> ScrollBoxProjection<'a, S> {
     #[must_use]
-    pub(crate) fn from_node(input: &'a NodeInputOf<S>) -> Self {
+    pub(crate) fn from_settled(
+        common: CommonBoxProjection<'a, S>,
+        overflow_clip_margin: &'a OverflowClipMarginOf<S>,
+        scrollbar_gutter: ScrollbarGutter,
+        scrollbar_width: ScrollbarWidthOf<S>,
+        scroll_padding: &'a ScrollPaddingOf<S>,
+        scroll_snap_type: ScrollSnapType,
+    ) -> Self {
         Self {
-            common: CommonBoxProjection::from_node(input),
-            overflow_clip_margin: &input.overflow_clip_margin,
-            scrollbar_gutter: input.scrollbar_gutter,
-            scrollbar_width: input.scrollbar_width,
-            scroll_padding: &input.scroll_padding,
-            scroll_snap_type: input.scroll_snap_type,
+            common,
+            overflow_clip_margin,
+            scrollbar_gutter,
+            scrollbar_width,
+            scroll_padding,
+            scroll_snap_type,
         }
+    }
+
+    #[must_use]
+    pub(crate) fn from_node(input: &'a NodeInputOf<S>) -> Self {
+        Self::from_settled(
+            CommonBoxProjection::from_node(input),
+            &input.overflow_clip_margin,
+            input.scrollbar_gutter,
+            input.scrollbar_width,
+            &input.scroll_padding,
+            input.scroll_snap_type,
+        )
     }
 }
 
@@ -40,13 +59,28 @@ pub(crate) struct ScrollTargetProjection<'a, S: LayoutScalar> {
 
 impl<'a, S: LayoutScalar> ScrollTargetProjection<'a, S> {
     #[must_use]
-    pub(crate) fn from_node(input: &'a NodeInputOf<S>) -> Self {
+    pub(crate) fn from_settled(
+        flow_axes: crate::FlowAxes,
+        scroll_margin: &'a ScrollMarginOf<S>,
+        snap_align: ScrollSnapAlign,
+        snap_stop: ScrollSnapStop,
+    ) -> Self {
         Self {
-            flow_axes: crate::FlowAxes::new(input.writing_mode, input.direction),
-            scroll_margin: &input.scroll_margin,
-            snap_align: input.scroll_snap_align,
-            snap_stop: input.scroll_snap_stop,
+            flow_axes,
+            scroll_margin,
+            snap_align,
+            snap_stop,
         }
+    }
+
+    #[must_use]
+    pub(crate) fn from_node(input: &'a NodeInputOf<S>) -> Self {
+        Self::from_settled(
+            crate::FlowAxes::new(input.writing_mode, input.direction),
+            &input.scroll_margin,
+            input.scroll_snap_align,
+            input.scroll_snap_stop,
+        )
     }
 }
 
@@ -169,8 +203,23 @@ mod tests {
         };
 
         let common = CommonBoxProjection::from_node(&input);
-        let scroll_box = ScrollBoxProjection::from_node(&input);
-        let scroll_target = ScrollTargetProjection::from_node(&input);
+        let scroll_box = ScrollBoxProjection::from_settled(
+            common,
+            &input.overflow_clip_margin,
+            input.scrollbar_gutter,
+            input.scrollbar_width,
+            &input.scroll_padding,
+            input.scroll_snap_type,
+        );
+        let scroll_target = ScrollTargetProjection::from_settled(
+            common.flow_axes,
+            &input.scroll_margin,
+            input.scroll_snap_align,
+            input.scroll_snap_stop,
+        );
+
+        assert_eq!(scroll_box, ScrollBoxProjection::from_node(&input));
+        assert_eq!(scroll_target, ScrollTargetProjection::from_node(&input));
 
         assert_eq!(*common.size, expected_size);
         assert_eq!(*common.min_size, expected_min_size);

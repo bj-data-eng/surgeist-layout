@@ -25,6 +25,10 @@ impl SubgridAxisReport {
     pub(super) fn can_inherit(self) -> bool {
         self.eligibility.eligible
     }
+
+    pub(super) fn requested(self) -> bool {
+        self.eligibility.reason != Some(SubgridIneligibleReason::NotRequested)
+    }
 }
 
 pub(super) fn inherited_subgrid_physical_axis(
@@ -83,6 +87,7 @@ pub(super) struct SubgridEligibilityInput<'a, S: LayoutScalar = Scalar> {
     pub(super) parent_style: &'a GridContainerProjection<'a, S>,
     pub(super) has_parent_grid: bool,
     pub(super) child_style: &'a GridItemProjection<S>,
+    pub(super) child_requested: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1614,11 +1619,11 @@ pub(super) fn collect_subgrid_report<Node: Copy, S: LayoutScalar>(
         .copied()
         .enumerate()
         .map(|(index, child)| {
-            let child_style = placements.item_input(index);
+            let child_input = placements.child_input(index);
             SubgridItemReport {
                 node: child,
-                column: subgrid_axis_report(parent_style, child_style, GridAxisKind::Column),
-                row: subgrid_axis_report(parent_style, child_style, GridAxisKind::Row),
+                column: subgrid_axis_report(parent_style, child_input, GridAxisKind::Column),
+                row: subgrid_axis_report(parent_style, child_input, GridAxisKind::Row),
             }
         })
         .collect();
@@ -1679,18 +1684,15 @@ where
         let Some(area) = area else {
             continue;
         };
-        let child_style = input.placements.item_input(index);
+        let child_input = input.placements.child_input(index);
+        let child_style = child_input.item();
         if !is_in_flow_grid_child(child_style) {
             continue;
         }
-        let Some(child_axis) =
-            inherited_subgrid_axis_for_parent_axis(child_style, item_report, input.axis)
+        let Some(child_axis) = inherited_subgrid_axis_for_parent_axis(item_report, input.axis)
         else {
             continue;
         };
-        if !subgrid_requested(child_style, child_axis) {
-            continue;
-        }
         let area_size = intrinsic_traversal_area_size(
             area,
             input.column_sizes,
@@ -1704,6 +1706,7 @@ where
             tree,
             child,
             child_style,
+            child_input.nested_container(),
             area,
             area_size,
             item_report,
@@ -1745,6 +1748,7 @@ fn subgrid_traversal_child<Tree, M>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
     style: &GridItemProjection<Tree::Scalar>,
+    nested_container: Option<&GridContainerInput<Tree::Scalar>>,
     area: GridArea<Tree::Scalar>,
     area_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
@@ -1770,7 +1774,10 @@ where
         GridAxisKind::Column => item_report.column,
         GridAxisKind::Row => item_report.row,
     };
-    let queried_axis_requests_subgrid = subgrid_requested(style, queried_axis);
+    let queried_axis_requests_subgrid = match queried_axis {
+        GridAxisKind::Column => item_report.column.requested(),
+        GridAxisKind::Row => item_report.row.requested(),
+    };
     let is_grid_container = matches!(
         style.display.inner_display(),
         Display::Grid | Display::GridLanes
@@ -1787,6 +1794,9 @@ where
             align_self,
         })));
     }
+    let nested_container = nested_container
+        .expect("a nested grid traversal child must retain its container projection input");
+    let nested_container_style = nested_container.projection();
 
     let axis = if queried_axis_requests_subgrid && axis_report.can_inherit() {
         SubgridTraversalAxis::Inherited
@@ -1852,6 +1862,7 @@ where
             SubgridChildParentContextInput {
                 item: item_report,
                 child_style: style,
+                child_container_style: Some(nested_container_style),
                 area,
                 content_box_size: physical_content_box_size,
                 columns: parent_columns,
@@ -1892,7 +1903,7 @@ where
     }
     let subgrid_gap = Size::new(
         resolved_subgrid_axis_gap(
-            style,
+            &nested_container_style,
             GridAxisKind::Column,
             item_report.column,
             parent_gap,
@@ -1900,7 +1911,7 @@ where
         )
         .map_err(|status| crate::error::value_resolution_error(node, status))?,
         resolved_subgrid_axis_gap(
-            style,
+            &nested_container_style,
             GridAxisKind::Row,
             item_report.row,
             parent_gap,
@@ -1912,7 +1923,7 @@ where
     let Some((children, queried_axis_fully_inherited)) = subgrid_traversal_children(
         tree,
         node,
-        style,
+        nested_container,
         area,
         content_box_size,
         item_report,
@@ -1939,7 +1950,9 @@ where
             .then_some(content_box_size.width)
             .filter(|width| *width > Tree::Scalar::ZERO),
         available_inline_size_is_known: queried_axis == GridAxisKind::Row
-            && track_components_have_percent_sizing(&style.grid_template_columns),
+            && track_components_have_percent_sizing(
+                nested_container.projection().grid_template_columns,
+            ),
         align_self,
         standalone_parent_context: None,
         queried_axis_fully_inherited,
@@ -1963,7 +1976,7 @@ where
 fn subgrid_traversal_children<Tree, M>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
-    style: &GridItemProjection<Tree::Scalar>,
+    nested_container: &GridContainerInput<Tree::Scalar>,
     area: GridArea<Tree::Scalar>,
     content_box_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
@@ -2008,17 +2021,12 @@ where
         ),
     };
     let available = Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT);
-    let container_style = style.nested_container_projection();
+    let container_style = nested_container.projection();
     let intrinsic_minimum = standalone_intrinsic_minimum_phases(&container_style, &parent_context);
     let intrinsic_axes = intrinsic_minimum.map(|minimum| minimum.is_some());
-    let mut traversal_item = style.clone();
-    if intrinsic_axes.width {
-        traversal_item.min_size.width = MinSizeOf::AUTO;
-    }
-    if intrinsic_axes.height {
-        traversal_item.min_size.height = MinSizeOf::AUTO;
-    }
-    let traversal_style = traversal_item.nested_container_projection();
+    let mut traversal_input = nested_container.clone();
+    traversal_input.suppress_intrinsic_minimum(intrinsic_axes);
+    let traversal_style = traversal_input.projection();
     let constants = Constants::new_with_reservation::<Tree, M>(
         tree,
         node,
@@ -2059,7 +2067,9 @@ where
         &initialized.column_tracks,
         content_box_size.width,
         gap.width,
-        style.justify_content.unwrap_or(AlignContent::Stretch),
+        container_style
+            .justify_content
+            .unwrap_or(AlignContent::Stretch),
     );
     let traversal_rows = parent_context
         .rows
@@ -2113,12 +2123,12 @@ where
         let Some(child_area) = child_area else {
             continue;
         };
-        let child_style = initialized.placements.item_input(index);
+        let child_input = initialized.placements.child_input(index);
+        let child_style = child_input.item();
         if !is_in_flow_grid_child(child_style) {
             continue;
         }
-        let child_axis =
-            traversal_child_axis_for_parent_axis(child_style, child_report, queried_axis);
+        let child_axis = traversal_child_axis_for_parent_axis(child_report, queried_axis);
         let child_area_size = intrinsic_traversal_area_size(
             child_area,
             &traversal_columns,
@@ -2132,6 +2142,7 @@ where
             tree,
             child,
             child_style,
+            child_input.nested_container(),
             child_area,
             child_area_size,
             child_report,
@@ -2156,8 +2167,7 @@ where
     Ok(Some((traversal_children, queried_axis_fully_inherited)))
 }
 
-pub(super) fn inherited_subgrid_axis_for_parent_axis<Node, S: LayoutScalar>(
-    style: &GridItemProjection<S>,
+pub(super) fn inherited_subgrid_axis_for_parent_axis<Node>(
     item_report: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> Option<GridAxisKind>
@@ -2167,9 +2177,6 @@ where
     [GridAxisKind::Column, GridAxisKind::Row]
         .into_iter()
         .find(|axis| {
-            if !subgrid_requested(style, *axis) {
-                return false;
-            }
             let report = match axis {
                 GridAxisKind::Column => item_report.column,
                 GridAxisKind::Row => item_report.row,
@@ -2178,15 +2185,14 @@ where
         })
 }
 
-fn traversal_child_axis_for_parent_axis<Node, S: LayoutScalar>(
-    style: &GridItemProjection<S>,
+fn traversal_child_axis_for_parent_axis<Node>(
     item_report: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> GridAxisKind
 where
     Node: Copy,
 {
-    inherited_subgrid_axis_for_parent_axis(style, item_report, parent_axis).unwrap_or(parent_axis)
+    inherited_subgrid_axis_for_parent_axis(item_report, parent_axis).unwrap_or(parent_axis)
 }
 
 fn traversal_child_area_tracks<Node, S: LayoutScalar>(
@@ -2309,14 +2315,14 @@ fn axis_size<S: LayoutScalar>(size: Size<S>, axis: GridAxisKind) -> S {
 }
 
 fn resolved_subgrid_axis_gap<S: LayoutScalar>(
-    style: &GridItemProjection<S>,
+    style: &GridContainerProjection<'_, S>,
     axis: GridAxisKind,
     report: SubgridAxisReport,
     parent_gap: Size<S>,
     content_box_size: Size<S>,
 ) -> Result<S, LengthResolutionStatus<S>> {
-    let logical_gap =
-        crate::geometry::FlowAxes::new(style.writing_mode, style.direction).logical_size(style.gap);
+    let logical_gap = crate::geometry::FlowAxes::new(style.writing_mode, style.direction)
+        .logical_size(*style.gap);
     let gap = match axis {
         GridAxisKind::Column => logical_gap.inline,
         GridAxisKind::Row => logical_gap.block,
@@ -2438,7 +2444,7 @@ fn intrinsic_traversal_axis_area_size<S: LayoutScalar>(
 pub(super) fn subgrid_eligibility<S: LayoutScalar>(
     input: SubgridEligibilityInput<'_, S>,
 ) -> SubgridEligibility {
-    let reason = if !subgrid_requested(input.child_style, input.axis) {
+    let reason = if !input.child_requested {
         Some(SubgridIneligibleReason::NotRequested)
     } else if !input.has_parent_grid {
         Some(SubgridIneligibleReason::NoParentGrid)
@@ -2460,9 +2466,10 @@ pub(super) fn subgrid_eligibility<S: LayoutScalar>(
 
 pub(super) fn subgrid_axis_report<S: LayoutScalar>(
     parent_style: &GridContainerProjection<'_, S>,
-    child_style: &GridItemProjection<S>,
+    child_input: &GridChildInput<S>,
     axis: GridAxisKind,
 ) -> SubgridAxisReport {
+    let child_style = child_input.item();
     SubgridAxisReport {
         mapping: map_grid_axis(GridAxisMappingInput {
             queried_axis: axis,
@@ -2474,22 +2481,9 @@ pub(super) fn subgrid_axis_report<S: LayoutScalar>(
             parent_style,
             has_parent_grid: true,
             child_style,
+            child_requested: child_input.subgrid_requested(axis),
         }),
     }
-}
-
-pub(super) fn subgrid_requested<S: LayoutScalar>(
-    style: &GridItemProjection<S>,
-    axis: GridAxisKind,
-) -> bool {
-    let components = match axis {
-        GridAxisKind::Column => &style.grid_template_columns,
-        GridAxisKind::Row => &style.grid_template_rows,
-    };
-
-    components
-        .iter()
-        .any(|component| matches!(component, TrackComponentOf::Subgrid(_)))
 }
 
 const fn subgrid_container_display_supported(display: Display) -> bool {
@@ -2593,7 +2587,11 @@ mod tests {
                 display: Display::Grid,
                 ..NodeInputOf::default()
             };
-            let item_projection = GridItemProjection::from_node(&style);
+            let child_input = GridChildInput::from_node(&style);
+            let container_projection = child_input
+                .nested_container()
+                .expect("grid test child must retain container input")
+                .projection();
             let parent_projection = GridContainerProjection::from_node(&parent_style);
 
             for (axis, expected) in [
@@ -2601,9 +2599,9 @@ mod tests {
                 (GridAxisKind::Row, S::from_f64(7.0)),
             ] {
                 let actual = resolved_subgrid_axis_gap(
-                    &item_projection,
+                    &container_projection,
                     axis,
-                    subgrid_axis_report(&parent_projection, &item_projection, axis),
+                    subgrid_axis_report(&parent_projection, &child_input, axis),
                     Size::ZERO,
                     Size::splat(S::from_f64(100.0)),
                 )
@@ -2645,12 +2643,12 @@ mod tests {
         let tree = TraversalTree {
             input: style.clone(),
         };
-        let item_projection = GridItemProjection::from_node(&style);
+        let child_input = GridChildInput::from_node(&style);
         let parent_projection = GridContainerProjection::from_node(&parent_style);
         let item_report = SubgridItemReport {
             node: 0,
-            column: subgrid_axis_report(&parent_projection, &item_projection, GridAxisKind::Column),
-            row: subgrid_axis_report(&parent_projection, &item_projection, GridAxisKind::Row),
+            column: subgrid_axis_report(&parent_projection, &child_input, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_projection, &child_input, GridAxisKind::Row),
         };
         let named_columns = NamedGridLines::new(GridAxisKind::Column, 1);
         let named_rows = NamedGridLines::new(GridAxisKind::Row, 1);
@@ -2658,7 +2656,9 @@ mod tests {
         let error = subgrid_traversal_children::<TraversalTree, Infallible>(
             &tree,
             0,
-            &item_projection,
+            child_input
+                .nested_container()
+                .expect("subgrid traversal test must retain container input"),
             GridArea {
                 column: 0,
                 row: 0,

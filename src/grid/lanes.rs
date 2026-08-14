@@ -1101,9 +1101,7 @@ where
             .get(source_slot)
             .copied()
             .expect("grid-lanes subgrid report must preserve one item per child");
-        if let Some(child_axis) =
-            inherited_subgrid_axis_for_parent_axis(child_style, item_report, axis)
-        {
+        if let Some(child_axis) = inherited_subgrid_axis_for_parent_axis(item_report, axis) {
             let axis_report = match child_axis {
                 GridAxisKind::Column => item_report.column,
                 GridAxisKind::Row => item_report.row,
@@ -1128,7 +1126,7 @@ where
             collect_nested_lane_intrinsic_items(
                 tree,
                 child,
-                child_style,
+                placements.child_input(source_slot),
                 constants,
                 NestedLaneIntrinsicProjectionOf {
                     root_track_count: tracks.len(),
@@ -1314,7 +1312,7 @@ pub(super) fn nested_lane_candidate_groups<S: LayoutScalar>(
 fn collect_nested_lane_intrinsic_items<Tree, M>(
     tree: &mut Tree,
     wrapper: <Tree as Traverse>::Node,
-    wrapper_style: &GridItemProjection<Tree::Scalar>,
+    wrapper_input: &GridChildInput<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     mut projection: NestedLaneIntrinsicProjectionOf<Tree::Scalar>,
     available: AvailableOf<Tree::Scalar>,
@@ -1326,9 +1324,12 @@ where
     if projection.wrapper_starts.is_empty() || projection.wrapper_span == 0 {
         return Ok(());
     }
-    let wrapper_flow_axes =
-        crate::geometry::FlowAxes::new(wrapper_style.writing_mode, wrapper_style.direction);
-    let logical_gap = wrapper_flow_axes.logical_size(wrapper_style.gap);
+    let wrapper_container = wrapper_input
+        .nested_container()
+        .expect("a nested lanes wrapper must retain its container projection input")
+        .projection();
+    let wrapper_flow_axes = wrapper_container.common.flow_axes;
+    let logical_gap = wrapper_flow_axes.logical_size(*wrapper_container.gap);
     let gap_value = match projection.axis {
         GridAxisKind::Column => logical_gap.inline,
         GridAxisKind::Row => logical_gap.block,
@@ -1351,13 +1352,14 @@ where
     let child_inputs = children
         .iter()
         .copied()
-        .map(|child| input::project_grid_item!(tree, child))
+        .map(|child| input::project_grid_child_input!(tree, child))
         .collect::<Vec<_>>();
     let order = order_modified_indexes(
         &child_inputs
             .iter()
             .enumerate()
-            .filter_map(|(index, style)| {
+            .filter_map(|(index, input)| {
+                let style = input.item();
                 is_in_flow_grid_child(style)
                     .then_some((style.item_order, crate::SourceIndex::new(index)))
             })
@@ -1365,7 +1367,8 @@ where
     );
     for source_index in order {
         let child = children[source_index.get()];
-        let child_style = &child_inputs[source_index.get()];
+        let child_input = &child_inputs[source_index.get()];
+        let child_style = child_input.item();
         if !is_in_flow_grid_child(child_style)
             || scroll_container_auto_minimum_zero(child_style, wrapper_flow_axes, projection.axis)
         {
@@ -1393,14 +1396,13 @@ where
             continue;
         }
 
-        let wrapper_container = wrapper_style.nested_container_projection();
         let item_report = SubgridItemReport {
             node: child,
-            column: subgrid_axis_report(&wrapper_container, child_style, GridAxisKind::Column),
-            row: subgrid_axis_report(&wrapper_container, child_style, GridAxisKind::Row),
+            column: subgrid_axis_report(&wrapper_container, child_input, GridAxisKind::Column),
+            row: subgrid_axis_report(&wrapper_container, child_input, GridAxisKind::Row),
         };
         if let Some(child_axis) =
-            inherited_subgrid_axis_for_parent_axis(child_style, item_report, projection.axis)
+            inherited_subgrid_axis_for_parent_axis(item_report, projection.axis)
         {
             let axis_report = match child_axis {
                 GridAxisKind::Column => item_report.column,
@@ -1419,7 +1421,7 @@ where
                 collect_nested_lane_intrinsic_items(
                     tree,
                     child,
-                    child_style,
+                    child_input,
                     constants,
                     NestedLaneIntrinsicProjectionOf {
                         root_track_count: projection.root_track_count,
@@ -2022,10 +2024,10 @@ where
             .physical_size()
             .map(|extent| extent.expect("final grid-lanes containing extent is definite"));
         let mut item = grid_item_sizing_for_grid_flow::<Tree, M>(
-            tree,
             child,
             &child_style,
             style,
+            subgrid_report.items.get(source_index).copied(),
             physical_area_size,
             physical_area_size.map(Some),
             flow_axes,
@@ -2063,12 +2065,16 @@ where
             - padding.sum_axes()
             - border.sum_axes())
         .max(Size::ZERO);
+        let child_container_style = placements
+            .nested_container_input(source_index)
+            .map(GridContainerInput::projection);
         let child_context = subgrid_child_parent_context(SubgridChildParentContextInput {
             item: *subgrid_report
                 .items
                 .get(source_index)
                 .expect("grid-lanes subgrid report must preserve one item per child"),
             child_style: &child_style,
+            child_container_style,
             area,
             content_box_size: subgrid_content_box_size,
             columns,
@@ -2166,6 +2172,7 @@ where
         pending_items.push(PendingGridItem {
             node: child,
             style: child_style.clone(),
+            nested_container: placements.nested_container_input(source_index).cloned(),
             source_index,
             area,
             output,

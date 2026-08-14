@@ -44,7 +44,10 @@ use alignment::*;
 pub use axis::GridAxisKind;
 use axis::{GridAxisMappingInput, GridAxisMappingReport, map_grid_axis};
 use child::*;
-use input::{GridContainerProjection, GridItemProjection, order_modified_indexes};
+use input::{
+    GridChildInput, GridContainerInput, GridContainerProjection, GridItemProjection,
+    order_modified_indexes,
+};
 pub use lanes::{
     DefiniteLaneIntrinsicItem, DefiniteLaneIntrinsicItemOf, IndefiniteLaneContributionGroup,
     IndefiniteLaneContributionGroupOf, LaneContributionFacts, LaneContributionFactsOf,
@@ -1265,16 +1268,16 @@ pub(super) struct ResolvedGridItemPlacement {
 pub(super) struct GridPlacementContext<Node, S: LayoutScalar = Scalar> {
     pub(super) children: Vec<Node>,
     pub(super) items: Vec<ResolvedGridItemPlacement>,
-    item_inputs: Vec<GridItemProjection<S>>,
+    child_inputs: Vec<GridChildInput<S>>,
     pub(super) order_modified_indexes: Vec<crate::SourceIndex>,
     settled_areas: Option<Vec<Option<PlacedGridArea>>>,
 }
 
 impl<Node, S: LayoutScalar> GridPlacementContext<Node, S> {
-    fn new_with_item_inputs(
+    fn new_with_child_inputs(
         children: Vec<Node>,
         items: Vec<ResolvedGridItemPlacement>,
-        item_inputs: Vec<GridItemProjection<S>>,
+        child_inputs: Vec<GridChildInput<S>>,
     ) -> Self {
         assert_eq!(
             children.len(),
@@ -1283,8 +1286,8 @@ impl<Node, S: LayoutScalar> GridPlacementContext<Node, S> {
         );
         assert_eq!(
             children.len(),
-            item_inputs.len(),
-            "grid placement context must preserve one item projection per child"
+            child_inputs.len(),
+            "grid placement context must preserve one settled child input per child"
         );
         let order_modified_indexes = items
             .iter()
@@ -1294,7 +1297,7 @@ impl<Node, S: LayoutScalar> GridPlacementContext<Node, S> {
         Self {
             children,
             items,
-            item_inputs,
+            child_inputs,
             order_modified_indexes,
             settled_areas: None,
         }
@@ -1302,10 +1305,10 @@ impl<Node, S: LayoutScalar> GridPlacementContext<Node, S> {
 
     #[cfg(test)]
     fn new(children: Vec<Node>, items: Vec<ResolvedGridItemPlacement>) -> Self {
-        let item_inputs = (0..children.len())
-            .map(|_| GridItemProjection::from_node(&crate::NodeInputOf::default()))
+        let child_inputs = (0..children.len())
+            .map(|_| GridChildInput::from_node(&crate::NodeInputOf::default()))
             .collect();
-        Self::new_with_item_inputs(children, items, item_inputs)
+        Self::new_with_child_inputs(children, items, child_inputs)
     }
 
     fn with_order_modified_indexes(
@@ -1325,7 +1328,15 @@ impl<Node, S: LayoutScalar> GridPlacementContext<Node, S> {
     }
 
     fn item_input(&self, source_index: usize) -> &GridItemProjection<S> {
-        &self.item_inputs[source_index]
+        self.child_inputs[source_index].item()
+    }
+
+    fn child_input(&self, source_index: usize) -> &GridChildInput<S> {
+        &self.child_inputs[source_index]
+    }
+
+    fn nested_container_input(&self, source_index: usize) -> Option<&GridContainerInput<S>> {
+        self.child_inputs[source_index].nested_container()
     }
 }
 
@@ -1713,12 +1724,13 @@ where
 {
     let mut report = NamedGridReport::default();
     let mut items = Vec::with_capacity(children.len());
-    let item_inputs = children
+    let child_inputs = children
         .iter()
         .copied()
-        .map(|child| input::project_grid_item!(tree, child))
+        .map(|child| input::project_grid_child_input!(tree, child))
         .collect::<Vec<_>>();
-    for style in &item_inputs {
+    for child_input in &child_inputs {
+        let style = child_input.item();
         if style.display == Display::None {
             items.push(ResolvedGridItemPlacement {
                 column: style.grid_column,
@@ -1760,14 +1772,14 @@ where
             .filter(|(_, item)| item.in_flow)
             .map(|(index, _)| {
                 (
-                    item_inputs[index].item_order,
+                    child_inputs[index].item().item_order,
                     crate::SourceIndex::new(index),
                 )
             })
             .collect::<Vec<_>>(),
     );
     (
-        GridPlacementContext::new_with_item_inputs(children.to_vec(), items, item_inputs)
+        GridPlacementContext::new_with_child_inputs(children.to_vec(), items, child_inputs)
             .with_order_modified_indexes(order_modified_indexes),
         report,
     )

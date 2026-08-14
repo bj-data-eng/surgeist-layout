@@ -24,6 +24,12 @@ macro_rules! grid_item_projection {
     };
 }
 
+macro_rules! grid_child_input {
+    ($input:expr) => {
+        GridChildInput::from_node($input)
+    };
+}
+
 fn default_grid_item_projection<S: LayoutScalar>() -> GridItemProjection<S> {
     grid_item_projection!(&NodeInputOf::default())
 }
@@ -32,7 +38,7 @@ fn single_grid_placement_context<S: LayoutScalar>(
     child: u32,
     style: &NodeInputOf<S>,
 ) -> GridPlacementContext<u32, S> {
-    GridPlacementContext::new_with_item_inputs(
+    GridPlacementContext::new_with_child_inputs(
         vec![child],
         vec![ResolvedGridItemPlacement {
             column: GridPlacement::AUTO,
@@ -41,7 +47,7 @@ fn single_grid_placement_context<S: LayoutScalar>(
             absolute_row: GridPlacement::AUTO,
             in_flow: true,
         }],
-        vec![grid_item_projection!(style)],
+        vec![grid_child_input!(style)],
     )
 }
 
@@ -52,7 +58,7 @@ fn subgrid_axis_report<S: LayoutScalar>(
 ) -> SubgridAxisReport {
     super::subgrid_axis_report(
         &grid_container_projection!(parent_style),
-        &grid_item_projection!(child_style),
+        &grid_child_input!(child_style),
         axis,
     )
 }
@@ -83,11 +89,13 @@ struct SubgridEligibilityInput<'a, S: LayoutScalar = Scalar> {
 fn subgrid_eligibility<S: LayoutScalar>(
     input: SubgridEligibilityInput<'_, S>,
 ) -> SubgridEligibility {
+    let child_input = grid_child_input!(input.child_style);
     super::subgrid_eligibility(super::subgrid::SubgridEligibilityInput {
         axis: input.axis,
         parent_style: &grid_container_projection!(input.parent_style),
         has_parent_grid: input.has_parent_grid,
-        child_style: &grid_item_projection!(input.child_style),
+        child_style: child_input.item(),
+        child_requested: child_input.subgrid_requested(input.axis),
     })
 }
 
@@ -96,7 +104,7 @@ fn child_subgrid_gap<S: LayoutScalar>(
     axis: GridAxisKind,
     area_size: Size<S>,
 ) -> Result<ResolvedSubgridGap<S>, crate::LengthResolutionStatus<S>> {
-    super::child::child_subgrid_gap(&grid_item_projection!(style), axis, area_size)
+    super::child::child_subgrid_gap(&grid_container_projection!(style), axis, area_size)
 }
 
 fn needs_intrinsic_subgrid_context<Node: Copy, S: LayoutScalar>(
@@ -104,7 +112,12 @@ fn needs_intrinsic_subgrid_context<Node: Copy, S: LayoutScalar>(
     item: SubgridItemReport<Node>,
     area: GridArea<S>,
 ) -> bool {
-    super::tracks::needs_intrinsic_subgrid_context(&grid_item_projection!(style), item, area)
+    super::tracks::needs_intrinsic_subgrid_context(
+        &grid_container_projection!(style),
+        &grid_item_projection!(style),
+        item,
+        area,
+    )
 }
 
 fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
@@ -117,6 +130,16 @@ fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
     super::child::grid_item_sizing_with_grid_flow_status(
         &grid_item_projection!(child_style),
         &grid_container_projection!(container_style),
+        Size::new(
+            child_style
+                .grid_template_columns
+                .iter()
+                .any(|component| matches!(component, TrackComponentOf::Subgrid(_))),
+            child_style
+                .grid_template_rows
+                .iter()
+                .any(|component| matches!(component, TrackComponentOf::Subgrid(_))),
+        ),
         area_size,
         containing_physical_size,
         grid_flow_axes,
@@ -145,10 +168,15 @@ fn with_projected_subgrid_child_input<Node: Copy, S: LayoutScalar, R>(
     input: SubgridChildParentContextInput<'_, Node, S>,
     consume: impl FnOnce(super::child::SubgridChildParentContextInput<'_, Node, S>) -> R,
 ) -> R {
-    let child_style = grid_item_projection!(input.child_style);
+    let child_input = grid_child_input!(input.child_style);
+    let child_container_style = child_input
+        .nested_container()
+        .expect("test subgrid child must retain its container projection input")
+        .projection();
     consume(super::child::SubgridChildParentContextInput {
         item: input.item,
-        child_style: &child_style,
+        child_style: child_input.item(),
+        child_container_style: Some(child_container_style),
         area: input.area,
         content_box_size: input.content_box_size,
         columns: input.columns,
@@ -12571,9 +12599,9 @@ where
         in_flow,
     };
     let item_inputs = (1..=6)
-        .map(|child| grid_item_projection!(tree.node_input(child)))
+        .map(|child| grid_child_input!(tree.node_input(child)))
         .collect();
-    let placements = GridPlacementContext::new_with_item_inputs(
+    let placements = GridPlacementContext::new_with_child_inputs(
         vec![1, 2, 3, 4, 5, 6],
         vec![
             placement(
@@ -28842,6 +28870,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
     let item = PendingGridItem::<_, f64> {
         node: "child",
         style: grid_item_projection!(&NodeInputOf::default()),
+        nested_container: None,
         source_index: 0,
         area,
         output: ComputeOutputOf::<f64>::from_sizes_and_baselines(
@@ -30620,6 +30649,7 @@ fn baseline_test_item(
             align_self: Some(align_self),
             ..NodeInput::default()
         }),
+        nested_container: None,
         source_index: 0,
         area: GridArea {
             row,
@@ -31257,6 +31287,7 @@ fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
     PendingGridItem {
         node: (),
         style: default_grid_item_projection(),
+        nested_container: None,
         source_index: 0,
         area: GridArea {
             column: 0,
