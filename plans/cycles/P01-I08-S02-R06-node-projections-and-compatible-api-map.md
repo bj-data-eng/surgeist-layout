@@ -67,13 +67,18 @@ non-input `src/scroll/*.rs` for `scroll`; every non-input `src/block/*.rs` plus
 `flex`; `src/grid/topology.rs` plus non-input
 `src/grid/tracks/{mod,validation,ordinary,flexible}.rs` for `grid-container`;
 every non-input Rust file below `src/grid/` for `grid`; and the union for `all`.
-Every selected file is scanned fail-closed with multiline PCRE for: any
-qualified or unqualified `NodeInput`/`NodeInputOf` identifier parameter, field,
-boxed storage, or return; any type alias or `use ... as` alias of either public
-aggregate; every receiver-independent `.node_input(...)` call; and every
-`LayoutInput`/`LayoutInputOf` box-pattern or `.as_box(...)` extraction. Thus a
-borrowed binding, direct field access, default-scalar spelling, qualification,
-or introduced alias cannot bypass the audit. `grid-container` is the
+The script uses a standard-library lexical scanner, not raw grep: it masks line
+and nested block comments, ordinary/byte/raw strings, chars, and every balanced
+item gated by exact `cfg(test)` before inspecting production tokens. Its
+mandatory `--self-test` covers nested delimiters in literals/comments plus
+test-gated `use`, function, and module items, and proves an adjacent production
+violation remains visible. In each selected production token stream it rejects
+every qualified or unqualified `NodeInput`/`NodeInputOf` token, every
+`LayoutInput`/`LayoutInputOf` token, and every call-form `node_input(` token;
+this covers dot, associated-function, UFCS, borrowed binding, direct field,
+default-scalar, variant extraction, and local alias spellings. Input owners are
+separately rejected if they type-alias or reexport either complete aggregate;
+they may only consume it to construct projections. `grid-container` is the
 intentionally narrow pre-item stage; T06 explicitly owns `grid/mod.rs`, lanes,
 subgrid, placement/named/axis, intrinsic/subgrid tracks, and every child path,
 then `grid` closes the entire grid tree. The script has no line/text allowlist
@@ -152,6 +157,7 @@ mappings, clips, gutters, ranges, snap metadata, errors, and both scalar lanes.
 ```sh
 set -e; for f in canonical_geometry_ scroll_projection_ fri08_c07_t02_scroll_source_ scroll_snap_; do CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout "$f"; done
 test -f src/node_projection.rs; test -f src/scroll/input.rs; test "$(rg -l 'struct CommonBoxProjection' src --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct ScrollBoxProjection' src/scroll --glob '*.rs' | wc -l | tr -d ' ')" = 1; test "$(rg -l 'struct ScrollTargetProjection' src/scroll --glob '*.rs' | wc -l | tr -d ' ')" = 1
+scripts/audit-node-projection-boundaries.sh --self-test
 scripts/audit-node-projection-boundaries.sh scroll
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout; CARGO_NET_OFFLINE=true cargo clippy --locked --offline -p surgeist-layout --all-targets -- -F unsafe-code -D warnings; cargo fmt --check; git diff --check
 ```
@@ -329,6 +335,7 @@ CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri08_re
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout fri05_c05_grid_legacy_absence_inventories_every_production_source
 rg -q '^## Public API Map$' README.md; for h in 'Computation and tree' 'Node input' 'Sizing' 'Geometry and scroll' 'Output' 'Finite grid utilities'; do rg -q "^### $h$" README.md; done
 scripts/audit-node-projection-boundaries.sh all
+scripts/audit-node-projection-boundaries.sh --self-test
 : "${TASK_SPANS:?set TASK_SPANS to the newline-delimited ordered exact full-SHA spans from the seven CLEAN task reviews}"
 expected_paths="$({ printf '%s\n' plans/cycles/P01-I08-S02-R06-node-projections-and-compatible-api-map.md; while IFS= read -r span; do git diff --name-only "$span"; done <<< "$TASK_SPANS"; } | LC_ALL=C sort -u)"; actual_paths="$(git diff --name-only 05a531dd661937aa3518678524c9accb0a99063d..HEAD | LC_ALL=C sort -u)"; test "$actual_paths" = "$expected_paths"
 base_suppressions="$(while IFS= read -r p; do git show "05a531dd661937aa3518678524c9accb0a99063d:$p" | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }'; done < <(git ls-tree -r --name-only 05a531dd661937aa3518678524c9accb0a99063d | rg '\.rs$') | LC_ALL=C sort)"; current_suppressions="$({ git ls-files -z -- '*.rs'; git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) { $m=$&; $m=~s/\s+/ /g; print "$m\n" }' | LC_ALL=C sort)"; test -z "$(comm -13 <(printf '%s\n' "$base_suppressions") <(printf '%s\n' "$current_suppressions"))"
