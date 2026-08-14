@@ -61,14 +61,19 @@ T02 adds `scripts/audit-node-projection-boundaries.sh` as a workflow-only audit,
 never a cargo test. It has fixed modes `scroll`, `block-inline`, `flex`,
 `grid-container`, `grid`, and `all`. The only allowed complete-input owners in
 algorithm trees are `src/{block,flex,grid,scroll,inline}/input.rs`; the shared
-constructor owner is `src/node_projection.rs`. Every other selected Rust file is
-scanned fail-closed with multiline PCRE for any identifier parameter or field of
-`NodeInputOf`, `Box<NodeInputOf`, a `NodeInputOf` return, or a cloned
-`tree.node_input(...)`. `grid-container` applies the same check to container,
-parent, and wrapper style identifiers before the item task; `grid` checks every
-identifier afterward. The script has no line/text allowlist and exits nonzero
-after printing every violation. T02 through T06 run the mode for the boundary
-they close; T07 and final acceptance run `all`.
+constructor owner is `src/node_projection.rs`. Fixed selected paths are: every
+non-input `src/scroll/*.rs` for `scroll`; every non-input `src/block/*.rs` plus
+`src/inline/mod.rs` for `block-inline`; every non-input `src/flex/*.rs` for
+`flex`; `src/grid/topology.rs` plus non-input
+`src/grid/tracks/{mod,validation,ordinary,flexible}.rs` for `grid-container`;
+every non-input Rust file below `src/grid/` for `grid`; and the union for `all`.
+Every selected file is scanned fail-closed with multiline PCRE for any identifier
+parameter or field of `NodeInputOf`, `Box<NodeInputOf`, a `NodeInputOf` return,
+or any raw `tree.node_input(...)` call, including borrowed bindings and direct
+field access. `grid-container` is the intentionally narrow pre-item stage;
+`grid` closes every remaining grid path in T06. The script has no line/text
+allowlist and exits nonzero after printing every violation. T02 through T06 run
+the mode for the boundary they close; T07 and final acceptance run `all`.
 
 Public API classification: source-compatible documentation/internal ownership
 change only. Dependencies, features, Cargo files, MSRV, root integration, and
@@ -268,7 +273,7 @@ duplicated into algorithm-specific carriers; no projection or helper is public.
 `fri06_c03_lifecycle_`, `fri08_c07_t03_optional_math_`, and all block/flex/grid
 writing-mode families pass before and after. The workflow-only aggregate source
 audit is RED at the assignment base and GREEN only when fixed `all` mode finds
-no `NodeInputOf` parameter/storage/return or cloned tree input outside the six
+no `NodeInputOf` parameter/storage/return or raw tree input outside the six
 algorithm input owners. No Rust test parses source or asserts ownership.
 
 ```sh
