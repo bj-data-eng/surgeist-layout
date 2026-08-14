@@ -1,5 +1,6 @@
 use crate::{LayoutScalar, LengthResolutionStatus, Scalar, TrackComponentOf, TrackSizingOf};
 
+use super::GridContainerProjection;
 use super::named::{GridAreaNameFacts, GridNamedContext, NamedGridLines};
 use super::placement::{GridPlacementDemandError, PlacedGridArea};
 use super::tracks::{AutoRepeatTrackOrigin, TrackExpansionOf, expand_track_components};
@@ -70,11 +71,10 @@ pub(super) struct ExpandedGridTopology<S: LayoutScalar = Scalar> {
 }
 
 pub(super) struct ExpandedGridTopologyInput<'a, S: LayoutScalar = Scalar> {
+    pub(super) container: GridContainerProjection<'a, S>,
     pub(super) columns: TrackExpansionOf<S>,
     pub(super) rows: TrackExpansionOf<S>,
     pub(super) named: GridNamedContext,
-    pub(super) auto_columns: &'a [TrackComponentOf<S>],
-    pub(super) auto_rows: &'a [TrackComponentOf<S>],
     pub(super) column_basis: Option<S>,
     pub(super) row_basis: Option<S>,
     pub(super) column_gap: S,
@@ -101,7 +101,7 @@ impl<S: LayoutScalar> ExpandedGridTopology<S> {
         let columns = complete_explicit_axis(
             input.columns,
             named_columns,
-            input.auto_columns,
+            input.container.grid_auto_columns,
             input.column_basis,
             input.column_gap,
             input.inherited_columns,
@@ -109,19 +109,23 @@ impl<S: LayoutScalar> ExpandedGridTopology<S> {
         let rows = complete_explicit_axis(
             input.rows,
             named_rows,
-            input.auto_rows,
+            input.container.grid_auto_rows,
             input.row_basis,
             input.row_gap,
             input.inherited_rows,
         )?;
         let column_auto_pattern = expand_track_components(
-            input.auto_columns,
+            input.container.grid_auto_columns,
             input.column_basis,
             input.column_gap,
             None,
         )?;
-        let row_auto_pattern =
-            expand_track_components(input.auto_rows, input.row_basis, input.row_gap, None)?;
+        let row_auto_pattern = expand_track_components(
+            input.container.grid_auto_rows,
+            input.row_basis,
+            input.row_gap,
+            None,
+        )?;
         let explicit_columns = columns.tracks.len();
         let explicit_rows = rows.tracks.len();
         let topology = Self {

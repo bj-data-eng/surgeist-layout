@@ -2418,6 +2418,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             "src/grid/child/subgrid_context.rs",
             include_str!("grid/child/subgrid_context.rs"),
         ),
+        ("src/grid/input.rs", include_str!("grid/input.rs")),
         ("src/grid/lanes.rs", include_str!("grid/lanes.rs")),
         ("src/grid/mod.rs", include_str!("grid/mod.rs")),
         ("src/grid/named.rs", include_str!("grid/named.rs")),

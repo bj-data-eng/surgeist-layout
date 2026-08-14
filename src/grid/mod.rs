@@ -30,6 +30,7 @@ use crate::sizing::resolve::{
 mod alignment;
 mod axis;
 mod child;
+mod input;
 mod lanes;
 mod named;
 mod placement;
@@ -44,6 +45,7 @@ use alignment::*;
 pub use axis::GridAxisKind;
 use axis::{GridAxisMappingInput, GridAxisMappingReport, map_grid_axis};
 use child::*;
+use input::GridContainerProjection;
 pub use lanes::{
     DefiniteLaneIntrinsicItem, DefiniteLaneIntrinsicItemOf, IndefiniteLaneContributionGroup,
     IndefiniteLaneContributionGroupOf, LaneContributionFacts, LaneContributionFactsOf,
@@ -1354,9 +1356,10 @@ where
     Tree: Compute<M>,
 {
     let sizing_flow_axes = constants.flow_axes;
+    let container_style = GridContainerProjection::from_node(style);
     let resolved_gap = Size::new(
-        resolve_length_or_zero(style.gap.width, constants.node_inner_size.width),
-        resolve_length_or_zero(style.gap.height, constants.node_inner_size.height),
+        resolve_length_or_zero(container_style.gap.width, constants.node_inner_size.width),
+        resolve_length_or_zero(container_style.gap.height, constants.node_inner_size.height),
     )
     .transpose_with_node(tree, node)?;
     let mut gap = sizing_flow_axes.logical_size(resolved_gap);
@@ -1369,7 +1372,7 @@ where
     let mut percent_basis = sizing_flow_axes.logical_size(constants.node_inner_size);
     let children = tree.children(node).collect::<Vec<_>>();
     let column_expansion_basis = track_expansion_basis(
-        &style.grid_template_columns,
+        container_style.grid_template_columns,
         sizing_flow_axes
             .logical_size(constants.node_inner_size)
             .inline,
@@ -1378,7 +1381,7 @@ where
             .inline,
     );
     let row_expansion_basis = track_expansion_basis(
-        &style.grid_template_rows,
+        container_style.grid_template_rows,
         sizing_flow_axes
             .logical_size(constants.node_inner_size)
             .block,
@@ -1397,7 +1400,7 @@ where
         )
     } else {
         expand_track_components_with_origins(
-            &style.grid_template_columns,
+            container_style.grid_template_columns,
             column_expansion_basis,
             gap.inline,
             None,
@@ -1408,7 +1411,7 @@ where
         TrackExpansionOf::inherited(rows.tracks.iter().copied().map(TrackSizingOf::px).collect())
     } else {
         expand_track_components_with_origins(
-            &style.grid_template_rows,
+            container_style.grid_template_rows,
             row_expansion_basis,
             gap.block,
             None,
@@ -1456,11 +1459,10 @@ where
         }
     };
     let mut topology = ExpandedGridTopology::new(ExpandedGridTopologyInput {
+        container: container_style,
         columns: column_expansion,
         rows: row_expansion,
         named: named_context,
-        auto_columns: &style.grid_auto_columns,
-        auto_rows: &style.grid_auto_rows,
         column_basis: percent_basis.inline,
         row_basis: percent_basis.block,
         column_gap: gap.inline,
@@ -1487,10 +1489,16 @@ where
     report.merge_named_grid(placement_report);
     let inherited_columns = parent_context.columns.is_some();
     let inherited_rows = parent_context.rows.is_some();
-    let ordinary_settled_placement = !style.display.establishes_grid_lanes_formatting_context();
+    let ordinary_settled_placement = !container_style
+        .display
+        .establishes_grid_lanes_formatting_context();
     let (column_tracks, row_tracks, leading_columns, leading_rows) = if ordinary_settled_placement {
-        derive_grid_placement_demand(&mut topology, &mut placements, style.grid_auto_flow)
-            .map_err(|error| grid_placement_demand_error(node, error))?;
+        derive_grid_placement_demand(
+            &mut topology,
+            &mut placements,
+            container_style.grid_auto_flow,
+        )
+        .map_err(|error| grid_placement_demand_error(node, error))?;
         topology.collapse_ordinary_auto_fit(placements.settled_areas());
         let mut column_tracks = topology.column_tracks.clone();
         let mut row_tracks = topology.row_tracks.clone();

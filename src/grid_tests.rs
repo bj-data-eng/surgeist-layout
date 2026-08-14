@@ -29082,11 +29082,10 @@ fn fri08_c01_topology_for_style<S: LayoutScalar>(
     )
     .expect("valid named topology input");
     topology::ExpandedGridTopology::new(topology::ExpandedGridTopologyInput {
+        container: GridContainerProjection::from_node(style),
         columns,
         rows,
         named,
-        auto_columns: &style.grid_auto_columns,
-        auto_rows: &style.grid_auto_rows,
         column_basis,
         row_basis,
         column_gap: S::ZERO,

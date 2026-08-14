@@ -2,28 +2,32 @@ use super::ordinary::{OrdinaryTrackState, intrinsic_at};
 use super::*;
 
 use crate::geometry::FlowAxes;
+use crate::grid::input::GridContainerProjection;
 use crate::scroll::{UsedOverflow, UsedOverflowAxis};
 
-pub(in crate::grid) fn grid_axis_used_overflow<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+pub(in crate::grid) fn grid_axis_used_overflow<'a, S: LayoutScalar>(
+    style: impl Into<GridContainerProjection<'a, S>>,
     flow_axes: FlowAxes,
     axis: GridAxisKind,
 ) -> UsedOverflowAxis {
-    let overflow = UsedOverflow::from_computed(style.overflow, style.item_is_replaced);
+    let style = style.into();
+    let overflow =
+        UsedOverflow::from_computed(style.common.overflow, style.common.item_is_replaced);
     match grid_axis_physical_axis(flow_axes, axis) {
         crate::geometry::PhysicalAxis::Horizontal => overflow.x(),
         crate::geometry::PhysicalAxis::Vertical => overflow.y(),
     }
 }
 
-pub(in crate::grid) fn grid_axis_computed_overflow<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
+pub(in crate::grid) fn grid_axis_computed_overflow<'a, S: LayoutScalar>(
+    style: impl Into<GridContainerProjection<'a, S>>,
     flow_axes: FlowAxes,
     axis: GridAxisKind,
 ) -> Overflow {
+    let style = style.into();
     match grid_axis_physical_axis(flow_axes, axis) {
-        crate::geometry::PhysicalAxis::Horizontal => style.overflow.x(),
-        crate::geometry::PhysicalAxis::Vertical => style.overflow.y(),
+        crate::geometry::PhysicalAxis::Horizontal => style.common.overflow.x(),
+        crate::geometry::PhysicalAxis::Vertical => style.common.overflow.y(),
     }
 }
 
