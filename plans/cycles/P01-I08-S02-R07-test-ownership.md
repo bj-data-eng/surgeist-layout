@@ -214,6 +214,69 @@ Dependency: T03. Commit: `refactor(test): partition block verification`.
 
 ## 4 Completion
 
+Every worker and reviewer uses the following test-harness discovery command
+after its move. It parses only `libtest` listing output, never Rust source:
+
+```sh
+set -e
+lib_list="$(CARGO_NET_OFFLINE=true cargo test --locked --offline \
+  -p surgeist-layout --lib -- --list 2>&1)"
+count_prefix() {
+  printf '%s\n' "$lib_list" | awk -v p="$1" \
+    'index($0,p)==1 && /: test$/ {n++} END {print n+0}'
+}
+digest_prefix() {
+  printf '%s\n' "$lib_list" | awk -F': test$' -v p="$1" \
+    'index($0,p)==1 && /: test$/ {n=$1; sub(/^.*::/, "", n); print n}' \
+    | LC_ALL=C sort | shasum -a 256 | awk '{print $1}'
+}
+test "$(count_prefix '')" = 2087
+test "$(digest_prefix '')" = e0da19f5f8ff509122a3b1f846f0257cbd1e2c0ff850bf3cbbdeaa84f59eb87b
+test "$(count_prefix 'grid::tests::')" = 1017
+test "$(digest_prefix 'grid::tests::')" = 7d183fadd0668543df877f58247158c02a36541b3c327230b92eced892541adf
+test "$(count_prefix 'root_tests::')" = 235
+test "$(digest_prefix 'root_tests::')" = 2e616af2e7c7b7a0f480cba90b63b7807831bc72da4d42d5464a9e49e04610dc
+test "$(count_prefix 'flex_tests::')" = 169
+test "$(digest_prefix 'flex_tests::')" = 5a1cd29203c4ee0eea91169e18512ffdd79bea40fe6237120d261490f8a6c0d5
+test "$(count_prefix 'block_tests::')" = 212
+test "$(digest_prefix 'block_tests::')" = a73897032730d7b3b0d3c10746a17f16403baab9ffb1de4fedcdca01e2b3822f
+package_list="$(CARGO_NET_OFFLINE=true cargo test --locked --offline \
+  -p surgeist-layout -- --list 2>&1)"
+test "$(printf '%s\n' "$package_list" | awk '/: test$/ {n++} END {print n+0}')" = 2403
+ignored_list="$(CARGO_NET_OFFLINE=true cargo test --locked --offline \
+  -p surgeist-layout -- --ignored --list 2>&1)"
+ignored_leaves="$(printf '%s\n' "$ignored_list" | awk -F': test$' \
+  '/: test$/ {n=$1; sub(/^.*::/, "", n); print n}' | LC_ALL=C sort)"
+test "$ignored_leaves" = $'layout_oracle_grid_baseline_offset_matches_oracle\nruns_all_checked_in_browser_parity_xml'
+test "$(printf '%s\n' "$ignored_leaves" | shasum -a 256 | awk '{print $1}')" = \
+  235b22672841a0d7889b49ce4e7241b5abde0ba18311c8a23774d76597dfaf99
+```
+
+For each task, set its exact `task_base`, `task_head`, and `task_id`, then run:
+
+```sh
+case "$task_id" in
+  T01) allowed='^(src/grid/mod\.rs|src/grid_tests\.rs|src/grid_tests/[^/]+\.rs)$' ;;
+  T02) allowed='^(src/root_tests\.rs|src/root_tests/[^/]+\.rs)$' ;;
+  T03) allowed='^(src/flex_tests\.rs|src/flex_tests/[^/]+\.rs)$' ;;
+  T04) allowed='^(src/block_tests\.rs|src/block_tests/[^/]+\.rs)$' ;;
+  *) exit 1 ;;
+esac
+task_paths="$(git diff --name-only "$task_base..$task_head" | LC_ALL=C sort -u)"
+test -n "$task_paths"
+test -z "$(printf '%s\n' "$task_paths" | rg -v "$allowed")"
+git diff --check "$task_base..$task_head"
+git diff --find-renames=1% --histogram --color-moved=blocks \
+  --color-moved-ws=ignore-all-space "$task_base..$task_head" -- $task_paths
+```
+
+The final diff command is an explicit worker and reviewer inspection gate. Its
+predicate is that every test/helper body and assertion is a moved line; the only
+ordinary additions/deletions are module declarations/wrappers, imports,
+test-private visibility, and the recorded relative-path corrections. The task
+result enumerates every such non-moved exception. Any other changed token is a
+task defect, even when the suite remains green.
+
 After four independently clean task ranges, set this plan to `complete`. If the
 pinned Taffy checkout is absent, the coordinator runs exactly:
 
@@ -225,11 +288,7 @@ CARGO_NET_OFFLINE=true cargo run --locked --offline -p surgeist-layout \
 and proves the checkout Git HEAD is
 `d1ff7e339b9ee35b33858779f8d7653197e93d92` with no repository delta.
 
-Final discovery repeats Rust test-harness listing. For the library and each
-suite, strip only the enclosing module path from every `: test` entry, sort the
-leaf-name multiset, and require the exact counts and SHA-256 values in section
-1. Full default-package discovery remains 2,403. `--ignored --list` contains
-exactly the two recorded leaf names and digest. No cargo test reads Rust source
+Final discovery reruns the exact command above. No cargo test reads Rust source
 to establish this inventory.
 
 The exact final file inventory is the four directory layouts in section 3; the
@@ -262,9 +321,48 @@ cargo fmt --check
 git diff --check
 ```
 
-The final matrix also proves the exact discovery counts/digests, public API
-inventory, unchanged dependencies/features/MSRV/locks, no new suppression,
-complete owned-Rust unsafe absence, frozen hashes
+The final matrix also runs the following exact structure, scope, suppression,
+and safety predicates:
+
+```sh
+set -e
+expected_test_files="$(printf '%s\n' \
+  src/block_tests/{absolute,fixtures,floats_bfcs,in_flow_margins,inline_runs,mod,sizing_scroll}.rs \
+  src/flex_tests/{alignment_baselines,fixtures,intrinsic_absolute_scroll,items,lines_distribution,mod}.rs \
+  src/grid_tests/{browser_controls,child_baseline,fixtures,lanes_subgrid,mod,oracle_comparison,scroll_composition,topology_placement,tracks_intrinsic}.rs \
+  src/root_tests/{containing_contexts,fixtures,measurement,mod,requests,rounding,transaction_cache}.rs \
+  | LC_ALL=C sort)"
+actual_test_files="$(find src/block_tests src/flex_tests src/grid_tests src/root_tests \
+  -type f -name '*.rs' -print | LC_ALL=C sort)"
+test "$actual_test_files" = "$expected_test_files"
+test ! -e src/block_tests.rs; test ! -e src/flex_tests.rs
+test ! -e src/grid_tests.rs; test ! -e src/root_tests.rs
+cycle_paths="$(git diff --name-only \
+  496baae07f7a1216cab51267848231da82970941..HEAD | LC_ALL=C sort -u)"
+test -z "$(printf '%s\n' "$cycle_paths" | rg -v \
+  '^(plans/cycles/P01-I08-S02-R07-test-ownership\.md|src/grid/mod\.rs|src/(block_tests|flex_tests|grid_tests|root_tests)(\.rs|/[^/]+\.rs))$')"
+test "$(git diff 496baae07f7a1216cab51267848231da82970941..HEAD \
+  -- Cargo.toml Cargo.lock README.md Justfile src/lib.rs tools tests scripts | wc -l | tr -d ' ')" = 0
+base_suppressions="$(while IFS= read -r p; do
+  git show "496baae07f7a1216cab51267848231da82970941:$p" \
+    | perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) {$m=$&;$m=~s/\s+/ /g;print "$m\n"}'
+done < <(git ls-tree -r --name-only 496baae07f7a1216cab51267848231da82970941 \
+  | rg '\.rs$') | LC_ALL=C sort)"
+current_suppressions="$({ git ls-files -z -- '*.rs'; \
+  git ls-files -z --others --exclude-standard -- '*.rs'; } | sort -zu \
+  | xargs -0 perl -0777 -ne 'while (/^[ \t]*#\s*\[\s*(?:allow|expect|cfg_attr)\b[^\]]*\]/gms) {$m=$&;$m=~s/\s+/ /g;print "$m\n"}' \
+  | LC_ALL=C sort)"
+test -z "$(comm -13 <(printf '%s\n' "$base_suppressions") \
+  <(printf '%s\n' "$current_suppressions"))"
+if { git ls-files -z -- '*.rs'; git ls-files -z --others \
+  --exclude-standard -- '*.rs'; } | sort -zu | xargs -0 rg -n --pcre2 \
+  '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{'; then
+  exit 1
+fi
+```
+
+It also proves public API inventory, unchanged dependencies/features/MSRV/locks,
+frozen hashes
 `c6e6f1422e14a5e4aa474c143998063ce0de4d0a9123b69875b35a4ed009a8f6`
 (`corpus.toml`),
 `c684c7f167d95997a4a9f0250467bbaf72c1b73e69e0f707a2ef32f4d25f7f36`
