@@ -19,6 +19,54 @@ Browser parity XML and its generator remain a default-precision fixture
 boundary. Use those fixtures to check the default `f32` contract; add separate
 crate-local tests when a behavior specifically needs `f64` coverage.
 
+## Public API Map
+
+All public paths are exposed directly from the `surgeist_layout` crate root.
+Default-scalar aliases use `f32`; the corresponding `*Of` forms support either
+public scalar lane.
+
+### Computation and tree
+
+- Tree layout: [`compute_layout`](https://docs.rs/surgeist-layout/latest/surgeist_layout/fn.compute_layout.html) and [`compute_layout_invalidated`](https://docs.rs/surgeist-layout/latest/surgeist_layout/fn.compute_layout_invalidated.html).
+- Direct leaf measurement: [`compute_leaf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/fn.compute_leaf.html).
+- Host contracts: [`Traverse`](https://docs.rs/surgeist-layout/latest/surgeist_layout/trait.Traverse.html), [`LayoutTree`](https://docs.rs/surgeist-layout/latest/surgeist_layout/trait.LayoutTree.html), and [`LayoutBatchSink`](https://docs.rs/surgeist-layout/latest/surgeist_layout/trait.LayoutBatchSink.html).
+- Cache and failure contracts: [`CacheOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.CacheOf.html), [`LayoutResultOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/type.LayoutResultOf.html), and [`LayoutErrorOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.LayoutErrorOf.html).
+
+### Node input
+
+- Aggregate input: [`NodeInputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.NodeInputOf.html) and its [`NodeInput`](https://docs.rs/surgeist-layout/latest/surgeist_layout/type.NodeInput.html) default-scalar alias.
+- Tree participation: [`LayoutInputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.LayoutInputOf.html), [`Display`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.Display.html), [`Position`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.Position.html), and [`ItemOrder`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ItemOrder.html).
+- Flow and alignment: [`WritingMode`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.WritingMode.html), [`Direction`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.Direction.html), [`AlignItems`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.AlignItems.html), and [`AlignContent`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.AlignContent.html).
+- Inline and flex input: [`InlineTextInputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.InlineTextInputOf.html), [`InlineBoundaryInputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.InlineBoundaryInputOf.html), [`FlexDirection`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.FlexDirection.html), [`FlexWrap`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.FlexWrap.html), and [`FlexItemCollapse`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.FlexItemCollapse.html).
+- Grid input: [`GridPlacement`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.GridPlacement.html), [`GridAutoFlow`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.GridAutoFlow.html), and [`GridFlowToleranceOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.GridFlowToleranceOf.html).
+- Scroll input: [`ComputedOverflow`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ComputedOverflow.html), [`OverflowClipMarginOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.OverflowClipMarginOf.html), [`ScrollPaddingOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ScrollPaddingOf.html), [`ScrollMarginOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ScrollMarginOf.html), and [`ScrollSnapType`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.ScrollSnapType.html).
+
+### Sizing
+
+- Property domains: [`PreferredSizeOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.PreferredSizeOf.html), [`MinSizeOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.MinSizeOf.html), [`MaxSizeOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.MaxSizeOf.html), and [`FlexBasisOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.FlexBasisOf.html).
+- Validated calculations: [`SizingCalculationOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.SizingCalculationOf.html) and [`CalcSizeCalculationOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.CalcSizeCalculationOf.html).
+- Finite values and resolution: [`LengthPercentageOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.LengthPercentageOf.html), [`PercentageBasisOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.PercentageBasisOf.html), [`LengthOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.LengthOf.html), [`LengthAutoOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.LengthAutoOf.html), and [`AvailableOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.AvailableOf.html).
+
+### Geometry and scroll
+
+- Physical geometry and flow mapping: [`Point`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.Point.html), [`Size`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.Size.html), [`Edges`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.Edges.html), and [`FlowAxes`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.FlowAxes.html).
+- Canonical scroll geometry: [`ScrollGeometryOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ScrollGeometryOf.html), [`ScrollRectOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ScrollRectOf.html), [`PhysicalScrollRangeOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.PhysicalScrollRangeOf.html), and [`FlowRelativeScrollRangeOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.FlowRelativeScrollRangeOf.html).
+- Read-only scroll details: [`OverflowClipOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.OverflowClipOf.html), [`ScrollbarGutterRectsOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ScrollbarGutterRectsOf.html), and [`ScrollTargetGeometryOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ScrollTargetGeometryOf.html).
+
+### Output
+
+- Root request and transaction: [`LayoutRootRequestOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.LayoutRootRequestOf.html) and [`CompletedLayoutBatchOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.CompletedLayoutBatchOf.html).
+- Node and sizing results: [`NodeOutputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.NodeOutputOf.html), [`ComputeInputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ComputeInputOf.html), and [`ComputeOutputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ComputeOutputOf.html).
+- Inline output: [`InlineFragmentOutputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.InlineFragmentOutputOf.html) and [`InlineFragmentOutputEntryOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.InlineFragmentOutputEntryOf.html).
+- Root context: [`LayoutRootContextOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.LayoutRootContextOf.html), [`FlexItemRootContextOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.FlexItemRootContextOf.html), and [`ContainingLayoutContext`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.ContainingLayoutContext.html).
+
+### Finite grid utilities
+
+- Lane placement: [`place_lanes`](https://docs.rs/surgeist-layout/latest/surgeist_layout/fn.place_lanes.html), [`LanePlacementInputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.LanePlacementInputOf.html), and [`LanePlacementReportOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.LanePlacementReportOf.html).
+- Intrinsic lane sizing: [`lane_intrinsic_sizing`](https://docs.rs/surgeist-layout/latest/surgeist_layout/fn.lane_intrinsic_sizing.html), [`LaneIntrinsicSizingInputOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.LaneIntrinsicSizingInputOf.html), and [`LaneIntrinsicSizingReportOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.LaneIntrinsicSizingReportOf.html).
+- Grid computation reports: [`GridComputationOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.GridComputationOf.html) and [`GridComputationReport`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.GridComputationReport.html).
+- Finite track construction: [`TrackSizingOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.TrackSizingOf.html), [`TrackComponentOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/enum.TrackComponentOf.html), [`TrackComponentListOf`](https://docs.rs/surgeist-layout/latest/surgeist_layout/struct.TrackComponentListOf.html), and [`track_sizing_components_of`](https://docs.rs/surgeist-layout/latest/surgeist_layout/fn.track_sizing_components_of.html).
+
 ## Browser Parity Runtime
 
 The browser-parity corpus pins its Chrome-for-Testing source, executable version,
