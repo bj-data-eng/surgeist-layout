@@ -14,26 +14,16 @@ name = "surgeist_layout"
 path = "src/lib.rs"
 
 [dependencies]
-chromiumoxide = { version = "=0.9.1", default-features = false, features = ["fetcher", "rustls", "zip8"], optional = true }
-futures = { version = "=0.3.31", optional = true }
+surgeist-generator = { git = "https://github.com/bj-data-eng/surgeist-generator.git", rev = "1e0927a299b405792897a9bf5909e38bb8c58053", default-features = false, features = ["browser-corpus"], optional = true }
 serde = { version = "=1.0.228", features = ["derive"], optional = true }
 serde_json = { version = "=1.0.145", optional = true }
-sha2 = { version = "=0.10.9", optional = true }
-tokio = { version = "=1.48.0", features = ["fs", "macros", "rt-multi-thread"], optional = true }
-toml = { version = "=0.9.8", optional = true }
-url = { version = "=2.5.7", optional = true }
 
 [features]
 default = []
 layout-golden-generate = [
-    "dep:chromiumoxide",
-    "dep:futures",
+    "dep:surgeist-generator",
     "dep:serde",
     "dep:serde_json",
-    "dep:sha2",
-    "dep:tokio",
-    "dep:toml",
-    "dep:url",
 ]
 
 [dev-dependencies]

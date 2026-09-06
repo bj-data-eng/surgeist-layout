@@ -69,24 +69,27 @@ public scalar lane.
 
 ## Browser Parity Runtime
 
-The browser-parity corpus pins its Chrome-for-Testing source, executable version,
-cache root, launch profile, and report inventory in
-`tests/layout/browser_parity/corpus.toml`. `generate` is the managed-pinned mode;
-it is the only command that may use the configured browser fetcher.
-`generate-existing` is the existing-pinned, no-fetch artifact mode: it requires
-`SURGEIST_BROWSER_PATH` to be a repository-relative executable beneath the
-manifest cache and verifies its exact `--version` output before any XML or
-report write. Both modes use the same headless launch profile, including
-`use-mock-keychain`.
+The feature-gated `surgeist-layout-generate` binary supplies a private layout
+adapter to the exact pinned `surgeist-generator` dependency. The shared crate
+owns acquisition, browser processes, input protection, reports, and atomic
+publication. Layout owns helper preparation, measurement decoding, unsupported
+classification, and XML serialization. Default layout builds omit this tooling.
 
-`check-corpus`, `check-taffy-corpus`, and `import-taffy` are browser-free command
-paths. In particular, `check-corpus` treats
-`tests/layout/browser_parity/xml/generation-reports/all.json` as the sole
-generated-artifact provenance authority: it verifies the shared generator,
-browser, launch-profile, helper, base-style, corpus, and Taffy metadata plus each
-generated entry's repository-relative source/output identity, source and linked
-resource hashes, and XML hash. Generated XML is comment-free, and embedded
-provenance is rejected without reading a browser selection or generation filter.
+The corpus pins its Chrome-for-Testing version, launch settings, and report
+inventory in `tests/layout/browser_parity/corpus.toml`. `generate` may acquire the
+managed browser; `generate-existing` requires `SURGEIST_BROWSER_PATH` to name a
+repository-relative executable below the declared cache and never fetches.
+Source checkouts live in `tmp/surgeist-sources/<id>/<revision>/`; browsers live in
+`tmp/surgeist-browser/`. Repository `tmp/` is ignored and survives `cargo clean`.
+
+`check-corpus` validates the generic schema-4 report and persisted source-import
+attestation without a browser or source checkout. Explicit `check-taffy-corpus`
+verifies the existing pinned source cache; `import-taffy` may acquire that source
+and publishes verified imports plus attestation. Full generation validates
+accounting before publishing. Filtered generation does not rewrite full reports.
+XML bytes remain layout-owned and comment-free; semantic parsing and comparison
+remain in layout tests. See the [browser parity guide](tests/layout/browser_parity/README.md)
+for commands, cache behavior, and legacy provenance adoption.
 
 Layout owns normalized layout values, algorithm inputs, traversal contracts,
 caches, reports, and box output. Retained tree identity and sibling coordination

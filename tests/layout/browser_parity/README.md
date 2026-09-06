@@ -51,15 +51,11 @@ Target fields are layout-produced metadata only: this harness does not model
 retained association, transformed coordinates, current offsets, snap selection,
 CSSOM, host scrollbar UI, or runtime events.
 
-Artifact ownership is intentionally finite. Exactly one unfiltered full C06 run
-was allowed after all eleven FRI-05 HTML inputs and active manifest records
-settled; that run owned pruning and wrote the canonical XML plus `all.json`.
-After C06, those 44 FRI-05 outputs, the report buckets (5,324 passed, 356
-unsupported, and no failure bucket), and manifest hash
-`bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1`
-are frozen and read-only for C07. Filtered generation remains an iteration
-diagnostic, never verification evidence; a confirmed input defect returns to
-C06 and replaces the full run only after corrected inputs settle.
+Current source pins, import rules, artifact inventory, and expected outcome counts
+are declared in `corpus.toml`. The full parity runner remains explicitly ignored
+in ordinary Cargo test runs; invoke it separately to compare every checked-in
+fixture. Generation infrastructure changes must preserve XML bytes and complete
+per-fixture outcomes unless browser expectation changes are separately intended.
 
 Run checked-in fixtures:
 
@@ -67,11 +63,15 @@ Run checked-in fixtures:
 cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored
 ```
 
+Browser generation and source import require the shared generator's supported
+mutation host, Apple-Silicon macOS. Default layout builds remain independent of
+this tooling requirement.
+
 Regenerate XML fixtures from constrained HTML fixtures:
 
 ```sh
 cargo run --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate
-CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH=target/surgeist-browser/.../Google\ Chrome\ for\ Testing cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
+CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH=tmp/surgeist-browser/.../Google\ Chrome\ for\ Testing cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
 `generate` resolves the manifest-owned Chrome-for-Testing pin and may use the
@@ -86,8 +86,9 @@ are all manifest-owned.
 are rejected for generation. `SURGEIST_LAYOUT_GENERATE_FILTER` is empty for an
 unfiltered full run. With `generate-existing`, it may instead name one
 normalized fixture path or prefix that matches at least one source. Such a
-filtered run is an optional, report-free iteration diagnostic: it writes only
-matching XML, writes or prunes no report, and is not verification evidence.
+filtered run is an optional iteration diagnostic: it writes matching XML and
+the private ownership ledger, leaves reports unchanged, and is not current
+corpus verification evidence.
 
 Import or verify the pinned Taffy green baseline:
 
@@ -96,27 +97,44 @@ cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-la
 cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- check-taffy-corpus
 ```
 
-The Taffy baseline is fetched from the pinned upstream repository and commit in
-`corpus.toml` into `target/surgeist-sources/taffy/<commit>`, then copied into
-`html/`. The Taffy-only check verifies that checked-in baseline.
+The Taffy baseline is acquired at the exact repository/revision declared in
+`corpus.toml` under `tmp/surgeist-sources/taffy/<commit>`. Verified imports retain
+Surgeist-authored HTML and write `html/.surgeist-source.json`, binding the source
+pin and imported bytes. Adopting a corpus without this attestation first checks
+its existing imports against the verified checkout. `check-taffy-corpus` verifies
+the existing checkout and import without fetching.
+
+Browser installations live under `tmp/surgeist-browser/`, separated by version.
+Both caches are repository-local, already ignored by `tmp/`, and survive normal
+`cargo clean`. Completed acquisitions are reused only after verification;
+profile and publication recovery do not remove them.
 
 `SURGEIST_LAYOUT_BROWSER_PARITY_ROOT` may select a self-contained corpus root.
-Only one unfiltered full run writes and prunes the canonical report and XML
-artifacts used as final evidence. A successful full run writes the manifest's
-`all.json` and removes non-manifest reports. `all.json` is the sole provenance
-authority: its schema-versioned global metadata records the generator, stable
-repository-relative browser provenance, launch profile, helper, base style,
-corpus manifest, and Taffy revision once; each generated entry records its
-repository-relative source/output identity, source hash, linked-resource hashes,
-and XML hash. Generated XML is comment-free.
+The exact corpus and browser-owner roots are checked separately. A full run
+validates declared accounting before atomically publishing XML and reports.
+Filtered generation leaves full reports and unrelated artifacts unchanged.
+A full run with per-fixture failures publishes diagnostic accounting and retains
+outputs that were not regenerated. The private `xml/generation-ownership.json`
+ledger permits a subsequent full run to repair filtered or diagnostic state; it
+does not replace full-report provenance. Machine-local coordination and recovery
+state lives in the ignored `.surgeist-generator/` directory beneath the corpus.
 
-`check-corpus` is browser-free: it reads neither browser selection variables nor
-the generation filter, and validates the exact manifest report/XML inventory,
-global metadata, strict paths and identities, uniqueness, every source,
-linked-resource, and XML hash, and the absence of embedded XML provenance.
-`check-taffy-corpus` and
-`import-taffy` are also browser-free; import remains an acquisition-capable
-operation and should be run only with explicit authority.
+`xml/generation-reports/all.json` uses the shared browser engine's schema 4 and
+is the generated-artifact provenance authority. It binds engine/host identity,
+browser executable and launch settings, source/helper inputs, import attestation,
+linked resources, XML hashes, and generated/unsupported/expected-failure/
+quarantined/generation-failure accounting. XML remains comment-free.
+
+`check-corpus` is browser-free and acquisition-free. It validates persisted
+attestations, source/resource/artifact hashes, paths, inventory, and accounting
+without requiring either cache. Browser-selection variables and generation
+filters do not affect this command. XML parsing and semantic comparison remain
+layout-owned tests; the generic engine treats artifact bytes as opaque.
+
+Legacy schema-3 reports authorize only the first full migration after their
+paths and hashes are checked. They cannot satisfy schema-4 provenance checks or
+authorize filtered migration. Their historical metadata is not promoted into
+current provenance without a complete generation run.
 
 HTML fixtures are the human-readable source of truth. The constrained `html/`
 fixtures are runnable today. XML fixtures are generated browser expectations for
@@ -126,11 +144,13 @@ Unsupported browser features are not silently skipped. If Surgeist does not yet
 support a construct such as `<br>` or mixed inline text, the harness should keep
 the fixture visible and report a classified pass/fail bucket.
 
-The supported generator is the Rust `surgeist-layout-generate` binary. The
-`scripts/gentest` directory is helper-only and must contain exactly
-`test_helper.js` and `test_base_style.css`, both loaded by the Rust generator.
-The old standalone Rust generator crate has been removed so there is one
-generation path.
+The supported entry point is layout's thin `surgeist-layout-generate` binary,
+enabled by `layout-golden-generate`. It depends on an exact Git revision of
+`surgeist-generator` with `browser-corpus`; default layout builds do not include
+that tooling graph. The shared crate owns acquisition, browser processes,
+provenance, accounting, and publication. Layout owns document/helper preparation,
+measurement decoding, unsupported classification, and XML serialization.
+`scripts/gentest` remains helper-only: `test_helper.js` and `test_base_style.css`.
 
 Inline display values are parsed so constrained fixtures remain readable:
 `inline-block`, `inline-grid`, and `inline-grid-lanes` participate as atomic

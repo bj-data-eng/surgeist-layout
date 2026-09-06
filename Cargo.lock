@@ -106,6 +106,9 @@ name = "bytes"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ae3f5d315924270530207e2a68396c3cc547f6dca3fbdca317cfb1a51edb593"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "cc"
@@ -139,6 +142,7 @@ checksum = "26ed067eb6c1f660bdb87c05efb964421d2ca262bae0296cdfe38cf0cd949a3e"
 dependencies = [
  "async-tungstenite",
  "base64",
+ "bytes",
  "chromiumoxide_cdp",
  "chromiumoxide_fetcher",
  "chromiumoxide_types",
@@ -840,6 +844,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "linux-raw-sys"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
+
+[[package]]
 name = "litemap"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1190,6 +1200,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustix"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
+dependencies = [
+ "bitflags",
+ "errno",
+ "libc",
+ "linux-raw-sys",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "rustls"
 version = "0.23.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1470,19 +1493,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
-name = "surgeist-layout"
-version = "0.1.0"
+name = "surgeist-generator"
+version = "0.2.0"
+source = "git+https://github.com/bj-data-eng/surgeist-generator.git?rev=1e0927a299b405792897a9bf5909e38bb8c58053#1e0927a299b405792897a9bf5909e38bb8c58053"
 dependencies = [
  "chromiumoxide",
  "futures",
- "proptest",
- "roxmltree",
+ "rustix",
  "serde",
  "serde_json",
  "sha2",
  "tokio",
  "toml",
  "url",
+]
+
+[[package]]
+name = "surgeist-layout"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "surgeist-generator",
 ]
 
 [[package]]

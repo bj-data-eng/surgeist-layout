@@ -759,7 +759,9 @@ fn fri05_c06_computed_overflow_corpus_outputs_have_centralized_provenance() {
     )
     .unwrap_or_else(|error| panic!("{} should parse: {error}", report_path.display()));
     assert_eq!(
-        report["metadata"]["helper_sha256"].as_str().map(str::len),
+        report["metadata"]["inputs"]["scripts/gentest/test_helper.js"]
+            .as_str()
+            .map(str::len),
         Some(64)
     );
     let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
@@ -783,7 +785,7 @@ fn fri05_c06_computed_overflow_corpus_outputs_have_centralized_provenance() {
             .filter(|entry| entry["output"].as_str() == Some(output.as_str()))
             .collect::<Vec<_>>();
         assert_eq!(entries.len(), 1, "{output}");
-        assert_eq!(entries[0]["xml_sha256"].as_str().map(str::len), Some(64));
+        assert_eq!(entries[0]["output_sha256"].as_str().map(str::len), Some(64));
     }
 }
 

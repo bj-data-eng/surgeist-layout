@@ -4,7 +4,7 @@ schema_version = 2
 source = "chrome-for-testing"
 version = "149.0.7827.115"
 version_output = "Google Chrome for Testing 149.0.7827.115"
-cache_root = "target/surgeist-browser"
+cache_root = "tmp/surgeist-browser"
 provenance_format = "chrome-for-testing/{version} ({repository_relative_executable})"
 
 [browser.launch]
