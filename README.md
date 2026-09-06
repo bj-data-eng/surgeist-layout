@@ -190,6 +190,12 @@ contribution. Baseline grouping remains the existing inherited-axis model.
 Grid-aligned positioned layout, additional baseline distribution, and
 fragmentation remain separately owned work.
 
+Inherited subgrid axes keep their inherited track extent. Definite placements
+are clamped to that extent before automatic placement; settled automatic
+placements are clamped afterward and may overlap when capacity is exhausted.
+Only standalone axes materialize implicit tracks. Sparse placement retains
+progress per locked major track, while dense placement searches earlier holes.
+
 The experimental CSS Grid Level 3 subset is limited to `grid-lanes` single-axis
 packing: hybrid item containing blocks, intrinsic candidate projection,
 lanes-specific auto-fit collapse, and nested indefinite subgrid contribution

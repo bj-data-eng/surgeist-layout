@@ -518,19 +518,12 @@ fn clamp_subgrid_resolved_lines(
     end_line: isize,
     explicit_track_count: usize,
 ) -> (isize, isize) {
-    let explicit_end_line = explicit_track_count as isize + 1;
-    let mut start_line = start_line.clamp(1, explicit_end_line);
-    let mut end_line = end_line.clamp(1, explicit_end_line);
-
-    if start_line == end_line && explicit_track_count > 0 {
-        if start_line == explicit_end_line {
-            start_line -= 1;
-        } else {
-            end_line += 1;
-        }
-    }
-
-    (start_line, end_line)
+    let (start, end) = super::placement::clamp_subgrid_axis_range(
+        start_line.saturating_sub(1).max(0) as usize,
+        end_line.saturating_sub(1).max(0) as usize,
+        explicit_track_count,
+    );
+    (start as isize + 1, end as isize + 1)
 }
 
 fn normalize_resolved_lines(

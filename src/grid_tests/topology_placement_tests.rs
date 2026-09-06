@@ -12,6 +12,162 @@ use super::fixtures::{
 };
 use super::*;
 
+fn assert_locked_major_sparse_frontiers<S: LayoutScalar>() {
+    for flow in [
+        GridAutoFlow::Row,
+        GridAutoFlow::RowDense,
+        GridAutoFlow::Column,
+        GridAutoFlow::ColumnDense,
+    ] {
+        let mut tree = PublicLayoutTreeOf::new()
+            .children(1, [2, 8, 4, 3, 5, 6, 7])
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Grid,
+                    grid_auto_flow: flow,
+                    grid_template_columns: vec![TrackComponentOf::px(S::from_f64(10.0)); 3],
+                    grid_template_rows: vec![TrackComponentOf::px(S::from_f64(10.0)); 3],
+                    grid_auto_columns: vec![TrackComponentOf::px(S::from_f64(10.0))],
+                    grid_auto_rows: vec![TrackComponentOf::px(S::from_f64(10.0))],
+                    justify_content: Some(AlignContent::Start),
+                    align_content: Some(AlignContent::Start),
+                    ..NodeInputOf::default()
+                },
+            );
+        for (node, major, minor) in [
+            (
+                2,
+                GridPlacement::try_line(1).unwrap(),
+                GridPlacement::try_line(2).unwrap(),
+            ),
+            (
+                8,
+                GridPlacement::try_line(2).unwrap(),
+                GridPlacement::try_line(6).unwrap(),
+            ),
+            (
+                3,
+                GridPlacement::try_line(1).unwrap(),
+                GridPlacement::try_span(2).unwrap(),
+            ),
+            (4, GridPlacement::try_line(1).unwrap(), GridPlacement::AUTO),
+            (5, GridPlacement::try_line(2).unwrap(), GridPlacement::AUTO),
+            (
+                6,
+                GridPlacement::try_lines(1, 3).unwrap(),
+                GridPlacement::AUTO,
+            ),
+            (7, GridPlacement::try_line(2).unwrap(), GridPlacement::AUTO),
+        ] {
+            tree = tree.style(
+                node,
+                NodeInputOf {
+                    item_order: if node == 3 {
+                        ItemOrder::new(-1)
+                    } else {
+                        ItemOrder::ZERO
+                    },
+                    grid_column: if flow.is_column() { major } else { minor },
+                    grid_row: if flow.is_column() { minor } else { major },
+                    ..NodeInputOf::default()
+                },
+            );
+        }
+        let batch = fri08_c01_placement_compute(&tree);
+        assert_eq!(
+            fri08_c01_placement_output(&batch, 3).source_index,
+            SourceIndex::new(3)
+        );
+        assert_eq!(
+            fri08_c01_placement_output(&batch, 4).source_index,
+            SourceIndex::new(2)
+        );
+        for (node, major, minor) in [
+            (3, 0.0, 20.0),
+            (4, 0.0, if flow.is_dense() { 0.0 } else { 40.0 }),
+            (5, 10.0, 0.0),
+            (6, 0.0, if flow.is_dense() { 40.0 } else { 60.0 }),
+            (7, 10.0, if flow.is_dense() { 10.0 } else { 70.0 }),
+        ] {
+            let expected = if flow.is_column() {
+                Point::new(S::from_f64(major), S::from_f64(minor))
+            } else {
+                Point::new(S::from_f64(minor), S::from_f64(major))
+            };
+            assert_eq!(
+                fri08_c01_placement_output(&batch, node).location,
+                expected,
+                "{flow:?}, node {node}"
+            );
+        }
+    }
+}
+
+#[test]
+fn locked_major_sparse_frontiers_both_scalars() {
+    assert_locked_major_sparse_frontiers::<f32>();
+    assert_locked_major_sparse_frontiers::<f64>();
+}
+
+fn assert_overfull_inherited_subgrid<S: LayoutScalar>() {
+    for flow in [
+        GridAutoFlow::Row,
+        GridAutoFlow::Column,
+        GridAutoFlow::RowDense,
+        GridAutoFlow::ColumnDense,
+    ] {
+        let tree = PublicLayoutTreeOf::new()
+            .children(1, [2])
+            .children(2, [3, 4, 5])
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Grid,
+                    grid_template_columns: vec![TrackComponentOf::px(S::from_f64(20.0))],
+                    grid_template_rows: vec![TrackComponentOf::px(S::from_f64(20.0))],
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                2,
+                NodeInputOf {
+                    display: Display::Grid,
+                    grid_template_columns: subgrid_track_of(),
+                    grid_template_rows: subgrid_track_of(),
+                    grid_auto_flow: flow,
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(3, NodeInputOf::default())
+            .style(4, NodeInputOf::default())
+            .style(
+                5,
+                NodeInputOf {
+                    grid_column: GridPlacement::try_span(5).unwrap(),
+                    grid_row: GridPlacement::try_span(5).unwrap(),
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = fri08_c01_placement_compute(&tree);
+        for node in [2, 3, 4, 5] {
+            let output = fri08_c01_placement_output(&batch, node);
+            assert_eq!(output.location, Point::ZERO, "{flow:?} node {node}");
+            assert_eq!(
+                output.size,
+                Size::splat(S::from_f64(20.0)),
+                "{flow:?} node {node}"
+            );
+        }
+    }
+}
+
+#[test]
+fn overfull_inherited_subgrid_clamps_both_scalars() {
+    assert_overfull_inherited_subgrid::<f32>();
+    assert_overfull_inherited_subgrid::<f64>();
+}
+
 fn fri08_c08_t03_cache_input<S: LayoutScalar>(
     run_mode: RunMode,
     available: f64,

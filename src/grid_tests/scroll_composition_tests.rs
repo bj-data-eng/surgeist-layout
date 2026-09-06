@@ -342,7 +342,7 @@ fn fri08_c06r_inherited_placement_overflow_tree<S: LayoutScalar>(
         )
 }
 
-fn assert_fri08_c06r_inherited_placement_capacity_overflow_is_atomic<S: LayoutScalar>() {
+fn assert_fri08_c06r_inherited_placement_oversized_span_clamps_atomically<S: LayoutScalar>() {
     for (inherited_axes, overflow_axis) in [
         (Fri08C06RInheritedAxes::Columns, GridAxisKind::Column),
         (Fri08C06RInheritedAxes::Rows, GridAxisKind::Row),
@@ -371,46 +371,47 @@ fn assert_fri08_c06r_inherited_placement_capacity_overflow_is_atomic<S: LayoutSc
         let overflowing =
             fri08_c06r_inherited_placement_overflow_tree(inherited_axes, overflow_axis, 5);
         tree.tree.insert_input(3, overflowing.layout_input(3));
-        let retained_before_failure = tree.retained.clone();
-
-        for attempt_index in 0..2 {
-            let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                compute_layout_invalidated(&tree, 1, request, &[3])
-            }));
-            let error = match attempt {
-                Ok(Err(error)) => error,
-                Ok(Ok(batch)) => panic!(
-                    "attempt {attempt_index}: inherited {overflow_axis:?} capacity overflow must not return a completed batch; child output was {:?}",
-                    fri08_c01_placement_output(&batch, 3)
-                ),
-                Err(_) => panic!(
-                    "attempt {attempt_index}: inherited {overflow_axis:?} capacity overflow must return the typed error instead of panicking"
-                ),
-            };
+        let retained_before_compute = tree.retained.clone();
+        let invalidated = compute_layout_invalidated(&tree, 1, request, &[3])
+            .expect("an oversized inherited span clamps to available tracks");
+        assert_eq!(
+            tree.retained, retained_before_compute,
+            "successful computation stages all output and cache updates"
+        );
+        let expected = fri08_c01_placement_output(&invalidated, 3);
+        let extent = if overflow_axis == GridAxisKind::Column {
+            expected.size.width
+        } else {
+            expected.size.height
+        };
+        assert_eq!(extent, S::from_f64(80.0));
+        assert_eq!(expected.location, Point::ZERO);
+        invalidated
+            .apply_to(&mut tree)
+            .expect("clamped output commits atomically");
+        tree.cache_queries.borrow_mut().clear();
+        let warm = compute_layout(&tree, 1, request).expect("warm clamped subgrid succeeds");
+        assert_eq!(fri08_c01_placement_output(&warm, 3), expected);
+        assert!(
+            tree.cache_queries.borrow().iter().any(|(_, hit)| *hit),
+            "warm layout reuses committed cache entries"
+        );
+        let cold = compute_layout(&overflowing, 1, request)
+            .expect("cold oversized inherited placement succeeds");
+        for node in [1, 2, 3] {
             assert_eq!(
-                error.site(),
-                LayoutErrorSiteOf::Node(2),
-                "{inherited_axes:?} {overflow_axis:?} attempt {attempt_index}"
-            );
-            assert_eq!(error.operation(), LayoutOperation::ChildLayout);
-            assert_eq!(
-                error.kind(),
-                &LayoutErrorKindOf::InternalInvariant(
-                    LayoutInternalInvariant::InvalidBlockScrollGeometry,
-                )
-            );
-            assert_eq!(
-                tree.retained, retained_before_failure,
-                "{inherited_axes:?} {overflow_axis:?} attempt {attempt_index}: failure publishes no outputs and mutates no committed cache"
+                fri08_c01_placement_output(&warm, node),
+                fri08_c01_placement_output(&cold, node),
+                "{inherited_axes:?} {overflow_axis:?} node {node}"
             );
         }
     }
 }
 
 #[test]
-fn fri08_c06r_inherited_placement_capacity_overflow_is_typed_atomic_and_retryable() {
-    assert_fri08_c06r_inherited_placement_capacity_overflow_is_atomic::<f32>();
-    assert_fri08_c06r_inherited_placement_capacity_overflow_is_atomic::<f64>();
+fn fri08_c06r_inherited_placement_oversized_span_clamps_with_cold_warm_and_invalidation() {
+    assert_fri08_c06r_inherited_placement_oversized_span_clamps_atomically::<f32>();
+    assert_fri08_c06r_inherited_placement_oversized_span_clamps_atomically::<f64>();
 }
 
 fn fri08_c05_composition_output<S: LayoutScalar>(

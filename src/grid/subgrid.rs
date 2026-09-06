@@ -2207,11 +2207,11 @@ fn traversal_child_area_tracks<Node, S: LayoutScalar>(
     }
 
     let intrinsic_sizes = vec![S::ZERO; tracks.len()];
-    resolve_inline_tracks(InlineTrackInput {
+    resolve_axis_tracks(AxisTrackInput {
         tracks,
         basis: Some(content_width),
         definite_size: Some(content_width),
-        available_size: Some(content_width),
+        available_size: AvailableOf::Definite(content_width),
         gap,
         gutters: None,
         alignment,
