@@ -152,6 +152,11 @@ provenance, accounting, and publication. Layout owns document/helper preparation
 measurement decoding, unsupported classification, and XML serialization.
 `scripts/gentest` remains helper-only: `test_helper.js` and `test_base_style.css`.
 
+The helper and adapter use the strict [version-1 measurement
+protocol](measurement-protocol.md). Closed wire decoding and semantic validation
+precede XML serialization. Preloaded helpers must implement that protocol;
+unversioned or malformed measurements return contextual adapter errors.
+
 Inline display values are parsed so constrained fixtures remain readable:
 `inline-block`, `inline-grid`, and `inline-grid-lanes` participate as atomic
 inline boxes with inner block, grid, or grid-lanes formatting contexts. Full

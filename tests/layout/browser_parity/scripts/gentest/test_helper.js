@@ -798,11 +798,11 @@ function parseGridPosition(input) {
   if (parts[0] === 'span') {
     const number = parts.find(part => /^-?\d+$/.test(part));
     const name = parts.find(part => !/^-?\d+$/.test(part) && part !== 'span');
-    if (name) return { kind: 'named-span', name, value: number ? parseInt(number, 10) : 0 };
+    if (name) return { kind: 'named-span', name, ...(number === undefined ? {} : { occurrence: parseInt(number, 10) }) };
   }
   const name = parts.find(part => !/^-?\d+$/.test(part));
   const number = parts.find(part => /^-?\d+$/.test(part));
-  if (name) return { kind: 'named-line', name, value: number ? parseInt(number, 10) : 0 };
+  if (name) return { kind: 'named-line', name, ...(number === undefined ? {} : { occurrence: parseInt(number, 10) }) };
   throw new Error(`Unsupported grid placement ${input}`);
 }
 
@@ -814,8 +814,8 @@ function brInlineMetricsForElement(e, computedStyle) {
     }
     const baseline = lineHeight === 0 ? 0 : measureInlineBaselinePx(computedStyle, lineHeight);
     return {
-      baseline: `${baseline}px`,
-      lineHeight: `${lineHeight}px`,
+      baseline,
+      lineHeight,
     };
   }
   return undefined;
@@ -862,7 +862,7 @@ function layoutReadyShapeBands(e) {
     }
 
     return hasIntervalMinimum
-      ? { bandMinimum, bandMaximum, intervalMinimum, intervalMaximum }
+      ? { bandMinimum, bandMaximum, interval: { minimum: intervalMinimum, maximum: intervalMaximum } }
       : { bandMinimum, bandMaximum };
   });
 }
@@ -967,6 +967,7 @@ function describeElement(e, expectedElement = null) {
   const hasTypedInlineText = children.some((child) => child.layoutInput === 'inline-text');
 
   return {
+    layoutInput: 'box',
     tagName: e.tagName.toLowerCase(),
     layoutReadyInlineRoot: layoutReadyInlineRoot || undefined,
     layoutReadyAnonymousGridTextWrapper: layoutReadyAnonymousGridTextWrapper(e, computedStyle, children),
@@ -991,8 +992,7 @@ function describeElement(e, expectedElement = null) {
       fontFamily: parseEnum(computedStyle.fontFamily),
       fontSize: parseDimension(computedStyle.fontSize),
       lineHeight: parseDimension(computedStyle.lineHeight),
-      inlineBaseline: brInlineMetrics?.baseline ?? "",
-      inlineLineHeight: brInlineMetrics?.lineHeight ?? "",
+      inlineMetrics: brInlineMetrics,
 
       flexDirection: parseEnum(styleValue("flexDirection")),
       flexWrap: parseEnum(styleValue("flexWrap")),
@@ -1929,7 +1929,7 @@ function isLoweredAtomicInline(e) {
 }
 
 function unsupportedTestData(reason) {
-  return { unsupportedReason: reason };
+  return { layoutInput: 'unsupported', unsupportedReason: reason };
 }
 
 function getTestData() {
@@ -1937,6 +1937,7 @@ function getTestData() {
   if (!root) {
     const reason = "Unsupported missing #test-root fixture root";
     return JSON.stringify({
+      schemaVersion: 1,
       borderBoxLtrData: unsupportedTestData(reason),
       contentBoxLtrData: unsupportedTestData(reason),
       borderBoxRtlData: unsupportedTestData(reason),
@@ -1953,7 +1954,7 @@ function getTestData() {
   document.body.className = "content-box rtl";
   const contentBoxRtlData = describeElement(root);
 
-  return JSON.stringify({ borderBoxLtrData, contentBoxLtrData, borderBoxRtlData, contentBoxRtlData });
+  return JSON.stringify({ schemaVersion: 1, borderBoxLtrData, contentBoxLtrData, borderBoxRtlData, contentBoxRtlData });
 }
 
 // Useful when developing this script. Logs the parsed style to the console when any test fixture is opened in a browser.

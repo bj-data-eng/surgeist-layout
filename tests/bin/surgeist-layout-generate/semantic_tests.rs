@@ -5,16 +5,48 @@ use crate::adapter::{
     GRID_TEMPLATE_AREA_CAPTURE_SCRIPT, TEST_HELPER_SOURCE, browser_document_write_script,
     browser_fixture_document, fixture_cases,
 };
-use serde_json::json;
+use crate::measurement::{self, DecodedMeasurement, MeasurementError, MeasurementErrorKind};
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+fn measured_xml(name: &str, node: &Value) -> Result<String, MeasurementError> {
+    let decoded = measurement::decode(&node.to_string(), name, "test")?;
+    match decoded {
+        DecodedMeasurement::Supported(measurement) => Ok(super::generate_xml(name, &measurement)),
+        DecodedMeasurement::Unsupported { reason } => {
+            panic!("supported test fixture was unsupported: {reason}")
+        }
+    }
+}
+
+fn generate_xml(name: &str, node: &Value) -> String {
+    measured_xml(name, node).expect("canonical supported measurement must validate")
+}
+
+fn input_attrs(node: &Value) -> measurement::Attributes {
+    measurement::style_attributes(&node.to_string())
+        .expect("canonical style attributes must validate")
+}
+
+fn dimension(value: &Value) -> Option<String> {
+    Some(measurement::dimension_attribute(&value.to_string()).expect("dimension must validate"))
+}
+
+fn grid_position(value: &Value) -> Option<String> {
+    measurement::position_attribute(&value.to_string()).expect("placement must validate")
+}
+
+fn track_definition(value: &Value) -> Option<String> {
+    Some(measurement::track_attribute(&value.to_string()).expect("track must validate"))
+}
+
 fn fri08_c05_inputs_synthetic_grid_node() -> Value {
-    json!({
+    json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "grid",
             "gridTemplateRows": [
@@ -31,26 +63,26 @@ fn fri08_c05_inputs_synthetic_grid_node() -> Value {
         "unroundedLayout": {"x": 0, "y": 0, "width": 80, "height": 40, "scrollWidth": 80, "scrollHeight": 40},
         "naivelyRoundedLayout": {"clientWidth": 80, "clientHeight": 40},
         "children": [
-            {
+            {"layoutInput": "box",
                 "style": {
                     "display": "block",
-                    "gridColumnStart": {"kind": "named-line", "name": "head-start", "value": 0},
-                    "gridColumnEnd": {"kind": "named-line", "name": "head-end", "value": 0},
-                    "gridRowStart": {"kind": "named-line", "name": "head-start", "value": 0},
-                    "gridRowEnd": {"kind": "named-line", "name": "head-end", "value": 0}
+                    "gridColumnStart": {"kind": "named-line", "name": "head-start", },
+                    "gridColumnEnd": {"kind": "named-line", "name": "head-end", },
+                    "gridRowStart": {"kind": "named-line", "name": "head-start", },
+                    "gridRowEnd": {"kind": "named-line", "name": "head-end", }
                 },
                 "smartRoundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
                 "unroundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
                 "naivelyRoundedLayout": {"clientWidth": 80, "clientHeight": 20},
                 "children": []
             },
-            {
+            {"layoutInput": "box",
                 "style": {
                     "display": "block",
-                    "gridColumnStart": {"kind": "named-line", "name": "main-start", "value": 0},
-                    "gridColumnEnd": {"kind": "named-line", "name": "main-end", "value": 0},
-                    "gridRowStart": {"kind": "named-line", "name": "main-start", "value": 0},
-                    "gridRowEnd": {"kind": "named-line", "name": "main-end", "value": 0}
+                    "gridColumnStart": {"kind": "named-line", "name": "main-start", },
+                    "gridColumnEnd": {"kind": "named-line", "name": "main-end", },
+                    "gridRowStart": {"kind": "named-line", "name": "main-start", },
+                    "gridRowEnd": {"kind": "named-line", "name": "main-end", }
                 },
                 "smartRoundedLayout": {"x": 30, "y": 20, "width": 50, "height": 20, "scrollWidth": 50, "scrollHeight": 20},
                 "unroundedLayout": {"x": 30, "y": 20, "width": 50, "height": 20, "scrollWidth": 50, "scrollHeight": 20},
@@ -542,13 +574,25 @@ fn fri07_c04_collapse_serializer_rejects_every_noncollapsed_explicit_state() {
         json!(true),
     ] {
         let node = json!({
+            "layoutInput": "box",
             "tagName": "div",
-            "style": {"flexItemCollapse": value}
+            "useRounding": false,
+            "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+            "style": {"flexItemCollapse": value},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 1, "height": 1},
+            "children": []
         });
-        assert!(
-            std::panic::catch_unwind(|| input_attrs(&node)).is_err(),
-            "serializer accepted explicit collapse state {value}"
+        let error = measured_xml("invalid-collapse", &node).unwrap_err();
+        assert_eq!(
+            error.kind,
+            if value.is_string() {
+                MeasurementErrorKind::InvalidValue
+            } else {
+                MeasurementErrorKind::Decode
+            }
         );
+        assert_eq!(error.node_path, "root");
+        assert_eq!(error.field_path, "style.flexItemCollapse");
     }
 }
 
@@ -673,6 +717,9 @@ function getComputedStyle(target) {{
 
 const data = describeElement(element);
 const expectedReason = {expected_reason};
+if (data.layoutInput !== "box") {{
+  throw new Error(`measured elements require an explicit box tag, got ${{data.layoutInput}}`);
+}}
 if (data.unsupportedReason !== expectedReason) {{
   throw new Error(`expected unsupportedReason ${{expectedReason}}, got ${{data.unsupportedReason}}`);
 }}
@@ -680,11 +727,11 @@ if (data.tagName !== "br") {{
   throw new Error(`expected tagName br, got ${{data.tagName}}`);
 }}
 if (expectedReason === undefined) {{
-  if (data.style.inlineBaseline !== "8px") {{
-    throw new Error(`expected inlineBaseline 8px, got ${{data.style.inlineBaseline}}`);
+  if (data.style.inlineMetrics.baseline !== 8) {{
+    throw new Error(`expected numeric baseline 8, got ${{data.style.inlineMetrics.baseline}}`);
   }}
-  if (data.style.inlineLineHeight !== "10px") {{
-    throw new Error(`expected inlineLineHeight 10px, got ${{data.style.inlineLineHeight}}`);
+  if (data.style.inlineMetrics.lineHeight !== 10) {{
+    throw new Error(`expected numeric line height 10, got ${{data.style.inlineMetrics.lineHeight}}`);
   }}
 }}
 "#
@@ -866,8 +913,8 @@ const element = {
             r#"
 const bands = layoutReadyShapeBands(element);
 if (JSON.stringify(bands) !== JSON.stringify([
-  {bandMinimum: 0, bandMaximum: 20, intervalMinimum: 0, intervalMaximum: 44},
-  {bandMinimum: 20, bandMaximum: 40, intervalMinimum: 0, intervalMaximum: 28},
+  {bandMinimum: 0, bandMaximum: 20, interval: { minimum: 0, maximum: 44 }},
+  {bandMinimum: 20, bandMaximum: 40, interval: { minimum: 0, maximum: 28 }},
   {bandMinimum: 40, bandMaximum: 60},
 ])) {
   throw new Error(`shapeBands must preserve the finite physical table, got ${JSON.stringify(bands)}`);
@@ -877,18 +924,18 @@ if (JSON.stringify(bands) !== JSON.stringify([
         .concat();
     run_bundled_helper_script("fri06-c08-new-shape-bands", script);
 
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "tagName": "div",
         "useRounding": false,
-        "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
         "style": {"display": "block"},
         "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 60},
-        "children": [{
+        "children": [{"layoutInput": "box",
             "tagName": "div",
             "style": {"cssFloat": "left"},
             "shapeBands": [
-                {"bandMinimum": 0, "bandMaximum": 20, "intervalMinimum": 0, "intervalMaximum": 44},
-                {"bandMinimum": 20, "bandMaximum": 40, "intervalMinimum": 0, "intervalMaximum": 28},
+                {"bandMinimum": 0, "bandMaximum": 20, "interval": {"minimum": 0, "maximum": 44}, },
+                {"bandMinimum": 20, "bandMaximum": 40, "interval": {"minimum": 0, "maximum": 28}, },
                 {"bandMinimum": 40, "bandMaximum": 60},
             ],
             "unroundedLayout": {"x": 0, "y": 0, "width": 44, "height": 60},
@@ -963,6 +1010,7 @@ function getComputedStyle(element) {
             r#"
 describeElement = function(element) {
   return {
+    layoutInput: "box",
     tagName: "span",
     style: {
       display: "inline-block",
@@ -977,10 +1025,11 @@ describeElement = function(element) {
 };
 const children = describeChildNodes(parent);
 console.log(JSON.stringify({
+  layoutInput: "box",
   tagName: "div",
   layoutReadyInlineRoot: true,
   useRounding: false,
-  viewport: { width: { unit: "px", value: 72 }, height: { unit: "max-content" } },
+  viewport: { rootContext: "root", width: { unit: "px", value: 72 }, height: { unit: "max-content" } },
   style: { display: "block", size: { width: { unit: "px", value: 72 } } },
   unroundedLayout: { x: 0, y: 0, width: 72, height: 38 },
   children,
@@ -1071,6 +1120,7 @@ function getComputedStyle(element) {
             r#"
 describeElement = function(element) {
   return {
+    layoutInput: "box",
     tagName: "span",
     style: {
       display: element.style.display,
@@ -1097,10 +1147,11 @@ describeElement = function(element) {
 };
 const children = describeChildNodes(parent);
 console.log(JSON.stringify({
+  layoutInput: "box",
   tagName: "div",
   layoutReadyInlineRoot: true,
   useRounding: true,
-  viewport: { width: { unit: "px", value: 180 }, height: { unit: "max-content" } },
+  viewport: { rootContext: "root", width: { unit: "px", value: 180 }, height: { unit: "max-content" } },
   style: { display: "block", size: { width: { unit: "px", value: 180 } } },
   unroundedLayout: { x: 0, y: 0, width: 180, height: 63 },
   smartRoundedLayout: { x: 0, y: 0, width: 180, height: 63 },
@@ -1403,7 +1454,7 @@ const metrics = brInlineMetricsForElement({ tagName: "BR" }, {
   fontSize: "10px",
   lineHeight: "0px",
 });
-if (metrics.baseline !== "0px" || metrics.lineHeight !== "0px") {
+if (metrics.baseline !== 0 || metrics.lineHeight !== 0) {
   throw new Error(`zero-height control metrics must remain valid, got ${JSON.stringify(metrics)}`);
 }
 "#,
@@ -1518,10 +1569,10 @@ for (const [name, element, style] of [
 #[test]
 fn fri06_c08_t1_serializer_gates_control_on_explicit_fact() {
     let root = |child: Value| {
-        json!({
+        json!({"layoutInput": "box",
             "tagName": "div",
             "useRounding": false,
-            "viewport": {
+            "viewport": {"rootContext": "root",
                 "width": {"unit": "px", "value": 100},
                 "height": {"unit": "max-content"},
             },
@@ -1531,12 +1582,12 @@ fn fri06_c08_t1_serializer_gates_control_on_explicit_fact() {
         })
     };
     let br = |participation: Option<Value>, display: &str| {
-        let mut node = json!({
+        let mut node = json!({"layoutInput": "box",
             "tagName": "br",
             "style": {
                 "display": display,
-                "inlineBaseline": "8px",
-                "inlineLineHeight": "10px",
+                "inlineMetrics": {"baseline": 8, "lineHeight": 10},
+
             },
             "unroundedLayout": {"x": 10, "y": 0, "width": 0, "height": 10},
             "children": [],
@@ -1599,10 +1650,10 @@ fn fri06_c08_t1_serializer_gates_control_on_explicit_fact() {
 #[test]
 fn fri06_c08_t1_serializer_rejects_malformed_and_non_br_control_facts() {
     let root = |child: Value| {
-        json!({
+        json!({"layoutInput": "box",
             "tagName": "div",
             "useRounding": false,
-            "viewport": {
+            "viewport": {"rootContext": "root",
                 "width": {"unit": "px", "value": 100},
                 "height": {"unit": "max-content"},
             },
@@ -1612,13 +1663,13 @@ fn fri06_c08_t1_serializer_rejects_malformed_and_non_br_control_facts() {
         })
     };
     let br = |participation: Value, display: &str| {
-        json!({
+        json!({"layoutInput": "box",
             "tagName": "br",
             "lineControlParticipation": participation,
             "style": {
                 "display": display,
-                "inlineBaseline": "8px",
-                "inlineLineHeight": "10px",
+                "inlineMetrics": {"baseline": 8, "lineHeight": 10},
+
             },
             "unroundedLayout": {"x": 10, "y": 0, "width": 0, "height": 10},
             "children": [],
@@ -1635,7 +1686,7 @@ fn fri06_c08_t1_serializer_rejects_malformed_and_non_br_control_facts() {
         ("blockified", br(json!({"kind": "forced-break"}), "block")),
         (
             "non-BR",
-            json!({
+            json!({"layoutInput": "box",
                 "tagName": "span",
                 "lineControlParticipation": {"kind": "forced-break"},
                 "style": {"display": "inline"},
@@ -1661,13 +1712,32 @@ fn fri06_c08_t1_serializer_rejects_malformed_and_non_br_control_facts() {
             }),
         ),
     ] {
-        let result = std::panic::catch_unwind(|| {
-            generate_xml("fri06_c08_t1_malformed_control", &root(child))
-        });
-        assert!(
-            result.is_err(),
-            "serializer accepted malformed control state {label}"
-        );
+        let error = measured_xml("fri06_c08_t1_malformed_control", &root(child)).unwrap_err();
+        let (kind, node_path, field_path) = match label {
+            "non-object" => (
+                MeasurementErrorKind::Decode,
+                "root.children[0]",
+                "lineControlParticipation",
+            ),
+            "wrong kind" => (
+                MeasurementErrorKind::Decode,
+                "root.children[0]",
+                "lineControlParticipation.kind",
+            ),
+            "extra field" => (
+                MeasurementErrorKind::Decode,
+                "root.children[0]",
+                "lineControlParticipation.sourceTag",
+            ),
+            _ => (
+                MeasurementErrorKind::ContradictoryFields,
+                "root.children[0]",
+                "lineControlParticipation",
+            ),
+        };
+        assert_eq!(error.kind, kind, "{label}");
+        assert_eq!(error.node_path, node_path, "{label}");
+        assert_eq!(error.field_path, field_path, "{label}");
     }
 }
 
@@ -1685,10 +1755,10 @@ fn fri06_c08_recovery_inputs_block_br_used_size_round_trips_as_an_ordinary_box()
         } else {
             "block"
         };
-        let node = json!({
+        let node = json!({"layoutInput": "box",
             "tagName": "div",
             "useRounding": false,
-            "viewport": {
+            "viewport": {"rootContext": "root",
                 "width": {"unit": "px", "value": 100},
                 "height": {"unit": "px", "value": 100},
             },
@@ -1702,14 +1772,14 @@ fn fri06_c08_recovery_inputs_block_br_used_size_round_trips_as_an_ordinary_box()
                 },
             },
             "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 100},
-            "children": [{
+            "children": [{"layoutInput": "box",
                 "tagName": "br",
                 "style": {
                     "display": "block",
                     "direction": "ltr",
                     "writingMode": writing_mode,
-                    "inlineBaseline": "8px",
-                    "inlineLineHeight": "10px",
+                    "inlineMetrics": {"baseline": 8, "lineHeight": 10},
+
                 },
                 "unroundedLayout": {
                     "x": 0,
@@ -1763,10 +1833,10 @@ fn fri06_c08_recovery_inputs_block_br_used_size_round_trips_as_an_ordinary_box()
         }
     }
 
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "tagName": "div",
         "useRounding": false,
-        "viewport": {
+        "viewport": {"rootContext": "root",
             "width": {"unit": "px", "value": 20},
             "height": {"unit": "px", "value": 10},
         },
@@ -1778,7 +1848,7 @@ fn fri06_c08_recovery_inputs_block_br_used_size_round_trips_as_an_ordinary_box()
             },
         },
         "unroundedLayout": {"x": 0, "y": 0, "width": 20, "height": 10},
-        "children": [{
+        "children": [{"layoutInput": "box",
             "tagName": "br",
             "style": {"display": "block"},
             "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 10},
@@ -1795,10 +1865,10 @@ fn fri06_c08_recovery_inputs_block_br_used_size_round_trips_as_an_ordinary_box()
 #[test]
 fn fri06_c08_recovery_inputs_block_br_validation_and_non_br_controls_stay_narrow() {
     let root = |child: Value| {
-        json!({
+        json!({"layoutInput": "box",
             "tagName": "div",
             "useRounding": false,
-            "viewport": {
+            "viewport": {"rootContext": "root",
                 "width": {"unit": "px", "value": 100},
                 "height": {"unit": "max-content"},
             },
@@ -1808,12 +1878,12 @@ fn fri06_c08_recovery_inputs_block_br_validation_and_non_br_controls_stay_narrow
         })
     };
     let block_br = |layout: Value| {
-        json!({
+        json!({"layoutInput": "box",
             "tagName": "br",
             "style": {
                 "display": "block",
-                "inlineBaseline": "8px",
-                "inlineLineHeight": "10px",
+                "inlineMetrics": {"baseline": 8, "lineHeight": 10},
+
             },
             "unroundedLayout": layout,
             "children": [],
@@ -1827,16 +1897,22 @@ fn fri06_c08_recovery_inputs_block_br_validation_and_non_br_controls_stay_narrow
             json!({"x": 0, "y": 0, "width": 0, "height": -1}),
         ),
     ] {
-        let result = std::panic::catch_unwind(|| {
-            generate_xml(
-                "fri06_c08_recovery_inputs_invalid_block_br",
-                &root(block_br(layout)),
-            )
-        });
-        assert!(result.is_err(), "block BR accepted {label}");
+        let error = measured_xml(
+            "fri06_c08_recovery_inputs_invalid_block_br",
+            &root(block_br(layout)),
+        )
+        .unwrap_err();
+        let (kind, field) = if label == "missing width" {
+            (MeasurementErrorKind::MissingField, "unroundedLayout.width")
+        } else {
+            (MeasurementErrorKind::InvalidValue, "unroundedLayout.height")
+        };
+        assert_eq!(error.kind, kind);
+        assert_eq!(error.node_path, "root.children[0]");
+        assert_eq!(error.field_path, field);
     }
 
-    let ordinary = json!({
+    let ordinary = json!({"layoutInput": "box",
         "tagName": "span",
         "style": {"display": "block"},
         "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 19},
@@ -1850,13 +1926,13 @@ fn fri06_c08_recovery_inputs_block_br_validation_and_non_br_controls_stay_narrow
     assert_eq!(golden.root.children[0].style.get("width"), None);
     assert_eq!(golden.root.children[0].style.get("height"), None);
 
-    let inline_br = json!({
+    let inline_br = json!({"layoutInput": "box",
         "tagName": "br",
         "lineControlParticipation": {"kind": "forced-break"},
         "style": {
             "display": "inline",
-            "inlineBaseline": "8px",
-            "inlineLineHeight": "10px",
+            "inlineMetrics": {"baseline": 8, "lineHeight": 10},
+
         },
         "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 10},
         "children": [],
@@ -1907,10 +1983,11 @@ function getComputedStyle() {
             r#"
 const children = describeChildNodes(root);
 console.log(JSON.stringify({
+  layoutInput: "box",
   tagName: "div",
   layoutReadyInlineRoot: true,
   useRounding: false,
-  viewport: { width: { unit: "px", value: 100 }, height: { unit: "px", value: 100 } },
+  viewport: { rootContext: "root", width: { unit: "px", value: 100 }, height: { unit: "px", value: 100 } },
   style: {
     display: "block",
     size: { width: { unit: "px", value: 100 }, height: { unit: "px", value: 100 } },
@@ -2130,6 +2207,7 @@ function getComputedStyle(element) {
         r#"
 describeElement = function(element) {
   const described = {
+    layoutInput: "box",
     tagName: "span",
     style: {
       display: element.display,
@@ -2144,18 +2222,19 @@ describeElement = function(element) {
   };
   if (element === floating) {
     described.shapeBands = [
-      { bandMinimum: 0, bandMaximum: 21.2, intervalMinimum: 0, intervalMaximum: 44 },
-      { bandMinimum: 21.2, bandMaximum: 37.2, intervalMinimum: 0, intervalMaximum: 44 },
+      { bandMinimum: 0, bandMaximum: 21.2, interval: { minimum: 0, maximum: 44 } },
+      { bandMinimum: 21.2, bandMaximum: 37.2, interval: { minimum: 0, maximum: 44 } },
     ];
   }
   return described;
 };
 const children = describeChildNodes(parent);
 console.log(JSON.stringify({
+  layoutInput: "box",
   tagName: "div",
   layoutReadyInlineRoot: true,
   useRounding: false,
-  viewport: { width: { unit: "px", value: 180 }, height: { unit: "max-content" } },
+  viewport: { rootContext: "root", width: { unit: "px", value: 180 }, height: { unit: "max-content" } },
   style: {
     display: "block",
     direction: "ltr",
@@ -2272,10 +2351,10 @@ fn fri06_c08_recovery_inputs_shape_source_rejects_wrong_duplicate_range_br_and_f
 
 #[test]
 fn fri06_c08_t1_typed_inline_children_replace_legacy_raw_fallback() {
-    let typed_parent = json!({
+    let typed_parent = json!({"layoutInput": "box",
         "tagName": "div",
         "useRounding": false,
-        "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
         "style": {"display": "block"},
         "textContent": "duplicate raw fallback",
         "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
@@ -2290,6 +2369,7 @@ fn fri06_c08_t1_typed_inline_children_replace_legacy_raw_fallback() {
                 "whitespaceEdge": "preserve",
                 "followingBreak": "prohibited",
             }],
+            "rangeInks": [],
             "children": [],
         }],
     });
@@ -2330,18 +2410,18 @@ fn fri06_c08_t1_spill_matrix_preserves_64_legacy_variants() {
     let mut cases = 0;
     for family in families {
         for variant in variants {
-            let node = json!({
+            let node = json!({"layoutInput": "box",
                 "tagName": "div",
                 "useRounding": false,
-                "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+                "viewport": {"rootContext": "root", "width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
                 "style": {"display": "block", "direction": "ltr", "writingMode": "horizontal-tb"},
                 "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
-                "children": [{
+                "children": [{"layoutInput": "box",
                     "tagName": "br",
                     "style": {
                         "display": "inline",
-                        "inlineBaseline": "0px",
-                        "inlineLineHeight": "0px",
+                        "inlineMetrics": {"baseline": 0, "lineHeight": 0},
+
                     },
                     "unroundedLayout": {"x": 0, "y": 10, "width": 0, "height": 0},
                     "children": [],
@@ -2529,10 +2609,10 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
 
 #[test]
 fn fri06_c08_range_ink_serializer_emits_only_physical_inline_observations() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "tagName": "div",
         "useRounding": false,
-        "viewport": {
+        "viewport": {"rootContext": "root",
             "width": {"unit": "px", "value": 100},
             "height": {"unit": "max-content"},
         },
@@ -2579,10 +2659,10 @@ fn fri06_c08_range_ink_serializer_emits_only_physical_inline_observations() {
 
 #[test]
 fn fri06_c08_browser_control_serializer_emits_only_source_slot_and_neighbor_lines() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "tagName": "div",
         "useRounding": true,
-        "viewport": {
+        "viewport": {"rootContext": "root",
             "width": {"unit": "px", "value": 140},
             "height": {"unit": "max-content"},
         },
@@ -2594,14 +2674,14 @@ fn fri06_c08_browser_control_serializer_emits_only_source_slot_and_neighbor_line
         "smartRoundedLayout": {"x": 0, "y": 0, "width": 140, "height": 72},
         "unroundedLayout": {"x": 0, "y": 0, "width": 140, "height": 72},
         "children": [
-            {
+            {"layoutInput": "box",
                 "tagName": "span",
                 "style": {"display": "inline-block"},
                 "smartRoundedLayout": {"x": 0, "y": 5, "width": 32, "height": 12},
                 "unroundedLayout": {"x": 0, "y": 5, "width": 32, "height": 12},
                 "children": [],
             },
-            {
+            {"layoutInput": "box",
                 "tagName": "br",
                 "lineControlParticipation": {"kind": "forced-break"},
                 "style": {"display": "inline"},
@@ -2609,7 +2689,7 @@ fn fri06_c08_browser_control_serializer_emits_only_source_slot_and_neighbor_line
                 "unroundedLayout": {"x": 32, "y": 2, "width": 0, "height": 19},
                 "children": [],
             },
-            {
+            {"layoutInput": "box",
                 "tagName": "br",
                 "lineControlParticipation": {"kind": "forced-break"},
                 "style": {"display": "inline"},
@@ -2617,7 +2697,7 @@ fn fri06_c08_browser_control_serializer_emits_only_source_slot_and_neighbor_line
                 "unroundedLayout": {"x": 0, "y": 26, "width": 0, "height": 19},
                 "children": [],
             },
-            {
+            {"layoutInput": "box",
                 "tagName": "span",
                 "style": {"display": "inline-block"},
                 "smartRoundedLayout": {"x": 0, "y": 53, "width": 48, "height": 12},
@@ -2640,10 +2720,10 @@ fn fri06_c08_browser_control_serializer_emits_only_source_slot_and_neighbor_line
         "browser BR ink rectangles must not serialize as model control geometry\n{xml}"
     );
 
-    let unobserved = json!({
+    let unobserved = json!({"layoutInput": "box",
         "tagName": "div",
         "useRounding": false,
-        "viewport": {
+        "viewport": {"rootContext": "root",
             "width": {"unit": "px", "value": 100},
             "height": {"unit": "max-content"},
         },
@@ -2674,7 +2754,7 @@ fn fri06_c08_browser_control_serializer_emits_only_source_slot_and_neighbor_line
                 }],
                 "children": [],
             },
-            {
+            {"layoutInput": "box",
                 "tagName": "br",
                 "lineControlParticipation": {"kind": "forced-break"},
                 "style": {"display": "inline"},
@@ -2800,10 +2880,10 @@ fn fri06_c08_range_ink_serializer_rejects_every_ordinary_metric_and_scroll_state
     ];
 
     for (label, incompatible_state) in incompatible_states {
-        let mut node = json!({
+        let mut node = json!({"layoutInput": "box",
             "tagName": "div",
             "useRounding": false,
-            "viewport": {
+            "viewport": {"rootContext": "root",
                 "width": {"unit": "px", "value": 100},
                 "height": {"unit": "max-content"},
             },
@@ -2840,13 +2920,14 @@ fn fri06_c08_range_ink_serializer_rejects_every_ordinary_metric_and_scroll_state
                     .clone(),
             );
 
-        let result = std::panic::catch_unwind(|| {
-            generate_xml("fri06_c08_range_ink_serializer_rejection", &node)
-        });
-        assert!(
-            result.is_err(),
-            "Range ink serializer accepted incompatible state {label}"
+        let error = measured_xml("fri06_c08_range_ink_serializer_rejection", &node).unwrap_err();
+        assert_eq!(
+            error.kind,
+            MeasurementErrorKind::ContradictoryFields,
+            "{label}"
         );
+        assert_eq!(error.node_path, "root.children[0]", "{label}");
+        assert_eq!(error.field_path, "rangeInks", "{label}");
     }
 }
 
@@ -2910,10 +2991,10 @@ if ("y" in rangeInk || "height" in rangeInk || "baselineX" in rangeInk || "basel
 
 #[test]
 fn fri06_c08_existing_serializer_emits_c06_shaped_atomic_control_and_fragment_schema() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "tagName": "div",
         "useRounding": false,
-        "viewport": {
+        "viewport": {"rootContext": "root",
             "width": {"unit": "px", "value": 100},
             "height": {"unit": "max-content"},
         },
@@ -2945,7 +3026,7 @@ fn fri06_c08_existing_serializer_emits_c06_shaped_atomic_control_and_fragment_sc
                 }],
                 "children": [],
             },
-            {
+            {"layoutInput": "box",
                 "tagName": "span",
                 "style": {"display": "inline-block"},
                 "atomicInlineParticipation": {
@@ -2955,13 +3036,13 @@ fn fri06_c08_existing_serializer_emits_c06_shaped_atomic_control_and_fragment_sc
                 "unroundedLayout": {"x": 24.5, "y": 0, "width": 10, "height": 10},
                 "children": [],
             },
-            {
+            {"layoutInput": "box",
                 "tagName": "br",
                 "lineControlParticipation": {"kind": "forced-break"},
                 "style": {
                     "display": "inline",
-                    "inlineBaseline": "0px",
-                    "inlineLineHeight": "0px",
+                    "inlineMetrics": {"baseline": 0, "lineHeight": 0},
+
                 },
                 "unroundedLayout": {"x": 34.5, "y": 0, "width": 0, "height": 0},
                 "children": [],
@@ -2983,17 +3064,17 @@ fn fri06_c08_existing_serializer_emits_c06_shaped_atomic_control_and_fragment_sc
 
 #[test]
 fn xml_generation_preserves_browser_parity_fixture_shape() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {"display": "block", "direction": "ltr", "size": {"width": {"unit": "px", "value": 50}}},
         "smartRoundedLayout": {"x": 0, "y": 0, "width": 50, "height": 20, "scrollWidth": 50, "scrollHeight": 20},
         "unroundedLayout": {"x": 0, "y": 0, "width": 50, "height": 20, "scrollWidth": 50, "scrollHeight": 20},
         "naivelyRoundedLayout": {"clientWidth": 50, "clientHeight": 20},
         "children": [
-            {
+            {"layoutInput": "box",
                 "useRounding": true,
-                "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+                "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
                 "style": {"direction": "ltr", "size": {"height": {"unit": "px", "value": 10}}},
                 "smartRoundedLayout": {"x": 0, "y": 0, "width": 50, "height": 10, "scrollWidth": 50, "scrollHeight": 10},
                 "unroundedLayout": {"x": 0, "y": 0, "width": 50, "height": 10, "scrollWidth": 50, "scrollHeight": 10},
@@ -3015,17 +3096,17 @@ fn xml_generation_preserves_browser_parity_fixture_shape() {
 
 #[test]
 fn xml_generation_normalizes_root_expectation_to_origin() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {"display": "inline-grid"},
         "smartRoundedLayout": {"x": 7, "y": 4, "width": 50, "height": 20, "scrollWidth": 50, "scrollHeight": 20},
         "unroundedLayout": {"x": 7, "y": 4, "width": 50, "height": 20, "scrollWidth": 50, "scrollHeight": 20},
         "naivelyRoundedLayout": {"clientWidth": 50, "clientHeight": 20},
         "children": [
-            {
+            {"layoutInput": "box",
                 "useRounding": true,
-                "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+                "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
                 "style": {"display": "block"},
                 "smartRoundedLayout": {"x": 1, "y": 2, "width": 10, "height": 10, "scrollWidth": 10, "scrollHeight": 10},
                 "unroundedLayout": {"x": 1, "y": 2, "width": 10, "height": 10, "scrollWidth": 10, "scrollHeight": 10},
@@ -3043,7 +3124,7 @@ fn xml_generation_normalizes_root_expectation_to_origin() {
 
 #[test]
 fn xml_generation_marks_viewport_flex_item_root_context() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
         "viewport": {
             "width": {"unit": "px", "value": 400},
@@ -3071,7 +3152,7 @@ fn xml_generation_marks_viewport_flex_item_root_context() {
 
 #[test]
 fn xml_generation_serializes_exact_order_and_parent_axes() {
-    let flex_item = json!({
+    let flex_item = json!({"layoutInput": "box",
         "useRounding": true,
         "viewport": {
             "width": {"unit": "px", "value": 400},
@@ -3086,14 +3167,14 @@ fn xml_generation_serializes_exact_order_and_parent_axes() {
         "unroundedLayout": {"x": 0, "y": 0, "width": 160, "height": 20, "scrollWidth": 160, "scrollHeight": 20},
         "naivelyRoundedLayout": {"clientWidth": 160, "clientHeight": 20},
         "children": [
-            {
+            {"layoutInput": "box",
                 "style": {"order": "-2147483648"},
                 "smartRoundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
                 "unroundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
                 "naivelyRoundedLayout": {"clientWidth": 80, "clientHeight": 20},
                 "children": []
             },
-            {
+            {"layoutInput": "box",
                 "style": {"order": "2147483647"},
                 "smartRoundedLayout": {"x": 80, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
                 "unroundedLayout": {"x": 80, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
@@ -3102,7 +3183,7 @@ fn xml_generation_serializes_exact_order_and_parent_axes() {
             }
         ]
     });
-    let root = json!({
+    let root = json!({"layoutInput": "box",
         "useRounding": true,
         "viewport": {
             "width": {"unit": "max-content"},
@@ -3133,6 +3214,19 @@ fn xml_generation_serializes_exact_order_and_parent_axes() {
     let zero_host_xml = generate_xml("zero_flex_host_allocation", &zero_host);
     assert!(zero_host_xml.contains("host-inline-size=\"0px\""));
 
+    let error = measured_xml("root_rejects_parent_metadata", &root).unwrap_err();
+    assert_eq!(error.kind, MeasurementErrorKind::ContradictoryFields);
+    assert_eq!(error.node_path, "root");
+    assert_eq!(error.field_path, "viewport.rootContext");
+    let mut root = root;
+    root["viewport"]
+        .as_object_mut()
+        .unwrap()
+        .remove("parentWritingMode");
+    root["viewport"]
+        .as_object_mut()
+        .unwrap()
+        .remove("parentDirection");
     let root_xml = generate_xml("root_omits_parent_metadata", &root);
     assert!(!root_xml.contains("order=\"0\""));
     assert!(!root_xml.contains("parent-writing-mode="));
@@ -3142,9 +3236,9 @@ fn xml_generation_serializes_exact_order_and_parent_axes() {
 #[test]
 fn xml_generation_keeps_grid_text_elements_as_containers() {
     for display in ["grid", "inline-grid", "grid-lanes", "inline-grid-lanes"] {
-        let node = json!({
+        let node = json!({"layoutInput": "box",
             "useRounding": true,
-            "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+            "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
             "style": {"display": display, "direction": "ltr"},
             "textContent": "hello",
             "smartRoundedLayout": {"x": 0, "y": 0, "width": 50, "height": 10, "scrollWidth": 50, "scrollHeight": 10},
@@ -3165,9 +3259,9 @@ fn xml_generation_keeps_grid_text_elements_as_containers() {
 
 #[test]
 fn xml_generation_preserves_explicit_grid_line_names() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "grid-lanes",
             "gridTemplateColumns": [
@@ -3193,9 +3287,9 @@ fn xml_generation_preserves_explicit_grid_line_names() {
 
 #[test]
 fn xml_generation_preserves_calc_lengths() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "px", "value": 200}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "px", "value": 200}, "height": {"unit": "max-content"}},
         "style": {
             "display": "block",
             "size": {"width": {"unit": "calc", "value": "calc(50% + 20px)"}},
@@ -3215,9 +3309,9 @@ fn xml_generation_preserves_calc_lengths() {
 
 #[test]
 fn xml_generation_preserves_calc_grid_tracks() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "px", "value": 240}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "px", "value": 240}, "height": {"unit": "max-content"}},
         "style": {
             "display": "grid",
             "gridTemplateColumns": [
@@ -3238,9 +3332,9 @@ fn xml_generation_preserves_calc_grid_tracks() {
 
 #[test]
 fn xml_generation_preserves_grid_template_areas() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "grid",
             "gridTemplateRows": [
@@ -3272,9 +3366,9 @@ fn xml_generation_preserves_grid_template_areas() {
 
 #[test]
 fn xml_generation_preserves_non_default_font_size() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "block",
             "fontSize": {"unit": "px", "value": 12},
@@ -3293,9 +3387,9 @@ fn xml_generation_preserves_non_default_font_size() {
 
 #[test]
 fn xml_generation_preserves_non_default_font_family() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "block",
             "fontFamily": "monospace",
@@ -3314,9 +3408,9 @@ fn xml_generation_preserves_non_default_font_family() {
 
 #[test]
 fn xml_generation_elides_default_ahem_font_size() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "block",
             "fontSize": {"unit": "px", "value": 10},
@@ -3335,9 +3429,9 @@ fn xml_generation_elides_default_ahem_font_size() {
 
 #[test]
 fn xml_generation_preserves_non_default_line_height() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "block",
             "lineHeight": {"unit": "px", "value": 0},
@@ -3356,14 +3450,14 @@ fn xml_generation_preserves_non_default_line_height() {
 
 #[test]
 fn br_inline_metrics_xml_generation_serializes_complete_br_metrics() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "tagName": "br",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "inline",
-            "inlineBaseline": "21px",
-            "inlineLineHeight": "30px",
+            "inlineMetrics": {"baseline": 21, "lineHeight": 30},
+
         },
         "smartRoundedLayout": {"x": 0, "y": 0, "width": 0, "height": 0, "scrollWidth": 0, "scrollHeight": 0},
         "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 0, "scrollWidth": 0, "scrollHeight": 0},
@@ -3380,15 +3474,15 @@ fn br_inline_metrics_xml_generation_serializes_complete_br_metrics() {
 
 #[test]
 fn br_inline_metrics_xml_generation_does_not_infer_metrics_from_text_styles() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "block",
             "fontSize": {"unit": "px", "value": 20},
             "lineHeight": {"unit": "px", "value": 30},
-            "inlineBaseline": "",
-            "inlineLineHeight": "",
+
+
         },
         "textContent": "x",
         "smartRoundedLayout": {"x": 0, "y": 0, "width": 20, "height": 30, "scrollWidth": 20, "scrollHeight": 30},
@@ -3407,9 +3501,9 @@ fn br_inline_metrics_xml_generation_does_not_infer_metrics_from_text_styles() {
 
 #[test]
 fn xml_generation_preserves_vertical_align_top() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "inline-grid-lanes",
             "verticalAlign": "top",
@@ -4454,9 +4548,9 @@ console.log(JSON.stringify(mutated));
     let helper_areas = run_bundled_helper_json("fri08-c05-grid-template-areas", script);
     assert_eq!(helper_areas, json!([["computed", "computed"]]));
 
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {
             "display": "grid",
             "gridTemplateRows": [
@@ -4655,8 +4749,8 @@ fn br_inline_metrics_bundled_helper_describes_br_with_layout_ready_metrics() {
         "tagName": "br",
         "style": {
             "display": "inline",
-            "inlineBaseline": "8px",
-            "inlineLineHeight": "10px",
+            "inlineMetrics": {"baseline": 8, "lineHeight": 10},
+
         },
     });
     assert_eq!(
@@ -4723,25 +4817,25 @@ fn bundled_helper_reports_missing_test_root_as_unsupported() {
 
 #[test]
 fn xml_generation_applies_root_rounding_policy_to_descendants() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "useRounding": false,
-        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
         "style": {"direction": "ltr"},
         "smartRoundedLayout": {"x": 0, "y": 0, "width": 200, "height": 42, "scrollWidth": 200, "scrollHeight": 42},
         "unroundedLayout": {"x": 0, "y": 0, "width": 200, "height": 42.15625, "scrollWidth": 200, "scrollHeight": 42},
         "naivelyRoundedLayout": {"clientWidth": 200, "clientHeight": 42},
         "children": [
-            {
+            {"layoutInput": "box",
                 "useRounding": true,
-                "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+                "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
                 "style": {"direction": "ltr"},
                 "smartRoundedLayout": {"x": 8, "y": 8, "width": 97, "height": 26, "scrollWidth": 97, "scrollHeight": 26},
                 "unroundedLayout": {"x": 8, "y": 8, "width": 97, "height": 26.15625, "scrollWidth": 97, "scrollHeight": 26},
                 "naivelyRoundedLayout": {"clientWidth": 97, "clientHeight": 26},
                 "children": [
-                    {
+                    {"layoutInput": "box",
                         "useRounding": true,
-                        "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+                        "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
                         "style": {"direction": "ltr"},
                         "smartRoundedLayout": {"x": 10, "y": 10, "width": 38, "height": 6, "scrollWidth": 38, "scrollHeight": 6},
                         "unroundedLayout": {"x": 10.078125, "y": 10.078125, "width": 38.40625, "height": 6, "scrollWidth": 38, "scrollHeight": 6},
@@ -4767,10 +4861,25 @@ fn xml_generation_applies_root_rounding_policy_to_descendants() {
 
 #[test]
 fn layout_xml_attrs_use_f32_compatible_browser_fixture_boundary() {
-    assert_eq!(layout_number_attr_value(137.203125), "137.20313");
-    assert_eq!(layout_number_attr_value(42.15625), "42.15625");
-    assert_eq!(layout_number_attr_value(10.0), "10");
-    assert_eq!(number_attr_value(55.00000000000001), "55.00000000000001");
+    for (width, expected) in [
+        (137.203125, "137.20313"),
+        (42.15625, "42.15625"),
+        (10.0, "10"),
+    ] {
+        let node = json!({
+            "layoutInput": "box", "useRounding": false,
+            "viewport": {"rootContext": "root", "width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+            "style": {"size": {"width": {"unit": "px", "value": 55.00000000000001}}},
+            "unroundedLayout": {"x": 0, "y": 0, "width": width, "height": 10}, "children": []
+        });
+        let xml = generate_xml("numeric-boundaries", &node);
+        assert!(xml.contains(&format!(
+            r#"<node x="0" y="0" width="{expected}" height="10"/>"#
+        )));
+        assert!(xml.contains(r#"width="55.00000000000001px""#));
+        browser_parity_support::Golden::parse(&xml)
+            .expect("formatted values must parse independently");
+    }
 }
 
 #[test]
@@ -4821,9 +4930,9 @@ fn browser_fixture_document_inserts_head_inside_no_head_html_document() {
 
 #[test]
 fn xml_generation_is_comment_free() {
-    let node = serde_json::json!({
+    let node = serde_json::json!({"layoutInput": "box",
         "useRounding": true,
-        "viewport": { "width": "max-content", "height": "max-content" },
+        "viewport": {"rootContext": "root",  "width": {"unit": "max-content"}, "height": {"unit": "max-content"} },
         "style": { "display": "block" },
         "children": [],
         "smartRoundedLayout": { "x": 0, "y": 0, "width": 10, "height": 20 },
@@ -4842,15 +4951,14 @@ fn grid_position_serializes_named_lines_and_spans() {
         grid_position(&serde_json::json!({
             "kind": "named-line",
             "name": "a",
-            "value": 8
+            "occurrence": 8
         })),
         Some("a 8".to_string())
     );
     assert_eq!(
         grid_position(&serde_json::json!({
-            "kind": "named-span",
-            "name": "a",
-            "value": 0
+        "kind": "named-span",
+        "name": "a",
         })),
         Some("span a".to_string())
     );
@@ -4858,7 +4966,7 @@ fn grid_position_serializes_named_lines_and_spans() {
         grid_position(&serde_json::json!({
             "kind": "named-span",
             "name": "a",
-            "value": 2
+            "occurrence": 2
         })),
         Some("span 2 a".to_string())
     );
@@ -4967,11 +5075,11 @@ fn fri06_c08r_empty_range_serializer_preserves_explicit_zero_observations() {
 
 #[test]
 fn fri06_c08r_fixture_input_serializer_emits_closed_explicit_forms() {
-    let node = json!({
+    let node = json!({"layoutInput": "box",
         "tagName": "div",
         "layoutReadyInlineRoot": true,
         "useRounding": false,
-        "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
         "style": {"display": "block", "size": {"width": {"unit": "px", "value": 100}}},
         "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 10},
         "children": [
@@ -5017,7 +5125,7 @@ fn fri06_c08r_fixture_input_text(id: u64) -> Value {
 }
 
 fn fri06_c08r_fixture_input_box(display: &str, children: Vec<Value>) -> Value {
-    json!({
+    json!({"layoutInput": "box",
         "tagName": "div",
         "style": {"display": display},
         "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
@@ -5026,7 +5134,7 @@ fn fri06_c08r_fixture_input_box(display: &str, children: Vec<Value>) -> Value {
 }
 
 fn fri06_c08r_fixture_input_atomic(width: u64) -> Value {
-    json!({
+    json!({"layoutInput": "box",
         "tagName": "span",
         "style": {
             "display": "inline-block",
@@ -5039,11 +5147,11 @@ fn fri06_c08r_fixture_input_atomic(width: u64) -> Value {
 }
 
 fn fri06_c08r_fixture_input_root(display: &str, children: Vec<Value>) -> Value {
-    json!({
+    json!({"layoutInput": "box",
         "tagName": "div",
         "layoutReadyInlineRoot": true,
         "useRounding": false,
-        "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+        "viewport": {"rootContext": "root", "width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
         "style": {"display": display, "size": {"width": {"unit": "px", "value": 100}}},
         "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
         "children": children
@@ -5388,7 +5496,7 @@ function metrics(writingMode, direction = 'ltr', lineHeight = '20px') {
 }
 
 const horizontal = metrics('horizontal-tb');
-if (horizontal.baseline !== '15px' || horizontal.lineHeight !== '20px') {
+if (horizontal.baseline !== 15 || horizontal.lineHeight !== 20) {
   throw new Error(`expected browser-measured 15/20 BR metrics, got ${JSON.stringify(horizontal)}`);
 }
 if (JSON.stringify(Object.keys(horizontal)) !== JSON.stringify(['baseline', 'lineHeight'])) {
@@ -5407,7 +5515,7 @@ for (const [writingMode, direction] of [
   ['sideways-lr', 'ltr'],
 ]) {
   const measured = metrics(writingMode, direction);
-  if (measured.baseline !== '15px' || measured.lineHeight !== '20px') {
+  if (measured.baseline !== 15 || measured.lineHeight !== 20) {
     throw new Error(`${writingMode}/${direction} did not use logical block distance: ${JSON.stringify(measured)}`);
   }
 }
@@ -5422,19 +5530,19 @@ try {
 } catch (error) {
   throw new Error(`vertical-lr helper selected baseline - line-over = 15 - 30 = -15 and rejected it: ${String(error)}`);
 }
-if (verticalLr.baseline !== '15px' || verticalLr.lineHeight !== '30px') {
+if (verticalLr.baseline !== 15 || verticalLr.lineHeight !== 30) {
   throw new Error(`vertical-lr Chrome marker orientation did not produce 15/30 metrics: ${JSON.stringify(verticalLr)}`);
 }
 
 baselineDistance = 25;
 const clamped = metrics('horizontal-tb');
-if (clamped.baseline !== '20px') {
+if (clamped.baseline !== 20) {
   throw new Error(`BR baseline was not clamped to finite line height: ${JSON.stringify(clamped)}`);
 }
 
 const beforeZero = appended;
 const zero = metrics('horizontal-tb', 'ltr', '0px');
-if (zero.baseline !== '0px' || zero.lineHeight !== '0px' || appended !== beforeZero) {
+if (zero.baseline !== 0 || zero.lineHeight !== 0 || appended !== beforeZero) {
   throw new Error(`zero line height must remain exact without a probe: ${JSON.stringify(zero)}`);
 }
 
@@ -5590,4 +5698,13 @@ rejectUnusedLayoutReadyInlineBidiLevels(rtlAtomic);
     assert!(
         bidi.contains(r#"data-surgeist-inline-bidi-levels='[{"sourceIndex":0,"bidiLevel":1}]'"#)
     );
+}
+
+#[test]
+fn malformed_supported_geometry_is_not_silently_serialized_as_zero() {
+    let node = json!({"layoutInput": "box", "useRounding": false, "viewport":{"rootContext": "root", "width":{"unit":"max-content"},"height":{"unit":"max-content"}},"style":{},"unroundedLayout":{"x":0,"y":0,"width":"invalid","height":1},"children":[]});
+    let error = measured_xml("malformed", &node).unwrap_err();
+    assert_eq!(error.kind, MeasurementErrorKind::Decode);
+    assert_eq!(error.node_path, "root");
+    assert_eq!(error.field_path, "unroundedLayout.width");
 }

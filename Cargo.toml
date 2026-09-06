@@ -16,7 +16,8 @@ path = "src/lib.rs"
 [dependencies]
 surgeist-generator = { git = "https://github.com/bj-data-eng/surgeist-generator.git", rev = "1e0927a299b405792897a9bf5909e38bb8c58053", default-features = false, features = ["browser-corpus"], optional = true }
 serde = { version = "=1.0.228", features = ["derive"], optional = true }
-serde_json = { version = "=1.0.145", optional = true }
+serde_json = { version = "=1.0.145", features = ["raw_value"], optional = true }
+serde_path_to_error = { version = "=0.1.20", optional = true }
 
 [features]
 default = []
@@ -24,6 +25,7 @@ layout-golden-generate = [
     "dep:surgeist-generator",
     "dep:serde",
     "dep:serde_json",
+    "dep:serde_path_to_error",
 ]
 
 [dev-dependencies]
