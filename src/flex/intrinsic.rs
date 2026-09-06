@@ -180,7 +180,9 @@ fn flex_basis_line_main_size<Node, S: LayoutScalar>(
             let main_size = constants
                 .axes
                 .main_size(item.min_size)
-                .map_or(item.flex_basis, |min| item.flex_basis.max(min))
+                .map_or(item.flex_base.outer(), |min| {
+                    item.flex_base.outer().max(min)
+                })
                 .max(padding_border);
             gap + main_size + constants.axes.main_edge_sum(item.margin)
         })
@@ -230,11 +232,12 @@ where
         .axes
         .main_size((item.padding + item.border).sum_axes());
     let contentful_padding_floor_item = item.flex_basis_is_definite
-        && item.flex_basis <= padding_border
+        && item.flex_base.outer() <= padding_border
         && tree.child_count(item.node) == 0
-        && constants.axes.main_size(item.initial_output.content_size) > item.flex_basis;
-    let clamping_basis =
-        Some(style_preferred.map_or(item.flex_basis, |preferred| item.flex_basis.max(preferred)));
+        && constants.axes.main_size(item.initial_output.content_size) > item.flex_base.outer();
+    let clamping_basis = Some(style_preferred.map_or(item.flex_base.outer(), |preferred| {
+        item.flex_base.outer().max(preferred)
+    }));
     let flex_basis_min = clamping_basis.filter(|_| item.flex_shrink_factor == Tree::Scalar::ZERO);
     let flex_basis_max = clamping_basis
         .filter(|_| item.flex_grow_factor == Tree::Scalar::ZERO && !contentful_padding_floor_item);
@@ -247,13 +250,13 @@ where
         .unwrap_or(Tree::Scalar::INFINITY);
     if item.flex_basis_is_definite
         && item.flex_grow_factor == Tree::Scalar::ZERO
-        && item.flex_basis <= padding_border
+        && item.flex_base.outer() <= padding_border
         && style_min.is_none()
         && tree.child_count(item.node) == 0
-        && constants.axes.main_size(item.initial_output.size) <= item.flex_basis
-        && constants.axes.main_size(item.initial_output.content_size) <= item.flex_basis
+        && constants.axes.main_size(item.initial_output.size) <= item.flex_base.outer()
+        && constants.axes.main_size(item.initial_output.content_size) <= item.flex_base.outer()
     {
-        return Ok(item.flex_basis + constants.axes.main_edge_sum(item.margin));
+        return Ok(item.flex_base.outer() + constants.axes.main_edge_sum(item.margin));
     }
 
     let cross_available = intrinsic_item_cross_available(input, constants, item);
@@ -262,7 +265,7 @@ where
         && cross_available.into_option().is_some();
 
     let contribution = match (style_preferred, max_main <= min_main) {
-        _ if flex_automatic_minimum_is_zero(item.overflow) => item.flex_basis.max(min_main),
+        _ if flex_automatic_minimum_is_zero(item.overflow) => item.flex_base.outer().max(min_main),
         (Some(preferred), _) if max_main <= preferred => preferred.min(max_main).max(min_main),
         (_, true) => min_main,
         _ if constants.axes.main_logical_axis() == LogicalAxis::Inline
@@ -276,7 +279,7 @@ where
                     .clamp_max_before_min_optional(style_min, style_max)
             } else {
                 item.max_content_main_size
-                    .max(item.flex_basis)
+                    .max(item.flex_base.outer())
                     .clamp_max_before_min_optional(style_min, style_max)
             }
         }
@@ -309,7 +312,7 @@ where
                 measured.clamp_max_before_min_optional(style_min, style_max)
             } else {
                 measured
-                    .max(item.flex_basis)
+                    .max(item.flex_base.outer())
                     .clamp_max_before_min_optional(style_min, style_max)
             }
         }

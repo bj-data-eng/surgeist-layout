@@ -23,6 +23,8 @@ mod fixtures;
 
 #[path = "flex_tests/alignment_baselines_tests.rs"]
 mod alignment_baselines;
+#[path = "flex_tests/internal_contracts_tests.rs"]
+mod internal_contracts;
 #[path = "flex_tests/intrinsic_absolute_scroll_tests.rs"]
 mod intrinsic_absolute_scroll;
 #[path = "flex_tests/items_tests.rs"]

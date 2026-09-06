@@ -17,6 +17,31 @@ use crate::{
     SizingMode, Traverse,
 };
 
+/// The resolved border-box basis and its content contribution to shrink weighting.
+/// Margins remain separate; existing basis resolution owns the padding floor.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FlexBaseSize<S: LayoutScalar> {
+    inner: S,
+    outer: S,
+}
+
+impl<S: LayoutScalar> FlexBaseSize<S> {
+    fn from_outer(outer: S, padding_border: S) -> Self {
+        Self {
+            inner: (outer - padding_border).max(S::ZERO),
+            outer,
+        }
+    }
+
+    pub(super) fn inner(self) -> S {
+        self.inner
+    }
+
+    pub(super) fn outer(self) -> S {
+        self.outer
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct CollectedFlexItem<Node, S: LayoutScalar> {
     pub(super) node: Node,
@@ -24,7 +49,7 @@ pub(super) struct CollectedFlexItem<Node, S: LayoutScalar> {
     pub(super) collapse: FlexItemCollapse,
     pub(super) size: Size<Option<S>>,
     pub(super) initial_output: ComputeOutputOf<S>,
-    pub(super) flex_basis: S,
+    pub(super) flex_base: FlexBaseSize<S>,
     pub(super) flex_basis_is_definite: bool,
     pub(super) flex_basis_uses_content: bool,
     pub(super) intrinsic_flex_basis: Option<AvailableOf<S>>,
@@ -55,7 +80,7 @@ pub(super) struct ResolvedFlexItem<Node, S: LayoutScalar> {
     pub(super) source_index: usize,
     pub(super) size: Size<Option<S>>,
     pub(super) initial_output: ComputeOutputOf<S>,
-    pub(super) flex_basis: S,
+    pub(super) flex_base: FlexBaseSize<S>,
     pub(super) intrinsic_flex_basis: Option<AvailableOf<S>>,
     pub(super) hypothetical_main_size: S,
     pub(super) max_content_main_size: S,
@@ -103,7 +128,7 @@ impl<Node, S: LayoutScalar> From<CollectedFlexItem<Node, S>> for ResolvedFlexIte
             source_index: item.source_index,
             size: item.size,
             initial_output: item.initial_output,
-            flex_basis: item.flex_basis,
+            flex_base: item.flex_base,
             intrinsic_flex_basis: item.intrinsic_flex_basis,
             hypothetical_main_size: item.hypothetical_main_size,
             max_content_main_size: item.max_content_main_size,
@@ -548,7 +573,7 @@ where
         collapse: style.collapse,
         size: authored_size,
         initial_output: output,
-        flex_basis,
+        flex_base: FlexBaseSize::from_outer(flex_basis, padding_border_main),
         flex_basis_is_definite: resolved_flex_basis.is_some(),
         flex_basis_uses_content,
         intrinsic_flex_basis,
@@ -915,8 +940,8 @@ fn suppress_padding_floor_flex_basis_content_overflow<Node, S: LayoutScalar>(
     if item.flex_grow_factor == S::ZERO
         && resolved_flex_basis <= padding_border
         && tree.child_count(item.node) == 0
-        && constants.axes.main_size(output.size) <= item.flex_basis
-        && constants.axes.main_size(output.content_size) <= item.flex_basis
+        && constants.axes.main_size(output.size) <= item.flex_base.outer()
+        && constants.axes.main_size(output.content_size) <= item.flex_base.outer()
         && constants.axes.main_size(item.target_size) <= padding_border
     {
         output.content_size = constants.axes.with_main_size(

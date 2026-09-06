@@ -2,7 +2,7 @@ use super::flexible_lengths::{clamp_cross_size, flex_main_size};
 use super::items::{FinalFlexItem, ResolvedFlexItem};
 use super::lines::FlexLine;
 use super::{
-    AlignContent, AlignItems, BaselinesOf, ComputeOutputOf, Constants, Direction, Edges,
+    AlignContent, AlignItems, BaselinesOf, ComputeOutputOf, Constants, Direction, Edges, FlexAxes,
     LayoutScalar, Point, Size,
 };
 use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis};
@@ -45,11 +45,6 @@ impl<S: LayoutScalar> FlexItemBaseline<S> {
         self.flow_axes.block_axis_extent(size)
             + self.flow_axes.line_over_edge(margin)
             + self.flow_axes.line_under_edge(margin)
-    }
-
-    fn has_auto_line_margin(self, margin_is_auto: Edges<bool>) -> bool {
-        self.flow_axes.line_over_edge(margin_is_auto)
-            || self.flow_axes.line_under_edge(margin_is_auto)
     }
 
     fn translated(self, size: Size<S>, location: Point<S>) -> Point<Option<S>> {
@@ -181,8 +176,7 @@ pub(super) fn align_items_on_cross_axis<Node, S: LayoutScalar>(
     line_cross_offset: S,
     constants: &Constants<S>,
 ) {
-    let cross_axis = constants.axes.cross_physical_axis();
-    let max_baseline = max_line_baseline(items, cross_axis);
+    let max_baseline = max_line_baseline(items, constants.axes);
     for item in items {
         resolve_cross_axis_auto_margins(item, line_cross_size, constants);
         let outer_cross_size = constants.axes.cross_size(item.target_size)
@@ -198,40 +192,42 @@ pub(super) fn align_items_on_cross_axis<Node, S: LayoutScalar>(
                 .axes
                 .with_cross_size(item.target_size, stretched_cross_size);
         }
-        let alignment_offset = match item.align_self.safe_fallback(free_space) {
-            AlignItems::Start => {
-                if constants.axes.cross_is_reversed() {
-                    free_space
-                } else {
-                    S::ZERO
+        let alignment_offset = if item.has_auto_cross_margin(constants.axes) {
+            S::ZERO
+        } else {
+            match item.align_self.safe_fallback(free_space) {
+                AlignItems::Start => {
+                    if constants.axes.cross_is_reversed() {
+                        free_space
+                    } else {
+                        S::ZERO
+                    }
                 }
-            }
-            AlignItems::End | AlignItems::LastBaseline => {
-                if constants.axes.cross_is_reversed() {
-                    S::ZERO
-                } else {
+                AlignItems::End | AlignItems::LastBaseline => {
+                    if constants.axes.cross_is_reversed() {
+                        S::ZERO
+                    } else {
+                        free_space
+                    }
+                }
+                AlignItems::FlexStart | AlignItems::Stretch => S::ZERO,
+                AlignItems::Center => free_space / S::from_f64(2.0),
+                AlignItems::FlexEnd => free_space,
+                AlignItems::Baseline if item.participates_in_baseline(constants.axes) => {
+                    max_baseline - item.baseline.value(item.target_size, item.margin)
+                }
+                AlignItems::Baseline
+                    if constants.wraps && constants.axes.flow_direction() == Direction::Rtl =>
+                {
                     free_space
                 }
-            }
-            AlignItems::FlexStart | AlignItems::Stretch => S::ZERO,
-            AlignItems::Center => free_space / S::from_f64(2.0),
-            AlignItems::FlexEnd => free_space,
-            AlignItems::Baseline if item.baseline.axis(item.target_size) == cross_axis => {
-                max_baseline - item.baseline.value(item.target_size, item.margin)
-            }
-            AlignItems::Baseline
-                if constants.wraps && constants.axes.flow_direction() == Direction::Rtl =>
-            {
-                free_space
-            }
-            AlignItems::Baseline => S::ZERO,
-            AlignItems::SafeEnd | AlignItems::SafeFlexEnd | AlignItems::SafeCenter => {
-                unreachable!("safe_fallback returns unsafe item alignment")
+                AlignItems::Baseline => S::ZERO,
+                AlignItems::SafeEnd | AlignItems::SafeFlexEnd | AlignItems::SafeCenter => {
+                    unreachable!("safe_fallback returns unsafe item alignment")
+                }
             }
         };
-        let line_over_margin = if item.align_self == AlignItems::Baseline
-            && item.baseline.axis(item.target_size) == cross_axis
-        {
+        let line_over_margin = if item.participates_in_baseline(constants.axes) {
             item.baseline.flow_axes.line_over_edge(item.margin)
         } else {
             constants.axes.cross_start_edge(item.margin)
@@ -244,8 +240,7 @@ pub(super) fn line_cross_size<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) -> S {
-    let cross_axis = constants.axes.cross_physical_axis();
-    let max_baseline = max_line_baseline(items, cross_axis);
+    let max_baseline = max_line_baseline(items, constants.axes);
     items
         .iter()
         .map(|item| line_item_cross_size(item, max_baseline, constants))
@@ -259,10 +254,7 @@ fn line_item_cross_size<Node, S: LayoutScalar>(
 ) -> S {
     let outer_cross_size =
         constants.axes.cross_size(item.target_size) + constants.axes.cross_edge_sum(item.margin);
-    if item.align_self == AlignItems::Baseline
-        && item.baseline.axis(item.target_size) == constants.axes.cross_physical_axis()
-        && !item.baseline.has_auto_line_margin(item.margin_is_auto)
-    {
+    if item.participates_in_baseline(constants.axes) {
         return max_baseline - item.baseline.value(item.target_size, item.margin)
             + item.baseline.margin_box_size(item.target_size, item.margin);
     }
@@ -272,14 +264,11 @@ fn line_item_cross_size<Node, S: LayoutScalar>(
 
 fn max_line_baseline<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
-    cross_axis: PhysicalAxis,
+    axes: FlexAxes,
 ) -> S {
     items
         .iter()
-        .filter(|item| {
-            item.align_self == AlignItems::Baseline
-                && item.baseline.axis(item.target_size) == cross_axis
-        })
+        .filter(|item| item.participates_in_baseline(axes))
         .map(|item| item.baseline.value(item.target_size, item.margin))
         .fold(S::ZERO, S::max)
 }
@@ -583,6 +572,16 @@ pub(super) fn alignment_offset<S: LayoutScalar>(
 }
 
 impl<Node, S: LayoutScalar> ResolvedFlexItem<Node, S> {
+    fn has_auto_cross_margin(&self, axes: FlexAxes) -> bool {
+        axes.cross_start_edge(self.margin_is_auto) || axes.cross_end_edge(self.margin_is_auto)
+    }
+
+    fn participates_in_baseline(&self, axes: FlexAxes) -> bool {
+        self.align_self == AlignItems::Baseline
+            && self.baseline.axis(self.target_size) == axes.cross_physical_axis()
+            && !self.has_auto_cross_margin(axes)
+    }
+
     pub(super) fn margin_main_start(&self, constants: &Constants<S>) -> S {
         constants.axes.main_start_edge(self.margin)
     }

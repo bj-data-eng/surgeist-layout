@@ -2,6 +2,40 @@ use super::items::ResolvedFlexItem;
 use super::{Constants, FlexAxes, LayoutScalar};
 use crate::layout_math::MaxBeforeMinScalarClampExt;
 
+#[derive(Clone, Copy)]
+enum FlexDistribution {
+    Grow,
+    Shrink,
+}
+
+fn freeze_inflexible_items<Node, S: LayoutScalar>(
+    items: &mut [ResolvedFlexItem<Node, S>],
+    axes: FlexAxes,
+    distribution: FlexDistribution,
+) -> Vec<bool> {
+    items
+        .iter_mut()
+        .map(|item| {
+            let basis = item.flex_base.outer();
+            let frozen = match distribution {
+                FlexDistribution::Grow => {
+                    item.flex_grow_factor == S::ZERO || basis > item.hypothetical_main_size
+                }
+                FlexDistribution::Shrink => {
+                    item.flex_shrink_factor == S::ZERO || basis < item.hypothetical_main_size
+                }
+            };
+            let target = if frozen {
+                item.hypothetical_main_size
+            } else {
+                basis
+            };
+            item.target_size = axes.with_main_size(item.target_size, target);
+            frozen
+        })
+        .collect()
+}
+
 pub(super) fn resolve_flexible_lengths<Node, S: LayoutScalar>(
     items: &mut [ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
@@ -24,23 +58,11 @@ fn distribute_positive_free_space<Node, S: LayoutScalar>(
     items: &mut [ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) {
-    let mut frozen = vec![false; items.len()];
     let Some(container_main_size) = flex_main_size(constants) else {
         return;
     };
+    let mut frozen = freeze_inflexible_items(items, constants.axes, FlexDistribution::Grow);
     let initial_free_space = container_main_size - flex_used_space(items, constants, &frozen);
-
-    for (item, frozen) in items.iter_mut().zip(&mut frozen) {
-        item.target_size = constants
-            .axes
-            .with_main_size(item.target_size, item.flex_basis);
-        if item.flex_grow_factor == S::ZERO || item.flex_basis > item.hypothetical_main_size {
-            item.target_size = constants
-                .axes
-                .with_main_size(item.target_size, item.hypothetical_main_size);
-            *frozen = true;
-        }
-    }
 
     loop {
         if frozen.iter().all(|frozen| *frozen) {
@@ -70,7 +92,8 @@ fn distribute_positive_free_space<Node, S: LayoutScalar>(
                 continue;
             }
 
-            let grown_main_size = item.flex_basis + free_space * item.flex_grow_factor / grow_sum;
+            let grown_main_size =
+                item.flex_base.outer() + free_space * item.flex_grow_factor / grow_sum;
             let clamped = clamp_main_size(item, constants.axes, grown_main_size);
             item.target_size = constants.axes.with_main_size(item.target_size, clamped);
             let violation = clamped - grown_main_size;
@@ -89,23 +112,11 @@ fn distribute_negative_free_space<Node, S: LayoutScalar>(
     items: &mut [ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) {
-    let mut frozen = vec![false; items.len()];
     let Some(container_main_size) = flex_main_size(constants) else {
         return;
     };
+    let mut frozen = freeze_inflexible_items(items, constants.axes, FlexDistribution::Shrink);
     let initial_free_space = container_main_size - flex_used_space(items, constants, &frozen);
-
-    for (item, frozen) in items.iter_mut().zip(&mut frozen) {
-        item.target_size = constants
-            .axes
-            .with_main_size(item.target_size, item.flex_basis);
-        if item.flex_shrink_factor == S::ZERO || item.flex_basis < item.hypothetical_main_size {
-            item.target_size = constants
-                .axes
-                .with_main_size(item.target_size, item.hypothetical_main_size);
-            *frozen = true;
-        }
-    }
 
     loop {
         if frozen.iter().all(|frozen| *frozen) {
@@ -122,7 +133,7 @@ fn distribute_negative_free_space<Node, S: LayoutScalar>(
             .iter()
             .zip(&frozen)
             .filter(|(_, frozen)| !**frozen)
-            .map(|(item, _)| item.flex_shrink_factor * item.flex_basis)
+            .map(|(item, _)| item.flex_shrink_factor * item.flex_base.inner())
             .fold(S::ZERO, |sum, value| sum + value);
         if shrink_sum <= S::ZERO || scaled_shrink_sum <= S::ZERO {
             return;
@@ -141,9 +152,9 @@ fn distribute_negative_free_space<Node, S: LayoutScalar>(
                 continue;
             }
 
-            let scaled_shrink = item.flex_shrink_factor * item.flex_basis;
+            let scaled_shrink = item.flex_shrink_factor * item.flex_base.inner();
             let shrunken_main_size =
-                item.flex_basis + free_space * scaled_shrink / scaled_shrink_sum;
+                item.flex_base.outer() + free_space * scaled_shrink / scaled_shrink_sum;
             let clamped =
                 clamp_main_size(item, constants.axes, S::max(S::ZERO, shrunken_main_size));
             item.target_size = constants.axes.with_main_size(item.target_size, clamped);
@@ -177,7 +188,7 @@ fn flex_used_space<Node, S: LayoutScalar>(
             let main_size = if *frozen {
                 constants.axes.main_size(item.target_size)
             } else {
-                item.flex_basis
+                item.flex_base.outer()
             };
             gap + main_size + constants.axes.main_edge_sum(item.margin)
         })
