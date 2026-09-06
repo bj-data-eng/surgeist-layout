@@ -5,13 +5,15 @@ use super::scroll::{
 };
 use super::sizing::{max_content_size, resolve_auto_optional, resolve_length_or_zero};
 use super::*;
+use crate::FlowAxes;
 
 pub(super) fn inline_run_end<Tree, M>(
     tree: &Tree,
+    container: <Tree as Traverse>::Node,
     children: &[<Tree as Traverse>::Node],
     constants: &Constants<<Tree as Traverse>::Scalar>,
     mut index: usize,
-) -> usize
+) -> LayoutResultOf<<Tree as Traverse>::Node, usize, <Tree as Traverse>::Scalar, M>
 where
     Tree: Compute<M>,
 {
@@ -34,67 +36,89 @@ where
                     index += 1;
                     continue;
                 }
-                visible_line_break_in_flow(
-                    tree,
-                    children[index],
-                    constants.writing_mode,
-                    constants.direction,
-                );
+                visible_line_break_in_flow(tree, container, children[index], constants.flow_axes)?;
             }
             InlineParticipantKindOf::InlineText(_) => {}
             InlineParticipantKindOf::InlineBoundary(_) => {
                 visible_inline_boundary_in_flow(
                     tree,
+                    container,
                     children[index],
-                    constants.writing_mode,
-                    constants.direction,
-                );
+                    constants.flow_axes,
+                )?;
             }
         }
         index += 1;
     }
-    index
+    Ok(index)
 }
 
-pub(super) fn visible_line_break_in_flow<Tree, M>(
+pub(super) fn visible_line_break_in_flow<Tree, S, M>(
     tree: &Tree,
+    container: <Tree as Traverse>::Node,
     child: <Tree as Traverse>::Node,
-    flow_writing_mode: WritingMode,
-    flow_direction: Direction,
-) -> Option<LineBreakInputOf<<Tree as Traverse>::Scalar>>
+    flow: FlowAxes,
+) -> LayoutResultOf<Tree::Node, Option<LineBreakInputOf<S>>, S, M>
 where
-    Tree: Compute<M>,
+    Tree: Compute<M, Scalar = S>,
+    S: LayoutScalar,
 {
     let projection = InlineParticipantProjection::lookup::<Tree, M>(tree, child);
     let InlineParticipantKindOf::LineBreak(line_break) = projection.kind() else {
-        return None;
+        return Ok(None);
     };
     if line_break.display().is_none() {
-        return None;
+        return Ok(None);
     }
-    if line_break.writing_mode() != flow_writing_mode || line_break.direction() != flow_direction {
-        panic!("line-break flow must match containing inline flow");
-    }
-    Some(line_break)
+    validate_inline_control_flow(
+        container,
+        child,
+        flow,
+        FlowAxes::new(line_break.writing_mode(), line_break.direction()),
+    )?;
+    Ok(Some(line_break))
 }
 
-pub(super) fn visible_inline_boundary_in_flow<Tree, M>(
+pub(super) fn visible_inline_boundary_in_flow<Tree, S, M>(
     tree: &Tree,
+    container: <Tree as Traverse>::Node,
     child: <Tree as Traverse>::Node,
-    flow_writing_mode: WritingMode,
-    flow_direction: Direction,
-) -> Option<InlineBoundaryInputOf<<Tree as Traverse>::Scalar>>
+    flow: FlowAxes,
+) -> LayoutResultOf<Tree::Node, Option<InlineBoundaryInputOf<S>>, S, M>
 where
-    Tree: Compute<M>,
+    Tree: Compute<M, Scalar = S>,
+    S: LayoutScalar,
 {
     let projection = InlineParticipantProjection::lookup::<Tree, M>(tree, child);
     let InlineParticipantKindOf::InlineBoundary(boundary) = projection.kind() else {
-        return None;
+        return Ok(None);
     };
-    if boundary.writing_mode() != flow_writing_mode || boundary.direction() != flow_direction {
-        panic!("inline boundary flow must match containing inline flow");
+    validate_inline_control_flow(
+        container,
+        child,
+        flow,
+        FlowAxes::new(boundary.writing_mode(), boundary.direction()),
+    )?;
+    Ok(Some(boundary))
+}
+
+fn validate_inline_control_flow<Node, S: LayoutScalar, M>(
+    container: Node,
+    subject: Node,
+    expected: FlowAxes,
+    actual: FlowAxes,
+) -> LayoutResultOf<Node, (), S, M> {
+    if actual != expected {
+        return Err(LayoutErrorOf::new(
+            LayoutErrorSiteOf::ContainerSubject { container, subject },
+            LayoutOperation::ChildLayout,
+            LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InlineFlowMismatch {
+                expected,
+                actual,
+            }),
+        ));
     }
-    Some(boundary)
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -327,13 +351,9 @@ where
                     }
                     continue;
                 }
-                let line_break = visible_line_break_in_flow(
-                    tree,
-                    child,
-                    constants.writing_mode,
-                    constants.direction,
-                )
-                .expect("visible line-break input remains visible after validation");
+                let line_break =
+                    visible_line_break_in_flow(tree, container, child, constants.flow_axes)?
+                        .expect("visible line-break input remains visible after validation");
                 participants.push(MixedInlineParticipantOf::ForcedLineBreak(
                     forced_line_break_control(source_index, line_break, available_inline_extent),
                 ));
@@ -341,13 +361,9 @@ where
                 continue;
             }
             InlineParticipantKindOf::InlineBoundary(_) => {
-                let boundary = visible_inline_boundary_in_flow(
-                    tree,
-                    child,
-                    constants.writing_mode,
-                    constants.direction,
-                )
-                .expect("inline-boundary input remains present after validation");
+                let boundary =
+                    visible_inline_boundary_in_flow(tree, container, child, constants.flow_axes)?
+                        .expect("inline-boundary input remains present after validation");
                 participants.push(MixedInlineParticipantOf::Boundary(inline_boundary_control(
                     source_index,
                     boundary,

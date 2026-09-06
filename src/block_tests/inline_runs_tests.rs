@@ -1617,7 +1617,6 @@ fn vertical_line_break_clear_is_accepted_without_active_exclusions() {
 }
 
 #[test]
-#[should_panic(expected = "line-break flow must match containing inline flow")]
 fn vertical_parent_rejects_clear_even_when_line_break_input_defaults_horizontal() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
@@ -1631,16 +1630,144 @@ fn vertical_parent_rejects_clear_even_when_line_break_input_defaults_horizontal(
         )
         .line_break(1, LineBreakInput::new().with_clear(Clear::Both));
 
-    compute_root(
+    let error = compute_root(
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
     )
-    .unwrap();
+    .expect_err("mismatched inline control must return a typed error");
+    assert_inline_flow_mismatch(
+        &error,
+        1,
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+    );
+}
+
+fn assert_inline_flow_mismatch<S: LayoutScalar, M: core::fmt::Debug>(
+    error: &LayoutErrorOf<u32, S, M>,
+    subject: u32,
+    expected: FlowAxes,
+    actual: FlowAxes,
+) {
+    assert_eq!(
+        error.site(),
+        LayoutErrorSiteOf::ContainerSubject {
+            container: 0,
+            subject,
+        }
+    );
+    assert_eq!(error.operation(), LayoutOperation::ChildLayout);
+    assert!(
+        matches!(
+            error.kind(),
+            LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InlineFlowMismatch {
+                expected: error_expected,
+                actual: error_actual,
+            }) if *error_expected == expected && *error_actual == actual
+        ),
+        "unexpected inline flow error: {error:?}"
+    );
+}
+
+fn inline_control_flow_tree<S: LayoutScalar>(
+    flow: FlowAxes,
+    input: LayoutInputOf<S>,
+    later_in_run: bool,
+) -> PublicBlockTree<S> {
+    PublicBlockTree::default()
+        .with_children(0, if later_in_run { vec![1, 2] } else { vec![2] })
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: flow.writing_mode(),
+                direction: flow.direction(),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, NodeInputOf::non_box())
+        .with_layout_input(
+            1,
+            LayoutInputOf::line_break(
+                LineBreakInputOf::new()
+                    .with_writing_mode(flow.writing_mode())
+                    .with_direction(flow.direction()),
+            ),
+        )
+        .with_style(2, NodeInputOf::non_box())
+        .with_layout_input(2, input)
+}
+
+fn visible_controls<S: LayoutScalar>(flow: FlowAxes) -> [LayoutInputOf<S>; 3] {
+    let boundary = |kind| {
+        LayoutInputOf::inline_boundary(
+            InlineBoundaryInputOf::new(
+                kind,
+                InlineMetricsOf::from_ascent_descent(S::ZERO, S::ZERO).unwrap(),
+            )
+            .with_writing_mode(flow.writing_mode())
+            .with_direction(flow.direction()),
+        )
+    };
+    [
+        LayoutInputOf::line_break(
+            LineBreakInputOf::new()
+                .with_writing_mode(flow.writing_mode())
+                .with_direction(flow.direction()),
+        ),
+        boundary(InlineBoundaryKind::Start),
+        boundary(InlineBoundaryKind::End),
+    ]
+}
+
+fn assert_public_inline_control_flow_contract<S: LayoutScalar>() {
+    let actual = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let request =
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(100.0))))
+            .unwrap();
+    for expected in [
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+    ] {
+        for later_in_run in [false, true] {
+            for input in visible_controls(actual) {
+                let tree = inline_control_flow_tree(expected, input, later_in_run);
+                let error = compute_layout(&tree, 0, request)
+                    .expect_err("visible control flow must match its containing block");
+                assert_inline_flow_mismatch(&error, 2, expected, actual);
+            }
+
+            for input in visible_controls(expected)
+                .into_iter()
+                .chain([LayoutInputOf::line_break(LineBreakInputOf::new().hidden())])
+            {
+                let tree = inline_control_flow_tree(expected, input, later_in_run);
+                let batch = compute_layout(&tree, 0, request)
+                    .expect("matching controls and hidden mismatched line breaks are valid");
+                let output = public_final_output(&batch, 2);
+                assert_eq!(output.size, Size::ZERO);
+                assert_eq!(
+                    output.source_index,
+                    SourceIndex::new(usize::from(later_in_run))
+                );
+            }
+        }
+    }
 }
 
 #[test]
-#[should_panic(expected = "line-break flow must match containing inline flow")]
+fn public_inline_control_flow_contract_f32() {
+    assert_public_inline_control_flow_contract::<f32>();
+}
+
+#[test]
+fn public_inline_control_flow_contract_f64() {
+    assert_public_inline_control_flow_contract::<f64>();
+}
+
+#[test]
 fn vertical_parent_rejects_default_line_break_flow_until_input_is_layout_ready() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
@@ -1655,16 +1782,21 @@ fn vertical_parent_rejects_default_line_break_flow_until_input_is_layout_ready()
         )
         .line_break(1, LineBreakInput::new());
 
-    compute_root(
+    let error = compute_root(
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
     )
-    .unwrap();
+    .expect_err("mismatched inline control must return a typed error");
+    assert_inline_flow_mismatch(
+        &error,
+        1,
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+    );
 }
 
 #[test]
-#[should_panic(expected = "inline boundary flow must match containing inline flow")]
 fn vertical_parent_rejects_default_inline_boundary_flow_until_input_is_layout_ready() {
     let boundary_metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
@@ -1683,12 +1815,18 @@ fn vertical_parent_rejects_default_inline_boundary_flow_until_input_is_layout_re
             InlineBoundaryInput::new(InlineBoundaryKind::Start, boundary_metrics),
         );
 
-    compute_root(
+    let error = compute_root(
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
     )
-    .unwrap();
+    .expect_err("mismatched inline control must return a typed error");
+    assert_inline_flow_mismatch(
+        &error,
+        1,
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+    );
 }
 
 #[test]

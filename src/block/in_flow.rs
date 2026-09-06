@@ -217,7 +217,7 @@ where
                 }
                 if style.display.is_inline_level() && style.float.is_none() {
                     let run_start = index;
-                    index = inline_run_end(tree, children, constants, index + 1);
+                    index = inline_run_end(tree, node, children, constants, index + 1)?;
                     InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
                         run_start, index,
                     ))
@@ -227,7 +227,7 @@ where
             }
             InlineParticipantKindOf::InlineText(_) => {
                 let run_start = index;
-                index = inline_run_end(tree, children, constants, index + 1);
+                index = inline_run_end(tree, node, children, constants, index + 1)?;
                 InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
                     run_start, index,
                 ))
@@ -245,29 +245,19 @@ where
                     index += 1;
                     continue;
                 }
-                visible_line_break_in_flow(
-                    tree,
-                    child,
-                    constants.writing_mode,
-                    constants.direction,
-                );
+                visible_line_break_in_flow(tree, node, child, constants.flow_axes)?;
 
                 let run_start = index;
-                index = inline_run_end(tree, children, constants, index + 1);
+                index = inline_run_end(tree, node, children, constants, index + 1)?;
                 InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
                     run_start, index,
                 ))
             }
             InlineParticipantKindOf::InlineBoundary(_) => {
-                visible_inline_boundary_in_flow(
-                    tree,
-                    child,
-                    constants.writing_mode,
-                    constants.direction,
-                );
+                visible_inline_boundary_in_flow(tree, node, child, constants.flow_axes)?;
 
                 let run_start = index;
-                index = inline_run_end(tree, children, constants, index + 1);
+                index = inline_run_end(tree, node, children, constants, index + 1)?;
                 InFlowChildStart::VisibleInlineRun(VisibleInlineRunTransition::new(
                     run_start, index,
                 ))

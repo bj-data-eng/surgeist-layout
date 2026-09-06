@@ -1,5 +1,5 @@
 use crate::DefaultScalar;
-use crate::geometry::PhysicalAxis;
+use crate::geometry::{FlowAxes, PhysicalAxis};
 use crate::node_input::{FloatExclusionIntervalErrorOf, InlineTextInputErrorOf};
 use crate::output::RunMode;
 use crate::scalar::LayoutScalar;
@@ -101,6 +101,11 @@ pub enum LayoutInvalidInputOf<S: LayoutScalar = DefaultScalar> {
         value: S,
     },
     InlineText(InlineTextInputErrorOf<S>),
+    /// A visible inline control disagrees with its containing block's flow.
+    InlineFlowMismatch {
+        expected: FlowAxes,
+        actual: FlowAxes,
+    },
     AtomicInlineParticipation {
         reason: AtomicInlineParticipationRoleError,
     },

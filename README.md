@@ -137,6 +137,11 @@ algorithm modes remain internal.
 receives non-negative content-space constraints, and invalid provider output or a
 provider error becomes a typed layout error.
 
+Visible inline boundaries and line breaks must match their containing block's
+`FlowAxes`. A mismatch returns `LayoutInvalidInputOf::InlineFlowMismatch` with
+the expected and actual axes, the container and control node, and the
+`ChildLayout` operation. Hidden line breaks retain their existing bypass.
+
 `ItemOrder` is the layout-ready signed order value. `SourceIndex` is stable
 source-sibling identity: outputs remain source-associated while flex, ordinary
 grid, and grid-lanes consume one stable order-modified traversal sorted by item

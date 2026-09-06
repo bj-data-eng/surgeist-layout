@@ -14,7 +14,7 @@ use super::{
     LayoutErrorSiteOf, LayoutInvalidInputOf, LayoutOperation, LayoutResultOf, LayoutScalar,
     LengthAutoOf, LineBreakInputOf, NodeOutputOf, Overflow, ParentFormattingContext,
     PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis, RunMode, Size, SizingAlgorithm,
-    SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    SizingMode, TextAlign, Traverse, VerticalAlign,
 };
 use crate::error::{
     AtomicInlineParticipationRoleError, layout_child_geometry_error, layout_own_geometry_error,
@@ -31,7 +31,7 @@ use crate::scroll::{
 use crate::sizing::resolve::{EdgesResultExt, SizeResultExt};
 
 #[cfg(test)]
-use super::{LengthOf, NodeInputOf};
+use super::{LengthOf, NodeInputOf, WritingMode};
 
 mod absolute;
 mod floats;
@@ -356,7 +356,6 @@ struct Constants<S: LayoutScalar> {
     node_min_size: Size<Option<S>>,
     node_max_size: Size<Option<S>>,
     direction: Direction,
-    writing_mode: WritingMode,
     text_align: TextAlign,
     border: Edges<S>,
     padding: Edges<S>,
@@ -611,7 +610,6 @@ impl<S: LayoutScalar> Constants<S> {
             node_min_size: min_size,
             node_max_size: max_size,
             direction: flow_axes.direction(),
-            writing_mode: flow_axes.writing_mode(),
             text_align: style.text_align,
             border,
             padding,
