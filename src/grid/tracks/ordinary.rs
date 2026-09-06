@@ -1,7 +1,8 @@
 use super::*;
 
 use super::flexible::{
-    resolve_ordinary_track_phases, span_contribution_with_gutters, stretch_empty_auto_track_basis,
+    OrdinaryTrackSizingInput, resolve_ordinary_track_phases, span_contribution_with_gutters,
+    stretch_empty_auto_track_basis,
 };
 use crate::LengthResolutionOf;
 
@@ -36,30 +37,11 @@ pub(super) fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionO
     }
 }
 
-fn resolve_track_min_bounds<S: LayoutScalar>(
-    tracks: &[TrackSizingOf<S>],
-    basis: Option<S>,
-    min_intrinsic_sizes: &[S],
-    max_intrinsic_sizes: &[S],
-) -> Vec<S> {
-    tracks
-        .iter()
-        .enumerate()
-        .map(|(index, track)| {
-            let intrinsic = match track.min {
-                MinTrackSizingOf::MaxContent => intrinsic_at(max_intrinsic_sizes, index),
-                _ => intrinsic_at(min_intrinsic_sizes, index),
-            };
-            track_min_size(&track.min, basis, intrinsic)
-        })
-        .collect()
-}
-
 #[derive(Clone)]
 pub(super) struct OrdinaryTrackState<'a, S: LayoutScalar> {
     sizing_functions: &'a TrackSizingOf<S>,
     pub(super) base_size: S,
-    growth_limit: Option<S>,
+    pub(super) growth_limit: Option<S>,
     fit_content_limit: Option<S>,
     pub(super) flex_factor: Option<S>,
     pub(super) auto_max_stretch_eligible: bool,
@@ -105,22 +87,22 @@ impl<'a, S: LayoutScalar> OrdinaryTrackState<'a, S> {
             )),
             _ => None,
         };
-        self.base_size = match self.fit_content_limit {
-            Some(limit) => max_intrinsic.min(min_intrinsic.max(limit)),
-            None => match self.sizing_functions.max {
-                MaxTrackSizingOf::Flex(_) => max_intrinsic.max(track_min_size_for_intrinsics(
-                    &self.sizing_functions.min,
-                    basis,
-                    min_intrinsic,
-                    max_intrinsic,
-                )),
-                _ => track_base_size_for_intrinsics(
-                    self.sizing_functions,
-                    basis,
-                    min_intrinsic,
-                    max_intrinsic,
-                ),
-            },
+        // Intrinsic minima establish the base; fixed maxima only bound later growth.
+        // Keep the already-resolved flexible contribution floor until the fr phase.
+        self.base_size = if self.flex_factor.is_some() {
+            max_intrinsic.max(track_min_size_for_intrinsics(
+                &self.sizing_functions.min,
+                basis,
+                min_intrinsic,
+                max_intrinsic,
+            ))
+        } else {
+            let intrinsic = if self.sizing_functions.min == MinTrackSizingOf::MaxContent {
+                max_intrinsic
+            } else {
+                min_intrinsic
+            };
+            track_min_size(&self.sizing_functions.min, basis, intrinsic)
         };
         self.growth_limit = self
             .fit_content_limit
@@ -141,6 +123,7 @@ impl<'a, S: LayoutScalar> OrdinaryTrackState<'a, S> {
         );
         if let Some(growth_limit) = self.growth_limit {
             self.base_size = self.base_size.min(growth_limit.max(floor));
+            self.growth_limit = Some(growth_limit.max(self.base_size));
         }
     }
 }
@@ -202,6 +185,7 @@ pub(in crate::grid) fn resolve_tracks<S: LayoutScalar>(
     resolve_tracks_with_gutters(tracks, basis, gap, alignment, intrinsic_sizes, None)
 }
 
+#[cfg(test)]
 pub(in crate::grid) fn resolve_tracks_with_gutters<S: LayoutScalar>(
     tracks: &[TrackSizingOf<S>],
     basis: Option<S>,
@@ -210,21 +194,23 @@ pub(in crate::grid) fn resolve_tracks_with_gutters<S: LayoutScalar>(
     intrinsic_sizes: &[S],
     gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
 ) -> Vec<S> {
-    resolve_ordinary_track_phases(
+    resolve_ordinary_track_phases(OrdinaryTrackSizingInput {
         tracks,
-        basis,
+        percent_basis: basis,
+        available: basis.map_or(AvailableOf::MAX_CONTENT, AvailableOf::Definite),
+        stretch_size: basis,
         gap,
         alignment,
-        intrinsic_sizes,
-        intrinsic_sizes,
+        min_intrinsic_sizes: intrinsic_sizes,
+        max_intrinsic_sizes: intrinsic_sizes,
         gutters,
-    )
+    })
 }
 
-pub(in crate::grid) fn resolve_inline_tracks<S: LayoutScalar>(
-    input: InlineTrackInput<'_, S>,
+pub(in crate::grid) fn resolve_axis_tracks<S: LayoutScalar>(
+    input: AxisTrackInput<'_, S>,
 ) -> Vec<S> {
-    let InlineTrackInput {
+    let AxisTrackInput {
         tracks,
         basis,
         definite_size,
@@ -236,61 +222,30 @@ pub(in crate::grid) fn resolve_inline_tracks<S: LayoutScalar>(
         max_intrinsic_sizes,
         gutters,
     } = input;
-
-    let max_tracks = resolve_ordinary_track_phases(
-        tracks,
-        basis,
-        gap,
-        AlignContent::Start,
-        min_intrinsic_sizes,
-        max_intrinsic_sizes,
-        gutters,
-    );
-    let mut min_tracks =
-        resolve_track_min_bounds(tracks, basis, min_intrinsic_sizes, max_intrinsic_sizes);
-    if let Some(gutters) = gutters {
-        for (size, collapsed) in min_tracks.iter_mut().zip(gutters.collapsed()) {
-            if *collapsed {
-                *size = S::ZERO;
-            }
-        }
-    }
-    let max_content = track_sum_with_gutters(&max_tracks, gap, gutters);
-    let min_content = track_sum_with_gutters(&min_tracks, gap, gutters);
-    if let Some(available_size) = definite_size.or(available_size)
-        && max_content > S::ZERO
-        && available_size < max_content
-    {
-        let target = available_size.max(min_content).min(max_content);
-        return distribute_tracks_between_bounds_with_gutters(
-            &min_tracks,
-            &max_tracks,
-            gap,
-            gutters,
-            target,
-        );
-    }
-
-    let phase_basis = basis.or_else(|| {
+    let stretch_size = definite_size.or_else(|| {
         stretch_empty_auto_track_basis(
             tracks,
-            available_size,
+            available_size.into_option(),
             alignment,
             stretch_empty_auto_to_available,
             max_intrinsic_sizes,
         )
     });
-    resolve_ordinary_track_phases(
+    let phase_input = OrdinaryTrackSizingInput {
         tracks,
-        phase_basis,
+        percent_basis: basis,
+        available: definite_size.map_or(available_size, AvailableOf::Definite),
+        stretch_size,
         gap,
         alignment,
         min_intrinsic_sizes,
         max_intrinsic_sizes,
         gutters,
-    )
+    };
+    resolve_ordinary_track_phases(phase_input)
 }
 
+#[cfg(test)]
 pub(in crate::grid) fn track_base_size_for_intrinsics<S: LayoutScalar>(
     track: &TrackSizingOf<S>,
     basis: Option<S>,
@@ -362,51 +317,6 @@ fn track_growth_limit_for_intrinsics<S: LayoutScalar>(
         MaxTrackSizingOf::MaxContent | MaxTrackSizingOf::Auto => Some(max_intrinsic),
         MaxTrackSizingOf::Flex(_) => None,
     }
-}
-
-#[cfg(test)]
-pub(in crate::grid) fn distribute_tracks_between_bounds<S: LayoutScalar>(
-    min_tracks: &[S],
-    max_tracks: &[S],
-    gap: S,
-    target: S,
-) -> Vec<S> {
-    distribute_tracks_between_bounds_with_gutters(min_tracks, max_tracks, gap, None, target)
-}
-
-fn distribute_tracks_between_bounds_with_gutters<S: LayoutScalar>(
-    min_tracks: &[S],
-    max_tracks: &[S],
-    gap: S,
-    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
-    target: S,
-) -> Vec<S> {
-    let min_sum = track_sum_with_gutters(min_tracks, gap, gutters);
-    let max_sum = track_sum_with_gutters(max_tracks, gap, gutters);
-    if target <= min_sum {
-        return min_tracks.to_vec();
-    }
-    if target >= max_sum {
-        return max_tracks.to_vec();
-    }
-
-    let mut resolved = max_tracks.to_vec();
-    let shrink = (max_sum - target).max(S::ZERO);
-    let shrink_capacity = max_tracks
-        .iter()
-        .zip(min_tracks)
-        .map(|(max, min)| (*max - *min).max(S::ZERO))
-        .fold(S::ZERO, |sum, value| sum + value);
-    if shrink_capacity == S::ZERO {
-        return resolved;
-    }
-
-    let ratio = (shrink / shrink_capacity).min(S::ONE);
-    for (index, resolved) in resolved.iter_mut().enumerate() {
-        let capacity = (max_tracks[index] - min_tracks[index]).max(S::ZERO);
-        *resolved = *resolved - capacity * ratio;
-    }
-    resolved
 }
 
 pub(super) fn intrinsic_at<S: LayoutScalar>(intrinsic_sizes: &[S], index: usize) -> S {

@@ -1055,11 +1055,13 @@ where
             sizing_flow_axes,
             &columns,
             sizing_flow_axes.logical_size(output_size).inline,
-            InlineTrackInput {
+            AxisTrackInput {
                 tracks: &column_tracks,
                 basis: context.percent_basis.inline,
                 definite_size: logical_node_inner_size.inline,
-                available_size: logical_available_inner_size.inline,
+                available_size: logical_available_inner_size
+                    .inline
+                    .map_or(AvailableOf::MAX_CONTENT, AvailableOf::Definite),
                 gap: layout_gap.inline,
                 gutters: Some(&context.column_gutters),
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
@@ -1900,20 +1902,8 @@ struct GridTrackResolutionInput<'a, Node, S: LayoutScalar = Scalar> {
 struct GridTrackSizingPhases;
 
 impl GridTrackSizingPhases {
-    fn resolve_inline<S: LayoutScalar>(self, input: InlineTrackInput<'_, S>) -> Vec<S> {
-        resolve_inline_tracks(input)
-    }
-
-    fn resolve_block<S: LayoutScalar>(
-        self,
-        tracks: &[TrackSizingOf<S>],
-        basis: Option<S>,
-        gap: S,
-        alignment: AlignContent,
-        intrinsic_sizes: &[S],
-        gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
-    ) -> Vec<S> {
-        resolve_tracks_with_gutters(tracks, basis, gap, alignment, intrinsic_sizes, gutters)
+    fn resolve_axis<S: LayoutScalar>(self, input: AxisTrackInput<'_, S>) -> Vec<S> {
+        resolve_axis_tracks(input)
     }
 }
 
@@ -1972,6 +1962,26 @@ where
         sizing_flow_axes.logical_size(constants.content_box_inset.sum_axes());
     let column_basis = percent_basis.inline;
     let row_basis = percent_basis.block;
+    // Intrinsic requests keep their constraint even when the containing viewport
+    // is definite. An auto block size is content-based, so its outer available
+    // space is not a definite track-sizing space.
+    let track_available = LogicalSizeOf::new(
+        match available.inline {
+            AvailableOf::Definite(_) => logical_available_inner_size
+                .inline
+                .map_or(available.inline, AvailableOf::Definite),
+            intrinsic => intrinsic,
+        },
+        match available.block {
+            AvailableOf::Definite(_) if logical_node_inner_size.block.is_none() => {
+                AvailableOf::MAX_CONTENT
+            }
+            AvailableOf::Definite(_) => logical_available_inner_size
+                .block
+                .map_or(available.block, AvailableOf::Definite),
+            intrinsic => intrinsic,
+        },
+    );
     let intrinsic_grid = IntrinsicGrid {
         style,
         constants,
@@ -2096,11 +2106,11 @@ where
         mixed_column_intrinsic_sizes.as_slice()
     };
     let mut columns = {
-        sizing_phases.resolve_inline(InlineTrackInput {
+        sizing_phases.resolve_axis(AxisTrackInput {
             tracks: column_tracks,
             basis: column_basis,
             definite_size: logical_node_inner_size.inline,
-            available_size: logical_available_inner_size.inline,
+            available_size: track_available.inline,
             gap: gap.inline,
             gutters: active_column_gutters,
             alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
@@ -2118,11 +2128,11 @@ where
             (max_inline - logical_content_box_inset_size.inline).max(Tree::Scalar::ZERO);
         if track_sum_with_gutters(&columns, gap.inline, active_column_gutters) > max_inner_inline {
             columns = {
-                sizing_phases.resolve_inline(InlineTrackInput {
+                sizing_phases.resolve_axis(AxisTrackInput {
                     tracks: column_tracks,
                     basis: column_basis,
                     definite_size: logical_node_inner_size.inline,
-                    available_size: Some(max_inner_inline),
+                    available_size: AvailableOf::Definite(max_inner_inline),
                     gap: gap.inline,
                     gutters: active_column_gutters,
                     alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
@@ -2167,14 +2177,18 @@ where
         merge_lane_intrinsic_lower_bounds(&mut row_intrinsic_sizes, lane_rows);
     }
     let mut rows = {
-        sizing_phases.resolve_block(
-            row_tracks,
-            row_basis,
-            gap.block,
-            style.align_content.unwrap_or(AlignContent::Stretch),
-            &row_intrinsic_sizes,
-            active_row_gutters,
-        )
+        sizing_phases.resolve_axis(AxisTrackInput {
+            tracks: row_tracks,
+            basis: row_basis,
+            definite_size: logical_node_inner_size.block,
+            available_size: track_available.block,
+            gap: gap.block,
+            alignment: style.align_content.unwrap_or(AlignContent::Stretch),
+            min_intrinsic_sizes: &row_intrinsic_sizes,
+            max_intrinsic_sizes: &row_intrinsic_sizes,
+            gutters: active_row_gutters,
+            stretch_empty_auto_to_available: false,
+        })
     };
     let row_constrained_column_intrinsic_sizes =
         constrained_column_intrinsic_sizes(tree, node, intrinsic_grid, &columns, &rows, gap)?;
@@ -2208,11 +2222,11 @@ where
             mixed_column_intrinsic_sizes.as_slice()
         };
         columns = {
-            sizing_phases.resolve_inline(InlineTrackInput {
+            sizing_phases.resolve_axis(AxisTrackInput {
                 tracks: column_tracks,
                 basis: column_basis,
                 definite_size: logical_node_inner_size.inline,
-                available_size: logical_available_inner_size.inline,
+                available_size: track_available.inline,
                 gap: gap.inline,
                 gutters: active_column_gutters,
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
@@ -2232,14 +2246,18 @@ where
             .map(|(unconstrained, constrained)| unconstrained.max(constrained))
             .collect::<Vec<_>>();
         rows = {
-            sizing_phases.resolve_block(
-                row_tracks,
-                row_basis,
-                gap.block,
-                style.align_content.unwrap_or(AlignContent::Stretch),
-                &row_intrinsic_sizes,
-                active_row_gutters,
-            )
+            sizing_phases.resolve_axis(AxisTrackInput {
+                tracks: row_tracks,
+                basis: row_basis,
+                definite_size: logical_node_inner_size.block,
+                available_size: track_available.block,
+                gap: gap.block,
+                alignment: style.align_content.unwrap_or(AlignContent::Stretch),
+                min_intrinsic_sizes: &row_intrinsic_sizes,
+                max_intrinsic_sizes: &row_intrinsic_sizes,
+                gutters: active_row_gutters,
+                stretch_empty_auto_to_available: false,
+            })
         };
     }
 
@@ -2458,11 +2476,13 @@ where
             )
         };
     let layout_intrinsic_columns = if layout_gap != gap || rerun_percent_columns {
-        sizing_phases.resolve_inline(InlineTrackInput {
+        sizing_phases.resolve_axis(AxisTrackInput {
             tracks: column_tracks,
             basis: column_basis,
             definite_size: logical_node_inner_size.inline,
-            available_size: logical_available_inner_size.inline,
+            available_size: logical_available_inner_size
+                .inline
+                .map_or(AvailableOf::MAX_CONTENT, AvailableOf::Definite),
             gap: layout_gap.inline,
             gutters: Some(&layout_column_gutters),
             alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
@@ -2480,11 +2500,13 @@ where
         &layout_intrinsic_columns,
         sizing_flow_axes.logical_size(output_size).inline,
         {
-            InlineTrackInput {
+            AxisTrackInput {
                 tracks: column_tracks,
                 basis: column_basis,
                 definite_size: logical_node_inner_size.inline,
-                available_size: logical_available_inner_size.inline,
+                available_size: logical_available_inner_size
+                    .inline
+                    .map_or(AvailableOf::MAX_CONTENT, AvailableOf::Definite),
                 gap: layout_gap.inline,
                 gutters: Some(&layout_column_gutters),
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
@@ -2577,11 +2599,11 @@ where
 }
 
 #[derive(Clone, Copy)]
-struct InlineTrackInput<'a, S: LayoutScalar = Scalar> {
+struct AxisTrackInput<'a, S: LayoutScalar = Scalar> {
     tracks: &'a [TrackSizingOf<S>],
     basis: Option<S>,
     definite_size: Option<S>,
-    available_size: Option<S>,
+    available_size: AvailableOf<S>,
     gap: S,
     gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
     alignment: AlignContent,
@@ -2649,7 +2671,7 @@ fn resolved_logical_layout_columns<S: LayoutScalar>(
     sizing_flow_axes: crate::geometry::FlowAxes,
     intrinsic_columns: &[S],
     output_inline: S,
-    input: InlineTrackInput<'_, S>,
+    input: AxisTrackInput<'_, S>,
 ) -> Vec<S> {
     let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
     let logical_available_inner_size =
@@ -2670,10 +2692,12 @@ fn resolved_logical_layout_columns<S: LayoutScalar>(
                 <= S::from_f64(0.001)
     });
     let resolution_inline = percent_floor_basis.unwrap_or(content_inline);
-    sizing_phases.resolve_inline(InlineTrackInput {
+    sizing_phases.resolve_axis(AxisTrackInput {
         basis: Some(resolution_inline),
         definite_size: Some(resolution_inline),
-        available_size: logical_available_inner_size.inline,
+        available_size: logical_available_inner_size
+            .inline
+            .map_or(AvailableOf::MAX_CONTENT, AvailableOf::Definite),
         ..input
     })
 }
@@ -2715,14 +2739,18 @@ fn resolved_logical_layout_rows<S: LayoutScalar>(
     let logical_content_box_inset_size =
         sizing_flow_axes.logical_size(constants.content_box_inset.sum_axes());
     let content_block = (output_block - logical_content_box_inset_size.block).max(S::ZERO);
-    sizing_phases.resolve_block(
+    sizing_phases.resolve_axis(AxisTrackInput {
         tracks,
-        Some(content_block),
+        basis: Some(content_block),
+        definite_size: Some(content_block),
+        available_size: AvailableOf::Definite(content_block),
         gap,
         alignment,
-        intrinsic_sizes,
+        min_intrinsic_sizes: intrinsic_sizes,
+        max_intrinsic_sizes: intrinsic_sizes,
         gutters,
-    )
+        stretch_empty_auto_to_available: false,
+    })
 }
 
 fn track_needs_layout_resolution<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {

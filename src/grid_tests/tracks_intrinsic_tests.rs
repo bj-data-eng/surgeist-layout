@@ -1527,11 +1527,11 @@ fn fri04_c03_grid_track_nested_track_breadths_and_fit_content_use_complete_progr
 
     let fit = TrackSizing::fit_content(fri04_c03_grid_track_nested(20.0, 60.0, 80.0));
     assert_eq!(
-        resolve_inline_tracks(InlineTrackInput {
+        resolve_axis_tracks(AxisTrackInput {
             tracks: &[fit],
             basis: None,
             definite_size: None,
-            available_size: None,
+            available_size: AvailableOf::MAX_CONTENT,
             gap: 0.0,
             alignment: AlignContent::Start,
             stretch_empty_auto_to_available: false,
@@ -1550,11 +1550,11 @@ fn fri04_c03_grid_track_nested_track_breadths_and_fit_content_use_complete_progr
     let dependent_fit =
         TrackSizing::fit_content(fri04_c03_grid_track_percentage_nested(20.0, 0.6, 80.0));
     assert_eq!(
-        resolve_inline_tracks(InlineTrackInput {
+        resolve_axis_tracks(AxisTrackInput {
             tracks: core::slice::from_ref(&dependent_fit),
             basis: None,
             definite_size: None,
-            available_size: None,
+            available_size: AvailableOf::MAX_CONTENT,
             gap: 0.0,
             alignment: AlignContent::Start,
             stretch_empty_auto_to_available: false,
@@ -1564,11 +1564,11 @@ fn fri04_c03_grid_track_nested_track_breadths_and_fit_content_use_complete_progr
         }),
         [100.0]
     );
-    let definite_fit = resolve_inline_tracks(InlineTrackInput {
+    let definite_fit = resolve_axis_tracks(AxisTrackInput {
         tracks: &[dependent_fit],
         basis: Some(100.0),
         definite_size: Some(100.0),
-        available_size: Some(100.0),
+        available_size: AvailableOf::Definite(100.0),
         gap: 0.0,
         alignment: AlignContent::Start,
         stretch_empty_auto_to_available: false,
@@ -4961,17 +4961,17 @@ fn named_grid_lone_named_span_auto_defaults_to_one_track_auto_placement() {
 }
 
 #[test]
-fn resolve_inline_tracks_accepts_f64_track_inputs() {
+fn resolve_axis_tracks_accepts_f64_track_inputs() {
     let tracks = [
         TrackSizingOf::<f64>::px(10.25),
         TrackSizingOf::<f64>::AUTO,
         track_flex::<f64>(0.5),
     ];
-    let sizes = resolve_inline_tracks(InlineTrackInput {
+    let sizes = resolve_axis_tracks(AxisTrackInput {
         tracks: &tracks,
         basis: Some(90.75_f64),
         definite_size: Some(90.75_f64),
-        available_size: Some(90.75_f64),
+        available_size: AvailableOf::Definite(90.75_f64),
         gap: 0.25_f64,
         gutters: None,
         alignment: AlignContent::Stretch,
@@ -5415,11 +5415,11 @@ fn indefinite_flex_tracks_keep_span_resolved_bases() {
 #[test]
 fn inline_sub_one_flex_tracks_keep_non_spanned_track_proportional_to_used_fraction() {
     let tracks = [track_flex(0.2), track_flex(0.3), track_flex(0.5)];
-    let sizes = resolve_inline_tracks(InlineTrackInput {
+    let sizes = resolve_axis_tracks(AxisTrackInput {
         tracks: &tracks,
         basis: None,
         definite_size: None,
-        available_size: None,
+        available_size: AvailableOf::MAX_CONTENT,
         gap: 0.0,
         gutters: None,
         alignment: AlignContent::Start,
@@ -5439,33 +5439,17 @@ fn sub_one_flex_track_content_sum_includes_unfilled_fraction() {
 }
 
 #[test]
-fn tracks_shrink_between_min_and_max_bounds() {
-    let sizes =
-        distribute_tracks_between_bounds(&[40.0, 20.0, 40.0], &[40.0, 40.0, 40.0], 0.0, 110.0);
-
-    assert_eq!(sizes, [40.0, 30.0, 40.0]);
-}
-
-#[test]
-fn tracks_stop_shrinking_at_minimum_bounds() {
-    let sizes =
-        distribute_tracks_between_bounds(&[40.0, 20.0, 40.0], &[40.0, 40.0, 40.0], 0.0, 90.0);
-
-    assert_eq!(sizes, [40.0, 20.0, 40.0]);
-}
-
-#[test]
 fn inline_minmax_tracks_shrink_to_minimum_bounds() {
     let tracks = [
         TrackSizing::px(40.0),
         TrackSizing::minmax(MinTrackSizing::px(20.0), MaxTrackSizing::px(40.0)),
         TrackSizing::px(40.0),
     ];
-    let sizes = resolve_inline_tracks(InlineTrackInput {
+    let sizes = resolve_axis_tracks(AxisTrackInput {
         tracks: &tracks,
         basis: Some(90.0),
         definite_size: Some(90.0),
-        available_size: None,
+        available_size: AvailableOf::MAX_CONTENT,
         gap: 0.0,
         gutters: None,
         alignment: AlignContent::Start,
@@ -5478,17 +5462,17 @@ fn inline_minmax_tracks_shrink_to_minimum_bounds() {
 }
 
 #[test]
-fn inline_minmax_tracks_interpolate_inside_bounds() {
+fn inline_minmax_tracks_grow_until_the_available_space_is_exhausted() {
     let tracks = [
         TrackSizing::px(40.0),
         TrackSizing::minmax(MinTrackSizing::px(20.0), MaxTrackSizing::px(40.0)),
         TrackSizing::px(40.0),
     ];
-    let sizes = resolve_inline_tracks(InlineTrackInput {
+    let sizes = resolve_axis_tracks(AxisTrackInput {
         tracks: &tracks,
         basis: Some(110.0),
         definite_size: Some(110.0),
-        available_size: None,
+        available_size: AvailableOf::MAX_CONTENT,
         gap: 0.0,
         gutters: None,
         alignment: AlignContent::Start,
@@ -5506,11 +5490,11 @@ fn inline_minmax_max_content_minimum_overrides_fixed_maximum() {
         MinTrackSizing::MAX_CONTENT,
         MaxTrackSizing::px(10.0),
     )];
-    let sizes = resolve_inline_tracks(InlineTrackInput {
+    let sizes = resolve_axis_tracks(AxisTrackInput {
         tracks: &tracks,
         basis: None,
         definite_size: None,
-        available_size: None,
+        available_size: AvailableOf::MAX_CONTENT,
         gap: 0.0,
         gutters: None,
         alignment: AlignContent::Start,
@@ -5528,11 +5512,11 @@ fn inline_minmax_auto_minimum_allows_fixed_maximum() {
         MinTrackSizing::AUTO,
         MaxTrackSizing::px(10.0),
     )];
-    let sizes = resolve_inline_tracks(InlineTrackInput {
+    let sizes = resolve_axis_tracks(AxisTrackInput {
         tracks: &tracks,
         basis: None,
         definite_size: None,
-        available_size: None,
+        available_size: AvailableOf::MAX_CONTENT,
         gap: 0.0,
         gutters: None,
         alignment: AlignContent::Start,
@@ -5566,4 +5550,289 @@ fn grid_affine_percent_track_needs_layout_resolution() {
     );
 
     assert!(track.depends_on_basis());
+}
+
+fn assert_grid_track_maximization<S: LayoutScalar>() {
+    for row_axis in [false, true] {
+        for (available, expected) in [(150.0, [75.0, 75.0]), (250.0, [100.0, 150.0])] {
+            let tracks = vec![
+                TrackComponentOf::minmax(
+                    MinTrackSizingOf::px(S::ZERO),
+                    MaxTrackSizingOf::px(S::from_f64(100.0)),
+                ),
+                TrackComponentOf::minmax(
+                    MinTrackSizingOf::px(S::ZERO),
+                    MaxTrackSizingOf::px(S::from_f64(200.0)),
+                ),
+            ];
+            let cross_tracks = vec![TrackComponentOf::px(S::from_f64(10.0))];
+            let size = if row_axis {
+                Size::new(S::from_f64(10.0), S::from_f64(available))
+            } else {
+                Size::new(S::from_f64(available), S::from_f64(10.0))
+            };
+            let tree = PublicLayoutTreeOf::<S>::new().children(1, [2, 3]).style(
+                1,
+                NodeInputOf {
+                    display: Display::Grid,
+                    size: size.map(PreferredSizeOf::px),
+                    grid_template_columns: if row_axis {
+                        cross_tracks.clone()
+                    } else {
+                        tracks.clone()
+                    },
+                    grid_template_rows: if row_axis { tracks } else { cross_tracks },
+                    justify_content: Some(AlignContent::Start),
+                    align_content: Some(AlignContent::Start),
+                    ..NodeInputOf::<S>::default()
+                },
+            );
+            let tree = tree
+                .style(2, NodeInputOf::<S>::default())
+                .style(3, NodeInputOf::<S>::default());
+            let batch = fri08_c03_auto_fit_batch(&tree, size);
+            for (node, expected) in [(2, expected[0]), (3, expected[1])] {
+                let output = fri08_c01_placement_output(&batch, node);
+                assert_eq!(
+                    if row_axis {
+                        output.size.height
+                    } else {
+                        output.size.width
+                    },
+                    S::from_f64(expected),
+                    "axis row={row_axis}, available={available}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn grid_track_maximization_equal_growth_and_frozen_limits_f32() {
+    assert_grid_track_maximization::<f32>();
+}
+
+#[test]
+fn grid_track_maximization_equal_growth_and_frozen_limits_f64() {
+    assert_grid_track_maximization::<f64>();
+}
+
+fn assert_grid_axis_track_phase_contracts<S: LayoutScalar>() {
+    let px = S::from_f64;
+    let bounded = |min, max| {
+        TrackSizingOf::minmax(MinTrackSizingOf::px(px(min)), MaxTrackSizingOf::px(px(max)))
+    };
+    let tracks = [bounded(20.0, 100.0), bounded(0.0, 200.0)];
+    for (available, gap, expected) in [
+        (AvailableOf::Definite(px(150.0)), px(0.0), [85.0, 65.0]),
+        (AvailableOf::Definite(px(150.0)), px(10.0), [80.0, 60.0]),
+        (AvailableOf::Definite(px(250.0)), px(10.0), [100.0, 140.0]),
+        (AvailableOf::MIN_CONTENT, px(10.0), [20.0, 0.0]),
+        (AvailableOf::MAX_CONTENT, px(10.0), [100.0, 200.0]),
+    ] {
+        let sizes = resolve_axis_tracks(AxisTrackInput {
+            tracks: &tracks,
+            basis: None,
+            definite_size: None,
+            available_size: available,
+            gap,
+            gutters: None,
+            alignment: AlignContent::Start,
+            stretch_empty_auto_to_available: false,
+            min_intrinsic_sizes: &[S::ZERO; 2],
+            max_intrinsic_sizes: &[S::ZERO; 2],
+        });
+        assert_eq!(
+            sizes,
+            expected.map(px),
+            "unequal bases under {available:?} and gap {gap:?}"
+        );
+    }
+    let tracks = [
+        bounded(0.0, 100.0),
+        TrackSizingOf::px(px(80.0)),
+        bounded(0.0, 200.0),
+    ];
+    let gutters = OrdinaryGridAxisGuttersOf::new(3, &[false, true, false], px(10.0));
+    let sizes = resolve_axis_tracks(AxisTrackInput {
+        tracks: &tracks,
+        basis: None,
+        definite_size: Some(px(150.0)),
+        available_size: AvailableOf::Definite(px(150.0)),
+        gap: px(10.0),
+        gutters: Some(&gutters),
+        alignment: AlignContent::Start,
+        stretch_empty_auto_to_available: false,
+        min_intrinsic_sizes: &[S::ZERO; 3],
+        max_intrinsic_sizes: &[S::ZERO; 3],
+    });
+    assert_eq!(
+        sizes,
+        [px(70.0), S::ZERO, px(70.0)],
+        "collapsed tracks do not grow or introduce additional gutters"
+    );
+
+    let tracks = [
+        TrackSizingOf::px(px(40.0)),
+        bounded(0.0, 100.0),
+        track_flex(S::ONE),
+        TrackSizingOf::AUTO,
+    ];
+    let sizes = resolve_axis_tracks(AxisTrackInput {
+        tracks: &tracks,
+        basis: None,
+        definite_size: Some(px(300.0)),
+        available_size: AvailableOf::Definite(px(300.0)),
+        gap: S::ZERO,
+        gutters: None,
+        alignment: AlignContent::Stretch,
+        stretch_empty_auto_to_available: false,
+        min_intrinsic_sizes: &[S::ZERO, S::ZERO, S::ZERO, px(20.0)],
+        max_intrinsic_sizes: &[S::ZERO, S::ZERO, S::ZERO, px(30.0)],
+    });
+    assert_eq!(
+        sizes,
+        [40.0, 100.0, 130.0, 30.0].map(px),
+        "maximize before resolving fr and stretching auto tracks"
+    );
+    let tracks = [
+        TrackSizingOf::px(px(40.0)),
+        bounded(0.0, 100.0),
+        TrackSizingOf::AUTO,
+    ];
+    let sizes = resolve_axis_tracks(AxisTrackInput {
+        tracks: &tracks,
+        basis: None,
+        definite_size: Some(px(300.0)),
+        available_size: AvailableOf::Definite(px(300.0)),
+        gap: S::ZERO,
+        gutters: None,
+        alignment: AlignContent::Stretch,
+        stretch_empty_auto_to_available: false,
+        min_intrinsic_sizes: &[S::ZERO, S::ZERO, px(20.0)],
+        max_intrinsic_sizes: &[S::ZERO, S::ZERO, px(30.0)],
+    });
+    assert_eq!(
+        sizes,
+        [40.0, 100.0, 160.0].map(px),
+        "only auto maxima stretch after maximization"
+    );
+
+    let tracks = [TrackSizingOf::percent(px(0.5)), bounded(0.0, 200.0)];
+    let sizes = resolve_axis_tracks(AxisTrackInput {
+        tracks: &tracks,
+        basis: Some(px(200.0)),
+        definite_size: Some(px(150.0)),
+        available_size: AvailableOf::Definite(px(150.0)),
+        gap: S::ZERO,
+        gutters: None,
+        alignment: AlignContent::Start,
+        stretch_empty_auto_to_available: false,
+        min_intrinsic_sizes: &[S::ZERO; 2],
+        max_intrinsic_sizes: &[S::ZERO; 2],
+    });
+    assert_eq!(
+        sizes,
+        [100.0, 50.0].map(px),
+        "percentage basis is independent from space for track growth"
+    );
+}
+
+#[test]
+fn grid_axis_track_phase_contracts_f32() {
+    assert_grid_axis_track_phase_contracts::<f32>();
+}
+
+#[test]
+fn grid_axis_track_phase_contracts_f64() {
+    assert_grid_axis_track_phase_contracts::<f64>();
+}
+
+fn assert_grid_intrinsic_track_constraints<S: LayoutScalar>() {
+    for writing_mode in [WritingMode::HorizontalTb, WritingMode::VerticalRl] {
+        let flow = FlowAxes::new(writing_mode, Direction::Ltr);
+        for row_axis in [false, true] {
+            let mut cases = vec![
+                ("min-content", PreferredSizeOf::MIN_CONTENT, [0.0, 0.0]),
+                ("max-content", PreferredSizeOf::MAX_CONTENT, [100.0, 200.0]),
+            ];
+            if row_axis {
+                cases.push(("auto block size", PreferredSizeOf::AUTO, [100.0, 200.0]));
+            }
+            for (case, preferred, expected) in cases {
+                let tracks = vec![
+                    TrackComponentOf::minmax(
+                        MinTrackSizingOf::px(S::ZERO),
+                        MaxTrackSizingOf::px(S::from_f64(100.0)),
+                    ),
+                    TrackComponentOf::minmax(
+                        MinTrackSizingOf::px(S::ZERO),
+                        MaxTrackSizingOf::px(S::from_f64(200.0)),
+                    ),
+                ];
+                let cross = vec![TrackComponentOf::px(S::from_f64(10.0))];
+                let size = if row_axis {
+                    LogicalSizeOf::new(PreferredSizeOf::px(S::from_f64(10.0)), preferred)
+                } else {
+                    LogicalSizeOf::new(preferred, PreferredSizeOf::px(S::from_f64(10.0)))
+                };
+                let tree = PublicLayoutTreeOf::<S>::new()
+                    .children(1, [2, 3])
+                    .style(
+                        1,
+                        NodeInputOf {
+                            display: Display::Grid,
+                            writing_mode,
+                            size: flow.physical_size(size),
+                            grid_template_columns: if row_axis {
+                                cross.clone()
+                            } else {
+                                tracks.clone()
+                            },
+                            grid_template_rows: if row_axis { tracks } else { cross },
+                            justify_content: Some(AlignContent::Start),
+                            align_content: Some(AlignContent::Start),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        2,
+                        NodeInputOf {
+                            writing_mode,
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        3,
+                        NodeInputOf {
+                            writing_mode,
+                            ..NodeInputOf::default()
+                        },
+                    );
+                let batch = fri08_c03_auto_fit_batch(&tree, Size::splat(S::from_f64(240.0)));
+                for (node, expected) in [
+                    (1, expected[0] + expected[1]),
+                    (2, expected[0]),
+                    (3, expected[1]),
+                ] {
+                    let size = flow.logical_size(fri08_c01_placement_output(&batch, node).size);
+                    assert_eq!(
+                        if row_axis { size.block } else { size.inline },
+                        S::from_f64(expected),
+                        "{case}, row={row_axis}, {writing_mode:?}, node {node}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn grid_intrinsic_track_constraints_override_finite_viewport_f32() {
+    assert_grid_intrinsic_track_constraints::<f32>();
+}
+
+#[test]
+fn grid_intrinsic_track_constraints_override_finite_viewport_f64() {
+    assert_grid_intrinsic_track_constraints::<f64>();
 }

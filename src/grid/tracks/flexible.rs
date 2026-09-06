@@ -207,31 +207,116 @@ fn ordinary_track_states<'a, S: LayoutScalar>(
         .collect()
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct OrdinaryTrackSizingInput<'a, S: LayoutScalar> {
+    pub(super) tracks: &'a [TrackSizingOf<S>],
+    pub(super) percent_basis: Option<S>,
+    pub(super) available: AvailableOf<S>,
+    pub(super) stretch_size: Option<S>,
+    pub(super) gap: S,
+    pub(super) alignment: AlignContent,
+    pub(super) min_intrinsic_sizes: &'a [S],
+    pub(super) max_intrinsic_sizes: &'a [S],
+    pub(super) gutters: Option<&'a OrdinaryGridAxisGuttersOf<S>>,
+}
+
+fn maximize_tracks<S: LayoutScalar>(
+    states: &mut [OrdinaryTrackState<'_, S>],
+    available: AvailableOf<S>,
+    gap_total: S,
+) {
+    let mut remaining = match available {
+        AvailableOf::MinContent => return,
+        AvailableOf::MaxContent => {
+            for state in states {
+                if let Some(limit) = state.growth_limit {
+                    state.base_size = state.base_size.max(limit);
+                }
+            }
+            return;
+        }
+        AvailableOf::Definite(available) => (available
+            - gap_total
+            - states
+                .iter()
+                .map(|state| state.base_size)
+                .fold(S::ZERO, |sum, size| sum + size))
+        .max(S::ZERO),
+    };
+    while remaining > S::ZERO {
+        let eligible = states
+            .iter()
+            .filter(|state| {
+                !state.collapsed
+                    && state.flex_factor.is_none()
+                    && state
+                        .growth_limit
+                        .is_some_and(|limit| limit > state.base_size)
+            })
+            .count();
+        if eligible == 0 {
+            break;
+        }
+        let increment = remaining / S::from_usize(eligible);
+        let mut used = S::ZERO;
+        for state in states.iter_mut() {
+            if !state.collapsed
+                && state.flex_factor.is_none()
+                && let Some(limit) = state.growth_limit
+                && limit > state.base_size
+            {
+                let next = (state.base_size + increment).min(limit);
+                used = used + (next - state.base_size);
+                state.base_size = next;
+            }
+        }
+        let next = (remaining - used).max(S::ZERO);
+        if next >= remaining {
+            break;
+        }
+        remaining = next;
+    }
+}
+
 pub(super) fn resolve_ordinary_track_phases<S: LayoutScalar>(
-    tracks: &[TrackSizingOf<S>],
-    basis: Option<S>,
-    gap: S,
-    alignment: AlignContent,
-    min_intrinsic_sizes: &[S],
-    max_intrinsic_sizes: &[S],
-    gutters: Option<&OrdinaryGridAxisGuttersOf<S>>,
+    input: OrdinaryTrackSizingInput<'_, S>,
 ) -> Vec<S> {
+    let OrdinaryTrackSizingInput {
+        tracks,
+        percent_basis,
+        available,
+        stretch_size,
+        gap,
+        alignment,
+        min_intrinsic_sizes,
+        max_intrinsic_sizes,
+        gutters,
+    } = input;
     let gap_total = gutters.map_or_else(
         || gap * S::from_usize(tracks.len().saturating_sub(1)),
         OrdinaryGridAxisGuttersOf::active_gap_total,
     );
     let mut states = ordinary_track_states(
         tracks,
-        basis,
+        percent_basis,
         min_intrinsic_sizes,
         max_intrinsic_sizes,
         gutters,
     );
+    maximize_tracks(&mut states, available, gap_total);
     let base_sizes = states
         .iter()
         .map(|state| state.base_size)
         .collect::<Vec<_>>();
-    let fr_size = resolve_flex_fraction(tracks, &base_sizes, basis.map(|size| size - gap_total));
+    let fr_size = if available == AvailableOf::MIN_CONTENT {
+        S::ZERO
+    } else {
+        resolve_flex_fraction(
+            tracks,
+            &base_sizes,
+            available.into_option().map(|size| size - gap_total),
+        )
+    };
     for state in &mut states {
         if let Some(flex_factor) = state.flex_factor {
             state.base_size = state.base_size.max(flex_factor * fr_size);
@@ -253,7 +338,7 @@ pub(super) fn resolve_ordinary_track_phases<S: LayoutScalar>(
         .filter(|state| state.auto_max_stretch_eligible && !state.collapsed)
         .count();
     let auto_size = if alignment == AlignContent::Stretch && auto_count > 0 {
-        basis
+        stretch_size
             .map(|size| {
                 ((size - gap_total - fixed_sum - flex_used).max(S::ZERO))
                     / S::from_usize(auto_count)

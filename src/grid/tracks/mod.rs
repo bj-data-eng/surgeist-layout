@@ -9,14 +9,13 @@ mod validation;
 pub(super) use flexible::*;
 pub(super) use intrinsic::*;
 pub(super) use ordinary::{
-    OrdinaryIntrinsicContributionInput, apply_ordinary_intrinsic_contribution,
-    resolve_inline_tracks, resolve_tracks_with_gutters, track_base_size,
-    track_resolution_intrinsic_sizes,
+    OrdinaryIntrinsicContributionInput, apply_ordinary_intrinsic_contribution, resolve_axis_tracks,
+    track_base_size, track_resolution_intrinsic_sizes,
 };
 #[cfg(test)]
 pub(super) use ordinary::{
-    distribute_tracks_between_bounds, resolve_tracks, track_base_size_for_intrinsics,
-    track_growth_limit, track_min_size_for_intrinsics,
+    resolve_tracks, track_base_size_for_intrinsics, track_growth_limit,
+    track_min_size_for_intrinsics,
 };
 #[cfg(test)]
 pub(super) use subgrid_intrinsic::needs_intrinsic_subgrid_context;
