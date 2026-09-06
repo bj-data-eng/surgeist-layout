@@ -251,14 +251,14 @@ fn assert_tree_leaf_constraint_overflow<S: LayoutScalar>(largest_finite: S) {
         .expect("largest finite root availability is valid");
 
     let error = compute_layout(&tree, 0, request)
-        .expect_err("overflowing content-space arithmetic must return no completed batch");
+        .expect_err("overflowing resolved padding must return no completed batch");
 
     assert_eq!(error.site(), LayoutErrorSiteOf::Node(0));
-    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
     assert!(matches!(
         error.kind(),
         LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric { value })
-            if *value == -S::INFINITY
+            if *value == S::INFINITY
     ));
     assert_eq!(tree.measure_calls.get(), 0);
 }

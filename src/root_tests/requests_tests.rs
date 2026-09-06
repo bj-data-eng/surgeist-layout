@@ -4281,7 +4281,7 @@ fn overflowing_scroll_edges() -> Edges<Length> {
     }
 }
 
-fn assert_fri06_mr02_geometry_error_leaf_standalone_mapping<S: LayoutScalar>() {
+fn assert_leaf_content_overflow_is_invalid_numeric<S: LayoutScalar>() {
     let largest = fri06_mr02_geometry_error_largest_finite::<S>();
     let size = Size::new(largest, S::ONE);
     let style = NodeInputOf {
@@ -4310,14 +4310,15 @@ fn assert_fri06_mr02_geometry_error_leaf_standalone_mapping<S: LayoutScalar>() {
     assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
     assert!(matches!(
         error.kind(),
-        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidRootScrollGeometry)
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric { value })
+            if *value == S::INFINITY
     ));
 }
 
 #[test]
-fn fri06_mr02_geometry_error_leaf_standalone_mapping_remains_unchanged_both_scalars() {
-    assert_fri06_mr02_geometry_error_leaf_standalone_mapping::<f32>();
-    assert_fri06_mr02_geometry_error_leaf_standalone_mapping::<f64>();
+fn leaf_content_overflow_is_invalid_numeric_in_both_scalars() {
+    assert_leaf_content_overflow_is_invalid_numeric::<f32>();
+    assert_leaf_content_overflow_is_invalid_numeric::<f64>();
 }
 
 #[test]

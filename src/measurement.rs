@@ -102,10 +102,42 @@ pub enum LeafMeasureErrorOf<S: LayoutScalar, M> {
 pub type LeafMeasureError<M> = LeafMeasureErrorOf<DefaultScalar, M>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct LeafResolvedValues<S: LayoutScalar> {
-    margin: Edges<S>,
+struct LeafBoxEdges<S: LayoutScalar> {
     padding: Edges<S>,
     border: Edges<S>,
+    padding_size: Size<S>,
+    padding_border_size: Size<S>,
+}
+
+impl<S: LayoutScalar> LeafBoxEdges<S> {
+    fn new(padding: Edges<S>, border: Edges<S>) -> Result<Self, LengthResolutionStatus<S>> {
+        let validate = |value: S| {
+            NonNegativeFiniteOf::new(value)
+                .map(NonNegativeFiniteOf::get)
+                .map_err(|_| LengthResolutionStatus::InvalidNumeric { value })
+        };
+        let padding = transpose_leaf_edges(padding.map(validate))?;
+        let border = transpose_leaf_edges(border.map(validate))?;
+        let padding_border = transpose_leaf_edges((padding + border).map(validate))?;
+        let validate_size =
+            |size: Size<S>| Ok(Size::new(validate(size.width)?, validate(size.height)?));
+        let padding_size = validate_size(padding.sum_axes())?;
+        // Validate each resolved box component as well as their combined inset.
+        validate_size(border.sum_axes())?;
+        let padding_border_size = validate_size(padding_border.sum_axes())?;
+        Ok(Self {
+            padding,
+            border,
+            padding_size,
+            padding_border_size,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct LeafResolvedValues<S: LayoutScalar> {
+    margin: Edges<S>,
+    box_edges: LeafBoxEdges<S>,
     node_size: Size<Option<S>>,
     node_min_size: Size<Option<S>>,
     node_max_size: Size<Option<S>>,
@@ -138,10 +170,9 @@ where
             .containing_flow_axes()
             .zip_physical_edges_with_inline_extent(style.border, input.parent(), resolve_length),
     )?;
-    let padding_border = padding + border;
-    let padding_border_size = padding_border.sum_axes();
+    let box_edges = LeafBoxEdges::new(padding, border)?;
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
-        padding_border_size
+        box_edges.padding_border_size
     } else {
         Size::ZERO
     };
@@ -167,55 +198,61 @@ where
                         missing_basis_is_indefinite,
                     )?,
                 );
-                let style_size = preferred
-                    .map(|resolved| match resolved {
-                        ResolvedPreferredSize::Definite(value) => Some(value),
-                        ResolvedPreferredSize::Auto
-                        | ResolvedPreferredSize::MinContent
-                        | ResolvedPreferredSize::MaxContent => None,
-                    })
-                    .apply_aspect_ratio(style.aspect_ratio)
-                    .add_optional(box_sizing_adjustment);
+                let style_size = validate_resolved_leaf_size(
+                    preferred
+                        .map(|resolved| match resolved {
+                            ResolvedPreferredSize::Definite(value) => Some(value),
+                            ResolvedPreferredSize::Auto
+                            | ResolvedPreferredSize::MinContent
+                            | ResolvedPreferredSize::MaxContent => None,
+                        })
+                        .apply_aspect_ratio(style.aspect_ratio)
+                        .add_optional(box_sizing_adjustment),
+                )?;
                 let preferred_intrinsic_availability = preferred.map(|resolved| match resolved {
                     ResolvedPreferredSize::MinContent => Some(AvailableOf::MIN_CONTENT),
                     ResolvedPreferredSize::MaxContent => Some(AvailableOf::MAX_CONTENT),
                     ResolvedPreferredSize::Auto | ResolvedPreferredSize::Definite(_) => None,
                 });
-                let style_min_size = Size::new(
-                    resolve_minimum_optional(
-                        &style.min_size.width,
-                        SizingAlgorithm::Leaf,
-                        PhysicalAxis::Horizontal,
-                        input.parent().width,
-                        missing_basis_is_indefinite,
-                    )?,
-                    resolve_minimum_optional(
-                        &style.min_size.height,
-                        SizingAlgorithm::Leaf,
-                        PhysicalAxis::Vertical,
-                        input.parent().height,
-                        missing_basis_is_indefinite,
-                    )?,
-                )
-                .apply_aspect_ratio(style.aspect_ratio)
-                .add_optional(box_sizing_adjustment);
-                let style_max_size = Size::new(
-                    resolve_maximum_optional(
-                        &style.max_size.width,
-                        SizingAlgorithm::Leaf,
-                        PhysicalAxis::Horizontal,
-                        input.parent().width,
-                        missing_basis_is_indefinite,
-                    )?,
-                    resolve_maximum_optional(
-                        &style.max_size.height,
-                        SizingAlgorithm::Leaf,
-                        PhysicalAxis::Vertical,
-                        input.parent().height,
-                        missing_basis_is_indefinite,
-                    )?,
-                )
-                .add_optional(box_sizing_adjustment);
+                let style_min_size = validate_resolved_leaf_size(
+                    Size::new(
+                        resolve_minimum_optional(
+                            &style.min_size.width,
+                            SizingAlgorithm::Leaf,
+                            PhysicalAxis::Horizontal,
+                            input.parent().width,
+                            missing_basis_is_indefinite,
+                        )?,
+                        resolve_minimum_optional(
+                            &style.min_size.height,
+                            SizingAlgorithm::Leaf,
+                            PhysicalAxis::Vertical,
+                            input.parent().height,
+                            missing_basis_is_indefinite,
+                        )?,
+                    )
+                    .apply_aspect_ratio(style.aspect_ratio)
+                    .add_optional(box_sizing_adjustment),
+                )?;
+                let style_max_size = validate_resolved_leaf_size(
+                    Size::new(
+                        resolve_maximum_optional(
+                            &style.max_size.width,
+                            SizingAlgorithm::Leaf,
+                            PhysicalAxis::Horizontal,
+                            input.parent().width,
+                            missing_basis_is_indefinite,
+                        )?,
+                        resolve_maximum_optional(
+                            &style.max_size.height,
+                            SizingAlgorithm::Leaf,
+                            PhysicalAxis::Vertical,
+                            input.parent().height,
+                            missing_basis_is_indefinite,
+                        )?,
+                    )
+                    .add_optional(box_sizing_adjustment),
+                )?;
 
                 (
                     input.known().or(style_size),
@@ -244,8 +281,7 @@ where
 
     Ok(LeafResolvedValues {
         margin,
-        padding,
-        border,
+        box_edges,
         node_size,
         node_min_size,
         node_max_size,
@@ -277,6 +313,26 @@ fn transpose_leaf_edges<S, E>(edges: Edges<Result<S, E>>) -> Result<Edges<S>, E>
         edges.bottom?,
         edges.left?,
     ))
+}
+
+fn validate_resolved_leaf_size<S: LayoutScalar>(
+    size: Size<Option<S>>,
+) -> Result<Size<Option<S>>, LengthResolutionStatus<S>> {
+    for value in [size.width, size.height].into_iter().flatten() {
+        if !value.is_finite() {
+            return Err(LengthResolutionStatus::InvalidNumeric { value });
+        }
+    }
+    Ok(size)
+}
+
+fn validate_leaf_size<S: LayoutScalar>(size: Size<S>) -> Result<Size<S>, S> {
+    for value in [size.width, size.height] {
+        if !value.is_finite() || value < S::ZERO {
+            return Err(value);
+        }
+    }
+    Ok(size)
 }
 
 pub fn compute_leaf<S, M>(
@@ -346,15 +402,20 @@ where
     S: LayoutScalar,
 {
     let LeafResolvedValues {
-        padding,
-        border,
+        box_edges:
+            LeafBoxEdges {
+                padding,
+                border,
+                padding_border_size,
+                ..
+            },
         node_size,
         node_min_size,
         node_max_size,
         ..
     } = resolved;
-    let padding_border = padding + border;
-    let padding_border_size = padding_border.sum_axes();
+    let arithmetic_error =
+        |value| invalid_numeric_error_at_site(site, LayoutOperation::LeafMeasurement, value);
     let leaf_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
     let block_start = leaf_flow_axes.block_start();
     let block_end = leaf_flow_axes.block_end();
@@ -389,7 +450,9 @@ where
         let size = Size::new(width, height)
             .clamp_max_before_min_optional(node_min_size, node_max_size)
             .max_optional(padding_border_size.map(Some));
-        return Ok(ComputeOutputOf::from_outer_size(size));
+        return Ok(ComputeOutputOf::from_outer_size(
+            validate_leaf_size(size).map_err(arithmetic_error)?,
+        ));
     }
 
     let mut pass_input = input;
@@ -407,24 +470,34 @@ where
             .known()
             .or(resolved.node_size)
             .unwrap_or(measured + pass.content_box_inset_size);
+        // Check before clamping: a finite maximum must not conceal overflow.
+        for value in [unclamped.width, unclamped.height] {
+            if !value.is_finite() {
+                return Err(arithmetic_error(value));
+            }
+        }
         let height_is_definite =
             pass_input.known().height.is_some() || resolved.node_size.height.is_some();
         let aspect_height = if height_is_definite {
             unclamped.height
         } else {
-            unclamped.height.max(
-                resolved
-                    .aspect_ratio
-                    .map(|ratio| unclamped.width / ratio.get())
-                    .unwrap_or(S::ZERO),
-            )
+            let ratio_height = resolved
+                .aspect_ratio
+                .map(|ratio| unclamped.width / ratio.get())
+                .unwrap_or(S::ZERO);
+            if !ratio_height.is_finite() {
+                return Err(arithmetic_error(ratio_height));
+            }
+            unclamped.height.max(ratio_height)
         };
         let aspect_size = Size::new(unclamped.width, aspect_height)
             .clamp_max_before_min_optional(resolved.node_min_size, resolved.node_max_size)
             .max_optional(padding_border_size.map(Some));
 
-        let mut output =
-            ComputeOutputOf::from_sizes(aspect_size, measured + resolved.padding.sum_axes());
+        let aspect_size = validate_leaf_size(aspect_size).map_err(arithmetic_error)?;
+        let content_size = validate_leaf_size(measured + resolved.box_edges.padding_size)
+            .map_err(arithmetic_error)?;
+        let mut output = ComputeOutputOf::from_sizes(aspect_size, content_size);
         let can_collapse_through = !prevents_margin_collapse
             && leaf_flow_axes.logical_size(aspect_size).block == S::ZERO
             && leaf_flow_axes.logical_size(measured).block == S::ZERO;
@@ -439,8 +512,8 @@ where
                 box_projection: crate::scroll::ScrollBoxProjection::from_node(style),
                 target_projection: crate::scroll::ScrollTargetProjection::from_node(style),
                 border_box_size: aspect_size,
-                border: resolved.border,
-                padding: resolved.padding,
+                border: resolved.box_edges.border,
+                padding: resolved.box_edges.padding,
                 settled_auto_scrollbars: pass_input.settled_auto_scrollbars(),
                 measured_content_size: measured,
             })
@@ -455,6 +528,7 @@ where
                 })?;
                 output.scroll_geometry = Some(geometry);
             }
+            validate_leaf_size(output.content_size).map_err(arithmetic_error)?;
             return Ok(output);
         }
 
@@ -486,10 +560,13 @@ where
         scrollbar_gutter: style.scrollbar_gutter,
         scrollbar_width: style.scrollbar_width,
         settled_auto_scrollbars: input.settled_auto_scrollbars(),
-        padding: resolved.padding,
-        border: resolved.border,
+        padding: resolved.box_edges.padding,
+        border: resolved.box_edges.border,
     });
-    let content_box_inset_size = content_box_inset.sum_axes();
+    let content_box_inset_size =
+        validate_leaf_size(content_box_inset.sum_axes()).map_err(|value| {
+            invalid_numeric_error_at_site(site, LayoutOperation::LeafMeasurement, value)
+        })?;
     let available = Size::new(
         input
             .known()

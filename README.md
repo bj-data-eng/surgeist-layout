@@ -135,7 +135,11 @@ algorithm modes remain internal.
 
 `compute_leaf` is the direct, fallible leaf-measurement boundary. Its provider
 receives non-negative content-space constraints, and invalid provider output or a
-provider error becomes a typed layout error.
+provider error becomes a typed layout error. Resolved padding and border must be
+non-negative and finite, including their combined axis sums. Overflow in
+layout-owned box arithmetic returns `LayoutInvalidInputOf::InvalidNumeric`;
+invalid provider dimensions retain the distinct `MeasurementOutput` diagnostic.
+Valid fully known sizing requests can complete without calling the provider.
 
 Visible inline boundaries and line breaks must match their containing block's
 `FlowAxes`. A mismatch returns `LayoutInvalidInputOf::InlineFlowMismatch` with

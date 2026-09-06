@@ -4,6 +4,224 @@ use crate::{
     RequestedAxis,
 };
 
+mod leaf_box_arithmetic {
+    use super::*;
+
+    fn input<S: LayoutScalar>(known: Size<Option<S>>, content_only: bool) -> ComputeInputOf<S> {
+        let constructor = if content_only {
+            ComputeInputOf::leaf_content_size
+        } else {
+            ComputeInputOf::leaf_layout
+        };
+        constructor(
+            known,
+            Size::NONE,
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(AvailableOf::MAX_CONTENT),
+        )
+        .unwrap()
+    }
+
+    fn assert_invalid_box_edges<S: LayoutScalar>(largest: S) {
+        let largest_length = LengthOf::value(LengthPercentageOf::px(largest).unwrap());
+        let negative_length = LengthOf::value(LengthPercentageOf::px(-S::ONE).unwrap());
+        let cases = [
+            (
+                Edges::all(largest_length),
+                Edges::all(LengthOf::ZERO),
+                S::INFINITY,
+            ),
+            (
+                Edges::all(LengthOf::ZERO),
+                Edges::all(largest_length),
+                S::INFINITY,
+            ),
+            (
+                Edges::new(
+                    LengthOf::ZERO,
+                    LengthOf::ZERO,
+                    LengthOf::ZERO,
+                    largest_length,
+                ),
+                Edges::new(
+                    LengthOf::ZERO,
+                    LengthOf::ZERO,
+                    LengthOf::ZERO,
+                    largest_length,
+                ),
+                S::INFINITY,
+            ),
+            (
+                Edges::all(negative_length),
+                Edges::all(LengthOf::ZERO),
+                -S::ONE,
+            ),
+            (
+                Edges::all(LengthOf::ZERO),
+                Edges::all(negative_length),
+                -S::ONE,
+            ),
+        ];
+        for content_only in [true, false] {
+            for (padding, border, expected) in cases {
+                let style = NodeInputOf {
+                    padding,
+                    border,
+                    ..NodeInputOf::default()
+                };
+                let mut calls = 0;
+                let error = compute_leaf(
+                    input(Size::splat(Some(S::from_f64(10.0))), content_only),
+                    &style,
+                    |_| {
+                        calls += 1;
+                        Ok::<_, ()>(Size::ZERO)
+                    },
+                )
+                .expect_err("invalid resolved box edges cannot produce a successful size");
+                assert_eq!(calls, 0);
+                assert_eq!(error.site(), LayoutErrorSiteOf::Standalone);
+                assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+                assert_eq!(
+                    error.kind(),
+                    &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric {
+                        value: expected
+                    })
+                );
+            }
+        }
+    }
+
+    fn assert_output_overflow<S: LayoutScalar>(largest: S) {
+        let half = largest / S::from_f64(2.0);
+        let mut padding = Edges::all(LengthOf::ZERO);
+        padding.left = LengthOf::value(LengthPercentageOf::px(half).unwrap());
+        for content_only in [true, false] {
+            for style in [
+                NodeInputOf {
+                    padding,
+                    ..NodeInputOf::default()
+                },
+                NodeInputOf {
+                    aspect_ratio: Some(AspectRatioOf::new(S::from_f64(0.5)).unwrap()),
+                    ..NodeInputOf::default()
+                },
+            ] {
+                if content_only && style.aspect_ratio.is_some() {
+                    continue;
+                }
+                // The provider's finite output is valid; overflow belongs to layout arithmetic.
+                let error = compute_leaf(input(Size::NONE, content_only), &style, |_| {
+                    Ok::<_, ()>(Size::new(largest, S::ONE))
+                })
+                .expect_err("derived box dimensions must remain finite");
+                assert_eq!(error.site(), LayoutErrorSiteOf::Standalone);
+                assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+                assert!(matches!(error.kind(), LayoutErrorKindOf::InvalidInput(
+                    LayoutInvalidInputOf::InvalidNumeric { value }
+                ) if !value.is_finite()));
+            }
+        }
+    }
+
+    fn assert_large_valid_boxes<S: LayoutScalar>(largest: S) {
+        let edge = largest / S::from_f64(16.0);
+        let known = largest / S::from_f64(4.0);
+        let style = NodeInputOf {
+            padding: Edges::all(LengthOf::value(LengthPercentageOf::px(edge).unwrap())),
+            // Signed margins are not padding or border and remain valid.
+            margin: Edges::all(LengthAutoOf::value(LengthPercentageOf::px(-edge).unwrap())),
+            ..NodeInputOf::default()
+        };
+        for content_only in [true, false] {
+            let mut calls = 0;
+            let output = compute_leaf(
+                input(Size::splat(Some(known)), content_only),
+                &style,
+                |_| {
+                    calls += 1;
+                    Ok::<_, ()>(Size::splat(edge))
+                },
+            )
+            .expect("large representable box arithmetic remains valid");
+            assert_eq!(output.size, Size::splat(known));
+            assert!(
+                output.content_size.width.is_finite() && output.content_size.height.is_finite()
+            );
+            assert_eq!(calls, usize::from(!content_only));
+        }
+    }
+
+    fn assert_resolved_size_overflow<S: LayoutScalar>(largest: S) {
+        let large = LengthPercentageOf::px(largest).unwrap();
+        let mut padding = Edges::all(LengthOf::ZERO);
+        padding.left = LengthOf::value(LengthPercentageOf::px(largest / S::from_f64(2.0)).unwrap());
+        for style in [
+            NodeInputOf {
+                padding,
+                box_sizing: BoxSizing::ContentBox,
+                size: Size::new(PreferredSizeOf::value(large), PreferredSizeOf::AUTO),
+                ..NodeInputOf::default()
+            },
+            NodeInputOf {
+                padding,
+                box_sizing: BoxSizing::ContentBox,
+                min_size: Size::new(MinSizeOf::value(large), MinSizeOf::AUTO),
+                ..NodeInputOf::default()
+            },
+            NodeInputOf {
+                padding,
+                box_sizing: BoxSizing::ContentBox,
+                max_size: Size::new(MaxSizeOf::value(large), MaxSizeOf::NONE),
+                ..NodeInputOf::default()
+            },
+            NodeInputOf {
+                size: Size::new(PreferredSizeOf::value(large), PreferredSizeOf::AUTO),
+                aspect_ratio: AspectRatioOf::new(S::from_f64(0.5)),
+                ..NodeInputOf::default()
+            },
+        ] {
+            let mut calls = 0;
+            let error = compute_leaf(input(Size::NONE, false), &style, |_| {
+                calls += 1;
+                Ok::<_, ()>(Size::ZERO)
+            })
+            .expect_err("resolved size arithmetic must be checked before measurement");
+            assert_eq!(calls, 0);
+            assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+            assert_eq!(
+                error.kind(),
+                &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric {
+                    value: S::INFINITY
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn leaf_box_arithmetic_rejects_invalid_edges_before_measurement() {
+        assert_invalid_box_edges(f32::MAX);
+        assert_invalid_box_edges(f64::MAX);
+    }
+
+    #[test]
+    fn leaf_box_arithmetic_rejects_derived_output_overflow() {
+        assert_output_overflow(f32::MAX);
+        assert_output_overflow(f64::MAX);
+        assert_resolved_size_overflow(f32::MAX);
+        assert_resolved_size_overflow(f64::MAX);
+    }
+
+    #[test]
+    fn leaf_box_arithmetic_preserves_large_valid_boxes_and_known_size_shortcut() {
+        assert_large_valid_boxes(f32::MAX);
+        assert_large_valid_boxes(f64::MAX);
+    }
+}
+
 fn invalid_numeric_affine_value() -> LengthPercentageOf {
     LengthPercentageOf::from_coefficients(f32::MAX, 1.0).expect("finite coefficients")
 }
