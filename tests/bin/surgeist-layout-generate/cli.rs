@@ -1,4 +1,4 @@
-//! Command compatibility and layout corpus declarations for the shared engine.
+//! Layout corpus commands and declarations for the shared engine.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
@@ -103,11 +103,6 @@ pub(super) fn run_from_env() -> Result<()> {
             let attestation = browser::verify_import(location, &import).map_err(message)?;
             let fixture_paths = attestation.fixture_paths();
             let filter = environment.filter(location, &fixture_paths)?;
-            let prior = if filter.is_none() {
-                crate::legacy::prior_ownership(location)?
-            } else {
-                None
-            };
             let inputs = expected_inputs(&manifest_digest, &attestation)?;
             let corpus = manifest
                 .corpus(browser_location, fixture_paths)?
@@ -120,8 +115,8 @@ pub(super) fn run_from_env() -> Result<()> {
                 None => browser::acquire_browser(owner, corpus.browser(), AcquisitionMode::Managed)
                     .map_err(message)?,
             };
-            let request = GenerationRequest::new(corpus, executable, filter.clone(), prior)
-                .map_err(message)?;
+            let request =
+                GenerationRequest::new(corpus, executable, filter, None).map_err(message)?;
             browser::generate(request, LayoutAdapter).map_err(message)?;
             Ok(())
         }

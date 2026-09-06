@@ -131,11 +131,6 @@ without requiring either cache. Browser-selection variables and generation
 filters do not affect this command. XML parsing and semantic comparison remain
 layout-owned tests; the generic engine treats artifact bytes as opaque.
 
-Legacy schema-3 reports authorize only the first full migration after their
-paths and hashes are checked. They cannot satisfy schema-4 provenance checks or
-authorize filtered migration. Their historical metadata is not promoted into
-current provenance without a complete generation run.
-
 HTML fixtures are the human-readable source of truth. The constrained `html/`
 fixtures are runnable today. XML fixtures are generated browser expectations for
 fast Rust-side regression tests.

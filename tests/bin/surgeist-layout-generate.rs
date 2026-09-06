@@ -4,8 +4,6 @@ mod adapter;
 mod cli;
 #[path = "surgeist-layout-generate/envelope.rs"]
 mod envelope;
-#[path = "surgeist-layout-generate/legacy.rs"]
-mod legacy;
 #[path = "surgeist-layout-generate/measurement.rs"]
 mod measurement;
 #[path = "surgeist-layout-generate/xml.rs"]

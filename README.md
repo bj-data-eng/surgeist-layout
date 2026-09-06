@@ -89,7 +89,7 @@ and publishes verified imports plus attestation. Full generation validates
 accounting before publishing. Filtered generation does not rewrite full reports.
 XML bytes remain layout-owned and comment-free; semantic parsing and comparison
 remain in layout tests. See the [browser parity guide](tests/layout/browser_parity/README.md)
-for commands, cache behavior, and legacy provenance adoption.
+for commands, cache behavior, and current provenance requirements.
 
 Layout owns normalized layout values, algorithm inputs, traversal contracts,
 caches, reports, and box output. Retained tree identity and sibling coordination
